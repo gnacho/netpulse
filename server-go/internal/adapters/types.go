@@ -16,6 +16,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
@@ -61,9 +62,10 @@ type WAN struct {
 	Total24h      float64 `json:"total24h"` // bytes; el cliente formatea con su locale (#899)
 	// Conexión WAN real (issue #276), solo live (el demo las omite):
 	// protocolo ("pppoe"), gateway y DNS. Proto vacío en el demo/datos viejos.
-	Proto   string   `json:"proto,omitempty"`
-	Gateway string   `json:"gateway,omitempty"`
-	DNS     []string `json:"dns,omitempty"`
+	Proto   string          `json:"proto,omitempty"`
+	Gateway string          `json:"gateway,omitempty"`
+	DNS     []string        `json:"dns,omitempty"`
+	FTTH    *probe.FTTHInfo `json:"ftth,omitempty"`
 	// ContractDownMbps/ContractUpMbps: velocidad contratada declarada por el
 	// admin en Ajustes (issue #151). Punteros: ausentes (null) si no está
 	// configurado. Los inyecta el server en handleOverview desde el kv — el
@@ -177,7 +179,7 @@ type Router struct {
 	// dispositivo ni entidades por router en ese caso. Ausente = no se
 	// expone (lo hace NetPulse).
 	SelfExpose *bool `json:"selfExpose,omitempty"`
-	// Type: "glinet"|"openwrt"|"routeros"|"managed-switch"|"external". El frontend lo usa
+	// Type: "glinet"|"openwrt"|"routeros"|"bbox"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
 	Type   string `json:"type,omitempty"`
@@ -636,16 +638,27 @@ type EthPort struct {
 
 // Radio agrega una banda wifi ({name, channel, widthMhz, powerDbm, clients}).
 type Radio struct {
-	Name      string  `json:"name"` // "5 GHz"|"2.4 GHz"
-	Channel   int     `json:"channel"`
-	WidthMhz  int     `json:"widthMhz"`
-	PowerDbm  float64 `json:"powerDbm"`
-	Clients   int     `json:"clients"`
-	Congested bool    `json:"congested,omitempty"` // solo demo
+	Name         string  `json:"name"` // "5 GHz"|"2.4 GHz"
+	Channel      int     `json:"channel"`
+	WidthMhz     int     `json:"widthMhz"`
+	PowerDbm     float64 `json:"powerDbm"`
+	Clients      int     `json:"clients"`
+	PowerKnown   *bool   `json:"powerKnown,omitempty"`
+	ClientsKnown *bool   `json:"clientsKnown,omitempty"`
+	Congested    bool    `json:"congested,omitempty"` // solo demo
 	// #1213/#1206: ruido de la banda y BSSID de la interfaz AP (del agente o
 	// de iwinfo vía SSH). nil/vacío = el driver no los reporta.
 	NoiseDbm *int   `json:"noiseDbm,omitempty"`
 	BSSID    string `json:"bssid,omitempty"`
+	// Cumulative per-band counters where the router API exposes them.
+	RxBytes    *uint64 `json:"rxBytes,omitempty"`
+	TxBytes    *uint64 `json:"txBytes,omitempty"`
+	RxPackets  *uint64 `json:"rxPackets,omitempty"`
+	TxPackets  *uint64 `json:"txPackets,omitempty"`
+	RxErrors   *uint64 `json:"rxErrors,omitempty"`
+	TxErrors   *uint64 `json:"txErrors,omitempty"`
+	RxDiscards *uint64 `json:"rxDiscards,omitempty"`
+	TxDiscards *uint64 `json:"txDiscards,omitempty"`
 }
 
 // Backhaul del AP (null en gateway): {kind:'cable', headline, latencyMs} o el
@@ -949,7 +962,7 @@ type RouterConfig struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Host      string `json:"host"`
-	Type      string `json:"type"` // "glinet"|"openwrt"|"routeros"
+	Type      string `json:"type"` // "glinet"|"openwrt"|"routeros"|"bbox"
 	IsGateway bool   `json:"is_gateway"`
 	AgentOnly bool   `json:"agent_only"`
 	CreatedAt int64  `json:"created_at"` // epoch ms
@@ -985,6 +998,8 @@ type RouterConfig struct {
 	RouterOSUser     string `json:"routeros_user,omitempty"`
 	RouterOSPassword string `json:"-"`
 	RouterOSInsecure bool   `json:"routeros_insecure"` // acepta TLS autofirmado (RouterOS de fábrica)
+	BboxPassword     string `json:"-"`
+	BboxInsecure     bool   `json:"bbox_insecure"`
 }
 
 // TempThresholdValue resuelve el umbral efectivo de temperatura alta (°C) de

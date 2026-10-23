@@ -121,6 +121,8 @@ type routerInput struct {
 	RouterOSUser     *string `json:"routeros_user"`
 	RouterOSPassword *string `json:"routeros_password"`
 	RouterOSInsecure *bool   `json:"routeros_insecure"`
+	BboxPassword *string `json:"bbox_password"`
+	BboxInsecure *bool `json:"bbox_insecure"`
 }
 
 // validateHost replica hostSchema (trim, 1..253, regex). Devuelve el valor
@@ -198,8 +200,8 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	if typ == "" {
 		typ = "openwrt"
 	}
-	if typ != "glinet" && typ != "openwrt" && typ != "routeros" && typ != "managed-switch" && typ != "external" && typ != "asuswrt" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external' | 'asuswrt'")
+	if typ != "glinet" && typ != "openwrt" && typ != "routeros" && typ != "bbox" && typ != "managed-switch" && typ != "external" && typ != "asuswrt" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'routeros' | 'bbox' | 'managed-switch' | 'external' | 'asuswrt'")
 		return
 	}
 	var firmwareTarget string
@@ -257,12 +259,17 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	if in.RouterOSInsecure != nil {
 		routerosInsecure = *in.RouterOSInsecure
 	}
+	bboxPassword := ""
+	if in.BboxPassword != nil { bboxPassword = *in.BboxPassword }
+	bboxInsecure := false
+	if in.BboxInsecure != nil { bboxInsecure = *in.BboxInsecure }
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
 		SSHPort:        sshPort,
-		RouterOSUser:   routerosUser, RouterOSPassword: routerosPassword, RouterOSInsecure: routerosInsecure,
+		RouterOSUser: routerosUser, RouterOSPassword: routerosPassword, RouterOSInsecure: routerosInsecure,
+		BboxPassword: bboxPassword, BboxInsecure: bboxInsecure,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -350,8 +357,8 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	var typ *string
 	if in.Type != "" {
 		t := in.Type
-		if t != "glinet" && t != "openwrt" && t != "routeros" && t != "managed-switch" && t != "external" && t != "asuswrt" {
-			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'routeros' | 'managed-switch' | 'external' | 'asuswrt'")
+		if t != "glinet" && t != "openwrt" && t != "routeros" && t != "bbox" && t != "managed-switch" && t != "external" && t != "asuswrt" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'routeros' | 'bbox' | 'managed-switch' | 'external' | 'asuswrt'")
 			return
 		}
 		typ = &t
@@ -409,6 +416,8 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		v := strings.TrimSpace(*in.RouterOSUser)
 		routerosUser = &v
 	}
+	var bboxPassword *string
+	if in.BboxPassword != nil { v := *in.BboxPassword; bboxPassword = &v }
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
@@ -418,7 +427,8 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		SSHPort:        sshPort,
 		TempThreshold:  tempThreshold,
 		ConsolePolling: in.ConsolePolling,
-		RouterOSUser:   routerosUser, RouterOSPassword: in.RouterOSPassword, RouterOSInsecure: in.RouterOSInsecure,
+		RouterOSUser: routerosUser, RouterOSPassword: in.RouterOSPassword, RouterOSInsecure: in.RouterOSInsecure,
+		BboxPassword: bboxPassword, BboxInsecure: in.BboxInsecure,
 	})
 	if !ok {
 		writeError(w, http.StatusNotFound, "not_found")

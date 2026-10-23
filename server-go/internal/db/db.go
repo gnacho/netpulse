@@ -655,6 +655,8 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "routeros_user", "ALTER TABLE routers ADD COLUMN routeros_user TEXT")
 	migrate(sqldb, "routers", "routeros_password", "ALTER TABLE routers ADD COLUMN routeros_password TEXT")
 	migrate(sqldb, "routers", "routeros_insecure", "ALTER TABLE routers ADD COLUMN routeros_insecure INTEGER NOT NULL DEFAULT 0")
+	migrate(sqldb, "routers", "bbox_password", "ALTER TABLE routers ADD COLUMN bbox_password TEXT")
+	migrate(sqldb, "routers", "bbox_insecure", "ALTER TABLE routers ADD COLUMN bbox_insecure INTEGER NOT NULL DEFAULT 0")
 
 	// #1129: las MACs de roam_events se ingirieron en minúsculas (así vienen
 	// en los logs hostapd/dawn/usteer) mientras el resto de la app canonicaliza

@@ -31,13 +31,11 @@ export function RouterDetailHeader({ router }: { router: Router }) {
       pulse: router.status !== 'online' && router.status !== 'paused',
     },
     ...(isGateway && adguard.host
-      ? [
-          { label: 'AdGuard', tone: 'ok' as const, pulse: false },
-          { label: 'WireGuard', tone: 'tunnel' as const, pulse: false },
-        ]
-      : isGateway
-        ? [{ label: 'WireGuard', tone: 'tunnel' as const, pulse: false }]
-        : []),
+      ? [{ label: 'AdGuard', tone: 'ok' as const, pulse: false }]
+      : []),
+    ...(isGateway && router.type !== 'bbox'
+      ? [{ label: 'WireGuard', tone: 'tunnel' as const, pulse: false }]
+      : []),
   ]
 
   return (
@@ -76,6 +74,8 @@ export function RouterDetailHeader({ router }: { router: Router }) {
             <p className="text-caption text-text-muted">
               {router.type === 'routeros'
                 ? (router.model || 'RouterOS')
+                : router.type === 'bbox'
+                  ? (router.model || 'Bouygues Bbox')
                 : router.type === 'managed-switch'
                   ? (router.model || 'Switch')
                   : isGateway

@@ -105,12 +105,17 @@ type routerPolled struct {
 	sysDescr string
 	// sysName (#1256): hostname que el usuario define en el equipo; para
 	// SNMP alimenta el Name visible de la unidad en flota.
-	sysName           string
-	flash             string
-	firmwareAvailable string
-	uptimeSec         float64
-	net               *NetDevBps
-	leases            []DhcpLease
+	sysName             string
+	flash               string
+	firmwareAvailable   string
+	uptimeSec           float64
+	net                 *NetDevBps
+	wanContractDownMbps *float64
+	wanContractUpMbps   *float64
+	// clientTrafficMbps contains current per-client traffic reported by an
+	// integration with host-level rates (e.g. Bbox /hosts usage).
+	clientTrafficMbps   map[string]float64
+	leases              []DhcpLease
 	// reservations: the `config host` entries of /etc/config/dhcp. They name
 	// clients that never take a lease because their address is fixed on the
 	// device itself.
@@ -139,6 +144,7 @@ type routerPolled struct {
 	radios    []Radio
 	fdb       map[string]string
 	brMac     string
+	lanIP     string
 	latencyMs *float64
 	lossPct   *float64
 	// backhaul: "cable"|"wifi"|"" (desconocido → se omite en el contrato).
@@ -254,12 +260,13 @@ type Live struct {
 	db   *db.DB
 	pool *SSHPool
 
-	mu         sync.Mutex
-	surveyMu   sync.Mutex
-	surveyRaw  map[string]surveyEntry
-	routers    []RouterConfig
-	gatewayCfg *RouterConfig
-	clients    map[string]*OpenWrtClient
+	mu          sync.Mutex
+	surveyMu    sync.Mutex
+	surveyRaw   map[string]surveyEntry
+	routers     []RouterConfig
+	gatewayCfg  *RouterConfig
+	clients     map[string]*OpenWrtClient
+	bboxClients map[string]*bboxClient
 
 	lastGood    map[string]*Router
 	lastStatus  map[string]string
@@ -694,6 +701,17 @@ func (l *Live) Tick(context.Context) error { return nil }
 
 // Close cierra el pool SSH.
 func (l *Live) Close() error {
+	l.mu.Lock()
+	boxes := make([]*bboxClient, 0, len(l.bboxClients))
+	for _, c := range l.bboxClients {
+		boxes = append(boxes, c)
+	}
+	l.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	for _, c := range boxes {
+		c.logout(ctx)
+	}
 	l.pool.Close()
 	return nil
 }
@@ -705,11 +723,15 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	l.routers = append([]RouterConfig(nil), list...)
 	l.gatewayCfg = pickGateway(l.routers)
 	l.clients = map[string]*OpenWrtClient{}
+	l.bboxClients = map[string]*bboxClient{}
 	for _, c := range l.routers {
-		// RouterOS no habla SSH/ubus: se sondea por su REST API (routeros_live.go),
 		// sin cliente SSH. Asuswrt tampoco se sondea por SSH (no hay ubus): su
 		// única fuente es el agente (#1481); sin agente la unidad cae a offline.
-		if !c.AgentOnly && c.Type != "routeros" && c.Type != "asuswrt" {
+		if c.Type == "bbox" {
+			if !c.AgentOnly {
+				l.bboxClients[c.ID] = newBboxClient(c)
+			}
+		} else if !c.AgentOnly && c.Type != "routeros" && c.Type != "asuswrt" {
 			l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
 		}
 	}
@@ -1153,6 +1175,9 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	}
 	if cfg.Type == "routeros" {
 		return l.pollRouterROS(cfg)
+	}
+	if cfg.Type == "bbox" {
+		return l.pollRouterBbox(ctx, cfg)
 	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
@@ -1712,7 +1737,7 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		}
 		if gw != nil && cfg.ID == gw.ID {
 			r.Role, r.RoleBadge = "Gateway principal", "Principal"
-		} else if cfg.Type == "routeros" {
+		} else if cfg.Type == "routeros" || cfg.Type == "bbox" {
 			r.Role, r.RoleBadge = "Router", "Router"
 		} else if cfg.Type == "managed-switch" || (cfg.Type == "external" && cfg.SnmpEnabled) {
 			r.Role, r.RoleBadge = "Switch", "SW"
@@ -3253,6 +3278,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		}
 	}
 	devices := []Device{}
+	bboxClientRates := map[string]float64{}
+	for _, p := range polled {
+		for mac, rate := range p.clientTrafficMbps {
+			bboxClientRates[mac] = rate
+		}
+	}
 	for mac := range allMacs {
 		if routerMacs[mac] {
 			continue // los routers no son clientes
@@ -3391,7 +3422,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		// #551: TrafficMbps del cliente desde el rate en memoria (nlbwmon u
 		// hostapd) sin consultar la store en cada rebuild. Solo online; los
 		// offline no tienen rate (la UI pinta "—").
-		if isSeen {
+		if rate, ok := bboxClientRates[mac]; ok {
+			d.TrafficMbps = rate
+		} else if isSeen {
 			if rxBps, txBps := l.clientBwRateFor(mac); rxBps+txBps > 0 {
 				d.TrafficMbps = (rxBps + txBps) / 1e6
 			}
@@ -3583,6 +3616,11 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 		Plan: "—", PublicIP: "—", Isp: "—", PeakTodayTime: "—", Total24h: 0,
 	}
 	if p != nil {
+		if p.cfg.Type == "bbox" {
+			wan.Isp = "Bouygues"
+		}
+		wan.ContractDownMbps = p.wanContractDownMbps
+		wan.ContractUpMbps = p.wanContractUpMbps
 		if p.net != nil {
 			wan.DownMbps = mbps(p.net.RxBps)
 			wan.UpMbps = mbps(p.net.TxBps)
@@ -3594,13 +3632,14 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 			wan.LossPct = *p.lossPct
 		}
 		// Conexión WAN real (issue #276): proto/IP/gateway/DNS desde ubus.
-		if wi := p.wanInfo; wi.IP != "" || wi.Proto != "" {
+		if wi := p.wanInfo; wi.IP != "" || wi.Proto != "" || wi.FTTH != nil {
 			wan.Proto = wi.Proto
 			if wi.IP != "" {
 				wan.PublicIP = wi.IP
 			}
 			wan.Gateway = wi.Gateway
 			wan.DNS = wi.DNS
+			wan.FTTH = wi.FTTH
 		}
 	}
 	// Resumen del día desde la BD (issue #169): pico de hoy, media y total
@@ -4106,14 +4145,15 @@ func countClientsPerRouter(routers []Router, devices []Device) {
 
 // liveExtras es el objeto extras del detalle live (index.js:677-700).
 type liveExtras struct {
-	MAC               string `json:"mac"`
-	Firmware          string `json:"firmware"`
-	FirmwareUpdated   bool   `json:"firmwareUpdated"`
-	FirmwareAvailable string `json:"firmwareAvailable,omitempty"`
-	LastReboot        string `json:"lastReboot"`
-	Soc               string `json:"soc"`
-	Flash             string `json:"flash"`
-	RamMb             int    `json:"ramMb"`
+	MAC                 string        `json:"mac"`
+	LanIP               string        `json:"lanIp,omitempty"`
+	Firmware            string        `json:"firmware"`
+	FirmwareUpdated     bool          `json:"firmwareUpdated"`
+	FirmwareAvailable   string        `json:"firmwareAvailable,omitempty"`
+	LastReboot          string        `json:"lastReboot"`
+	Soc                 string        `json:"soc"`
+	Flash               string        `json:"flash"`
+	RamMb               int           `json:"ramMb"`
 	// Timezone (#1500): nombre IANA del equipo; lo aporta el agente desde
 	// /etc/localtime (ubus nunca lo dio y ningún sondeo SSH/SNMP tampoco).
 	Timezone string `json:"timezone,omitempty"`
@@ -4277,6 +4317,9 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	if p != nil {
 		if p.brMac != "" {
 			extras.MAC = p.brMac
+		}
+		if p.cfg.Type == "bbox" {
+			extras.LanIP = p.lanIP
 		}
 		if p.board != nil {
 			extras.Firmware = p.board.Release.Description

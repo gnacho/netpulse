@@ -291,6 +291,23 @@ type WanInfo struct {
 	// internet ("lan1" para un PPPoE sobre esa boca, "eth1.20" con VLAN).
 	// Vacía cuando el uplink no pasa por ninguna (módem celular).
 	Port string `json:"port,omitempty"`
+	// FTTH contains optical access diagnostics when a router exposes them.
+	FTTH *FTTHInfo `json:"ftth,omitempty"`
+}
+
+// FTTHInfo is the WAN optical access state. Measurements are optional because
+// Bbox firmware can omit them or return sentinel values when the link is down.
+type FTTHInfo struct {
+	Mode             string   `json:"mode,omitempty"`
+	ModuleClass      string   `json:"moduleClass,omitempty"`
+	State            string   `json:"state,omitempty"`
+	SFPStatus        string   `json:"sfpStatus,omitempty"`
+	AccessMode       string   `json:"accessMode,omitempty"`
+	AccessState      string   `json:"accessState,omitempty"`
+	ReceivePowerDbm  *float64 `json:"receivePowerDbm,omitempty"`
+	TransmitPowerDbm *float64 `json:"transmitPowerDbm,omitempty"`
+	TemperatureC     *float64 `json:"temperatureC,omitempty"`
+	VoltageV         *float64 `json:"voltageV,omitempty"`
 }
 
 // DhcpReservation is one `config host` of /etc/config/dhcp: the name and
