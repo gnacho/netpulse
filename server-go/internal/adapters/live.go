@@ -1761,18 +1761,22 @@ func (l *Live) AcceptHostKey(routerID string) error {
 		return errors.New("ssh pool no configurado")
 	}
 	l.mu.Lock()
-	var host string
-	for _, c := range l.routers {
-		if c.ID == routerID {
-			host = c.Host
+	var cfg *RouterConfig
+	for i := range l.routers {
+		if l.routers[i].ID == routerID {
+			cfg = &l.routers[i]
 			break
 		}
 	}
 	l.mu.Unlock()
-	if host == "" {
+	if cfg == nil {
 		return fmt.Errorf("router %q no configurado", routerID)
 	}
-	if err := l.pool.RemoveHostKey(host); err != nil {
+	// #1524: la entrada known_hosts se escribe con la forma de la dirección
+	// que diala el pool ([host]:puerto en puertos no estándar, host pelado en
+	// el 22). Se pasan ambas formas: la SSHAddr efectiva y el host pelado, por
+	// si queda una entrada vieja de cuando el router no tenía puerto custom.
+	if err := l.pool.RemoveHostKey(cfg.SSHAddr(), cfg.Host); err != nil {
 		return err
 	}
 	l.mu.Lock()

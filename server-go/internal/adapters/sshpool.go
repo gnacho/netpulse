@@ -137,12 +137,23 @@ func (e *HostKeyChangedError) Error() string {
 	return "ssh host key changed for " + e.Host + " (" + e.OldFP + " -> " + e.NewFP + "); re-onboard required"
 }
 
-// RemoveHostKey elimina la entrada known_hosts de un host (confirmación de
+// RemoveHostKey elimina las entradas known_hosts de un host (confirmación de
 // re-onboard #603). Quita las líneas previas de ese host (la lista de hosts
 // de una línea puede ser separada por comas); el siguiente sondeo la vuelve a
 // registrar con TOFU.
-func (p *SSHPool) RemoveHostKey(hostname string) error {
-	norm := knownhosts.Normalize(hostname)
+// Los candidatos son varias formas del mismo destino (#1524): la dirección
+// SSH completa (SSHAddr, que Normalize convierte a [host]:puerto en puertos
+// no estándar) y el host pelado, porque entradas anteriores a un cambio de
+// puerto pueden vivir sin él. Normalizar cada campo de la línea evita depender
+// de cómo se escribió cada entrada.
+func (p *SSHPool) RemoveHostKey(hostnames ...string) error {
+	norms := make(map[string]bool, len(hostnames))
+	for _, h := range hostnames {
+		if h == "" {
+			continue
+		}
+		norms[knownhosts.Normalize(h)] = true
+	}
 	var keep []string
 	if data, err := os.ReadFile(p.khPath); err == nil {
 		for _, ln := range strings.Split(string(data), "\n") {
@@ -155,7 +166,7 @@ func (p *SSHPool) RemoveHostKey(hostname string) error {
 			}
 			drop := false
 			for _, h := range strings.Split(fields[0], ",") {
-				if knownhosts.Normalize(h) == norm {
+				if norms[knownhosts.Normalize(h)] {
 					drop = true
 					break
 				}

@@ -224,3 +224,34 @@ func TestRouterConfigSSHAddr(t *testing.T) {
 		t.Fatalf("SSHAddr con puerto inválido = %q", got)
 	}
 }
+
+// TestRemoveHostKeyCustomPort (#1524): la entrada de un router con SSH en
+// puerto no estándar vive como [host]:puerto (knownhosts.Normalize), así que
+// el borrado solo por el host pelado no encontraba nada y el re-onboard
+// (#603) nunca ocurría. Se aceptan candidatos: la dirección SSH completa y el
+// host pelado (por entradas viejas de cuando el router no tenía puerto).
+func TestRemoveHostKeyCustomPort(t *testing.T) {
+	pool := newTestPool(t)
+	content := strings.Join([]string{
+		"[host-a]:2222 ssh-ed25519 AAAA old-port",
+		"host-a ssh-ed25519 AAAA old-bare",
+		"host-b ssh-ed25519 AAAA keep",
+		"",
+	}, "\n")
+	if err := os.WriteFile(pool.khPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.RemoveHostKey("host-a:2222", "host-a"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(pool.khPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "host-a") {
+		t.Fatalf("quedan entradas de host-a: %s", data)
+	}
+	if !strings.Contains(string(data), "host-b ssh-ed25519 AAAA keep") {
+		t.Fatalf("la entrada de host-b se perdió: %s", data)
+	}
+}
