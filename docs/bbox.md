@@ -27,7 +27,8 @@ retry. NetPulse never logs the password or cookie.
 | `/device/cpu`: `temperature.main` | Router temperature | Raw value divided by 1000, rounded to whole °C. This scale is supported by the exporter Grafana dashboard and is still worth checking against the Bbox UI. |
 | `/device/mem`: `total`, `free`, `cached` | Router RAM percentage | Uses `(total - free - cached) / total`; raw counters are not exposed. |
 | `/hosts`: active `hosts.list` records: `macaddress`, `ipaddress`, `hostname` | NetPulse connected-device inventory | MAC is normalized; inactive records are filtered when `active` is present. |
-| `/hosts`: `wireless.band`, `wireless.rssi0` | Client band and signal | Added only when present; no per-client traffic is inferred. |
+| `/hosts`: active `hosts.list[].wireless.rxUsage`, `txUsage` | Connected-device **Traffic** column | The two captures supplied for the Pure Fibre, 8 seconds apart, show active-host values changing (e.g. 13/2039 to 9/1435) independently from `wireless.rate`. They are treated as kbit/s and summed, then divided by 1000 for NetPulse's combined Mbps field. Inactive hosts are filtered. Unit is empirically inferred from those captures and still needs correlation with a controlled per-device transfer. |
+| `/hosts`: `wireless.band`, `wireless.rssi0` | Client band and signal | Added only when present. `wireless.rate`/`estimatedRate` remain link-rate metadata and are not used as traffic. |
 | `/wireless`: enabled radio state, `current_channel`, `current_bandwidth` | Router radio panel | Radios are identified as 2.4/5/6 GHz. Configured SSID BSSID is mapped when present. Security/passphrase objects are deliberately ignored. |
 | `/wireless/{24,5,6}/stats`: `wireless.ssid.stats.rx/tx.{bytes,packets,packetserrors,packetsdiscards}` | Per-band radio counters | Cumulative RX/TX bytes, packets, errors and discards are attached to the matching radio. The detail panel currently displays byte totals; counters are not per-client or rates. |
 | `/lan/ip`: `switch.ports[].id`, `state`, `link_mode` | Ethernet port panel | Ports and labels (`LAN <id>`) come from the API-reported IDs. Speed is shown only when the port is up and is derived from its API-reported negotiated `link_mode`; maximum hardware capacity is not inferred. |
@@ -59,7 +60,7 @@ not currently provide them:
 | WAN protocol, interface, gateway and physical WAN port | Not populated from `/wan/ip`; no verified mapping has been added. |
 | Per-Ethernet-port cumulative RX/TX bytes, packets, errors and discards | Not populated. `/lan/stats` has these fields, but the supplied port-5 byte/packet counters disagree with aggregate LAN counters and appear implausible. Instantaneous per-port bandwidth is mapped separately. |
 | Port-to-device topology, FDB neighbors, LLDP, VLANs and backhaul details | Not populated. The adapter has no verified Bbox mapping for these NetPulse topology fields. |
-| Per-client traffic rate/history | Not populated. No verified per-client byte counters have been established. Do not derive it from global WAN traffic. |
+| Per-client traffic history | Current Bbox `rxUsage`/`txUsage` rates feed the live device Traffic value; no verified per-client byte counters or historical series have been established. Do not derive per-client traffic from global WAN totals. |
 | Client vendor/manufacturer, model/type, OS, IPv6, lease expiry and DHCP client ID/vendor class | Not populated. The exporter has type declarations for some `/hosts` details, but those fields/semantics have not been confirmed against a redacted Pure Fibre response and NetPulse's current host parser does not consume them. |
 | Client's physical Ethernet port / negotiated speed | Not populated per device. Router port status is available, but matching a host record to a specific port has not been verified. |
 | DNS query count and response timings | `/dns/stats` exposes `nbqueries`, `min`, `max`, and `avg`; exporter dashboard divides timings by 1,000, suggesting microseconds. The unit and sampling window are not API-verified, and NetPulse has no suitable router-wide DNS-stat destination today. |
@@ -76,12 +77,6 @@ counter mismatch observed on this router.
 
 ## Support status
 
-The implementation is model-agnostic where the API is shared, but the initial
-target is Bbox Pure Fibre. The API is unofficial/firmware-dependent. The client
-and parser are covered by mocked HTTP tests; memory, wireless and per-band
-counters, hosts, CPU temperature, uptime, LAN MAC and port state/speed, WAN
-bandwidth/contract values, and FTTH/SFP response shapes
-have been observed on a physical Bbox Pure Fibre. Optical unit scales remain
-inferred and should be compared with the router interface. Further physical
-validation is still needed for firmware-specific response envelopes,
-certificate behavior, CPU temperature scale, and `/lan/stats` semantics.
+The implementation is model-agnostic where the API is shared, but the initial target is Bbox Pure Fibre. 
+The client and parser are covered by mocked HTTP tests; memory, wireless and per-band counters, hosts, CPU temperature, uptime, LAN MAC and port state/speed, WAN bandwidth/contract values, and FTTH/SFP response shapes have been observed on a physical Bbox Pure Fibre.
+The `/hosts` per-client traffic unit is inferred as kbit/s from two live captures, then checked against a controlled transfer. 

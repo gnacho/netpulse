@@ -164,7 +164,10 @@ func TestParseBboxPollMapsVerifiedFields(t *testing.T) {
 			"temperature": map[string]any{"main": float64(52837)},
 		}}}},
 		[]any{map[string]any{"device": map[string]any{"mem": map[string]any{"total": float64(958672), "free": float64(407576), "cached": float64(116392), "committedas": float64(433416)}}}},
-		[]any{map[string]any{"hosts": []any{map[string]any{"macaddress": "aa:bb:cc:dd:ee:ff", "ipaddress": "192.168.1.10", "hostname": "phone"}}}},
+		[]any{map[string]any{"hosts": []any{map[string]any{
+			"active": float64(1), "macaddress": "aa:bb:cc:dd:ee:ff", "ipaddress": "192.168.1.10", "hostname": "phone",
+			"wireless": map[string]any{"band": float64(5), "rssi0": "-42", "rxUsage": float64(13), "txUsage": float64(2039)},
+		}}}},
 		[]any{map[string]any{"wan": map[string]any{"ip": map[string]any{
 			"address": "128.79.199.106", "portrange": "24576:32767", "dnsservers": "192.0.2.53, 192.0.2.54",
 			"dnsserversv6": "2001:db8::53,not-an-ip", "ip6address": []any{map[string]any{"ipaddress": "2001:db8::12"}},
@@ -235,6 +238,9 @@ func TestParseBboxPollMapsVerifiedFields(t *testing.T) {
 	}
 	if len(p.leases) != 1 || p.leases[0].MAC != "AA:BB:CC:DD:EE:FF" || p.leases[0].IP != "192.168.1.10" {
 		t.Fatalf("leases = %+v", p.leases)
+	}
+	if got := p.clientTrafficMbps["AA:BB:CC:DD:EE:FF"]; got != 2.052 {
+		t.Fatalf("per-client traffic = %v Mbps, want 2.052 from rxUsage+txUsage in kbit/s", got)
 	}
 	if p.wanInfo.IP != "128.79.199.106 · 2001:db8::12" {
 		t.Fatalf("combined WAN IPs = %q", p.wanInfo.IP)
@@ -352,7 +358,7 @@ func TestParseBboxHostsUsesActiveHostListAndWirelessMetadata(t *testing.T) {
 		"hosts": map[string]any{"list": []any{
 			map[string]any{
 				"active": float64(1), "macaddress": "00:11:22:33:44:55", "ipaddress": "192.168.0.20", "hostname": "phone",
-				"wireless": map[string]any{"band": float64(5), "rssi0": "-42"},
+				"wireless": map[string]any{"band": float64(5), "rssi0": "-42", "rxUsage": float64(13), "txUsage": float64(2039)},
 			},
 			map[string]any{"active": float64(0), "macaddress": "00:11:22:33:44:66", "ipaddress": "192.168.0.21", "hostname": "offline"},
 		}},
@@ -361,8 +367,32 @@ func TestParseBboxHostsUsesActiveHostListAndWirelessMetadata(t *testing.T) {
 		},
 	}
 	got := parseBboxHosts(response)
-	if len(got) != 1 || got[0].MAC != "00:11:22:33:44:55" || got[0].Band != "5 GHz" || got[0].Signal != -42 {
+	if len(got) != 1 || got[0].MAC != "00:11:22:33:44:55" || got[0].Band != "5 GHz" || got[0].Signal != -42 || !got[0].HasTraffic || got[0].TrafficMbps != 2.052 {
 		t.Fatalf("parsed active host metadata = %+v", got)
+	}
+}
+
+func TestBboxHostTrafficUsageMissingOrMalformedIsNotInvented(t *testing.T) {
+	if got, ok := bboxHostTrafficMbps(map[string]any{"rxUsage": "bad", "txUsage": float64(-1)}); ok || got != 0 {
+		t.Fatalf("invalid usage = %v, %v; want no rate", got, ok)
+	}
+	if got, ok := bboxHostTrafficMbps(map[string]any{"rxUsage": float64(0)}); !ok || got != 0 {
+		t.Fatalf("valid zero usage = %v, %v; want 0 Mbps, present", got, ok)
+	}
+}
+
+func TestBuildDevicesMapsBboxClientTrafficToNormalizedTrafficMbps(t *testing.T) {
+	const mac = "00:11:22:33:44:55"
+	p := &routerPolled{
+		cfg: RouterConfig{ID: "bbox1", Type: "bbox"},
+		leases: []DhcpLease{{MAC: mac, IP: "192.168.0.20", Hostname: "phone"}},
+		wireless: map[string]WirelessClient{mac: {Band: "5 GHz", SignalDbm: -42}},
+		clientTrafficMbps: map[string]float64{mac: 2.052},
+		fdb: map[string]string{},
+	}
+	devices := (&Live{}).buildDevices(map[string]*routerPolled{"bbox1": p}, "")
+	if len(devices) != 1 || devices[0].TrafficMbps != 2.052 {
+		t.Fatalf("normalized devices = %+v, want client traffic 2.052 Mbps", devices)
 	}
 }
 

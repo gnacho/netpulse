@@ -295,6 +295,31 @@ func bboxInt(v any, keys ...string) int {
 type bboxHost struct {
 	MAC, IP, Name, Band string
 	Signal              int
+	TrafficMbps         float64
+	HasTraffic          bool
+}
+
+// Bbox /hosts wireless usage values are exposed as kbit/s on the observed
+// Pure Fibre firmware. NetPulse's client traffic field is combined Mbps.
+func bboxHostTrafficMbps(wireless map[string]any) (float64, bool) {
+	var totalKbps float64
+	found := false
+	for _, key := range []string{"rxUsage", "txUsage"} {
+		raw, exists := wireless[key]
+		if !exists || raw == nil {
+			continue
+		}
+		value, err := strconv.ParseFloat(strings.TrimSpace(fmt.Sprint(raw)), 64)
+		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			continue
+		}
+		totalKbps += value
+		found = true
+	}
+	if !found {
+		return 0, false
+	}
+	return totalKbps / 1000, true
 }
 
 func bboxRadioBand(v any) string {
@@ -344,6 +369,7 @@ func parseBboxHosts(v any) []bboxHost {
 			continue
 		}
 		wireless := bboxMap(record["wireless"])
+		trafficMbps, hasTraffic := bboxHostTrafficMbps(wireless)
 		band := bboxRadioBand(wireless)
 		if band == "" {
 			band = bboxRadioBand(record)
@@ -352,7 +378,7 @@ func parseBboxHosts(v any) []bboxHost {
 		if signal == 0 {
 			signal = bboxInt(record, "signal", "signalstrength")
 		}
-		out = append(out, bboxHost{MAC: mac, IP: bboxDirectString(record, "ipaddress", "ip"), Name: bboxDirectString(record, "hostname", "name"), Band: band, Signal: signal})
+		out = append(out, bboxHost{MAC: mac, IP: bboxDirectString(record, "ipaddress", "ip"), Name: bboxDirectString(record, "hostname", "name"), Band: band, Signal: signal, TrafficMbps: trafficMbps, HasTraffic: hasTraffic})
 	}
 	return out
 }
@@ -674,8 +700,12 @@ func parseBboxPoll(cfg RouterConfig, device, cpu, mem, hosts, wanIP, wanStats, l
 
 	var leases []DhcpLease
 	var wireless map[string]WirelessClient
+	clientTrafficMbps := map[string]float64{}
 	for _, h := range parseBboxHosts(hosts) {
 		leases = append(leases, DhcpLease{MAC: h.MAC, IP: h.IP, Hostname: h.Name})
+		if h.HasTraffic {
+			clientTrafficMbps[h.MAC] = h.TrafficMbps
+		}
 		if wireless == nil {
 			wireless = map[string]WirelessClient{}
 		}
@@ -714,7 +744,7 @@ func parseBboxPoll(cfg RouterConfig, device, cpu, mem, hosts, wanIP, wanStats, l
 	if parsed := net.ParseIP(strings.TrimSpace(bboxDirectString(lanIPInfo, "ipaddress"))); parsed != nil {
 		localIP = parsed.String()
 	}
-	return &routerPolled{cfg: cfg, board: board, cpu: cpuPct, ram: ram, temp: cpuTemp, uptimeSec: uptime, net: wanNet, wanContractDownMbps: bboxContractMbps(wanStats, "rx"), wanContractUpMbps: bboxContractMbps(wanStats, "tx"), leases: leases, wireless: wireless, ports: parseBboxPorts(lanIP, lanStats), radios: radios, fdb: map[string]string{}, brMac: brMac, lanIP: localIP, wanInfo: wanInfo, polledAt: now.UnixMilli()}, nil
+	return &routerPolled{cfg: cfg, board: board, cpu: cpuPct, ram: ram, temp: cpuTemp, uptimeSec: uptime, net: wanNet, wanContractDownMbps: bboxContractMbps(wanStats, "rx"), wanContractUpMbps: bboxContractMbps(wanStats, "tx"), clientTrafficMbps: clientTrafficMbps, leases: leases, wireless: wireless, ports: parseBboxPorts(lanIP, lanStats), radios: radios, fdb: map[string]string{}, brMac: brMac, lanIP: localIP, wanInfo: wanInfo, polledAt: now.UnixMilli()}, nil
 }
 
 

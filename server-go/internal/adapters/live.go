@@ -112,6 +112,9 @@ type routerPolled struct {
 	net                 *NetDevBps
 	wanContractDownMbps *float64
 	wanContractUpMbps   *float64
+	// clientTrafficMbps contains current per-client traffic reported by an
+	// integration with host-level rates (e.g. Bbox /hosts usage).
+	clientTrafficMbps   map[string]float64
 	leases              []DhcpLease
 	// reservations: the `config host` entries of /etc/config/dhcp. They name
 	// clients that never take a lease because their address is fixed on the
@@ -3271,6 +3274,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		}
 	}
 	devices := []Device{}
+	bboxClientRates := map[string]float64{}
+	for _, p := range polled {
+		for mac, rate := range p.clientTrafficMbps {
+			bboxClientRates[mac] = rate
+		}
+	}
 	for mac := range allMacs {
 		if routerMacs[mac] {
 			continue // los routers no son clientes
@@ -3409,7 +3418,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		// #551: TrafficMbps del cliente desde el rate en memoria (nlbwmon u
 		// hostapd) sin consultar la store en cada rebuild. Solo online; los
 		// offline no tienen rate (la UI pinta "—").
-		if isSeen {
+		if rate, ok := bboxClientRates[mac]; ok {
+			d.TrafficMbps = rate
+		} else if isSeen {
 			if rxBps, txBps := l.clientBwRateFor(mac); rxBps+txBps > 0 {
 				d.TrafficMbps = (rxBps + txBps) / 1e6
 			}
