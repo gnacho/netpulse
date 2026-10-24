@@ -34,11 +34,20 @@ import (
 // beaconPort: una boca del beacon. n = número 1..9; l = código de link
 // (0 down · 1 10M · 2 100M · 3 1G · 4 500M · 5 10G · 6 2.5G · 7 5G);
 // tx/rx = contadores acumulados de tramas good (uint32, decimal).
+// ih/il y oh/ol = mitades alta/baja de 32 bits de los octetos acumulados
+// ifInOctets/ifOutOctets (nativos de 64 bits del MIB del RTL837x,
+// gnacho/netpulse#1535, beacon del firmware a partir de v0.1.0-f25dfc6).
+// Ausentes (0) en beacons antiguos: la serie deriva fps de tramas y bps
+// solo cuando hay bytes.
 type beaconPort struct {
 	N  int    `json:"n"`
 	L  int    `json:"l"`
 	Tx uint32 `json:"tx"`
 	Rx uint32 `json:"rx"`
+	Ih uint32 `json:"ih,omitempty"`
+	Il uint32 `json:"il,omitempty"`
+	Oh uint32 `json:"oh,omitempty"`
+	Ol uint32 `json:"ol,omitempty"`
 }
 
 // beaconSFP: diagnóstico digital (DDM/DOM) de una boca óptica del beacon
@@ -58,18 +67,18 @@ type beaconSFP struct {
 // Ev (con Port/Mac) convierte el datagrama en EVENTO inmediato (spec v1.1:
 // loop, port_up, port_down, port_disabled, port_recovered).
 type beaconPacket struct {
-	V     int          `json:"v"` // versión de esquema; solo se acepta 1
-	Seq   uint32       `json:"seq"`
-	Slug  string       `json:"slug"`
-	Token string       `json:"token"`
-	Dev   string       `json:"dev,omitempty"`
-	Fw    string       `json:"fw,omitempty"`
-	Ev    string       `json:"ev,omitempty"`
+	V     int    `json:"v"` // versión de esquema; solo se acepta 1
+	Seq   uint32 `json:"seq"`
+	Slug  string `json:"slug"`
+	Token string `json:"token"`
+	Dev   string `json:"dev,omitempty"`
+	Fw    string `json:"fw,omitempty"`
+	Ev    string `json:"ev,omitempty"`
 	// Spec 2026-09 (gnacho/netpulse#865): el datagrama de estado puede
 	// traer firmware/uptime/MAC al final ("up": segundos desde el boot,
 	// "mac": MAC de gestión sin separadores). Opcionales; un beacon sin
 	// ellos sigue alimentándose del sondeo de consola (#639).
-	Up uint32 `json:"up,omitempty"`
+	Up    uint32       `json:"up,omitempty"`
 	Port  int          `json:"port,omitempty"`
 	Mac   string       `json:"mac,omitempty"`
 	Ports []beaconPort `json:"ports"`
@@ -191,14 +200,14 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 			Kind: "external", Interval: beaconIntervalSec,
 			Data: probe.PayloadData{FDB: &probe.FDBData{MACs: macs, Ports: ports}},
 		}
-	// #865: conservar el System del último payload (del propio beacon, con
-	// fw/up/mac, o del sondeo de consola #639): el ingest FDB reemplaza el
-	// payload entero y sin esto los datos de sistema parpadean cada 5 min.
-	if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.System != nil {
-		fdbPayload.Data.System = prev.Data.System
-	} else {
-		s.attachRTLConsole(p.Slug, src, fdbPayload)
-	}
+		// #865: conservar el System del último payload (del propio beacon, con
+		// fw/up/mac, o del sondeo de consola #639): el ingest FDB reemplaza el
+		// payload entero y sin esto los datos de sistema parpadean cada 5 min.
+		if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.System != nil {
+			fdbPayload.Data.System = prev.Data.System
+		} else {
+			s.attachRTLConsole(p.Slug, src, fdbPayload)
+		}
 		s.agents.Ingest(fdbPayload)
 		s.persistAgentState(p.Slug, s.agents.Snapshot(p.Slug))
 		s.beaconSeqNote(p.Slug, p.Seq)
@@ -468,6 +477,8 @@ func (s *server) recordBeaconPortSamples(slug string, bps []beaconPort) {
 			RouterID:  slug,
 			PortID:    fmt.Sprintf("lan%d", bp.N),
 			TS:        now,
+			RxBytes:   uint64(bp.Ih)<<32 | uint64(bp.Il),
+			TxBytes:   uint64(bp.Oh)<<32 | uint64(bp.Ol),
 			RxFrames:  uint64(bp.Rx),
 			TxFrames:  uint64(bp.Tx),
 			SpeedMbps: speedMbps,

@@ -202,6 +202,7 @@ func (s *Store) getRaw(routerID, portID string, fromMs, toMs int64) ([]PortPoint
 		return nil, err
 	}
 	deriveFps(out)
+	deriveBps(out)
 	return out, nil
 }
 
@@ -229,6 +230,7 @@ func (s *Store) get5m(routerID, portID string, fromMs, toMs int64) ([]PortPoint,
 		return nil, err
 	}
 	deriveFps(out)
+	deriveBps(out)
 	return out, nil
 }
 
@@ -262,6 +264,7 @@ func (s *Store) getDaily(routerID, portID string, from, to time.Time) ([]PortPoi
 		return nil, err
 	}
 	deriveFps(out)
+	deriveBps(out)
 	return out, nil
 }
 
@@ -280,6 +283,26 @@ func deriveFps(pts []PortPoint) {
 		}
 		if pts[i].TxFrames >= pts[i-1].TxFrames {
 			pts[i].TxFps = float64(pts[i].TxFrames-pts[i-1].TxFrames) / dt
+		}
+	}
+}
+
+// deriveBps calcula bits/segundo entre puntos consecutivos a partir de los
+// contadores acumulados de bytes (gnacho/netpulse#1535: el beacon del
+// firmware RTLPlayground a partir de v0.1.0-f25dfc6 reporta
+// ifInOctets/ifOutOctets nativos de 64 bits). Mismo criterio que
+// deriveFps: un contador que baja (reset) no produce tasa en ese punto.
+func deriveBps(pts []PortPoint) {
+	for i := 1; i < len(pts); i++ {
+		dt := pts[i].TS.Sub(pts[i-1].TS).Seconds()
+		if dt <= 0 {
+			continue
+		}
+		if pts[i].RxBytes >= pts[i-1].RxBytes {
+			pts[i].RxBps = float64(pts[i].RxBytes-pts[i-1].RxBytes) * 8 / dt
+		}
+		if pts[i].TxBytes >= pts[i-1].TxBytes {
+			pts[i].TxBps = float64(pts[i].TxBytes-pts[i-1].TxBytes) * 8 / dt
 		}
 	}
 }
