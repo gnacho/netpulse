@@ -335,8 +335,13 @@ type WirelessClient struct {
 
 // PortState es {name, up, speed} de una interfaz (/sys operstate+speed).
 type PortState struct {
-	Name  string `json:"name"`
-	Up    bool   `json:"up"`
+	Name string `json:"name"`
+	Up   bool   `json:"up"`
+	// Oper is the raw sysfs operstate (up/down/dormant/unknown/...). Kept so
+	// the panel can tell a real port (up, or down when unplugged) from a
+	// Broadcom internal ghost interface that never carries user traffic
+	// (dormant/unknown) and must not be shown as a usable port.
+	Oper  string `json:"oper,omitempty"`
 	Speed string `json:"speed"` // "1 Gbps" | "2.5 Gbps" | "100 Mbps" | "—"
 	// DSA: la interfaz es un conduit DSA (puerto CPU interno del switch,
 	// /sys/class/net/<i>/dsa presente). No es una boca usable: se excluye
@@ -1022,7 +1027,7 @@ func ParsePortStates(out string) []PortState {
 		if mbps > 0 {
 			speed = fmtSpeedMbps(mbps)
 		}
-		st := PortState{Name: p[0], Up: p[1] == "up", Speed: speed}
+		st := PortState{Name: p[0], Up: p[1] == "up", Oper: p[1], Speed: speed}
 		if len(p) > 3 && p[3] == "dsa" {
 			st.DSA = true
 		}
@@ -1294,6 +1299,15 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		}
 		if conduits[st.Name] {
 			continue // puerto de CPU del switch, no una boca
+		}
+		// Broadcom/Asuswrt internal "ghost" interfaces (eth5/6/7 on an RT-AX92U)
+		// pass phyRe and carry no DSA/conduit marker, but their sysfs operstate
+		// is dormant/unknown and speed is unreadable: they are not front-panel
+		// ports and never carry user traffic. A real port is either "up" (kept
+		// here and everywhere) or "down" when unplugged. Oper=="" is legacy
+		// three-field output, so nothing is hidden for it.
+		if !st.Up && st.Oper != "" && st.Oper != "down" {
+			continue
 		}
 		// #1200: label centralizado en portPrettyLabel - sfp-lan/sfp-wan
 		// conservan su nombre (antes "SFP -lan"/"SFP -wan").

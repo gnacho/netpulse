@@ -1444,6 +1444,45 @@ func TestBuildEthPortsMantieneEthSinSwitch(t *testing.T) {
 	}
 }
 
+func TestBuildEthPortsDropsBroadcomGhosts(t *testing.T) {
+	// RT-AX92U (Asuswrt/Broadcom, no board.json layout): eth0 is the uplink to
+	// the core switch, eth1-4 are real LAN ports (unplugged, so down + speed 0),
+	// and eth5/6/7 are internal ghost interfaces the driver exposes with
+	// operstate dormant/unknown and unreadable speed. They are not front-panel
+	// ports and must not appear in the panel.
+	states := ParsePortStates(
+		"bcmsw down -1 - 1 -\n" +
+			"br0 up -1 - 1 eth0\n" +
+			"eth0 up 1000 - 1 -\n" +
+			"eth1 down 0 - 1 -\n" +
+			"eth2 down 0 - 1 -\n" +
+			"eth3 down 0 - 1 -\n" +
+			"eth4 down 0 - 1 -\n" +
+			"eth5 dormant -1 - 1 -\n" +
+			"eth6 unknown -1 - 1 -\n" +
+			"eth7 unknown -1 - 1 -\n")
+	ports := BuildEthPorts(nil, states, nil, nil, "eth0")
+	ids := map[string]bool{}
+	for _, p := range ports {
+		ids[p.ID] = true
+		ids[p.Iface] = true
+	}
+	for _, want := range []string{"eth1", "eth2", "eth3", "eth4"} {
+		if !ids[want] {
+			t.Fatalf("real unplugged port %s was dropped: %+v", want, ports)
+		}
+	}
+	for _, ghost := range []string{"eth5", "eth6", "eth7"} {
+		if ids[ghost] {
+			t.Fatalf("Broadcom ghost interface %s must not be a panel port: %+v", ghost, ports)
+		}
+	}
+	// eth0..eth4 → WAN(eth0) + ETH 1..ETH 4 = 5 entries.
+	if len(ports) != 5 {
+		t.Fatalf("want 5 ports, got %d: %+v", len(ports), ports)
+	}
+}
+
 // dumpUplinkNotNamedWan: forma de `ubus call network.interface dump` en una placa cuyo enlace
 // recortada a lo que mira el parser y con la IP pública cambiada. El uplink
 // vivo es un PPPoE llamado "isp" sobre la boca lan1; la interfaz que SÍ se
