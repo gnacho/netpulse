@@ -5566,7 +5566,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 	if neighbor != "" {
 		port.ConnectedTo = d.routerByMac[neighbor]
 		// El cliente traduce la plantilla según PeerKind (#1039).
-		port.PeerKind = "router-link"
+		port.PeerKind = PeerKindRouterLink
 		// #1150: con switches encadenados la boca aprende las MACs de bridge
 		// de VARIAS unidades (el tráfico de sw2 atraviesa sw1) y la primera
 		// MAC ordenada puede nombrar al switch LEJANO. El LLDP anuncia al
@@ -5574,7 +5574,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		// o su sysName manda sobre la MAC ordenada, y la mgmt-ip va al
 		// detalle del hover.
 		if nb := lldpNeighborOnPort(d.lldp, netdev); nb != nil {
-			port.PeerKind = "router-link-lldp"
+			port.PeerKind = PeerKindRouterLinkLLDP
 			if nb.ChassisMac != "" {
 				// La MAC del vecino (su bridge) va al hover como en las bocas
 				// de dispositivo único (#1150).
@@ -5603,7 +5603,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 			port.DeviceMac = all[0]
 			// La pista "cliente WiFi detrás" la traduce el cliente
 			// según PeerKind (#1039); el nombre del AP viaja en ConnectedTo.
-			port.PeerKind = "ap-wifi"
+			port.PeerKind = PeerKindAPWiFi
 			return port
 		}
 	}
@@ -5642,14 +5642,14 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 				// El cliente compone "nombre · detrás de <label>" con
 				// su i18n (#1039); aquí viaja el nombre a pelo.
 				port.ConnectedTo = name
-				port.PeerKind = "curated"
+				port.PeerKind = PeerKindCurated
 			} else if lldpName != "" {
 				// #931: sin nombre mejor, el equipo se anuncia por LLDP.
 				port.ConnectedTo = lldpName
-				port.PeerKind = "mac"
+				port.PeerKind = PeerKindMAC
 			} else {
 				port.ConnectedTo = port.Label
-				port.PeerKind = "mac"
+				port.PeerKind = PeerKindMAC
 			}
 			if lease, ok := d.leaseMap[mac]; ok && lease.IP != "" {
 				port.Detail = lease.IP
@@ -5733,7 +5733,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		} else {
 			// Switch/bridge tonto inferido: sin lease ni alias que lo
 			// nombre. El cliente traduce la etiqueta (#1039/#1040).
-			port.PeerKind = "inferred-switch"
+			port.PeerKind = PeerKindInferredSwitch
 		}
 		return port
 	}

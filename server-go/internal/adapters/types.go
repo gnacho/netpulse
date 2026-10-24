@@ -597,6 +597,18 @@ type SfpInfo struct {
 // EthPort es una boca ethernet ({id, label, up, speed?} + enriquecimiento de
 // vecino en el detalle: connectedTo/deviceMac/detail, SPEC §7.8 + contadores
 // por puerto #305: iface física, bytes/errores acumulados y rates + SFP #313).
+// PeerKind* son los valores del contrato PeerKind (EthPort) que el frontend
+// traduce (#1039). Un solo sitio de verdad: el consumidor TS los replica en
+// app/src/components/routers/routerExtras.ts.
+const (
+	PeerKindRouterLink     = "router-link"
+	PeerKindRouterLinkLLDP = "router-link-lldp"
+	PeerKindAPWiFi         = "ap-wifi"
+	PeerKindCurated        = "curated"
+	PeerKindMAC            = "mac"
+	PeerKindInferredSwitch = "inferred-switch"
+)
+
 type EthPort struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
@@ -622,8 +634,7 @@ type EthPort struct {
 	DeviceCount int `json:"deviceCount,omitempty"`
 	// PeerKind clasifica cómo se resolvió el par para que el CLIENTE
 	// traduzca las plantillas (#1039); "" = par nominal ya traducible tal
-	// cual (nombre/IP/alias). Valores: "router-link", "router-link-lldp",
-	// "ap-wifi", "curated", "inferred-switch".
+	// cual (nombre/IP/alias). Valores en las constantes PeerKind* de abajo.
 	PeerKind string `json:"peerKind,omitempty"`
 	Detail   string `json:"detail,omitempty"`
 	// Snmp indica que el puerto proviene de un switch gestionado por SNMP
