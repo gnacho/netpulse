@@ -29,6 +29,31 @@ Every pull request runs `pr-checks` (server build with the embedded agents, test
 - If a reviewed change needs a different shape (for example code that belongs in its own file), we may ask for a resend under this format instead of merging first and moving it later.
 - Reverts can happen at any time. The format above exists so a revert is a clean, isolated operation.
 
+## New hardware support
+
+Supporting new hardware is a longer-lived commitment than a regular fix, because the maintainer cannot test what they do not own. The bar depends on how new the hardware is.
+
+**New family (adapter, protocol, vendor API):** ten days of soak.
+
+- Run the branch as your daily driver in your own network for at least ten days.
+- Keep the branch public in your fork during that period, so the commit history shows the soak window.
+- Include a short soak log in the PR: what you tested, what broke, what you fixed.
+- Real hardware only: developed and tested against the actual device, read-only first (sessions, polling, parsing), no writes.
+
+**New model in a family already supported (same adapter, different box):** no mandatory soak.
+
+- A real device fixture for the parser tests is mandatory, plus a screenshot of the model showing up in NetPulse.
+- The maintainer may still ask for a few days of use depending on what the change touches.
+
+**Evidence we ask for, in all cases:**
+
+- Device model and exact firmware version.
+- Real fixtures for the tests, with serial numbers, MACs, public IPs and credentials redacted.
+- Screenshots of the screens the integration feeds: overview, fleet, port detail, topology, as applicable.
+- A short note of known gaps and what is still unverified.
+
+A draft without that evidence can still be shared as an issue (dumps, API notes, a branch link) so someone else with the hardware can pick it up. It just does not land as support.
+
 ## Agent and collector changes
 
 If you touch `agent/`, bump `agent/VERSION` in the same pull request. The release gate fails when `agent/` changes without a version bump.
