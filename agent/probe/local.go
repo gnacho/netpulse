@@ -533,6 +533,39 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 			}
 		}
 	}
+	// Broadcom dhd (RT-AX92U con Merlin): nl80211 no expone NADA util — ni
+	// estaciones ni canal — y la unidad parece vacía aunque tenga clientes
+	// asociados (visibles en el panel del firmware). `wl` sí los sabe. Solo
+	// corre cuando los tiers anteriores dejaron huérfanos los clientes o
+	// ninguna radio trae banda.
+	{
+		needWl := !any || len(wd.Radios) == 0
+		if !needWl {
+			banded := false
+			for _, r := range wd.Radios {
+				if r.Name != "" {
+					banded = true
+					break
+				}
+			}
+			needWl = !banded
+		}
+		if needWl {
+			if out := p.runBest(ctx, CmdWlWireless, 8*time.Second); out != "" {
+				wclients, wradios := ParseWlWireless(out)
+				if !any && len(wclients) > 0 {
+					wd.Clients = wclients
+					any = true
+				}
+				if len(wradios) > 0 {
+					p.radiosMu.Lock()
+					p.radiosCache, p.radiosAt = wradios, time.Now()
+					p.radiosMu.Unlock()
+					wd.Radios = wradios
+				}
+			}
+		}
+	}
 
 	// Radios: solo en el sondeo completo (canal/htmode/txpower casi nunca
 	// cambian); el path de eventos reutiliza la caché.
