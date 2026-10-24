@@ -314,6 +314,10 @@ y cada prueba con hardware real lo hace mejor. Gracias a todos los que habéis
 aportado hasta hoy - las personas y el trabajo de cada release están nombrados
 en el [CHANGELOG](CHANGELOG.md) y en las notas de cada versión.
 
+Si quieres aportar código, lee antes [CONTRIBUTING.md](CONTRIBUTING.md): cada
+PR pasa la compilación y la batería de tests completa, y el código nuevo del
+servidor va en su propio fichero con su test.
+
 ## Historial de estrellas
 
 [![Star History Chart](https://api.star-history.com/svg?repos=gnacho/netpulse&type=date)](https://www.star-history.com/#gnacho/netpulse&date)

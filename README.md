@@ -305,6 +305,10 @@ real-hardware test makes it better. Thanks to everyone who has contributed so
 far - the people and the work behind each release are named in the
 [CHANGELOG](CHANGELOG.md) and in every release's notes.
 
+If you want to send code, read [CONTRIBUTING.md](CONTRIBUTING.md) first: every
+PR runs the full build and test suite, and new server code lives in its own
+file with its test.
+
 ## Star history
 
 [![Star History Chart](https://api.star-history.com/svg?repos=gnacho/netpulse&type=date)](https://www.star-history.com/#gnacho/netpulse&date)
