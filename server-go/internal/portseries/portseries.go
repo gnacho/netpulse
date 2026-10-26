@@ -298,10 +298,13 @@ func deriveBps(pts []PortPoint) {
 		if dt <= 0 {
 			continue
 		}
-		if pts[i].RxBytes >= pts[i-1].RxBytes {
+		// Some sources (for example Bbox) report instantaneous rates without
+		// cumulative byte counters. In that case the stored rate is already
+		// authoritative; do not replace it with a fabricated zero delta.
+		if (pts[i].RxBytes != 0 || pts[i-1].RxBytes != 0) && pts[i].RxBytes >= pts[i-1].RxBytes {
 			pts[i].RxBps = float64(pts[i].RxBytes-pts[i-1].RxBytes) * 8 / dt
 		}
-		if pts[i].TxBytes >= pts[i-1].TxBytes {
+		if (pts[i].TxBytes != 0 || pts[i-1].TxBytes != 0) && pts[i].TxBytes >= pts[i-1].TxBytes {
 			pts[i].TxBps = float64(pts[i].TxBytes-pts[i-1].TxBytes) * 8 / dt
 		}
 	}

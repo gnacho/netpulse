@@ -217,8 +217,8 @@ func TestParseBboxPollMapsVerifiedFields(t *testing.T) {
 	if p.board.Model != "F@st5688b" || p.board.System != "F5688b-v2-osin" || p.board.Release.Version != "24.6.12" || p.board.Release.Description != "24.6.12" {
 		t.Fatalf("identity = %+v", p.board)
 	}
-	if p.uptimeSec != 126747 || p.brMac != "9C:24:72:A8:FA:95" || p.lanIP != "192.168.0.254" {
-		t.Fatalf("uptime/MAC/LAN IP = %v / %q / %q", p.uptimeSec, p.brMac, p.lanIP)
+	if p.uptimeSec != 126747 || p.brMac != "9c:24:72:a8:fa:95" {
+		t.Fatalf("uptime/MAC = %v / %q", p.uptimeSec, p.brMac)
 	}
 	boardJSON, err := json.Marshal(p.board)
 	if err != nil {

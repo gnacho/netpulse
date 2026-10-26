@@ -184,8 +184,6 @@ export interface BackhaulInfo {
 
 export interface RouterExtras {
   mac: string
-  /** Router's LAN address as reported by its local management API. */
-  lanIp?: string
   firmware: string
   firmwareBase?: string
   firmwareUpdated: boolean

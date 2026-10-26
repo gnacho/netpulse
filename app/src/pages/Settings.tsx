@@ -814,6 +814,22 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                       <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
                         {t('settings.routers.typeExternal')}
                       </span>
+                    ) : r.type === 'bbox' ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary ring-1 ring-inset ring-border">
+                        Bbox
+                      </span>
+                    ) : r.type === 'routeros' ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary ring-1 ring-inset ring-border">
+                        RouterOS
+                      </span>
+                    ) : r.type === 'glinet' ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary ring-1 ring-inset ring-border">
+                        GL.iNet
+                      </span>
+                    ) : r.type === 'asuswrt' ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary ring-1 ring-inset ring-border">
+                        Asuswrt
+                      </span>
                     ) : (
                       <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-primary ring-1 ring-inset ring-border">
                         {t('settings.routers.openWrtBadge')}

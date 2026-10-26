@@ -154,7 +154,6 @@ type routerPolled struct {
 	// fallback del FDB del gateway, que si no las dibuja como cableadas.
 	wirelessSide map[string]string
 	brMac        string
-	lanIP        string
 	latencyMs    *float64
 	lossPct      *float64
 	// backhaul: "cable"|"wifi"|"" (desconocido → se omite en el contrato).
@@ -4225,7 +4224,6 @@ func countClientsPerRouter(routers []Router, devices []Device) {
 // liveExtras es el objeto extras del detalle live (index.js:677-700).
 type liveExtras struct {
 	MAC               string `json:"mac"`
-	LanIP             string `json:"lanIp,omitempty"`
 	Firmware          string `json:"firmware"`
 	FirmwareUpdated   bool   `json:"firmwareUpdated"`
 	FirmwareAvailable string `json:"firmwareAvailable,omitempty"`
@@ -4396,9 +4394,6 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	if p != nil {
 		if p.brMac != "" {
 			extras.MAC = p.brMac
-		}
-		if p.cfg.Type == "bbox" {
-			extras.LanIP = p.lanIP
 		}
 		if p.board != nil {
 			extras.Firmware = p.board.Release.Description

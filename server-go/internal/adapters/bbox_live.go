@@ -742,12 +742,8 @@ func parseBboxPoll(cfg RouterConfig, device, cpu, mem, hosts, wanIP, wanStats, l
 		}
 	}
 	lanIPInfo := bboxMap(bboxFind(bboxMap(lanIP), "ip"))
-	brMac := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(bboxDirectString(lanIPInfo, "mac")), "-", ":"))
-	localIP := ""
-	if parsed := net.ParseIP(strings.TrimSpace(bboxDirectString(lanIPInfo, "ipaddress"))); parsed != nil {
-		localIP = parsed.String()
-	}
-	return &routerPolled{cfg: cfg, board: board, cpu: cpuPct, ram: ram, temp: cpuTemp, uptimeSec: uptime, net: wanNet, wanContractDownMbps: bboxContractMbps(wanStats, "rx"), wanContractUpMbps: bboxContractMbps(wanStats, "tx"), clientTrafficMbps: clientTrafficMbps, leases: leases, wireless: wireless, ports: parseBboxPorts(lanIP, lanStats), radios: radios, fdb: map[string]string{}, brMac: brMac, lanIP: localIP, wanInfo: wanInfo, polledAt: now.UnixMilli()}, nil
+	brMac := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(bboxDirectString(lanIPInfo, "mac")), "-", ":"))
+	return &routerPolled{cfg: cfg, board: board, cpu: cpuPct, ram: ram, temp: cpuTemp, uptimeSec: uptime, net: wanNet, wanContractDownMbps: bboxContractMbps(wanStats, "rx"), wanContractUpMbps: bboxContractMbps(wanStats, "tx"), clientTrafficMbps: clientTrafficMbps, leases: leases, wireless: wireless, ports: parseBboxPorts(lanIP, lanStats), radios: radios, fdb: map[string]string{}, brMac: brMac, wanInfo: wanInfo, polledAt: now.UnixMilli()}, nil
 }
 
 func (l *Live) pollRouterBbox(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
