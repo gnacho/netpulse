@@ -24,7 +24,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -150,12 +153,17 @@ func pushPayload(ctx context.Context, client *http.Client, server, token string,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
+	// External ingest authenticates the body as well as the token: the
+	// signature must cover the exact bytes sent, not a re-marshaled payload.
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write(body)
+	req.Header.Set("X-Agent-Signature", hex.EncodeToString(mac.Sum(nil)))
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<12))
 		return fmt.Errorf("routeros-pusher: POST ingest: %s: %s", resp.Status, respBody)
 	}

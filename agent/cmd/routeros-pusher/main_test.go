@@ -1,6 +1,17 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gnacho/netpulse/agent/probe"
+)
 
 func TestParseRouterOSUptime(t *testing.T) {
 	cases := map[string]float64{
@@ -58,5 +69,51 @@ func TestBuildSystemDataBadCPU(t *testing.T) {
 	res := routerOSResource{CPULoad: "n/a", Uptime: "1s"}
 	if _, err := buildSystemData(res, routerOSIdentity{}); err == nil {
 		t.Fatal("expected error for bad cpu-load")
+	}
+}
+
+func TestPushPayloadSignsBody(t *testing.T) {
+	const token = "routeros-test-token"
+	var gotAuth, gotSignature string
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/ingest/agent" {
+			t.Errorf("path = %q, want /api/ingest/agent", r.URL.Path)
+		}
+		gotAuth = r.Header.Get("Authorization")
+		gotSignature = r.Header.Get("X-Agent-Signature")
+		gotBody, _ = io.ReadAll(r.Body)
+
+		mac := hmac.New(sha256.New, []byte(token))
+		mac.Write(gotBody)
+		want := hex.EncodeToString(mac.Sum(nil))
+		if gotAuth != "Bearer "+token || !hmac.Equal([]byte(gotSignature), []byte(want)) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+
+	payload := probe.Payload{
+		Router:   "routeros-test",
+		Kind:     "external",
+		Ts:       1,
+		Interval: 30,
+	}
+	if err := pushPayload(context.Background(), srv.Client(), srv.URL, token, payload); err != nil {
+		t.Fatalf("pushPayload: %v", err)
+	}
+	if gotAuth != "Bearer "+token {
+		t.Errorf("Authorization = %q", gotAuth)
+	}
+	if gotSignature == "" {
+		t.Fatal("X-Agent-Signature is empty")
+	}
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write(gotBody)
+	if want := hex.EncodeToString(mac.Sum(nil)); gotSignature != want {
+		t.Errorf("X-Agent-Signature = %q, want %q", gotSignature, want)
 	}
 }
