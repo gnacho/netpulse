@@ -19,6 +19,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const isGateway = router.roleBadge === 'Principal'
+  const hasOpenWrtFeatures = ['openwrt', 'glinet', 'asuswrt'].includes(router.type ?? '')
   const agent = useAgentFor(router.id)
   // #1136: el chip AdGuard solo tiene sentido con AdGuard configurado; sin
   // host era un adorno fijo en la cabecera del gateway.
@@ -30,10 +31,10 @@ export function RouterDetailHeader({ router }: { router: Router }) {
       tone: (router.status === 'online' ? 'ok' : router.status === 'warn' ? 'warn' : router.status === 'paused' ? 'muted' : 'danger') as 'ok' | 'warn' | 'danger' | 'muted',
       pulse: router.status !== 'online' && router.status !== 'paused',
     },
-    ...(isGateway && adguard.host
+    ...(isGateway && hasOpenWrtFeatures && adguard.host
       ? [{ label: 'AdGuard', tone: 'ok' as const, pulse: false }]
       : []),
-    ...(isGateway && router.type !== 'bbox'
+    ...(isGateway && hasOpenWrtFeatures
       ? [{ label: 'WireGuard', tone: 'tunnel' as const, pulse: false }]
       : []),
   ]
@@ -74,13 +75,11 @@ export function RouterDetailHeader({ router }: { router: Router }) {
             <p className="text-caption text-text-muted">
               {router.type === 'routeros'
                 ? (router.model || 'RouterOS')
-                : router.type === 'bbox'
-                  ? (router.model || 'Bouygues Bbox')
                 : router.type === 'managed-switch'
                   ? (router.model || 'Switch')
-                  : isGateway
-                    ? router.model
-                    : `OpenWrt · ${router.modelShort}`}
+                : ['openwrt', 'glinet', 'asuswrt'].includes(router.type ?? '') && !isGateway
+                  ? `OpenWrt · ${router.modelShort}`
+                  : router.model || router.modelShort}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {pills.map((p, i) => (

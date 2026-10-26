@@ -114,8 +114,8 @@ type routerPolled struct {
 	wanContractUpMbps   *float64
 	// clientTrafficMbps contains current per-client traffic reported by an
 	// integration with host-level rates (e.g. Bbox /hosts usage).
-	clientTrafficMbps   map[string]float64
-	leases              []DhcpLease
+	clientTrafficMbps map[string]float64
+	leases            []DhcpLease
 	// reservations: the `config host` entries of /etc/config/dhcp. They name
 	// clients that never take a lease because their address is fixed on the
 	// device itself.
@@ -707,19 +707,26 @@ func (l *Live) Close() error {
 		boxes = append(boxes, c)
 	}
 	l.mu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	for _, c := range boxes {
-		c.logout(ctx)
-	}
+	logoutBboxClients(boxes)
 	l.pool.Close()
 	return nil
+}
+
+func logoutBboxClients(boxes []*bboxClient) {
+	for _, c := range boxes {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		c.logout(ctx)
+		cancel()
+	}
 }
 
 // SetRouters actualiza la lista en caliente y limpia cachés de bajas.
 func (l *Live) SetRouters(list []RouterConfig) {
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	oldBboxClients := make([]*bboxClient, 0, len(l.bboxClients))
+	for _, c := range l.bboxClients {
+		oldBboxClients = append(oldBboxClients, c)
+	}
 	l.routers = append([]RouterConfig(nil), list...)
 	l.gatewayCfg = pickGateway(l.routers)
 	l.clients = map[string]*OpenWrtClient{}
@@ -846,6 +853,11 @@ func (l *Live) SetRouters(list []RouterConfig) {
 		}
 	}
 	l.loadRouterMacs()
+	l.mu.Unlock()
+	// Logout outside the adapter lock: an in-flight Bbox request may hold the
+	// client's mutex until it completes, and SetRouters must not block polls
+	// from unrelated routers while closing the old session.
+	logoutBboxClients(oldBboxClients)
 }
 
 // probeBackhaul detecta el medio del uplink (interfaz STA asociada → "wifi";
@@ -4099,15 +4111,15 @@ func countClientsPerRouter(routers []Router, devices []Device) {
 
 // liveExtras es el objeto extras del detalle live (index.js:677-700).
 type liveExtras struct {
-	MAC                 string        `json:"mac"`
-	LanIP               string        `json:"lanIp,omitempty"`
-	Firmware            string        `json:"firmware"`
-	FirmwareUpdated     bool          `json:"firmwareUpdated"`
-	FirmwareAvailable   string        `json:"firmwareAvailable,omitempty"`
-	LastReboot          string        `json:"lastReboot"`
-	Soc                 string        `json:"soc"`
-	Flash               string        `json:"flash"`
-	RamMb               int           `json:"ramMb"`
+	MAC               string `json:"mac"`
+	LanIP             string `json:"lanIp,omitempty"`
+	Firmware          string `json:"firmware"`
+	FirmwareUpdated   bool   `json:"firmwareUpdated"`
+	FirmwareAvailable string `json:"firmwareAvailable,omitempty"`
+	LastReboot        string `json:"lastReboot"`
+	Soc               string `json:"soc"`
+	Flash             string `json:"flash"`
+	RamMb             int    `json:"ramMb"`
 	// Timezone (#1500): nombre IANA del equipo; lo aporta el agente desde
 	// /etc/localtime (ubus nunca lo dio y ningún sondeo SSH/SNMP tampoco).
 	Timezone string `json:"timezone,omitempty"`

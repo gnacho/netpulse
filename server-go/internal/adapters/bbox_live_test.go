@@ -165,7 +165,7 @@ func TestParseBboxPollMapsVerifiedFields(t *testing.T) {
 		}}}},
 		[]any{map[string]any{"device": map[string]any{"mem": map[string]any{"total": float64(958672), "free": float64(407576), "cached": float64(116392), "committedas": float64(433416)}}}},
 		[]any{map[string]any{"hosts": []any{map[string]any{
-			"active": float64(1), "macaddress": "aa:bb:cc:dd:ee:ff", "ipaddress": "192.168.1.10", "hostname": "phone",
+			"active": float64(1), "macaddress": "AA:BB:CC:DD:EE:FF", "ipaddress": "192.168.1.10", "hostname": "phone",
 			"wireless": map[string]any{"band": float64(5), "rssi0": "-42", "rxUsage": float64(13), "txUsage": float64(2039)},
 		}}}},
 		[]any{map[string]any{"wan": map[string]any{"ip": map[string]any{
@@ -236,10 +236,10 @@ func TestParseBboxPollMapsVerifiedFields(t *testing.T) {
 	if p.temp != 53 {
 		t.Fatalf("CPU temperature = %d°C, want 53°C rounded from 52.837°C", p.temp)
 	}
-	if len(p.leases) != 1 || p.leases[0].MAC != "AA:BB:CC:DD:EE:FF" || p.leases[0].IP != "192.168.1.10" {
+	if len(p.leases) != 1 || p.leases[0].MAC != "aa:bb:cc:dd:ee:ff" || p.leases[0].IP != "192.168.1.10" {
 		t.Fatalf("leases = %+v", p.leases)
 	}
-	if got := p.clientTrafficMbps["AA:BB:CC:DD:EE:FF"]; got != 2.052 {
+	if got := p.clientTrafficMbps["aa:bb:cc:dd:ee:ff"]; got != 2.052 {
 		t.Fatalf("per-client traffic = %v Mbps, want 2.052 from rxUsage+txUsage in kbit/s", got)
 	}
 	if p.wanInfo.IP != "128.79.199.106 · 2001:db8::12" {
@@ -381,14 +381,38 @@ func TestBboxHostTrafficUsageMissingOrMalformedIsNotInvented(t *testing.T) {
 	}
 }
 
+func TestSetRoutersLogsOutOldBboxSessions(t *testing.T) {
+	loggedOut := make(chan string, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/logout" {
+			http.NotFound(w, r)
+			return
+		}
+		loggedOut <- r.Header.Get("X-BBOX-ID")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	client := newBboxClientURL(ts.URL+"/api/v1", "", false)
+	client.bboxID = "old-session"
+	live := &Live{bboxClients: map[string]*bboxClient{"bbox1": client}}
+	live.SetRouters(nil)
+	if got := <-loggedOut; got != "old-session" {
+		t.Fatalf("logout session header = %q", got)
+	}
+	if client.bboxID != "" {
+		t.Fatalf("old session was not cleared: %q", client.bboxID)
+	}
+}
+
 func TestBuildDevicesMapsBboxClientTrafficToNormalizedTrafficMbps(t *testing.T) {
 	const mac = "00:11:22:33:44:55"
 	p := &routerPolled{
-		cfg: RouterConfig{ID: "bbox1", Type: "bbox"},
-		leases: []DhcpLease{{MAC: mac, IP: "192.168.0.20", Hostname: "phone"}},
-		wireless: map[string]WirelessClient{mac: {Band: "5 GHz", SignalDbm: -42}},
+		cfg:               RouterConfig{ID: "bbox1", Type: "bbox"},
+		leases:            []DhcpLease{{MAC: mac, IP: "192.168.0.20", Hostname: "phone"}},
+		wireless:          map[string]WirelessClient{mac: {Band: "5 GHz", SignalDbm: -42}},
 		clientTrafficMbps: map[string]float64{mac: 2.052},
-		fdb: map[string]string{},
+		fdb:               map[string]string{},
 	}
 	devices := (&Live{}).buildDevices(map[string]*routerPolled{"bbox1": p}, "")
 	if len(devices) != 1 || devices[0].TrafficMbps != 2.052 {

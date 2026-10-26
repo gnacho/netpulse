@@ -137,17 +137,13 @@ func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Ov
 	// Menú de orquestación: opt-in por admin (#121). Se expone aquí (no en
 	// el adapter) porque el kv vive en el server, no en el poller.
 	out.Orchestration = kvGetBool(handle, orchestrationKey)
-	// Velocidad WAN contratada (#151): prefer router-reported values when
-	// available, otherwise fall back to administrator-configured values.
-	if out.WAN.ContractDownMbps == nil {
-		if v, ok := kvGetFloat(handle, wanSpeedDownKey); ok {
-			out.WAN.ContractDownMbps = &v
-		}
+	// Velocidad WAN contratada (#151): declarada por el admin en Ajustes y
+	// persistida en kv.
+	if v, ok := kvGetFloat(handle, wanSpeedDownKey); ok {
+		out.WAN.ContractDownMbps = &v
 	}
-	if out.WAN.ContractUpMbps == nil {
-		if v, ok := kvGetFloat(handle, wanSpeedUpKey); ok {
-			out.WAN.ContractUpMbps = &v
-		}
+	if v, ok := kvGetFloat(handle, wanSpeedUpKey); ok {
+		out.WAN.ContractUpMbps = &v
 	}
 	// #849: la topología pinta el plan en el enlace WAN ("Fibra <plan>"), pero
 	// en live el poller lo deja en "—" (solo el dataset demo lo rellena). Si

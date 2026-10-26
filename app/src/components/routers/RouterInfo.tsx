@@ -50,8 +50,10 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   }
 
   const rows: { label: string; node: React.ReactNode }[] = [
-    ...(router.type === 'bbox' ? [] : [{ label: 'ID', node: router.id }]),
-    { label: 'IP LAN', node: router.type === 'bbox' ? (ex.lanIp || '—') : router.ip },
+    // #951: el slug se autogenera en el alta y salía en logs/alertas sin
+    // aparecer en ningún sitio de la web; la fila ID lo hace visible.
+    { label: 'ID', node: router.id },
+    { label: 'IP LAN', node: router.ip },
     { label: 'MAC', node: ex.mac && ex.mac !== '—' ? ex.mac : (router.mac || '—') },
     {
       label: 'Firmware',
@@ -79,21 +81,25 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     { label: t('routerDetail.info.timezone'), node: ex.timezone ?? '—' },
     {
       label: t('routerDetail.info.access'),
-      node: router.type === 'routeros' || router.type === 'bbox' ? (
+      node: router.type === 'routeros' ? (
         <span className="inline-flex items-center gap-1.5">
           <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
-          {router.type === 'bbox' ? 'Bouygues Bbox API' : 'RouterOS API'}
-          <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">{router.type === 'bbox' ? 'HTTPS' : '8728'}</span>
+          RouterOS API
+          <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">8728</span>
         </span>
       ) : router.type === 'managed-switch' || router.type === 'external' ? (
         <span className="inline-flex items-center gap-1.5">
           SNMP / API
         </span>
-      ) : (
+      ) : ['openwrt', 'glinet', 'asuswrt'].includes(router.type ?? '') || router.type == null ? (
         <span className="inline-flex items-center gap-1.5">
           <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
           SSH
           <span className="rounded-full bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger">root</span>
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1.5">
+          API
         </span>
       ),
     },
@@ -145,7 +151,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
         )}
         {/* #1098: mismo criterio que el botón web: mostrar el comando
             exacto que se va a copiar. */}
-        {router.type !== 'routeros' && router.type !== 'bbox' && router.type !== 'managed-switch' && router.type !== 'external' && (
+        {(['openwrt', 'glinet', 'asuswrt'].includes(router.type ?? '') || router.type == null) && (
           <button
             onClick={copySsh}
             title={`ssh root@${router.ip}`}

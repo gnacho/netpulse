@@ -35,6 +35,7 @@ export default function RouterDetail() {
   const [tempUnit] = useTempUnit()
   const router = routers.find((r) => r.id === id)
   const isGateway = router?.roleBadge === 'Principal'
+  const hasOpenWrtFeatures = ['openwrt', 'glinet', 'asuswrt'].includes(router?.type ?? '')
   // #1477: la acción de olvidar la host key solo tiene sentido en unidades que
   // NetPulse sondea por SSH (OpenWrt/GL.iNet/RouterOS). Los agentes-only y los
   // scrapers (beacon/external) no hablan SSH con el servidor.
@@ -293,9 +294,9 @@ export default function RouterDetail() {
       {/* ⑤⑥ Servicios + Puertos (gateway) / Radios + Puertos (APs) */}
       {isGateway ? (
         <>
-          {/* AdGuard Home y WireGuard (vía ubus OpenWrt); no aplican a RouterOS. */}
-          {router.type !== 'routeros' && router.type !== 'bbox' && <AdGuardPanel />}
-          {router.type !== 'routeros' && router.type !== 'bbox' && <WireGuardPanel />}
+          {/* Panels backed by the OpenWrt-family APIs. */}
+          {hasOpenWrtFeatures && <AdGuardPanel />}
+          {hasOpenWrtFeatures && <WireGuardPanel />}
           <PortPanel router={router} extras={detail?.extras} snmpStats={snmpStats} className="lg:col-span-12" />
         </>
       ) : (

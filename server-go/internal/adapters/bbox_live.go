@@ -364,7 +364,7 @@ func parseBboxHosts(v any) []bboxHost {
 		if active, exists := record["active"]; exists && bboxInt(map[string]any{"active": active}, "active") != 1 {
 			continue
 		}
-		mac := strings.ToUpper(strings.ReplaceAll(bboxDirectString(record, "macaddress", "mac"), "-", ":"))
+		mac := strings.ToLower(strings.ReplaceAll(bboxDirectString(record, "macaddress", "mac"), "-", ":"))
 		if mac == "" || !strings.Contains(mac, ":") {
 			continue
 		}
@@ -579,7 +579,10 @@ func parseBboxPorts(v, statsResponse any) []EthPort {
 
 func bboxLinkMode(mode string) string {
 	s := strings.ToLower(strings.TrimSpace(mode))
-	for _, rate := range []struct{ prefixes []string; display string }{
+	for _, rate := range []struct {
+		prefixes []string
+		display  string
+	}{
 		{[]string{"10baset"}, "10 Mbps"},
 		{[]string{"100baset"}, "100 Mbps"},
 		{[]string{"1000baset", "1000base"}, "1 Gbps"},
@@ -746,7 +749,6 @@ func parseBboxPoll(cfg RouterConfig, device, cpu, mem, hosts, wanIP, wanStats, l
 	}
 	return &routerPolled{cfg: cfg, board: board, cpu: cpuPct, ram: ram, temp: cpuTemp, uptimeSec: uptime, net: wanNet, wanContractDownMbps: bboxContractMbps(wanStats, "rx"), wanContractUpMbps: bboxContractMbps(wanStats, "tx"), clientTrafficMbps: clientTrafficMbps, leases: leases, wireless: wireless, ports: parseBboxPorts(lanIP, lanStats), radios: radios, fdb: map[string]string{}, brMac: brMac, lanIP: localIP, wanInfo: wanInfo, polledAt: now.UnixMilli()}, nil
 }
-
 
 func (l *Live) pollRouterBbox(ctx context.Context, cfg RouterConfig) (*routerPolled, error) {
 	l.mu.Lock()

@@ -112,30 +112,6 @@ export function WanLatency({ extras }: { extras?: RouterExtras }) {
             </div>
           ))}
         </div>
-        {wan.ftth && (
-          <div className="mt-4 rounded-xl border border-border bg-elevated/40 p-4">
-            <div className="font-display text-sm font-semibold text-text-primary">{t('routerDetail.wan.ftthTitle')}</div>
-            <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-              {[
-                [t('routerDetail.wan.ponMode'), wan.ftth.mode],
-                [t('routerDetail.wan.ponClass'), wan.ftth.moduleClass],
-                [t('routerDetail.wan.linkState'), wan.ftth.state],
-                [t('routerDetail.wan.accessMode'), wan.ftth.accessMode],
-                [t('routerDetail.wan.accessState'), wan.ftth.accessState],
-                [t('routerDetail.wan.sfpState'), wan.ftth.sfpStatus],
-                ...(wan.ftth.receivePowerDbm != null ? [[t('routerDetail.wan.rxOptical'), `${fmtEs(wan.ftth.receivePowerDbm, 3)} dBm`]] : []),
-                ...(wan.ftth.transmitPowerDbm != null ? [[t('routerDetail.wan.txOptical'), `${fmtEs(wan.ftth.transmitPowerDbm, 3)} dBm`]] : []),
-                ...(wan.ftth.temperatureC != null ? [[t('routerDetail.wan.sfpTemperature'), `${fmtEs(wan.ftth.temperatureC, 1)} °C`]] : []),
-                ...(wan.ftth.voltageV != null ? [[t('routerDetail.wan.sfpVoltage'), `${fmtEs(wan.ftth.voltageV, 1)} V`]] : []),
-              ].filter(([, value]) => value != null).map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{label}</dt>
-                  <dd className="mt-0.5 font-mono text-mono-sm text-text-primary">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
       </section>
 
       {/* 4b. Latencia */}

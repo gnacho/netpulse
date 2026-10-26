@@ -191,15 +191,13 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
               <div className="truncate text-caption text-text-muted">
                 {router.type === 'routeros'
                   ? (router.model || 'RouterOS')
-                  : router.type === 'bbox'
-                    ? (router.model || 'Bouygues Bbox')
                   : router.type === 'managed-switch'
                     ? (router.model || 'Switch')
-                    : isPrimary
-                      ? router.model
-                      : `OpenWrt · ${router.modelShort}`}
+                    : ['openwrt', 'glinet', 'asuswrt'].includes(router.type ?? '')
+                      ? (isPrimary ? router.model : `OpenWrt · ${router.modelShort}`)
+                      : (router.model || router.modelShort)}
               </div>
-                {isPrimary && router.type !== 'routeros' && router.type !== 'bbox' && router.type !== 'managed-switch' && (
+              {isPrimary && ['openwrt', 'glinet', 'asuswrt'].includes(router.type ?? '') && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-0.5">
                   {/* #1136: el punto AdGuard solo con AdGuard configurado. */}
                   {adguard.host && (
