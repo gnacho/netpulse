@@ -150,7 +150,7 @@ const FleetMenuTrigger = forwardRef<
 
 export default function ChannelPlan() {
   const { t, i18n } = useTranslation()
-  const { routers } = useNetPulse()
+  const { routers, connectionStatus, isDemo } = useNetPulse()
   const [routerId, setRouterId] = useState('')
   const [data, setData] = useState<ChannelPlanData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -292,9 +292,12 @@ export default function ChannelPlan() {
   // 5 min por agente.
   const autoScanDone = useRef<string>('')
   const autoScanIfStale = useCallback((rid: string, plan: ChannelPlanData | undefined) => {
-    if (!plan || autoScanDone.current === rid) return
+    // #1565: el bundle inicial contiene routers mock. Antes de la primera
+    // carga live no se puede pedir un scan para uno de esos ids; en demo sí.
+    if (!plan || (!isDemo && connectionStatus !== 'connected') || autoScanDone.current === rid) return
     autoScanDone.current = rid
-    const newest = plan.scans.reduce((max, s) => Math.max(max, s.ts ?? 0), 0)
+    // wifi_scans.ts viene en segundos; Date.now() y los throttles van en ms.
+    const newest = plan.scans.reduce((max, s) => Math.max(max, (s.ts ?? 0) * 1000), 0)
     if (newest > 0 && Date.now() - newest < AUTO_SCAN_STALE_MS) return
     const key = `netpulse.channelPlan.autoScan.${rid}`
     try {
@@ -328,7 +331,7 @@ export default function ChannelPlan() {
         setScanning(false)
         setScanRequested(false)
       })
-  }, [loadPlan])
+  }, [loadPlan, connectionStatus, isDemo])
 
   useEffect(() => {
     if (!routerId) return
