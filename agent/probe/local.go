@@ -9,6 +9,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"net"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -243,6 +246,39 @@ func (p *Prober) scanDue() bool {
 	return false
 }
 
+// scanNeighbours runs one `iw dev <iface> scan` per physical radio (#1560)
+// and logs every cycle (#1559).
+//
+// The scan is the only probe that takes a radio off-channel, so it is also
+// the only one that can drop clients (#1557). Until now it left no trace in
+// the log, which made that correlation impossible from a router: the log line
+// carries the interfaces, per-radio duration and BSS count to line a drop up
+// against the scan that caused it.
+func (p *Prober) scanNeighbours(ctx context.Context, iwDev string) []ScanResult {
+	targets := IwDevScanTargets(ParseIwDevDetailed(iwDev))
+	if len(targets) == 0 {
+		return nil
+	}
+	names := make([]string, len(targets))
+	for i, t := range targets {
+		names[i] = t.Iface
+	}
+	start := time.Now()
+	slog.Info("neighbor scan start", "radios", len(targets), "ifaces", strings.Join(names, ","))
+	var scans []ScanResult
+	for _, t := range targets {
+		at := time.Now()
+		out := p.runBest(ctx, CmdScanIface(t.Iface), scanIfaceTimeout)
+		got := ParseScan("==IFACE==" + t.Iface + "\n" + out)
+		scans = append(scans, got...)
+		slog.Info("neighbor scan radio", "iface", t.Iface, "phy", t.Phy,
+			"bss", len(got), "duration_ms", time.Since(at).Milliseconds())
+	}
+	slog.Info("neighbor scan done", "bss", len(scans),
+		"duration_ms", time.Since(start).Milliseconds(), "empty", len(scans) == 0)
+	return scans
+}
+
 // probeVlans reports the bridge VLANs, preferring what the kernel says over
 // what the config declares.
 //
@@ -302,7 +338,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 			}
 		}
 	}
-	pl.Data.FDB = p.probeFDB(ctx, lldpPorts)
+	pl.Data.FDB = p.probeFDB(ctx, lldpPorts, pl.Data.Wireless.GetRadios())
 	pl.Data.Arp, pl.Data.ArpStale, pl.Data.ArpDevs = p.probeArp(ctx)
 	pl.Data.Dawn = p.probeDawn(ctx)
 	pl.Data.Usteer = p.probeUsteer(ctx)
@@ -569,12 +605,7 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		// sin NINGÚN vecino aunque las demás interfaces sí hubieran
 		// escaneado con éxito.
 		if p.scanDue() && iwDev != "" {
-			var sb strings.Builder
-			for _, iface := range IwDevIfaces(iwDev) {
-				sb.WriteString("==IFACE==" + iface + "\n")
-				sb.WriteString(p.runBest(ctx, CmdScanIface(iface), scanIfaceTimeout))
-			}
-			if scans := ParseScan(sb.String()); len(scans) > 0 {
+			if scans := p.scanNeighbours(ctx, iwDev); len(scans) > 0 {
 				wd.Scans = scans
 			}
 		}
@@ -680,11 +711,12 @@ func (p *Prober) probeWan(ctx context.Context) *WanInfo {
 }
 
 // probeFDB: MACs aprendidas (brctl) + puertos ethernet (layout + /sys).
-func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool) *FDBData {
+func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool, radios []Radio) *FDBData {
 	fd := &FDBData{}
 	any := false
 	if out := p.runBest(ctx, CmdBridgeFDB, 0); out != "" {
-		fd.MACs = ParseBridgeFdb(out)
+		fd.MACs, fd.WirelessSide = ParseBridgeFdbSplit(out)
+		fd.WirelessSide = bandTagWirelessSide(fd.WirelessSide, radios)
 		any = true
 	}
 	statesOut := p.runBest(ctx, CmdPortStates, 0)
@@ -745,6 +777,105 @@ func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool) *FDBDa
 		fd.Ports = []EthPort{}
 	}
 	return fd
+}
+
+// bandTagWirelessSide convierte el mapa MAC→puerto inalámbrico del FDB en
+// MAC→banda, casando la MAC de la interfaz del puerto (o la del padre para
+// subinterfaces VLAN como wl0.1) con el BSSID de una radio sondeada en el
+// mismo ciclo. Sin radio que casar, la MAC se descarta: mejor no decir nada
+// que inventarse una banda. Es el hint que evita que el server clasifique
+// como cableado un MAC que solo vive detrás de una radio propia.
+func bandTagWirelessSide(side map[string]string, radios []Radio) map[string]string {
+	if len(side) == 0 {
+		return nil
+	}
+	bandByBSSID := make(map[string]string, len(radios))
+	for _, r := range radios {
+		if r.BSSID != "" {
+			bandByBSSID[strings.ToUpper(r.BSSID)] = r.Name
+		}
+	}
+	addrOf := func(iface string) string {
+		raw, err := os.ReadFile("/sys/class/net/" + iface + "/address")
+		if err != nil {
+			return ""
+		}
+		return strings.ToUpper(strings.TrimSpace(string(raw)))
+	}
+	baseOf := func(port string) string {
+		if i := strings.IndexAny(port, ".@"); i >= 0 {
+			return port[:i]
+		}
+		return port
+	}
+	// Pasada 1: MACs propias del equipo (BSSID de cada radio + dirección de
+	// cada interfaz de puerto inalámbrico, ambas con su variante de bit LAA
+	// volteado: el bridge las aprende como si fueran estaciones externas).
+	// Lo que cae en este conjunto es identidad, no cliente.
+	self := map[string]bool{}
+	addSelf := func(mac string) {
+		if mac == "" {
+			return
+		}
+		self[mac] = true
+		if flipped, err := hexFlipLAA(mac); err == nil {
+			self[flipped] = true
+		}
+	}
+	for bssid := range bandByBSSID {
+		addSelf(bssid)
+	}
+	addrs := map[string]string{}
+	for _, port := range side {
+		for _, iface := range []string{port, baseOf(port)} {
+			if iface == "" {
+				continue
+			}
+			if _, done := addrs[iface]; !done {
+				addrs[iface] = addrOf(iface)
+			}
+		}
+	}
+	for _, addr := range addrs {
+		addSelf(addr)
+	}
+	// Pasada 2: banda por MAC casando la dirección del puerto con un BSSID
+	// sondeado; sin radio que casar (o MAC propia) la MAC se descarta: mejor
+	// no decir nada que inventarse una banda.
+	out := make(map[string]string, len(side))
+	for mac, port := range side {
+		um := strings.ToUpper(mac)
+		if self[um] {
+			continue
+		}
+		band := ""
+		for _, iface := range []string{port, baseOf(port)} {
+			if a := addrs[iface]; a != "" {
+				if b, ok := bandByBSSID[a]; ok {
+					band = b
+					break
+				}
+			}
+		}
+		if band != "" {
+			out[um] = band
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// hexFlipLAA devuelve la MAC con el bit localmente-administrada (0x02 del
+// primer octeto) volteado, en formato colon-upper como el resto del FDB.
+func hexFlipLAA(mac string) (string, error) {
+	b, err := net.ParseMAC(mac)
+	if err != nil || len(b) == 0 {
+		return "", err
+	}
+	b[0] ^= 0x02
+	return strings.ToUpper(b.String()), nil
 }
 
 // probeLldp: vecinos LLDP de lldpd (#489). Contrato: Available=false cuando

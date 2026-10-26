@@ -82,7 +82,7 @@ func TestClaim1417SonosDetrasDeSwitchSNMP(t *testing.T) {
 	}
 	gwID := "gateway"
 	claimSwitchFdbClients(polled, devices, dists, gwID,
-		fleetFdbEvidence(polled, gwID), fleetLldpEvidence(polled, gwID), nil)
+		fleetFdbEvidence(polled, gwID, nil, nil), fleetLldpEvidence(polled, gwID), nil)
 
 	// sonos1/2: acceso de sw1 por "Port 5"; sonos3: "Port 6".
 	for i, wantPort := range []string{"Port 5", "Port 5", "Port 6"} {
@@ -137,7 +137,7 @@ func TestClaim1417RootPortNoReclama(t *testing.T) {
 	before := []string{devices[0].AttachTo, devices[1].AttachTo}
 	gwID := "flint2"
 	claimSwitchFdbClients(polled, devices, dists, gwID,
-		fleetFdbEvidence(polled, gwID), fleetLldpEvidence(polled, gwID), nil)
+		fleetFdbEvidence(polled, gwID, nil, nil), fleetLldpEvidence(polled, gwID), nil)
 
 	if devices[0].AttachTo != before[0] || devices[1].AttachTo != before[1] {
 		t.Fatalf("PC/Marantz (root port upstream) no deben moverse: antes (%q, %q), después (%q, %q)",
@@ -177,7 +177,7 @@ func TestClaim1417Guardas(t *testing.T) {
 	dists := []DistributionNode{}
 	gwID := "gw"
 	claimSwitchFdbClients(polled, devices, dists, gwID,
-		fleetFdbEvidence(polled, gwID), fleetLldpEvidence(polled, gwID), nil)
+		fleetFdbEvidence(polled, gwID, nil, nil), fleetLldpEvidence(polled, gwID), nil)
 
 	if devices[0].AttachTo != "" || devices[1].AttachTo != "" {
 		t.Fatalf("sin root port no hay reclamo: got (%q, %q)", devices[0].AttachTo, devices[1].AttachTo)
@@ -219,7 +219,7 @@ func TestClaim1417LlenaHoja1325(t *testing.T) {
 	dists := []DistributionNode{hoja}
 	gwID := "gw"
 	claimSwitchFdbClients(polled, devices, dists, gwID,
-		fleetFdbEvidence(polled, gwID), fleetLldpEvidence(polled, gwID), nil)
+		fleetFdbEvidence(polled, gwID, nil, nil), fleetLldpEvidence(polled, gwID), nil)
 
 	for i, d := range devices {
 		if d.AttachTo != "dist-sw1-Port 5" {

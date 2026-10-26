@@ -64,19 +64,31 @@ func (c *Client) Run(ctx context.Context) {
 		}
 		if err != nil {
 			c.logf("[netpulse-agent] SSE desconectado (%v), reintentando en %s", err, retry)
-		} else {
-			retry = c.minRetry
 		}
+		delay, next := c.retryDelay(retry, err == nil)
+		retry = next
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(retry):
-		}
-		retry *= 2
-		if retry > c.maxRetry {
-			retry = c.maxRetry
+		case <-time.After(delay):
 		}
 	}
+}
+
+// retryDelay decide cuánto esperar antes del siguiente intento y el valor
+// acumulado para el siguiente fallo. Una conexión que llegó a establecerse
+// reinicia el backoff (#284); solo los fallos consecutivos lo hacen crecer
+// hasta maxRetry (#1563: el `retry *= 2` anterior también corría tras una
+// conexión limpia, así que el reinicio no servía de nada).
+func (c *Client) retryDelay(current time.Duration, established bool) (delay, next time.Duration) {
+	if established {
+		return c.minRetry, c.minRetry
+	}
+	next = current * 2
+	if next > c.maxRetry {
+		next = c.maxRetry
+	}
+	return current, next
 }
 
 func (c *Client) connect(ctx context.Context) error {

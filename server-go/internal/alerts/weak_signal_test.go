@@ -42,8 +42,13 @@ func TestWeakSignalStepResolvesAfterNGoodSamples(t *testing.T) {
 	if start != 1000 {
 		t.Fatalf("el ts de apertura del episodio es %d, quiero 1000", start)
 	}
-	if st.OpenID != "" || st.Good != 0 || st.LastFire != 0 {
-		t.Fatal("tras cerrar, el estado queda reiniciado (un nuevo episodio puede disparar ya)")
+	if st.OpenID != "" || st.Good != 0 {
+		t.Fatal("tras cerrar, el episodio queda cerrado y la racha a cero")
+	}
+	// #1521: LastFire se conserva al cerrar (el guarda de 24 h es entre
+	// EPISODIOS, no se anula con la resolución).
+	if st.LastFire != 1000 {
+		t.Fatalf("LastFire tras cerrar = %d, quiero 1000 (el disparo original)", st.LastFire)
 	}
 }
 
@@ -101,11 +106,17 @@ func TestWeakSignalStepRefireGuard(t *testing.T) {
 	if r == "" {
 		t.Fatal("cierra con una buena cuando N=1")
 	}
-	// Caída inmediata de nuevo: episodio nuevo SIN esperar 24 h (el guarda
-	// se reinicia al cerrar; un episodio real nuevo debe alertar ya).
-	f, _, _ = WeakSignalStep(&st, "aa", intPtr(-81), true, thr, hyst, samples, 3000)
+	// Caída inmediata de nuevo (#1521): DENTRO del guarda de 24 h desde el
+	// último disparo real. No abre episodio (un cliente oscilando no vuelve a
+	// alertar el mismo día, aunque haya resuelto entremedias).
+	f, r, _ = WeakSignalStep(&st, "aa", intPtr(-81), true, thr, hyst, samples, 3000)
+	if f != "" || r != "" {
+		t.Fatalf("re-disparo a los 2 s de cerrar: fire=%q resolve=%q, esperaba nada", f, r)
+	}
+	// Pasado el guarda (24 h desde el disparo de 1000), vuelve a alertar.
+	f, _, _ = WeakSignalStep(&st, "aa", intPtr(-81), true, thr, hyst, samples, 1000+weakRefireGapMs+1)
 	if f == "" {
-		t.Fatal("tras cerrar, un nuevo episodio dispara de inmediato")
+		t.Fatal("tras 24 h del último disparo, un episodio nuevo dispara")
 	}
 }
 

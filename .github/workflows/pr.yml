@@ -1,0 +1,79 @@
+name: pr-checks
+
+# Verificacion de PRs (#1546): compila y testea server y agente en cada
+# pull_request (forks incluidos, token read-only, sin publicar nada). Los
+# assets de go-latest siguen saliendo solo del push a main (go.yml); aqui
+# solo se verifica. Los PRs de first-time contributors quedan "awaiting
+# approval" hasta que un maintainer apruebe el run (Actions).
+
+on:
+  pull_request:
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: ESLint (app)
+        working-directory: app
+        run: npm ci --no-audit --no-fund && npm run lint
+
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: |
+            server-go/go.sum
+            agent/go.sum
+
+      # npm run build = tsc -b && vite build: el type-check va dentro.
+      - name: Build frontend
+        working-directory: app
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Copia dist al embed del binario
+        run: rm -rf server-go/internal/staticspa/dist && cp -r app/dist server-go/internal/staticspa/dist
+
+      # Los agentes embebidos son go:embed del server: sin ellos no compila,
+      # y TestOpenArmVariants los abre. Version dummy: los assets reales con
+      # version los compila solo main (go.yml). Nombres segun normalizeArch:
+      # armv7 -> "arm" con GOARM=7 (#458), MIPS softfloat sin FPU (#488).
+      - name: Build agent binaries para embed
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+        run: |
+          set -e
+          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
+          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
+          (cd agent && GOARCH=mipsle GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-mipsle ./cmd/netpulse-agent)
+          (cd agent && GOARCH=mips GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-mips ./cmd/netpulse-agent)
+
+      - name: Tests server (server-go)
+        working-directory: server-go
+        run: go test ./...
+
+      # Modulo separado (agent/go.mod): go test ./... en server-go no lo cubre.
+      - name: Tests agente (agent)
+        working-directory: agent
+        run: go test ./...

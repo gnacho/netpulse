@@ -115,3 +115,40 @@ func TestLldpUplinkSpeedParentWins(t *testing.T) {
 		t.Fatalf("velocidad %d Mbps, want 1000 (la del padre no se pisa)", links[0].SpeedMbps)
 	}
 }
+
+// Los puertos SNMP viven con ID "snmp-<ifIndex>" y el nombre humano en
+// Iface/Label; comparar solo el ID dejaba todos los uplinks de switch sin
+// velocidad ("Cable 1G" genérico en el mapa y "—" en la tabla).
+func TestFillUplinkSpeedsSnmpPortName(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"sw1": {ports: []EthPort{
+			{ID: "snmp-2", Label: "xg2", Iface: "xg2", Up: true, Speed: "10 Gbps"},
+			{ID: "snmp-9", Label: "1/g9", Iface: "1/g9", Up: true, Speed: "1 Gbps"},
+		}},
+	}
+	links := []TopoLink{
+		{From: "sw1", To: "ap1", Kind: "uplink", Port: "xg2"},
+		{From: "sw1", To: "ap2", Kind: "uplink", Port: "1/g9"},
+	}
+	fillUplinkSpeeds(polled, nil, links)
+	if links[0].SpeedMbps != 10000 {
+		t.Fatalf("xg2 vía Iface SNMP: %d, want 10000", links[0].SpeedMbps)
+	}
+	if links[1].SpeedMbps != 1000 {
+		t.Fatalf("1/g9 vía Label SNMP: %d, want 1000", links[1].SpeedMbps)
+	}
+}
+
+// El agente puede rotular el ID con el rol ("wan") dejando la interfaz
+// física en Iface; el childPort de LLDP/FDB es la interfaz, no el rol.
+func TestFillUplinkSpeedsFromChildIface(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"ap1": {ports: []EthPort{{ID: "wan", Iface: "eth0", Label: "WAN", Up: true, Speed: "10 Gbps"}}},
+	}
+	evidence := map[string]topoParent{"ap1": {parent: "sw1", port: "xg2", childPort: "eth0"}}
+	links := []TopoLink{{From: "sw1", To: "ap1", Kind: "uplink", Port: "xg2"}}
+	fillUplinkSpeedsFromChild(polled, evidence, links)
+	if links[0].SpeedMbps != 10000 {
+		t.Fatalf("childPort eth0 contra Iface: %d, want 10000", links[0].SpeedMbps)
+	}
+}

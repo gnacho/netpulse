@@ -58,7 +58,7 @@ type topoParent struct {
 // del switch=2). Devuelve también el puerto del lado del hijo (en qué puerto
 // de la propia unidad se aprende la MAC del padre), para cablear ambos
 // extremos. Orden determinista: ids ordenados.
-func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[string]topoParent {
+func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string, registered map[string]string, seedDepth map[string]int) map[string]topoParent {
 	macs := map[string]string{}    // MAC bridge (upper) → router propietario
 	idToMac := map[string]string{} // router id → MAC bridge (upper)
 	// learned[sid] = qué MACs (upper) aprende sid y en qué puerto propio.
@@ -74,6 +74,15 @@ func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[str
 			lm[strings.ToUpper(mac)] = port
 		}
 		learned[id] = lm
+		// MAC registrada (routers.mac): unidades sin bridge MAC utilizable
+		// (DSM: bridgeDetect cae en docker0 y no corre lldpd) eran invisibles
+		// para la evidencia FDB y su único anclaje era un override manual.
+		// La MAC de bridge manda si ambas existen y difieren en propietario.
+		if m := strings.ToUpper(strings.TrimSpace(registered[id])); m != "" {
+			if _, ok := macs[m]; !ok {
+				macs[m] = id
+			}
+		}
 		if p.brMac != "" {
 			macs[strings.ToUpper(p.brMac)] = id
 			idToMac[id] = strings.ToUpper(p.brMac)
@@ -99,6 +108,15 @@ func fleetFdbEvidence(polled map[string]*routerPolled, gatewayID string) map[str
 	// ciclos: un candidato que cuelga de rid (rid en su cadena de padres) no
 	// puede ser el padre de rid. Estabiliza en ≤ N+1 pasadas.
 	depth := map[string]int{gatewayID: 0}
+	// Semilla de profundidades derivada de LLDP (el caller la pasa): un switch
+	// de core cuya MAC de chasis nadie aprende no tiene candidato padre por
+	// FDB y su profundidad quedaría desconocida para siempre, arrastrando a
+	// las unidades cableadas en él al padre provisional del gateway.
+	for id, d := range seedDepth {
+		if id != gatewayID && d > 0 {
+			depth[id] = d
+		}
+	}
 	parent := map[string]topoParent{}
 	isDescendant := func(rid, c string) bool {
 		cur := c
@@ -411,6 +429,19 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 	for _, r := range routerNodes {
 		inRouter[r.ID] = true
 	}
+	// switchRouter: managed switch units (RoleBadge "SW"), e.g. a fleet switch
+	// or an agent-only NAS. A wired client with no FDB port attributed to an AP
+	// is not trustworthy (the AP bridge learns MACs that merely transit its
+	// uplink), so rule 2-Ago-2026 anchors it to the gateway. But a switch/NAS
+	// reports its own downstream clients first-party (e.g. a Docker container
+	// behind the NAS, portless because its veth is in the denylist), so its
+	// RouterID is honored to stay coherent with the unit's client count.
+	switchRouter := map[string]bool{}
+	for _, r := range routerNodes {
+		if r.RoleBadge == "SW" {
+			switchRouter[r.ID] = true
+		}
+	}
 
 	// D1: los Devices cuya MAC es la chassis-MAC de un distnode managed se
 	// representan SOLO como nodo managed (sin chip ni enlaces propios).
@@ -610,7 +641,15 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 				return d.AttachTo
 			}
 		}
-		if d.Band == "cable" && d.Port == "" {
+		// A wired client with no FDB port is force-anchored to the gateway unless
+		// its RouterID resolves to a managed switch. Attribution to a wireless AP
+		// is not trustworthy without port evidence (the AP bridge learns MACs
+		// that merely transit its uplink — rule 2-Ago-2026), but a switch/NAS
+		// reports its own downstream clients first-party (e.g. a Docker container
+		// behind the NAS, portless because its veth is in the port denylist);
+		// honoring that RouterID keeps the chip coherent with the unit's client
+		// count. Mirrors the model.ts hubOf guard.
+		if d.Band == "cable" && d.Port == "" && !switchRouter[d.RouterID] {
 			return gateway.ID
 		}
 		return d.RouterID

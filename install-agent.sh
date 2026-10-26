@@ -376,9 +376,16 @@ if [ -n "$SERVER_FP" ]; then
     FP_LINE="NETPULSE_SERVER_FP=$SERVER_FP"
 fi
 # #851: conservar las NETPULSE_* del usuario que este script no gestiona
-# (p. ej. NETPULSE_SCAN_INTERVAL=0): el rewrite toca solo las gestionadas
-# (SERVER/SLUG/TOKEN/SERVER_FP/PAIRING_TOKEN).
-USER_VARS=$(ssh $SSH_IDENT_ARGS "$SSH" "grep -E '^NETPULSE_[A-Z0-9_]+=' $ENV_FILE 2>/dev/null | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)='") || USER_VARS=""
+# (p. ej. NETPULSE_WAN_TARGET): el rewrite toca solo las gestionadas
+# (SERVER/SLUG/TOKEN/SERVER_FP/PAIRING_TOKEN/SCAN_INTERVAL).
+# #1558: el scan periódico de vecinos sale APAGADO. Sacar la radio del canal
+# puede tirar clientes sensibles a beacons (#1557) y la vista de canales pide
+# el scan bajo demanda (#1561). Si el env ya trae NETPULSE_SCAN_INTERVAL, ese
+# valor manda (#851), también al reinstalar desde la UI.
+PREV_SCAN=$(ssh $SSH_IDENT_ARGS "$SSH" "grep -E '^NETPULSE_SCAN_INTERVAL=' $ENV_FILE 2>/dev/null | tail -n 1") || PREV_SCAN=""
+SCAN_LINE="NETPULSE_SCAN_INTERVAL=0"
+if [ -n "$PREV_SCAN" ]; then SCAN_LINE="$PREV_SCAN"; fi
+USER_VARS=$(ssh $SSH_IDENT_ARGS "$SSH" "grep -E '^NETPULSE_[A-Z0-9_]+=' $ENV_FILE 2>/dev/null | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|SCAN_INTERVAL)='") || USER_VARS=""
 ssh $SSH_IDENT_ARGS "$SSH" "cat > $ENV_FILE && chmod 600 $ENV_FILE" <<EOF
 # netpulse-agent — config (generado por install-agent.sh)
 NETPULSE_SERVER=$SERVER
@@ -387,9 +394,9 @@ $TOKEN_LINE
 $FP_LINE
 # defaults (líneas comentadas; descomenta para cambiar):
 # NETPULSE_INTERVAL=30              # segundos entre pushes
-# NETPULSE_SCAN_INTERVAL=30m        # min entre scans de vecinos; "0" = sin
-#                                   # scans periódicos (APs con clientes Intel:
-#                                   # cada off-channel gap puede costar un deauth)
+# NETPULSE_SCAN_INTERVAL: "0" = sin scans periódicos (bajo demanda desde
+# "Análisis de canales"); "30m" u otro valor los reactiva.
+$SCAN_LINE
 # NETPULSE_WAN_TARGET=1.1.1.1       # solo si este equipo es el gateway
 # NETPULSE_GW_TARGET=192.168.8.1    # ping al gateway (APs)
 # NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat

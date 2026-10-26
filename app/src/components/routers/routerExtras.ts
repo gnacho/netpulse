@@ -112,6 +112,20 @@ export interface EthPort {
 }
 
 /**
+ * Valores del contrato peerKind con el servidor (#1039). Espejo de las
+ * constantes PeerKind* de server-go/internal/adapters/types.go: un literal
+ * suelto aquí se queda sin actualizar cuando cambie el otro lado.
+ */
+export const PeerKind = {
+  RouterLink: 'router-link',
+  RouterLinkLldp: 'router-link-lldp',
+  ApWifi: 'ap-wifi',
+  Curated: 'curated',
+  Mac: 'mac',
+  InferredSwitch: 'inferred-switch',
+} as const
+
+/**
  * Etiqueta del par conectado a una boca. En agregación (deviceCount > 0)
  * el contador lo traduce la app con su i18n; el server ya no pre-formatea
  * texto en este caso (#1036). Las plantillas por peerKind se traducen aquí
@@ -122,12 +136,12 @@ export function portPeerLabel(port: EthPort): string {
     return i18n.t('routerDetail.ports.aggregation', { count: port.deviceCount })
   }
   switch (port.peerKind) {
-    case 'curated':
+    case PeerKind.Curated:
       // "nombre · detrás de <label de la boca>" traducido.
       return port.connectedTo
         ? `${port.connectedTo} · ${i18n.t('routerDetail.ports.behindLabel', { label: port.label })}`
         : ''
-    case 'inferred-switch':
+    case PeerKind.InferredSwitch:
       return i18n.t('routerDetail.ports.inferredSwitch')
     default:
       return port.connectedTo ?? ''
@@ -140,21 +154,21 @@ export function portPeerDetail(port: EthPort): string {
     return i18n.t('routerDetail.ports.aggregationHint')
   }
   switch (port.peerKind) {
-    case 'router-link':
-    case 'router-link-lldp':
+    case PeerKind.RouterLink:
+    case PeerKind.RouterLinkLldp:
       // #1150: la mgmt-ip del vecino LLDP viaja en detail y es más útil
       // que la plantilla; sin dato LLDP se queda la plantilla traducida.
       return (
         port.detail ||
-        i18n.t(port.peerKind === 'router-link' ? 'routerDetail.ports.detailRouterLink' : 'routerDetail.ports.detailRouterLinkLldp')
+        i18n.t(port.peerKind === PeerKind.RouterLink ? 'routerDetail.ports.detailRouterLink' : 'routerDetail.ports.detailRouterLinkLldp')
       )
-    case 'ap-wifi':
+    case PeerKind.ApWifi:
       return i18n.t('routerDetail.ports.detailApWifi')
-    case 'mac':
+    case PeerKind.Mac:
       return port.deviceMac
         ? i18n.t('routerDetail.ports.detailMac', { mac: port.deviceMac })
         : ''
-    case 'inferred-switch':
+    case PeerKind.InferredSwitch:
       return ''
     default:
       return port.detail ?? ''

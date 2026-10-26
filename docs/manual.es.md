@@ -371,6 +371,8 @@ Por cada router, una tarjeta por radio WiFi con el **canal actual**, el **canal 
 
 El plan se calcula con los **scans de vecinos** de cada radio. Aquí hay una diferencia clave: los routers que corren el panel **NetGrip** (el gateway y los APs gestionados por su panel) **no escanean vecinos**; los routers con el **agente NetPulse** sí. Por eso a veces un router no muestra recomendación.
 
+Desde el agente 3.0.25 el sondeo periódico viene **desactivado** (`NETPULSE_SCAN_INTERVAL=0` en `/etc/netpulse-agent.env`): el `iw scan` saca la radio de su canal 2-4 s y algunos clientes sensibles a los beacons (ESP8266/ESP32, altavoces Cast) se desasocian en esa ventana (ver #1557). Los vecinos se refrescan al abrir esta página si los datos tienen más de 6 horas (un scan por radio física, con 5 minutos de margen entre peticiones) y con el botón **Escanear ahora**. Para volver al sondeo periódico, pon `NETPULSE_SCAN_INTERVAL=30m` (o el intervalo que quieras) en `/etc/netpulse-agent.env` y reinicia el agente.
+
 ### Cómo leerlo
 
 - **Canal actual** en grande, **canal recomendado** resaltado si es distinto.

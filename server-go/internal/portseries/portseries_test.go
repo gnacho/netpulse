@@ -240,9 +240,9 @@ func TestDeriveFps(t *testing.T) {
 	base := time.Now().Truncate(time.Second)
 	pts := []PortPoint{
 		{TS: base, RxFrames: 0, TxFrames: 0},
-		{TS: base.Add(30 * time.Second), RxFrames: 3000, TxFrames: 1500}, // 100 rx, 50 tx fps
-		{TS: base.Add(60 * time.Second), RxFrames: 6000, TxFrames: 3000}, // 100 rx, 50 tx fps
-		{TS: base.Add(90 * time.Second), RxFrames: 500, TxFrames: 100},   // reset: contador bajó
+		{TS: base.Add(30 * time.Second), RxFrames: 3000, TxFrames: 1500},  // 100 rx, 50 tx fps
+		{TS: base.Add(60 * time.Second), RxFrames: 6000, TxFrames: 3000},  // 100 rx, 50 tx fps
+		{TS: base.Add(90 * time.Second), RxFrames: 500, TxFrames: 100},    // reset: contador bajó
 		{TS: base.Add(120 * time.Second), RxFrames: 3500, TxFrames: 2100}, // 100 rx, 66.6 tx fps
 	}
 	deriveFps(pts)
@@ -262,6 +262,35 @@ func TestDeriveFps(t *testing.T) {
 	}
 	if pts[4].RxFps != 100 || pts[4].TxFps < 66 || pts[4].TxFps > 67 {
 		t.Fatalf("punto 4: rx=%.1f tx=%.1f, esperaba 100/~66.6", pts[4].RxFps, pts[4].TxFps)
+	}
+}
+
+// #1535: deriveBps calcula bits/s entre muestras consecutivas desde los bytes
+// acumulados y deja a 0 el intervalo que cruza un reset del contador.
+func TestDeriveBps(t *testing.T) {
+	base := time.Now().Truncate(time.Second)
+	pts := []PortPoint{
+		{TS: base, RxBytes: 0, TxBytes: 0},
+		{TS: base.Add(30 * time.Second), RxBytes: 3_750_000, TxBytes: 1_875_000},  // 1 Mbps rx, 0.5 Mbps tx
+		{TS: base.Add(60 * time.Second), RxBytes: 7_500_000, TxBytes: 3_750_000},  // 1 Mbps rx, 0.5 Mbps tx
+		{TS: base.Add(90 * time.Second), RxBytes: 100, TxBytes: 50},               // reset: contador bajó
+		{TS: base.Add(120 * time.Second), RxBytes: 3_750_100, TxBytes: 1_875_050}, // 1 Mbps rx, 0.5 Mbps tx
+	}
+	deriveBps(pts)
+	if pts[0].RxBps != 0 || pts[0].TxBps != 0 {
+		t.Fatalf("primer punto debería tener bps 0: %+v", pts[0])
+	}
+	if pts[1].RxBps != 1_000_000 || pts[1].TxBps != 500_000 {
+		t.Fatalf("punto 1: rx=%.0f tx=%.0f, esperaba 1000000/500000", pts[1].RxBps, pts[1].TxBps)
+	}
+	if pts[2].RxBps != 1_000_000 || pts[2].TxBps != 500_000 {
+		t.Fatalf("punto 2: rx=%.0f tx=%.0f, esperaba 1000000/500000", pts[2].RxBps, pts[2].TxBps)
+	}
+	if pts[3].RxBps != 0 || pts[3].TxBps != 0 {
+		t.Fatalf("punto 3 (reset) debería tener bps 0: %+v", pts[3])
+	}
+	if pts[4].RxBps != 1_000_000 || pts[4].TxBps != 500_000 {
+		t.Fatalf("punto 4: rx=%.0f tx=%.0f, esperaba 1000000/500000", pts[4].RxBps, pts[4].TxBps)
 	}
 }
 

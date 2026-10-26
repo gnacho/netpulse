@@ -137,6 +137,46 @@ func TestBeaconValidIngestOverUDP(t *testing.T) {
 	}
 }
 
+// gnacho/netpulse#1535: el beacon del firmware RTLPlayground (a partir de
+// v0.1.0-f25dfc6) añade por puerto ih/il y oh/ol, las mitades de 32 bits de
+// los octetos acumulados ifInOctets/ifOutOctets. El server los ensambla en
+// uint64 y los graba como bytes de la serie de puertos.
+func TestBeaconOctetsRecordBytes(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	// ih=1, il=500 → in-octets = 2^32+500; oh=0, ol=1000 → 1000.
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":3,"l":3,"tx":10,"rx":20,"ih":1,"il":500,"oh":0,"ol":1000}]}`,
+		token))
+	waitFresh(t, s, "switch16")
+
+	deadline := time.Now().Add(3 * time.Second)
+	var rx, tx uint64
+	for {
+		err := s.db.QueryRow(`SELECT rx_bytes, tx_bytes FROM port_series_raw
+			WHERE router_id = ? AND port_id = ?`, "switch16", "lan3").Scan(&rx, &tx)
+		if err == nil && (rx != 0 || tx != 0) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("serie de puertos sin bytes (err: %v, rx: %d, tx: %d)", err, rx, tx)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if want := uint64(1)<<32 | 500; rx != want {
+		t.Fatalf("rx_bytes = %d, esperaba %d", rx, want)
+	}
+	if tx != 1000 {
+		t.Fatalf("tx_bytes = %d, esperaba 1000", tx)
+	}
+}
+
 // Spec 2026-09 (#865): el datagrama de estado puede traer fw/up/mac; el
 // server los convierte en System sin tocar el sondeo de consola (#639).
 func TestBeaconSystemFieldsFromStatusDatagram(t *testing.T) {

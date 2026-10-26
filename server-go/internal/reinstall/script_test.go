@@ -48,7 +48,8 @@ func TestScriptEnvDocumentsDefaults(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
 		"# NETPULSE_INTERVAL=30",
-		"# NETPULSE_SCAN_INTERVAL=30m",
+		`# NETPULSE_SCAN_INTERVAL: "0" = sin scans periódicos`,
+		"NETPULSE_SCAN_INTERVAL=$SCAN_VALUE",
 		"# NETPULSE_WAN_TARGET=1.1.1.1",
 		"# NETPULSE_GW_TARGET=192.168.8.1",
 		"# NETPULSE_HEARTBEAT_FILE=/tmp/netpulse-agent.heartbeat",
@@ -91,7 +92,7 @@ func TestScriptPreservesUserVars(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
 		`USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE"`,
-		`grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET)='`,
+		`grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET|SCAN_INTERVAL)='`,
 		`printf '%s\n' "$USER_VARS" >> "$ENV_FILE"`,
 	} {
 		if !strings.Contains(s, want) {

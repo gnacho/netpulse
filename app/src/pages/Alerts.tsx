@@ -659,6 +659,12 @@ export default function Alerts() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [burst, setBurst] = useState(0)
   const [configOpen, setConfigOpen] = useState(false)
+  // #1518: ocultar eventos de recuperación (severity ok). El estado vive aquí
+  // (no en el toggle) para que el filtro del feed pueda aplicarlo; se carga
+  // del endpoint de umbrales y se oculta si no responde (p. ej. sin permiso
+  // de admin). En demo es solo local.
+  const [hideRecovery, setHideRecovery] = useState(false)
+  const [recoveryToggleReady, setRecoveryToggleReady] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveTimerRef = useRef<number | undefined>(undefined)
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'done'>('idle')
@@ -735,9 +741,45 @@ export default function Alerts() {
 
   useEffect(() => () => window.clearTimeout(saveTimerRef.current), [])
 
+  // #1518: valor inicial del ajuste "ocultar eventos de recuperación".
+  useEffect(() => {
+    if (isDemo) {
+      setRecoveryToggleReady(true)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/settings/thresholds')
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { hideRecoveryEvents?: boolean }
+        setHideRecovery(data.hideRecoveryEvents === true)
+        setRecoveryToggleReady(true)
+      } catch {
+        /* sin estado: el toggle queda oculto */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isDemo])
+
+  const toggleHideRecovery = (v: boolean) => {
+    setHideRecovery(v)
+    if (isDemo) return
+    void fetch('/api/settings/thresholds', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hideRecoveryEvents: v }),
+    }).catch(() => setHideRecovery((prev) => prev))
+  }
+
   const filtered = useMemo(
     () =>
       alertFeed.filter((ev) => {
+        // #1518: con el ajuste activo, los cierres informativos (severity ok)
+        // no se muestran; los avisos resueltos (resolvedTs) siguen en Resueltas.
+        if (hideRecovery && ev.severity === 'ok') return false
         // #1349: un evento resuelto (resolvedTs) pertenece a la pestaña
         // Resueltas; en Avisos/Info ya no cuenta (su condición cerró).
         // "Todas" lo muestra: es el registro de actividad completo.
@@ -751,7 +793,7 @@ export default function Alerts() {
         if (onlyUnread && isRead(ev)) return false
         return true
       }),
-    [alertFeed, sev, cats, onlyUnread],
+    [alertFeed, sev, cats, onlyUnread, hideRecovery],
   )
 
   const groups = useMemo(
@@ -1029,6 +1071,15 @@ export default function Alerts() {
                 })}
               </ul>
               <ImpostorRuleToggle />
+              {recoveryToggleReady && (
+                <div className="mt-4 flex items-center justify-between gap-4 border-t border-border/60 pt-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-text-primary">{t('alerts.hideRecovery')}</div>
+                    <p className="mt-0.5 text-caption leading-snug text-text-muted">{t('alerts.hideRecoveryDesc')}</p>
+                  </div>
+                  <Switch checked={hideRecovery} onCheckedChange={toggleHideRecovery} aria-label={t('alerts.hideRecovery')} />
+                </div>
+              )}
               <div className="mt-4 border-t border-border/60 pt-4">
                 <RulesManager />
               </div>

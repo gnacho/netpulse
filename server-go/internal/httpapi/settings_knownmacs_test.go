@@ -55,6 +55,30 @@ func TestKnownMacsRoundtrip(t *testing.T) {
 	}
 }
 
+// TestKnownMacsPutLiftsTombstone (#1278): la re-alta manual quita la lápida
+// para que el cliente pueda volver a alta solo desde las fuentes vivas. El
+// bug: la llamada vivía en la rama de error del upsert y el camino de éxito
+// nunca la ejecutaba (el borrado manual era irreversible en la práctica).
+func TestKnownMacsPutLiftsTombstone(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+	const mac = "38:B8:00:0A:24:37"
+	if err := srv.db.AddDeletedClient(mac); err != nil {
+		t.Fatalf("AddDeletedClient: %v", err)
+	}
+	if tomb, _ := srv.db.DeletedClients(); !tomb[mac] {
+		t.Fatal("prepara: la lápida no quedó registrada")
+	}
+	res, _ := wanSpeedRequest(t, "PUT", srv.URL, "/api/settings/known-macs", cookie,
+		`{"mac":"`+mac+`","name":"","note":"re-alta"}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PUT: status %d, esperado 200", res.StatusCode)
+	}
+	if tomb, _ := srv.db.DeletedClients(); tomb[mac] {
+		t.Fatal("PUT conocido no levantó la lápida (#1278)")
+	}
+}
+
 // TestKnownMacsInvalidInput: MAC mal formada → 400; PUT sin admin → 401.
 func TestKnownMacsInvalidInput(t *testing.T) {
 	srv := makeTestServer(t)

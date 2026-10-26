@@ -110,10 +110,18 @@ chmod 644 ` + caPath + `
 // envRewriteBlock regenera /etc/netpulse-agent.env con las vars gestionadas
 // actuales, conservando las NETPULSE_* del usuario (#851). Usa las vars de
 // entorno del script anfitrión: SERVER, SLUG, TOKEN y SERVER_FP.
+//
+// #1558: el env sale con NETPULSE_SCAN_INTERVAL=0 activo. El scan periódico
+// de vecinos saca la radio del canal y puede tirar clientes sensibles a
+// beacons (#1557); la vista de canales pide el scan bajo demanda (#1561). Un
+// valor que ya esté en el env gana, para no pisar un override manual (#851).
 func envRewriteBlock(targets WanTargets) string {
 	return `USER_VARS=""
+SCAN_VALUE="0"
 if [ -f "$ENV_FILE" ]; then
-	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET)=') || true
+	prev_scan=$(grep -E '^NETPULSE_SCAN_INTERVAL=' "$ENV_FILE" | tail -n 1) || prev_scan=""
+	if [ -n "$prev_scan" ]; then SCAN_VALUE=${prev_scan#NETPULSE_SCAN_INTERVAL=}; fi
+	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET|SCAN_INTERVAL)=') || true
 fi
 cat > "$ENV_FILE" <<EOF
 # netpulse-agent — config (generado por reinstall)
@@ -122,7 +130,9 @@ NETPULSE_SLUG=$SLUG
 NETPULSE_TOKEN=$TOKEN
 # NETPULSE_SERVER_FP=<sha256>    # pin SPKI del server (https); lo rellena el instalador
 # NETPULSE_INTERVAL=30           # segundos entre pushes
-# NETPULSE_SCAN_INTERVAL=30m     # min entre scans de vecinos; "0" = sin scans periódicos
+# NETPULSE_SCAN_INTERVAL: "0" = sin scans periódicos (bajo demanda desde
+# "Análisis de canales"); "30m" u otro valor los reactiva.
+NETPULSE_SCAN_INTERVAL=$SCAN_VALUE
 ` + func() string {
 		wanLine := "# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway"
 		if targets.WanTarget != "" {

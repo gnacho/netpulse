@@ -51,6 +51,10 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	// Best-effort: los switches que no exponen el OID responden
 	// NoSuchInstance y hasTemp queda false (vitals a null como antes).
 	mikroTemp, hasTemp := npsnmp.PollMikrotikTemp(session)
+	// Netgear FastPath (XS708T, GS728TXP/S3300…): CPU por proceso y sensores
+	// de temperatura en su MIB privada (4526.11). Best-effort igual que el
+	// MikroTik: sin esos árboles, ok=false y los vitales siguen a null.
+	ngCpu, hasNgCpu, ngTemp, hasNgTemp := npsnmp.PollNetgearVitals(session)
 	// #1036: MAC propia del switch (dot1dBaseBridgeAddress). Sin ella el
 	// equipo no tenía MAC en flota ni casaba por MAC en topología. Cache:
 	// si el OID no contesta en este poll se conserva la última conocida.
@@ -206,6 +210,12 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		p.sysName = sysInfo.Name
 	}
 	p.temp, p.hasTemp = mikroTemp, hasTemp
+	if !p.hasTemp && hasNgTemp {
+		p.temp, p.hasTemp = ngTemp, true
+	}
+	if hasNgCpu {
+		p.cpu, p.hasCpu = ngCpu, true
+	}
 	l.mu.Lock()
 	l.snmpLastPoll[cfg.ID] = now
 	l.mu.Unlock()

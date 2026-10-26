@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,6 +131,11 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 	// "refresh" fuerza en el agente un ciclo con ForceScan (el throttle del
 	// intervalo no aplica) y el push siguiente trae los vecinos nuevos a
 	// wifi_scans. Requiere el agente conectado por SSE.
+	//
+	// #1561: este endpoint es el único camino de scan con el default nuevo,
+	// así que lleva su propio anti-martilleo por unidad. Abrir la vista pide
+	// el scan, y sin límite dos pestañas (o dos admins) encadenarían ciclos
+	// sacando la radio del canal, que es justo lo que #1557 reporta.
 	mux.Handle("POST /api/wifi/channel-plan/scan", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		routerID := r.URL.Query().Get("routerId")
 		if routerID == "" {
@@ -140,10 +147,52 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusServiceUnavailable, "unavailable", "SSE agentHub no configurado")
 			return
 		}
+		if retry, ok := s.claimPlanScan(slug); !ok {
+			w.Header().Set("Retry-After", strconv.Itoa(retry))
+			writeJSON(w, http.StatusTooManyRequests, map[string]any{
+				"error":         "rate_limited",
+				"retryAfterSec": retry,
+			})
+			return
+		}
 		if !s.agentHub.Send(slug, "refresh", map[string]any{}) {
+			// Sin agente conectado el scan no va a ocurrir: se libera el
+			// turno para que el siguiente intento no espere 5 minutos.
+			s.releasePlanScan(slug)
 			writeError(w, http.StatusNotFound, "not_found", "el agente no está conectado por SSE")
 			return
 		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
 	})))
+}
+
+// planScanMinInterval: mínimo entre scans bajo demanda de una misma unidad
+// (#1561). Un scan de vecinos tarda 2-4s por radio y saca la radio del canal.
+const planScanMinInterval = 5 * time.Minute
+
+// claimPlanScan reserva el turno de scan de la unidad o devuelve los segundos
+// que faltan para el siguiente. El estado vive en memoria: un reinicio del
+// server solo permite un scan de más.
+func (s *server) claimPlanScan(slug string) (int, bool) {
+	s.planScanMu.Lock()
+	defer s.planScanMu.Unlock()
+	now := time.Now()
+	if s.lastPlanScan == nil {
+		s.lastPlanScan = make(map[string]time.Time, 8)
+	}
+	if last, ok := s.lastPlanScan[slug]; ok {
+		if since := now.Sub(last); since < planScanMinInterval {
+			retry := int(math.Ceil((planScanMinInterval - since).Seconds()))
+			return retry, false
+		}
+	}
+	s.lastPlanScan[slug] = now
+	return 0, true
+}
+
+// releasePlanScan devuelve el turno cuando el scan no llegó a pedirse.
+func (s *server) releasePlanScan(slug string) {
+	s.planScanMu.Lock()
+	delete(s.lastPlanScan, slug)
+	s.planScanMu.Unlock()
 }

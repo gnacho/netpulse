@@ -94,6 +94,18 @@ kept.
   </picture>
 </p>
 
+**What it runs on.** The server is one static Go binary on any Linux box.
+The agent is what talks to your routers, and how it gets there depends on
+the platform:
+
+| Platform | How the agent runs | Notes |
+|---|---|---|
+| OpenWrt (incl. GL.iNet) | Native `netpulse-agent` package (`.ipk`/`.apk`) | procd, UCI config, `luci-app-netpulse`, in-app install and upgrade |
+| Asuswrt / Asuswrt-Merlin | Static binary in `/jffs`, env file | No `ubus`: falls back to `/proc`, `iw` and `lldpd`. Manual install and update |
+| RouterOS | Built-in pusher | Topology and clients derived from the router's own tables |
+| Managed switches | SNMP | Port states, speeds and LLDP-MIB neighbours |
+| Anything else with SSH | Server-side polling | No agent needed; slower, stateless per poll |
+
 **And the rest of the tour:**
 
 - **WireGuard**: peers with real names, latest handshakes, transfer per peer.
@@ -143,7 +155,9 @@ one by one, and everything above is clickable in the **[live demo](https://demo.
 ## Get started in about five minutes
 
 You need a Linux box with systemd (x86_64, arm64 or armv7; a small LXC or VM
-is plenty) and OpenWrt/GL.iNet routers on your LAN.
+is plenty) and OpenWrt/GL.iNet routers on your LAN. Asuswrt/Merlin is
+supported too, and anything with SSH or SNMP can be added by hand (see the
+folded section below).
 
 **1. Install the server** on the box:
 
@@ -175,7 +189,8 @@ offer an **Install agent** button. One click and the server registers the
 agent, pushes the right binary for the router's architecture, writes the
 config and starts the service; it shows up as connected within seconds.
 Routers the server cannot SSH into use the pairing token instead
-(**Settings → Agent adoption**, see the folded section below).
+(**Settings → Agent adoption**, see the folded section below), and Asuswrt
+takes a manual binary as described there.
 
 **5. Take it with you.** Install the PWA from your browser (Add to home
 screen / Install app) and enable Web Push in Settings: alerts reach your
@@ -219,6 +234,32 @@ Agent adoption shows a reusable pairing token:
 `install-agent.sh --pairing-token` (run from any machine that can reach both
 the router and the server) registers the agent on first contact.
 
+**Asuswrt / Merlin.** The agent also runs on Asuswrt and Asuswrt-Merlin
+routers (tested on a GT-BE98 Pro with RT-AX92U mesh nodes). There is no
+`opkg` there, so it is a plain static binary: pick
+`netpulse-agent_<version>_linux_arm64.tar.gz` (or `armv7`, `mips`,
+`mipsle` for older hardware) from the
+[latest release](https://github.com/gnacho/netpulse/releases), copy it to
+`/jffs/` (which survives firmware updates, unlike `/tmp`), and point it at
+your server. The config file defaults to `/etc/netpulse-agent.env`, so keep
+it in `/jffs` and name it explicitly:
+
+```sh
+cat > /jffs/netpulse-agent.env <<'EOF'
+NETPULSE_SERVER=http://<netpulse-server-ip>:3000
+NETPULSE_SLUG=<slug>
+NETPULSE_TOKEN=<64-hex token>
+EOF
+NETPULSE_ENV_FILE=/jffs/netpulse-agent.env /jffs/netpulse-agent &
+```
+
+To start it at boot, add that same line to `/jffs/scripts/init-start` (or
+`services-start`). There is no procd and no SSH-based reinstall: updates go
+through the agent's own `upgrade` command, or by copying the new binary.
+Everything that does not need `ubus` works, including the topology (bridge
+FDB, `iw`, `lldpd`); features that depend on GL.iNet specifics are simply
+absent.
+
 **Latency sidecar.** Optional long-term TCP latency probes per router:
 
 ```bash
@@ -261,26 +302,14 @@ instead of depending on a vendor's closed firmware, only works because
 OpenWrt exists. If NetPulse is useful to you, the real credit goes to the
 OpenWrt community.
 
-### Contributors
+This project is also shaped by its community: every issue, pull request and
+real-hardware test makes it better. Thanks to everyone who has contributed so
+far - the people and the work behind each release are named in the
+[CHANGELOG](CHANGELOG.md) and in every release's notes.
 
-The project is shaped almost as much by its reporters as by its code. Huge
-thanks to everyone who opens issues, sends PRs and tests against real hardware:
-
-- [@Bann-DEV](https://github.com/Bann-DEV) - agent and topology bug reports
-  (#1481, #1482, #1484, #1485, #1489) and PRs [#1490](https://github.com/gnacho/netpulse/pull/1490),
-  [#1491](https://github.com/gnacho/netpulse/pull/1491): CPU thermal zones, the
-  WAN-port ARP evidence and Asuswrt support all came from their hardware.
-- [@crowedavid](https://github.com/crowedavid) - WireGuard, firmware-upgrade and
-  topology deep-dives across more than twenty issues.
-- [@pl-komuch](https://github.com/pl-komuch) - install and HTTPS feedback
-  (#1475), which became the forget-host-key action.
-- [@sweetlazyboy](https://github.com/sweetlazyboy) - the per-client presence
-  timeline on the Reports page (#1493).
-- [@juflo](https://github.com/juflo) - the BBox router integration (#1474).
-- [@TheBox193](https://github.com/TheBox193), [@Coll147](https://github.com/Coll147),
-  [@gnulan](https://github.com/gnulan) and
-  [@ChaitanyaPramod](https://github.com/ChaitanyaPramod) - early issues and
-  feedback that shaped the first releases.
+If you want to send code, read [CONTRIBUTING.md](CONTRIBUTING.md) first: every
+PR runs the full build and test suite, and new server code lives in its own
+file with its test.
 
 ## Star history
 

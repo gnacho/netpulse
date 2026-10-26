@@ -775,7 +775,7 @@ func fillNodeSpeeds(polled map[string]*routerPolled, dists []DistributionNode) {
 			continue
 		}
 		for _, ep := range p.ports {
-			if ep.ID != dists[i].Port || !ep.Up {
+			if !ep.Up || !portMatchesName(ep, dists[i].Port) {
 				continue
 			}
 			if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
@@ -795,6 +795,32 @@ func stripLANPrefix(s string) string {
 		return s[3:]
 	}
 	return s
+}
+
+// portMatchesName casa una boca sondeada (EthPort) con el nombre de puerto
+// que trae un enlace o un distnode. Comparar solo ep.ID se queda corto en
+// dos casos reales: los puertos SNMP viven con ID "snmp-<ifIndex>" y el
+// nombre humano ("xg2", "1/g9") en Iface, y el agente puede rotular el ID
+// con el rol ("wan") dejando la interfaz física ("eth0") en Iface, que es
+// justo la que reportan LLDP/FDB/override como childPort. Se prueban ID e
+// Iface con la misma normalización lan* y sin distinguir mayúsculas
+// (EqualFold cubre también la igualdad exacta); Label queda fuera porque es
+// campo de display ("LAN 1") y nunca sobrevive a la normalización. Sin dato
+// en el enlace, false para no afirmar velocidad.
+func portMatchesName(ep EthPort, name string) bool {
+	if name == "" {
+		return false
+	}
+	n := stripLANPrefix(name)
+	for _, cand := range []string{ep.ID, ep.Iface} {
+		if cand == "" {
+			continue
+		}
+		if strings.EqualFold(stripLANPrefix(cand), n) {
+			return true
+		}
+	}
+	return false
 }
 
 // fillUplinkSpeeds (#1321): velocidad del uplink de una unidad cuando el
@@ -832,7 +858,7 @@ func fillUplinkSpeeds(polled map[string]*routerPolled, dists []DistributionNode,
 			continue
 		}
 		for _, ep := range p.ports {
-			if ep.Up && (ep.ID == l.Port || stripLANPrefix(ep.ID) == stripLANPrefix(l.Port)) {
+			if ep.Up && portMatchesName(ep, l.Port) {
 				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
 					l.SpeedMbps = mbps
 				}
@@ -874,7 +900,7 @@ func fillWiredSpeeds(polled map[string]*routerPolled, dists []DistributionNode, 
 			continue
 		}
 		for _, ep := range p.ports {
-			if ep.Up && (ep.ID == l.Port || stripLANPrefix(ep.ID) == stripLANPrefix(l.Port)) {
+			if ep.Up && portMatchesName(ep, l.Port) {
 				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
 					l.SpeedMbps = mbps
 				}
@@ -911,7 +937,7 @@ func fillUplinkSpeedsFromChild(polled map[string]*routerPolled, evidence map[str
 			continue
 		}
 		for _, ep := range p.ports {
-			if ep.Up && (ep.ID == ev.childPort || stripLANPrefix(ep.ID) == stripLANPrefix(ev.childPort)) {
+			if ep.Up && portMatchesName(ep, ev.childPort) {
 				if mbps := parseSpeedMbps(ep.Speed); mbps > 0 {
 					l.SpeedMbps = mbps
 				}

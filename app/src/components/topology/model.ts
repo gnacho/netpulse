@@ -819,9 +819,9 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // junto al enlace WAN), no como cliente LAN. La semántica server ya lo
   // excluye de los anillos; aquí se excluye de la lista online para el
   // fallback sin semántica y se reserva el device para el chip.
-  const wanPeerDev = devices.find(
-    (d) => d.online && wan.gateway && d.ip && d.ip === wan.gateway,
-  )
+  const wanPeerDev =
+    devices.find((d) => d.online && d.wanSide) ??
+    devices.find((d) => d.online && wan.gateway && d.ip && d.ip === wan.gateway)
   // Chip del wan peer, creado tras fijar la posición final de Internet.
   let wanPeerChip: ChipNode | null = null
   const online = devices.filter(
@@ -837,7 +837,19 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     if (d.attachTo && (routerById.has(d.attachTo) || distById.has(d.attachTo) || deviceById.has(d.attachTo))) {
       return d.attachTo
     }
-    if (isWired(d) && !d.port && gatewayNode) return gatewayNode.id
+    // A wired client with no FDB port is force-anchored to the gateway unless
+    // its routerId resolves to a managed switch. Attribution to a wireless AP
+    // is not trustworthy without port evidence (rule 2-Ago-2026), but a
+    // switch/NAS reports its own downstream clients first-party (e.g. a Docker
+    // container behind the NAS, portless because its veth is in the port
+    // denylist); honoring that routerId keeps the chip coherent with the unit's
+    // client count. Mirrors the hubOf guard in server topo_semantics.go.
+    if (
+      isWired(d) && !d.port && gatewayNode &&
+      routerById.get(d.routerId)?.router.roleBadge !== 'SW'
+    ) {
+      return gatewayNode.id
+    }
     return d.routerId
   }
   // SPEC-65 D65-3/D65-9 B2: con semántica server-side, los anillos llegan
@@ -1119,7 +1131,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
         const gwTop = { x: gatewayNode.x, y: gatewayNode.y - gatewayNode.r }
         const mx = (internetNode.x + gwTop.x) / 2
         const my = (internetNode.y + gwTop.y) / 2
-        wanPeerChip = { ...mkChip(wanPeerDev, 'internet'), x: mx + 46, y: my }
+        wanPeerChip = { ...mkChip(wanPeerDev, 'internet'), x: mx, y: my }
         chips.push(wanPeerChip)
       }
       // APs y switches: a lo largo del vector desde el gateway hasta su posición
@@ -1457,6 +1469,20 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       from: dv.node.parent ?? dv.node.routerId, to: dv.id,
     })
   }
+  // #1485/#1495: con semántica del server, el enlace wan-peer llega en
+  // topology.links; el chip debe existir ANTES de chipById o el enlace
+  // quedaría colgando de un extremo inexistente (pasaba en flotas PPPoE,
+  // donde el fallback por IP no casa y solo la semántica conoce el peer).
+  if (
+    !wanPeerChip && wanPeerDev && gatewayNode &&
+    (topology?.links ?? []).some((l) => l.kind === 'wan-peer')
+  ) {
+    const gwTop = { x: gatewayNode.x, y: gatewayNode.y - gatewayNode.r }
+    const mx = (internetNode.x + gwTop.x) / 2
+    const my = (internetNode.y + gwTop.y) / 2
+    wanPeerChip = { ...mkChip(wanPeerDev, 'internet'), x: mx, y: my }
+    chips.push(wanPeerChip)
+  }
   const chipById = new Map(chips.map((c) => [c.id, c]))
   const hubPos = (hubId: string): { x: number; y: number; r: number } | null => {
     const rn = routerById.get(hubId)
@@ -1538,6 +1564,19 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
             lx: 518, ly: 162, label: `Fibra ${wan.plan} · ${wan.latencyMs} ms`,
             width: 3, ...flowFor(600),
             from: sl.from, to: sl.to,
+          }
+        }
+        case 'wan-peer': {
+          // #1485/#1495: el chip ya se creó antes de chipById; aquí solo se
+          // dibuja el enlace Internet↔chip que emite la semántica.
+          if (!gatewayNode || !wanPeerChip) return null
+          const a = pos(internetNode.x, internetNode.y, angleTo(internetNode.x, internetNode.y, wanPeerChip.x, wanPeerChip.y), internetNode.r + 2)
+          return {
+            id: 'wan-peer', kind: 'wan-peer',
+            d: `M ${a.x} ${a.y} L ${wanPeerChip.x} ${wanPeerChip.y}`,
+            lx: 0, ly: 0, label: '',
+            width: 1.5, ...flowFor(30),
+            from: 'internet', to: wanPeerChip.id,
           }
         }
         case 'uplink': {

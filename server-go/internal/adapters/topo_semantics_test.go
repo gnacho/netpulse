@@ -229,6 +229,41 @@ func TestTopoSemanticsWanPeer(t *testing.T) {
 	}
 }
 
+// A wired client with no FDB port keeps its real (non-gateway) attribution:
+// a Docker container behind the NAS reports Band=cable with an empty Port
+// (its veth lands in the port denylist), but RouterID already resolved it to
+// the NAS. hubOf must honor that RouterID instead of force-anchoring it to
+// the gateway, so it lands in the NAS ring and matches the unit's client
+// count. Mirrors the model.ts hubOf guard.
+func TestTopoSemanticsWiredNoPortHonorsNonGatewayRouter(t *testing.T) {
+	routers := []Router{
+		{ID: "gw", Name: "gateway", RoleBadge: "Principal", MAC: "AA:BB:CC:00:00:01"},
+		{ID: "nas", Name: "nas", RoleBadge: "SW", MAC: "AA:BB:CC:00:00:02"},
+	}
+	devices := []Device{
+		// The NAS itself, seen on a gateway port (so it is a real switch node).
+		{ID: "dev-nas", MAC: "AA:BB:CC:00:00:02", RouterID: "gw", Band: "cable", Online: true, Port: "3"},
+		// Docker container behind the NAS: cable, no port, attributed to nas.
+		{ID: "docker", MAC: "02:42:AC:11:00:03", RouterID: "nas", Band: "cable", Online: true},
+	}
+	sem := BuildTopoSemantics(routers, devices, WireGuardStats{}, nil, "", nil, nil, nil)
+
+	for _, id := range sem.Rings["gw"] {
+		if id == "docker" {
+			t.Fatal("the container must not be anchored to the gateway ring")
+		}
+	}
+	found := false
+	for _, id := range sem.Rings["nas"] {
+		if id == "docker" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the container must be in the NAS ring: rings=%+v", sem.Rings)
+	}
+}
+
 // #1047: la MAC de una unidad de flota aprendida en el FDB de otro miembro
 // ancla su uplink al padre real (ap1 cuelga de sw1, no del gateway), aunque
 // no haya LLDP. La unidad deja de duplicarse como chip de cliente.
@@ -327,7 +362,7 @@ func TestFleetFdbEvidence(t *testing.T) {
 		"sw1": {brMac: "AA:BB:CC:00:00:02", fdb: map[string]string{"AA:BB:CC:00:00:03": "5"}},
 		"ap1": {brMac: "AA:BB:CC:00:00:03", fdb: map[string]string{}},
 	}
-	ev := fleetFdbEvidence(polled, "gw")
+	ev := fleetFdbEvidence(polled, "gw", nil, nil)
 	if got := ev["sw1"]; got.parent != "gw" || got.port != "1" {
 		t.Fatalf("sw1: %+v, want gw/1", got)
 	}
@@ -352,7 +387,7 @@ func TestFleetFdbEvidenceBothPorts(t *testing.T) {
 		}},
 		"rt": {brMac: "AA:BB:CC:00:00:03", fdb: map[string]string{"AA:BB:CC:00:00:02": "1"}},
 	}
-	ev := fleetFdbEvidence(polled, "gw")
+	ev := fleetFdbEvidence(polled, "gw", nil, nil)
 	sw := ev["sw"]
 	if sw.parent != "gw" || sw.port != "1" || sw.childPort != "7" {
 		t.Fatalf("sw: %+v, want gw/1 con childPort 7", sw)
@@ -401,7 +436,7 @@ func TestFleetFdbEvidenceRootPortDescartaDownstream(t *testing.T) {
 			"9C:9D:7E:54:EF:B8": "lan6", // rt4: puerto de cobre 6
 		}},
 	}
-	ev := fleetFdbEvidence(polled, "gateway")
+	ev := fleetFdbEvidence(polled, "gateway", nil, nil)
 	sw := ev["switch16"]
 	if sw.parent != "gateway" || sw.port != "lan1" || sw.childPort != "lan7" {
 		t.Fatalf("switch16: %+v, want gateway/lan1 con childPort lan7", sw)
@@ -454,7 +489,7 @@ func TestFleetFdbEvidenceArbolContribuidor(t *testing.T) {
 			"AA:00:00:00:00:04": "1", // sw2 por su uplink
 		}},
 	}
-	ev := fleetFdbEvidence(polled, "gw")
+	ev := fleetFdbEvidence(polled, "gw", nil, nil)
 	if sw1 := ev["sw1"]; sw1.parent != "gw" || sw1.port != "lan1" || sw1.childPort != "1" {
 		t.Fatalf("sw1: %+v, want gw/lan1 childPort 1", sw1)
 	}
@@ -466,6 +501,66 @@ func TestFleetFdbEvidenceArbolContribuidor(t *testing.T) {
 	}
 	if ap2 := ev["ap2"]; ap2.parent != "sw2" || ap2.port != "7" || ap2.childPort != "1" {
 		t.Fatalf("ap2: %+v, want sw2/7 childPort 1", ap2)
+	}
+}
+
+// Unidad sin bridge MAC utilizable (estilo Synology: bridgeDetect cae en
+// docker0 y no corre lldpd): su MAC REGISTRADA (routers.mac) es la que el
+// switch aprende en la boca donde está enchufada, y esa es la evidencia FDB
+// que la ancla. Sin el mapa de MACs registradas su único anclaje posible era
+// un override manual.
+func TestFleetFdbEvidenceRegisteredMac(t *testing.T) {
+	polled := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", fdb: map[string]string{
+			"AA:BB:CC:00:00:02": "br-lan", // switch por uplink
+			"A0:36:9F:7E:38:BC": "br-lan", // NAS en tránsito (estrella plana)
+		}},
+		"sw1": {brMac: "AA:BB:CC:00:00:02", fdb: map[string]string{
+			"AA:BB:CC:00:00:01": "1",   // root port hacia gw
+			"A0:36:9F:7E:38:BC": "xg4", // NIC del NAS, boca local
+		}},
+		// NAS: su bridge es docker0 (MAC que nadie aprende en la LAN).
+		"nas": {brMac: "02:42:AC:11:00:03", fdb: map[string]string{}},
+	}
+	registered := map[string]string{
+		"gw":  "AA:BB:CC:00:00:01",
+		"sw1": "AA:BB:CC:00:00:02",
+		"nas": "A0:36:9F:7E:38:BC",
+	}
+	ev := fleetFdbEvidence(polled, "gw", registered, nil)
+	got := ev["nas"]
+	if got.parent != "sw1" || got.port != "xg4" {
+		t.Fatalf("nas: %+v, want sw1/xg4 por MAC registrada", got)
+	}
+	// La guarda de root port sigue viva: sw1 no puede colgar del NAS.
+	if _, ok := ev["sw1"]; ok && ev["sw1"].parent == "nas" {
+		t.Fatalf("sw1: %+v, el root port no puede colgar del NAS", ev["sw1"])
+	}
+
+	// Caso de flota real: el switch core cuya MAC de chasis NADIE aprende
+	// (su uplink se sabe por LLDP, no por FDB) no tiene profundidad propia;
+	// sin semilla el NAS caería al padre provisional del gateway.
+	polled2 := map[string]*routerPolled{
+		"gw": {brMac: "AA:BB:CC:00:00:01", fdb: map[string]string{
+			"A0:36:9F:7E:38:BC": "eth1", // NAS en tránsito por el uplink
+		}},
+		"core": {brMac: "AA:BB:CC:00:00:07", fdb: map[string]string{
+			"AA:BB:CC:00:00:01": "xg7",   // root port hacia gw
+			"A0:36:9F:7E:38:BC": "xg4",   // NIC del NAS
+		}},
+		"nas": {brMac: "02:42:AC:11:00:03", fdb: map[string]string{}},
+	}
+	registered2 := map[string]string{"nas": "A0:36:9F:7E:38:BC", "core": "AA:BB:CC:00:00:07", "gw": "AA:BB:CC:00:00:01"}
+	// Sin semilla: el core no tiene candidato padre y su profundidad nunca
+	// se conoce → el NAS se queda con el padre provisional (estrella plana).
+	if got := fleetFdbEvidence(polled2, "gw", registered2, nil)["nas"]; got.parent != "gw" {
+		t.Fatalf("nas sin semilla: %+v, want el padre provisional gw", got)
+	}
+	// Con la semilla LLDP (core cuelga del gw, profundidad 1): el NAS ancla
+	// en la boca local del core.
+	seed := map[string]int{"gw": 0, "core": 1}
+	if got := fleetFdbEvidence(polled2, "gw", registered2, seed)["nas"]; got.parent != "core" || got.port != "xg4" {
+		t.Fatalf("nas con semilla: %+v, want core/xg4", got)
 	}
 }
 

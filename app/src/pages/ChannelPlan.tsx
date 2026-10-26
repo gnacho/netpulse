@@ -63,6 +63,11 @@ interface ChannelPlanData {
   scans: Scan[]
 }
 
+// #1561: abrir la vista pide un scan si el último dato tiene más de 6 h (o no
+// hay), como mucho una vez cada 30 min por unidad.
+const AUTO_SCAN_STALE_MS = 6 * 60 * 60 * 1000
+const AUTO_SCAN_COOLDOWN_MS = 30 * 60 * 1000
+
 function bandFromFreq(freq: number): string {
   if (freq >= 2412 && freq <= 2484) return '2.4 GHz'
   if (freq >= 5180 && freq <= 5885) return '5 GHz'
@@ -145,7 +150,7 @@ const FleetMenuTrigger = forwardRef<
 
 export default function ChannelPlan() {
   const { t, i18n } = useTranslation()
-  const { routers } = useNetPulse()
+  const { routers, connectionStatus, isDemo } = useNetPulse()
   const [routerId, setRouterId] = useState('')
   const [data, setData] = useState<ChannelPlanData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -230,22 +235,25 @@ export default function ChannelPlan() {
     }
   }, [sortedRouters, routerId])
 
-  const loadPlan = useCallback((rid: string, silent = false) => {
+  const loadPlan = useCallback((rid: string, silent = false): Promise<ChannelPlanData | undefined> => {
     if (!silent) {
       setLoading(true)
       setError('')
     }
-    fetch(`/api/wifi/channel-plan?routerId=${encodeURIComponent(rid)}`)
+    return fetch(`/api/wifi/channel-plan?routerId=${encodeURIComponent(rid)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text())
-        return res.json()
+        return res.json() as Promise<ChannelPlanData>
       })
       .then((d) => {
-        setData({ ...d, radios: d.radios ?? [], scans: d.scans ?? [] })
+        const plan: ChannelPlanData = { ...d, radios: d.radios ?? [], scans: d.scans ?? [] }
+        setData(plan)
         setLastRefresh(Date.now())
+        return plan
       })
       .catch((e) => {
         if (!silent) setError(String(e))
+        return undefined
       })
       .finally(() => {
         if (!silent) setLoading(false)
@@ -260,7 +268,9 @@ export default function ChannelPlan() {
     setScanError('')
     fetch(`/api/wifi/channel-plan/scan?routerId=${encodeURIComponent(routerId)}`, { method: 'POST' })
       .then(async (res) => {
-        if (!res.ok) throw new Error(await res.text())
+        // #1561: 429 = otra pestaña u otro admin acaba de pedirlo para esta
+        // unidad. El resultado llega igual, así que no es un error.
+        if (!res.ok && res.status !== 429) throw new Error(await res.text())
         setScanRequested(true)
         scanTimers.current.push(window.setTimeout(() => { void loadPlan(routerId, true) }, 12000))
         scanTimers.current.push(window.setTimeout(() => {
@@ -275,20 +285,68 @@ export default function ChannelPlan() {
       })
   }, [routerId, scanning, loadPlan, t])
 
+  // #1561: con el scan periódico apagado (#1558) el plan se queda viejo si
+  // nadie pulsa "Escanear ahora". Abrir la vista con datos de más de 6 h (o
+  // sin datos) pide un scan, como mucho una vez cada 30 min por unidad. El
+  // polling de fondo no lo dispara nunca, y el servidor limita a uno cada
+  // 5 min por agente.
+  const autoScanDone = useRef<string>('')
+  const autoScanIfStale = useCallback((rid: string, plan: ChannelPlanData | undefined) => {
+    // #1565: el bundle inicial contiene routers mock. Antes de la primera
+    // carga live no se puede pedir un scan para uno de esos ids; en demo sí.
+    if (!plan || (!isDemo && connectionStatus !== 'connected') || autoScanDone.current === rid) return
+    autoScanDone.current = rid
+    // wifi_scans.ts viene en segundos; Date.now() y los throttles van en ms.
+    const newest = plan.scans.reduce((max, s) => Math.max(max, (s.ts ?? 0) * 1000), 0)
+    if (newest > 0 && Date.now() - newest < AUTO_SCAN_STALE_MS) return
+    const key = `netpulse.channelPlan.autoScan.${rid}`
+    try {
+      const last = Number(sessionStorage.getItem(key) ?? 0)
+      if (last > 0 && Date.now() - last < AUTO_SCAN_COOLDOWN_MS) return
+    } catch {
+      return // sin almacenamiento no se autoescanea: mejor no encadenar
+    }
+    setScanning(true)
+    setScanRequested(true)
+    fetch(`/api/wifi/channel-plan/scan?routerId=${encodeURIComponent(rid)}`, { method: 'POST' })
+      .then((res) => {
+        if (!res.ok && res.status !== 429) {
+          setScanning(false)
+          setScanRequested(false)
+          return
+        }
+        try {
+          sessionStorage.setItem(key, String(Date.now()))
+        } catch {
+          /* idem */
+        }
+        scanTimers.current.push(window.setTimeout(() => { void loadPlan(rid, true) }, 12000))
+        scanTimers.current.push(window.setTimeout(() => {
+          void loadPlan(rid, true)
+          setScanning(false)
+          setScanRequested(false)
+        }, 35000))
+      })
+      .catch(() => {
+        setScanning(false)
+        setScanRequested(false)
+      })
+  }, [loadPlan, connectionStatus, isDemo])
+
   useEffect(() => {
     if (!routerId) return
     setActiveRadio('')
     setHidden(new Set())
     setSelected(null)
-    loadPlan(routerId)
+    void loadPlan(routerId).then((plan) => autoScanIfStale(routerId, plan))
     if (pollTimer.current) clearInterval(pollTimer.current)
-    // Refresco silencioso: los agentes escanean solos; la página sigue el
-    // último scan sin recargar a mano.
+    // Refresco silencioso: sigue el último scan sin recargar a mano. No
+    // pide scans (eso es del montaje y del botón).
     pollTimer.current = setInterval(() => loadPlan(routerId, true), 60000)
     return () => {
       if (pollTimer.current) clearInterval(pollTimer.current)
     }
-  }, [routerId, loadPlan])
+  }, [routerId, loadPlan, autoScanIfStale])
 
   const radioKey = (r: RadioRec) => `${r.section || r.iface}-${r.name}-${r.channel}`
   const radios: RadioRec[] = data?.radios ?? []

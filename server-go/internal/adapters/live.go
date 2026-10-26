@@ -101,7 +101,11 @@ type routerPolled struct {
 	// #1256: SNMP rellena sysDescr (nombre/modelo completo del switch) y,
 	// en MikroTik SwOS, la temperatura del chasis (hasTemp). hasTemp
 	// distingue "no aplica" de "0 °C" para no pisar el null de #441.
-	hasTemp  bool
+	hasTemp bool
+	// hasCpu: mismo contrato que hasTemp para la CPU de los switches SNMP
+	// (tabla de procesos Netgear FastPath): sin bandera, el null de #441
+	// pisaría la lectura real.
+	hasCpu   bool
 	sysDescr string
 	// sysName (#1256): hostname que el usuario define en el equipo; para
 	// SNMP alimenta el Name visible de la unidad en flota.
@@ -138,15 +142,21 @@ type routerPolled struct {
 	// confirmed (STALE/FAILED/INCOMPLETE). Good enough to resolve an IP,
 	// never enough to claim the host is connected -- an entry outlives the
 	// device by minutes. Empty when the source could not report states.
-	arpStale  map[string]bool
-	wireless  map[string]WirelessClient
-	ports     []EthPort
-	radios    []Radio
-	fdb       map[string]string
-	brMac     string
-	lanIP     string
-	latencyMs *float64
-	lossPct   *float64
+	arpStale map[string]bool
+	wireless map[string]WirelessClient
+	ports    []EthPort
+	radios   []Radio
+	fdb      map[string]string
+	// wirelessSide: MACs que el bridge del router aprende en sus propios
+	// puertos de radio (wl0.1, wlan0…) pero que la tabla de estaciones no
+	// lista (MACs rotadas que siguen emitiendo, backhaul 4-address). El
+	// agente las etiqueta con la banda de la radio; aquí mandan sobre el
+	// fallback del FDB del gateway, que si no las dibuja como cableadas.
+	wirelessSide map[string]string
+	brMac        string
+	lanIP        string
+	latencyMs    *float64
+	lossPct      *float64
 	// backhaul: "cable"|"wifi"|"" (desconocido → se omite en el contrato).
 	backhaul string
 	// lldp: vecinos LLDP del tier lento (nil = sin lldpd o sonda fallida).
@@ -201,8 +211,11 @@ type extrasSnapshot struct {
 	radios   []Radio
 	wireless map[string]WirelessClient
 	fdb      map[string]string
-	luci     *probe.LuCILabels
-	vlans    []VlanPort
+	// wirelessSide: último hint bueno de MACs detrás de radios propias
+	// (ver routerPolled.wirelessSide). Mismo anti-parpadeo que fdb.
+	wirelessSide map[string]string
+	luci         *probe.LuCILabels
+	vlans        []VlanPort
 	// multiWan: last good multi-WAN section. The event-driven pushes carry
 	// no such section, and without keeping it the panel would blink out of
 	// the page every time a device associates. Unlike wanInfo, which is a
@@ -1275,6 +1288,14 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if fdb != nil {
 		fdbGood = fdb
 	}
+	// wirelessSide solo nace del payload del agente: en la vía SSH una sonda
+	// FDB exitosa lo LIMPIA (nadie lo refresca por este camino y un hint
+	// huérfano seguiría atribuyendo MACs rotadas como wireless para siempre);
+	// una sonda fallida conserva el cache, mismo anti-parpadeo que fdbGood.
+	wsGood := cached.wirelessSide
+	if fdb != nil {
+		wsGood = nil
+	}
 	luciGood := cached.luci
 	if luci := client.GetLuCILabels(); luci != nil {
 		luciGood = luci
@@ -1334,7 +1355,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		cpu: cpuV, ram: ramPct, temp: tempV,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, arpDevs: arpDevs, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
-		fdb: fdbGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
+		fdb: fdbGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
 		polledAt: l.now().UnixMilli(),
@@ -1574,6 +1595,11 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		if p.hasTemp {
 			r.Temp = iptr(p.temp)
 		}
+		// Netgear FastPath: misma canalía para la CPU leída de la tabla de
+		// procesos del agente privado.
+		if p.hasCpu {
+			r.CPU = iptr(p.cpu)
+		}
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
 	if p.selfExpose {
@@ -1798,18 +1824,22 @@ func (l *Live) AcceptHostKey(routerID string) error {
 		return errors.New("ssh pool no configurado")
 	}
 	l.mu.Lock()
-	var host string
-	for _, c := range l.routers {
-		if c.ID == routerID {
-			host = c.Host
+	var cfg *RouterConfig
+	for i := range l.routers {
+		if l.routers[i].ID == routerID {
+			cfg = &l.routers[i]
 			break
 		}
 	}
 	l.mu.Unlock()
-	if host == "" {
+	if cfg == nil {
 		return fmt.Errorf("router %q no configurado", routerID)
 	}
-	if err := l.pool.RemoveHostKey(host); err != nil {
+	// #1524: la entrada known_hosts se escribe con la forma de la dirección
+	// que diala el pool ([host]:puerto en puertos no estándar, host pelado en
+	// el 22). Se pasan ambas formas: la SSHAddr efectiva y el host pelado, por
+	// si queda una entrada vieja de cuando el router no tenía puerto custom.
+	if err := l.pool.RemoveHostKey(cfg.SSHAddr(), cfg.Host); err != nil {
 		return err
 	}
 	l.mu.Lock()
@@ -2986,6 +3016,44 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			}
 		}
 	}
+	// (1b) hint wireless-side del FDB (#rotMAC): MACs que el bridge de un
+	// router aprende en sus propios puertos de radio pero que la tabla de
+	// estaciones no lista (MACs rotadas/aleatorias que siguen emitiendo,
+	// clientes en backhaul 4-address). Sin esto la única evidencia que queda
+	// es el FDB de tránsito del gateway y su fallback las dibuja como
+	// cableadas colgadas del switch. Mandan sobre (2)/(3) pero NO sobre (1):
+	// una asociación real de iw es siempre mejor evidencia que un FDB.
+	// Orden determinista para MACs vistas por varios routers: ids ordenados y
+	// first-wins (cada mapa wirelessSide clavea MACs distintas dentro de un
+	// mismo router, así que el único empate posible es entre routers).
+	{
+		ids := make([]string, 0, len(polled))
+		for routerID := range polled {
+			ids = append(ids, routerID)
+		}
+		sort.Strings(ids)
+		for _, routerID := range ids {
+			p := polled[routerID]
+			if p == nil {
+				continue
+			}
+			for mac, band := range p.wirelessSide {
+				if _, ok := seen[mac]; ok {
+					continue
+				}
+				seen[mac] = seenInfo{routerID, band, nil}
+				if l.db != nil {
+					// Sin signal_dbm en el DO UPDATE: el hint no trae RSSI y
+					// pisar con NULL el último bueno de una asociación real
+					// rompería la serie de señal del dispositivo.
+					_, _ = l.db.Exec(
+						`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)
+						 ON CONFLICT(mac) DO UPDATE SET router_id=excluded.router_id, band=excluded.band, last_seen=excluded.last_seen`,
+						mac, routerID, band, nil, now)
+				}
+			}
+		}
+	}
 	l.mu.Lock()
 	gw := l.gatewayCfg
 	registered := make(map[string]bool, len(l.routers))
@@ -3439,6 +3507,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		}
 		devices = append(devices, d)
 	}
+	// Give clients learned only in an SNMP switch's FDB a traffic figure from
+	// that port's counters (see switchporttraffic.go).
+	l.applySnmpSwitchPortTraffic(polled, devices)
 	// Orden estable por MAC (issue #656): buildDevices itera un mapa de Go
 	// (allMacs), cuyo orden es aleatorio entre ticks. Ese orden llega al
 	// frontend y alimenta la asignación de ranuras de los anillos de la
@@ -3814,25 +3885,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 				wasOpen := l.engine.Has(resolveID)
 				l.engine.Resolve(resolveID)
 				if wasOpen {
-					recSignal := ""
-					if d.SignalDbm != nil {
-						recSignal = strconv.Itoa(*d.SignalDbm)
-					}
-					durMin := int((weakNow - episodeStart) / 60000)
-					dur := "<1 min"
-					if durMin >= 1 {
-						dur = fmt.Sprintf("%d min", durMin)
-					}
-					l.engine.Emit(AlertEvent{
-						ID:       fmt.Sprintf("alert-weak-%s-ok-%d", d.MAC, weakNow),
-						Category: alerts.CatSignal, Urgent: false,
-						Severity: "ok", Title: "Weak signal resolved on " + d.Name,
-						Description: fmt.Sprintf("back to %s dBm on %s after %s", recSignal, routerName, dur),
-						Type:        alerts.TypeWifiWeakRecovered,
-						Vars:        map[string]string{"device": d.Name, "signal": recSignal, "router": routerName, "duration": dur},
-						Resolves:    []string{resolveID},
-						Time:        "just now", RouterID: d.RouterID,
-					})
+					l.emitWeakRecovered(d, routerName, resolveID, episodeStart, weakNow)
 				}
 			}
 		}
@@ -3876,10 +3929,40 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	if gw != nil {
 		gwID = gw.ID
 	}
-	fdbEvidence := fleetFdbEvidence(polled, gwID)
+	// MACs registradas (routers.mac): permiten a fleetFdbEvidence anclar
+	// unidades sin bridge MAC utilizable (DSM: docker0 en bridgeDetect, sin
+	// lldpd) desde el FDB del switch que aprende su NIC (p. ej. NAS en xg4).
+	registeredMacs := make(map[string]string, len(routerList))
+	for _, r := range routerList {
+		if r.MAC != "" {
+			registeredMacs[r.ID] = r.MAC
+		}
+	}
 	// #1279: uplinks resueltos por LLDP (regla de puerto raíz); mandan sobre
-	// la evidencia FDB/device en BuildTopoSemantics.
+	// la evidencia FDB/device en BuildTopoSemantics. Se calcula ANTES que la
+	// FDB para sembrar profundidades: un switch core cuya MAC de chasis nadie
+	// aprende no tiene candidato padre por FDB y, sin semilla, su profundidad
+	// queda desconocida y las unidades cableadas en él caen al gateway.
 	lldpEvidence := fleetLldpEvidence(polled, gwID)
+	seedDepth := map[string]int{}
+	{
+		seedDepth[gwID] = 0
+		for pass := 0; pass <= len(lldpEvidence); pass++ {
+			changed := false
+			for child, ev := range lldpEvidence {
+				if d, ok := seedDepth[ev.parent]; ok {
+					if _, has := seedDepth[child]; !has || seedDepth[child] > d+1 {
+						seedDepth[child] = d + 1
+						changed = true
+					}
+				}
+			}
+			if !changed {
+				break
+			}
+		}
+	}
+	fdbEvidence := fleetFdbEvidence(polled, gwID, registeredMacs, seedDepth)
 	// #1321: los attaches manuales (#142) cuya MAC es la bridge de una unidad
 	// de flota fijan su uplink por encima de toda inferencia.
 	overrideUplinks := fleetOverrideEvidence(overrides, routerList)
@@ -3979,6 +4062,36 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		VM:                ViewModelVersion, // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}, nil
+}
+
+// emitWeakRecovered emite el cierre del episodio de señal débil (#1452).
+// El cierre lleva ID ESTABLE por MAC (alert-weak-<mac>-ok) y va con
+// EmitOrUpdate (#1518): un episodio nuevo del mismo dispositivo REEMPLAZA la
+// entrada anterior en el log en vez de apilar otra "resuelta" idéntica (un
+// cliente que oscila de cobertura dejaba dos cierres iguales a los 27 min).
+// El histórico de episodios no se pierde: queda en los avisos originales
+// (warn), marcados como resueltos por #1349. Se llama con l.mu tomado, igual
+// que el resto de emisiones del bucle de dispositivos.
+func (l *Live) emitWeakRecovered(d *Device, routerName, resolveID string, episodeStart, weakNow int64) {
+	recSignal := ""
+	if d.SignalDbm != nil {
+		recSignal = strconv.Itoa(*d.SignalDbm)
+	}
+	durMin := int((weakNow - episodeStart) / 60000)
+	dur := "<1 min"
+	if durMin >= 1 {
+		dur = fmt.Sprintf("%d min", durMin)
+	}
+	l.engine.EmitOrUpdate(AlertEvent{
+		ID:       fmt.Sprintf("alert-weak-%s-ok", d.MAC),
+		Category: alerts.CatSignal, Urgent: false,
+		Severity: "ok", Title: "Weak signal resolved on " + d.Name,
+		Description: fmt.Sprintf("back to %s dBm on %s after %s", recSignal, routerName, dur),
+		Type:        alerts.TypeWifiWeakRecovered,
+		Vars:        map[string]string{"device": d.Name, "signal": recSignal, "router": routerName, "duration": dur},
+		Resolves:    []string{resolveID},
+		Time:        "just now", RouterID: d.RouterID,
+	})
 }
 
 // classifyRoamingDaemon decide que daemon de roaming esta activo en la red a
@@ -4352,21 +4465,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		}
 	} else {
 		// Backhaul real del AP: boca que enlaza con otro router + latencia
-		var uplink *EthPort
-		for i := range enriched {
-			if enriched[i].Detail == "enlace entre routers" {
-				uplink = &enriched[i]
-				break
-			}
-		}
-		if uplink == nil {
-			for i := range enriched {
-				if enriched[i].Up {
-					uplink = &enriched[i]
-					break
-				}
-			}
-		}
+		// (la elección de boca vive en backhaul.go).
+		uplink := pickBackhaulUplink(enriched)
 		speed := "—"
 		if uplink != nil && uplink.Speed != "" {
 			speed = uplink.Speed
@@ -4431,9 +4531,22 @@ func (l *Live) attributedDevices() []Device {
 	// (que sobreescribe attachTo con ground truth del cluster).
 	detailNowMs := time.Now().UnixMilli()
 	detailMemo := l.updateFdbMemo(polled, detailNowMs)
+	// #1485 también en el detalle: sin la boca WAN, el bloque de ARP WAN-side
+	// no sella WanSide y /api/devices discrepa del overview (la ONT bridged
+	// vuelve como cliente cableado del gateway y el mapa pierde el chip del
+	// peer WAN). Misma resolución que en buildOverview.
+	detailWanPort := ""
+	l.mu.Lock()
+	gwCfg := l.gatewayCfg
+	l.mu.Unlock()
+	if gwCfg != nil {
+		if gp := polled[gwCfg.ID]; gp != nil {
+			detailWanPort = gp.wanInfo.Port
+		}
+	}
 	devices, _ := inferTopology(
 		overlayStickyFdb(polled, detailMemo, detailNowMs),
-		l.buildDevices(polled, ""),
+		l.buildDevices(polled, detailWanPort),
 	)
 	// #1292: lápidas fuera de la lista del detalle (la fuente viva puede
 	// seguir emitiendo la MAC borrada).
@@ -5498,7 +5611,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 	if neighbor != "" {
 		port.ConnectedTo = d.routerByMac[neighbor]
 		// El cliente traduce la plantilla según PeerKind (#1039).
-		port.PeerKind = "router-link"
+		port.PeerKind = PeerKindRouterLink
 		// #1150: con switches encadenados la boca aprende las MACs de bridge
 		// de VARIAS unidades (el tráfico de sw2 atraviesa sw1) y la primera
 		// MAC ordenada puede nombrar al switch LEJANO. El LLDP anuncia al
@@ -5506,7 +5619,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		// o su sysName manda sobre la MAC ordenada, y la mgmt-ip va al
 		// detalle del hover.
 		if nb := lldpNeighborOnPort(d.lldp, netdev); nb != nil {
-			port.PeerKind = "router-link-lldp"
+			port.PeerKind = PeerKindRouterLinkLLDP
 			if nb.ChassisMac != "" {
 				// La MAC del vecino (su bridge) va al hover como en las bocas
 				// de dispositivo único (#1150).
@@ -5535,7 +5648,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 			port.DeviceMac = all[0]
 			// La pista "cliente WiFi detrás" la traduce el cliente
 			// según PeerKind (#1039); el nombre del AP viaja en ConnectedTo.
-			port.PeerKind = "ap-wifi"
+			port.PeerKind = PeerKindAPWiFi
 			return port
 		}
 	}
@@ -5574,14 +5687,14 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 				// El cliente compone "nombre · detrás de <label>" con
 				// su i18n (#1039); aquí viaja el nombre a pelo.
 				port.ConnectedTo = name
-				port.PeerKind = "curated"
+				port.PeerKind = PeerKindCurated
 			} else if lldpName != "" {
 				// #931: sin nombre mejor, el equipo se anuncia por LLDP.
 				port.ConnectedTo = lldpName
-				port.PeerKind = "mac"
+				port.PeerKind = PeerKindMAC
 			} else {
 				port.ConnectedTo = port.Label
-				port.PeerKind = "mac"
+				port.PeerKind = PeerKindMAC
 			}
 			if lease, ok := d.leaseMap[mac]; ok && lease.IP != "" {
 				port.Detail = lease.IP
@@ -5665,7 +5778,7 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		} else {
 			// Switch/bridge tonto inferido: sin lease ni alias que lo
 			// nombre. El cliente traduce la etiqueta (#1039/#1040).
-			port.PeerKind = "inferred-switch"
+			port.PeerKind = PeerKindInferredSwitch
 		}
 		return port
 	}

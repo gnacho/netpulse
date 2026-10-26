@@ -20,15 +20,17 @@ func (s *server) registerThresholdsRoutes(mux *http.ServeMux) {
 			"weakSignalHysteresisDbm":  alerts.WeakSignalHysteresisDbm(s.db.DB),
 			"weakSignalResolveSamples": alerts.WeakSignalResolveSamples(s.db.DB),
 			"alertRetentionDays":       alerts.RetentionDays(s.db.DB),
+			"hideRecoveryEvents":       alerts.HideRecoveryEvents(s.db.DB),
 		})
 	})))
 
 	mux.Handle("PUT /api/settings/thresholds", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			WeakSignalDbm            *int `json:"weakSignalDbm"`
-			WeakSignalHysteresisDbm  *int `json:"weakSignalHysteresisDbm"`
-			WeakSignalResolveSamples *int `json:"weakSignalResolveSamples"`
-			AlertRetentionDays       *int `json:"alertRetentionDays"`
+			WeakSignalDbm            *int  `json:"weakSignalDbm"`
+			WeakSignalHysteresisDbm  *int  `json:"weakSignalHysteresisDbm"`
+			WeakSignalResolveSamples *int  `json:"weakSignalResolveSamples"`
+			AlertRetentionDays       *int  `json:"alertRetentionDays"`
+			HideRecoveryEvents       *bool `json:"hideRecoveryEvents"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			writeBodyError(w, st, "invalid_body", "body JSON inválido")
@@ -79,11 +81,29 @@ func (s *server) registerThresholdsRoutes(mux *http.ServeMux) {
 				return
 			}
 		}
+		// #1518: ocultar del feed y del contador de no leídas los eventos de
+		// recuperación (severity ok). Efecto sin reinicio: List() y
+		// UnreadCount() leen el kv en cada llamada; NotifyChange re-emite el
+		// feed por SSE para que el front lo vea al instante.
+		if body.HideRecoveryEvents != nil {
+			val := "0"
+			if *body.HideRecoveryEvents {
+				val = "1"
+			}
+			if err := kv.Set(alerts.KeyHideRecovery, val); err != nil {
+				writeError(w, http.StatusInternalServerError, "kv_error", err.Error())
+				return
+			}
+			if eng := s.alertsEngine(); eng != nil {
+				eng.NotifyChange()
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"weakSignalDbm":            alerts.WeakSignalDbm(s.db.DB),
 			"weakSignalHysteresisDbm":  alerts.WeakSignalHysteresisDbm(s.db.DB),
 			"weakSignalResolveSamples": alerts.WeakSignalResolveSamples(s.db.DB),
 			"alertRetentionDays":       alerts.RetentionDays(s.db.DB),
+			"hideRecoveryEvents":       alerts.HideRecoveryEvents(s.db.DB),
 		})
 	})))
 }

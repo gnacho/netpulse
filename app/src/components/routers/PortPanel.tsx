@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import type { Router } from '@/data/mock'
 import type { WanInfo } from '@/data/types'
 import { SectionHeader } from '@/components/SectionHeader'
-import { getRouterExtras, portPeerDetail, portPeerLabel } from '@/components/routers/routerExtras'
+import { getRouterExtras, PeerKind, portPeerDetail, portPeerLabel } from '@/components/routers/routerExtras'
 import type { EthPort, RouterExtras, SfpInfo } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { Activity, ChevronDown, ChevronRight, Network } from 'lucide-react'
@@ -117,7 +117,7 @@ function Jack({ port, index, wan }: { port: EthPort; index: number; wan?: WanInf
                     const peer = portPeerLabel(port)
                     // #1040: agregación / switch inferido llevan icono de red:
                     // la app ADIVINA el par, no lo conoce.
-                    const inferred = (port.deviceCount ?? 0) > 0 || port.peerKind === 'inferred-switch'
+                    const inferred = (port.deviceCount ?? 0) > 0 || port.peerKind === PeerKind.InferredSwitch
                     const peerWithCue = inferred ? (
                       <span className="inline-flex max-w-full items-center gap-1">
                         <Network className="h-3 w-3 shrink-0 text-text-muted" strokeWidth={1.75} />

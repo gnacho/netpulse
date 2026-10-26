@@ -177,6 +177,12 @@ type server struct {
 	refreshMu   sync.Mutex
 	lastRefresh time.Time
 
+	// Anti-martilleo del scan bajo demanda del plan de canales (#1561): un
+	// scan por unidad cada planScanMinInterval. El scan saca la radio del
+	// canal, así que varias pestañas no pueden encadenarlos.
+	planScanMu   sync.Mutex
+	lastPlanScan map[string]time.Time
+
 	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
 	ingestLimit *ipRateLimit
 

@@ -274,6 +274,14 @@ export interface Device {
    */
   attachTo?: string
   /**
+   * #1485: la única evidencia de este equipo es un ARP en la boca WAN del
+   * gateway (primer salto del enlace: ONT/módem en bridge). El server lo
+   * sella y el mapa lo reserva como chip bajo el nodo Internet; sin esto el
+   * chip solo salía cuando su IP coincidía con la puerta WAN, que en PPPoE
+   * es el peer del ISP y no la ONT bridged.
+   */
+  wanSide?: boolean
+  /**
    * Rol de infraestructura sellado server-side (SPEC-65 D65-2): la app NO
    * infiere; pinta el badge si viene. Ausente = dispositivo normal (la app
    * puede seguir infiriendo como fallback para datos viejos, B2).
@@ -481,7 +489,7 @@ export interface TopoSemLink {
   /** id: router | device | distnode | "internet" | "peer-<wgPeerId>" */
   from: string
   to: string
-  kind: 'wan' | 'uplink' | 'wired' | 'dist' | 'wg'
+  kind: 'wan' | 'wan-peer' | 'uplink' | 'wired' | 'dist' | 'wg'
   /** puerto físico si aplica */
   port?: string
   /** velocidad negociada en la boca del padre (Mbps), 0/ausente = sin dato (#1321) */

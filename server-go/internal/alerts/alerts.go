@@ -333,6 +333,7 @@ func newEngine(d *db.DB, n Notifier, persistLog bool) *Engine {
 			}
 		}
 		e.purgeVolatileHistoryLocked()
+		e.purgeSupersededWeakClosures()
 		e.loadPersistedLocked()
 		// #1034: poda por antigüedad al arrancar (además de la horaria de
 		// main): una retención bajada mientras el daemon estaba parado se
@@ -354,6 +355,18 @@ func (e *Engine) purgeVolatileHistoryLocked() {
 	_, _ = e.db.Exec(
 		`DELETE FROM alert_log WHERE id LIKE 'alert-agent-down-%'
 		   OR type IN ('agent-down', 'agent-down-ssh')`)
+}
+
+// purgeSupersededWeakClosures: purga one-shot al arrancar (#1518). Los
+// cierres de señal débil ANTERIORES al ID estable llevaban timestamp en el ID
+// (alert-weak-<mac>-ok-<ts>): cada episodio dejaba una "resuelta" idéntica en
+// el log. Se borran de alert_log ANTES de cargar (el ID estable nuevo las
+// reemplaza en adelante); los avisos originales resueltos no se tocan.
+func (e *Engine) purgeSupersededWeakClosures() {
+	if e.db == nil || !e.persistLog {
+		return
+	}
+	_, _ = e.db.Exec(`DELETE FROM alert_log WHERE id LIKE 'alert-weak-%-ok-%'`)
 }
 
 // loadPersistedLocked restaura el log desde alert_log (issue #798): los
@@ -848,12 +861,18 @@ func (e *Engine) List() []AlertEvent {
 		byID[e.list[i].ID] = &e.list[i]
 	}
 	out := make([]AlertEvent, 0, len(e.list))
+	// #1518: con el ajuste activo, los cierres informativos (severity ok) no
+	// se sirven; los avisos resueltos (resolvedTs, otra severidad) siguen.
+	hideOK := e.hideRecoveryLocked()
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 		if e.isSilencedLocked(key) {
+			continue
+		}
+		if hideOK && ev.Severity == "ok" {
 			continue
 		}
 		ev.Read = e.readSet[ev.ID]
@@ -881,12 +900,17 @@ func (e *Engine) UnreadCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	n := 0
+	// #1518: los eventos ocultos por el ajuste de recuperación no cuentan.
+	hideOK := e.hideRecoveryLocked()
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 		if e.isSilencedLocked(key) {
+			continue
+		}
+		if hideOK && ev.Severity == "ok" {
 			continue
 		}
 		if !e.readSet[ev.ID] {
