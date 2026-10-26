@@ -100,8 +100,9 @@ func TestCmdScanIface(t *testing.T) {
 }
 
 // TestScanPorInterfazThrottle: el throttle (scanDue) sigue gobernando el
-// scan aunque ahora se lance por interfaz: 2 interfaces = 2 comandos en la
-// primera Build y 0 en la segunda (dentro del intervalo).
+// scan aunque ahora vaya por radio: dos BSSIDs en la MISMA radio dan un solo
+// comando por ciclo (#1560, antes eran dos: la radio salía del canal dos
+// veces seguidas) y ninguno en la segunda Build (dentro del intervalo).
 func TestScanPorInterfazThrottle(t *testing.T) {
 	iwDev := "phy#0\n" +
 		"\tInterface phy0-ap0\n\t\taddr 60:22:32:5b:5c:98\n\t\ttype AP\n" +
@@ -113,16 +114,16 @@ func TestScanPorInterfazThrottle(t *testing.T) {
 	ctx := context.Background()
 
 	p.Build(ctx, "rt", "test")
-	if run.scanCalls != 2 {
-		t.Fatalf("primera Build debería escanear las 2 interfaces, scanCalls=%d", run.scanCalls)
+	if run.scanCalls != 1 {
+		t.Fatalf("dos BSSIDs en la misma radio deben escanear UNA vez, scanCalls=%d", run.scanCalls)
 	}
 	p.Build(ctx, "rt", "test")
-	if run.scanCalls != 2 {
+	if run.scanCalls != 1 {
 		t.Fatalf("segunda Build dentro del intervalo NO debería escanear, scanCalls=%d", run.scanCalls)
 	}
 	p.ForceScan()
 	p.Build(ctx, "rt", "test")
-	if run.scanCalls != 4 {
-		t.Fatalf("ForceScan debería reescanear las 2 interfaces, scanCalls=%d", run.scanCalls)
+	if run.scanCalls != 2 {
+		t.Fatalf("ForceScan debería reescanear la radio, scanCalls=%d", run.scanCalls)
 	}
 }

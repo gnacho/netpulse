@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -243,6 +244,39 @@ func (p *Prober) scanDue() bool {
 		return true
 	}
 	return false
+}
+
+// scanNeighbours runs one `iw dev <iface> scan` per physical radio (#1560)
+// and logs every cycle (#1559).
+//
+// The scan is the only probe that takes a radio off-channel, so it is also
+// the only one that can drop clients (#1557). Until now it left no trace in
+// the log, which made that correlation impossible from a router: the log line
+// carries the interfaces, per-radio duration and BSS count to line a drop up
+// against the scan that caused it.
+func (p *Prober) scanNeighbours(ctx context.Context, iwDev string) []ScanResult {
+	targets := IwDevScanTargets(ParseIwDevDetailed(iwDev))
+	if len(targets) == 0 {
+		return nil
+	}
+	names := make([]string, len(targets))
+	for i, t := range targets {
+		names[i] = t.Iface
+	}
+	start := time.Now()
+	slog.Info("neighbor scan start", "radios", len(targets), "ifaces", strings.Join(names, ","))
+	var scans []ScanResult
+	for _, t := range targets {
+		at := time.Now()
+		out := p.runBest(ctx, CmdScanIface(t.Iface), scanIfaceTimeout)
+		got := ParseScan("==IFACE==" + t.Iface + "\n" + out)
+		scans = append(scans, got...)
+		slog.Info("neighbor scan radio", "iface", t.Iface, "phy", t.Phy,
+			"bss", len(got), "duration_ms", time.Since(at).Milliseconds())
+	}
+	slog.Info("neighbor scan done", "bss", len(scans),
+		"duration_ms", time.Since(start).Milliseconds(), "empty", len(scans) == 0)
+	return scans
 }
 
 // probeVlans reports the bridge VLANs, preferring what the kernel says over
@@ -571,12 +605,7 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		// sin NINGÚN vecino aunque las demás interfaces sí hubieran
 		// escaneado con éxito.
 		if p.scanDue() && iwDev != "" {
-			var sb strings.Builder
-			for _, iface := range IwDevIfaces(iwDev) {
-				sb.WriteString("==IFACE==" + iface + "\n")
-				sb.WriteString(p.runBest(ctx, CmdScanIface(iface), scanIfaceTimeout))
-			}
-			if scans := ParseScan(sb.String()); len(scans) > 0 {
+			if scans := p.scanNeighbours(ctx, iwDev); len(scans) > 0 {
 				wd.Scans = scans
 			}
 		}

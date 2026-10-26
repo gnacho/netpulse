@@ -1965,15 +1965,13 @@ func ParseIwDev(out string) []OwnBSSID {
 	return res
 }
 
-// IwDevIfaces (#1338) lista TODAS las interfaces de `iw dev` (cualquier
-// tipo, no solo AP como ParseIwDev): son las candidatas a escanear vecinos.
+// IwDevIfaces (#1338) lists EVERY interface of `iw dev` (any type, not only
+// AP like ParseIwDev). Since #1560 the scan groups them by radio with
+// ParseIwDevDetailed instead of scanning each one.
 func IwDevIfaces(out string) []string {
 	var res []string
-	for _, raw := range strings.Split(out, "\n") {
-		fields := strings.Fields(strings.TrimSpace(raw))
-		if len(fields) >= 2 && fields[0] == "Interface" {
-			res = append(res, fields[1])
-		}
+	for _, i := range ParseIwDevDetailed(out) {
+		res = append(res, i.Iface)
 	}
 	return res
 }
