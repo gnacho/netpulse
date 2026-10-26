@@ -1551,18 +1551,10 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		LatencyMs: p.latencyMs,
 	}
 	if noVitals {
-		r.VitalsAvailable = bptr(false)
 		r.CPU, r.RAM, r.Temp = nil, nil, nil
-		// #1256: si el sondeo SNMP trajo temperatura real (MikroTik SwOS),
-		// no la pisamos con null: se conserva la vital junto a las demás.
-		if p.hasTemp {
-			r.Temp = iptr(p.temp)
-		}
-		// Netgear FastPath: misma canalía para la CPU leída de la tabla de
-		// procesos del agente privado.
-		if p.hasCpu {
-			r.CPU = iptr(p.cpu)
-		}
+		v := resolvePartialVitals(p)
+		r.CPU, r.Temp = v.cpu, v.temp
+		r.VitalsAvailable = bptr(v.available)
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
 	if p.selfExpose {
@@ -4566,10 +4558,17 @@ func (l *Live) GetMetricsRows(context.Context) []MetricsRow {
 			Temp:      fptr(float64(p.temp)),
 			LatencyMs: p.latencyMs,
 		}
-		// #441: SNMP/pushers externos no tienen vitals reales; no se
-		// persisten ceros que luego pintan series planas.
+		// #441/#1568: sin lecturas no se persisten ceros falsos, pero una
+		// fuente SNMP/external con CPU o temperatura confirmada sí las conserva.
 		if p.cfg.SnmpEnabled || p.agentKind == "external" {
+			v := resolvePartialVitals(p)
 			row.CPU, row.RAM, row.Temp = nil, nil, nil
+			if v.cpu != nil {
+				row.CPU = fptr(float64(*v.cpu))
+			}
+			if v.temp != nil {
+				row.Temp = fptr(float64(*v.temp))
+			}
 		}
 		if p.net != nil {
 			row.RxBps = p.net.RxBps

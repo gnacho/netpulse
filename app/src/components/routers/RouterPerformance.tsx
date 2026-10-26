@@ -89,6 +89,8 @@ export function RouterPerformance({ router, liveSeries, totalRamMb, usedRamMb }:
   // pero el tipo lo exige); se normaliza a 0 para el render defensivo.
   const current: Record<SeriesDef['key'], number> = { cpu: router.cpu ?? 0, ram: router.ram ?? 0, temp: router.temp ?? 0 }
   const captionByKey: Record<SeriesDef['key'], string> = { cpu: captions.cpu, ram: captions.ram, temp: captions.temp }
+  // #1568: una fuente con vitals parciales no dibuja como cero las ausentes.
+  const visibleSeries = SERIES.filter((s) => router[s.key] !== null)
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -102,7 +104,7 @@ export function RouterPerformance({ router, liveSeries, totalRamMb, usedRamMb }:
       </div>
 
       <div className="mt-4 space-y-4">
-        {SERIES.map((s, si) => (
+        {visibleSeries.map((s, si) => (
           <motion.div
             key={`${range}-${s.key}`}
             initial={reduce ? false : { opacity: 0, y: 10 }}

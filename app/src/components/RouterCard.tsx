@@ -96,9 +96,9 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
           {/* #441: sin vitals (switch SNMP/beacon) no se pintan ceros falsos */}
           {router.vitalsAvailable !== false && (
             <>
-              <MiniMetric icon={Cpu} value={`${router.cpu} %`} label="CPU" hot={router.hotMetric === 'cpu'} />
-              <MiniMetric icon={MemoryStick} value={`${router.ram} %`} label="RAM" hot={router.hotMetric === 'ram'} />
-              <MiniMetric icon={Thermometer} value={fmtTemp(router.temp, tempUnit)} label={t('common.temperature')} hot={router.hotMetric === 'temp'} />
+              {router.cpu !== null && <MiniMetric icon={Cpu} value={`${router.cpu} %`} label="CPU" hot={router.hotMetric === 'cpu'} />}
+              {router.ram !== null && <MiniMetric icon={MemoryStick} value={`${router.ram} %`} label="RAM" hot={router.hotMetric === 'ram'} />}
+              {router.temp !== null && <MiniMetric icon={Thermometer} value={fmtTemp(router.temp, tempUnit)} label={t('common.temperature')} hot={router.hotMetric === 'temp'} />}
             </>
           )}
           <MiniMetric icon={Users} value={String(router.clients)} label={t('common.clients')} />

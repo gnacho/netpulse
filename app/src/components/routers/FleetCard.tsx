@@ -276,16 +276,18 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
             </p>
           ) : (
             <>
-              <MetricRow icon={Cpu} label="CPU" value={`${router.cpu} %`} pct={router.cpu ?? 0} hot={router.hotMetric === 'cpu'} />
-              <MetricRow icon={MemoryStick} label={t('common.memory')} value={`${router.ram} %`} pct={router.ram ?? 0} hot={router.hotMetric === 'ram'} />
-              <MetricRow
-                icon={Thermometer}
-                label={t('common.temperature')}
-                value={fmtTemp(router.temp, tempUnit)}
-                pct={Math.min(100, ((router.temp ?? 0) / 90) * 100)}
-                hot={router.hotMetric === 'temp'}
-                title={router.hotMetric === 'temp' ? t('routers.tempThreshold', { value: fmtTemp(router.tempThreshold ?? 65, tempUnit) }) : undefined}
-              />
+              {router.cpu !== null && <MetricRow icon={Cpu} label="CPU" value={`${router.cpu} %`} pct={router.cpu ?? 0} hot={router.hotMetric === 'cpu'} />}
+              {router.ram !== null && <MetricRow icon={MemoryStick} label={t('common.memory')} value={`${router.ram} %`} pct={router.ram ?? 0} hot={router.hotMetric === 'ram'} />}
+              {router.temp !== null && (
+                <MetricRow
+                  icon={Thermometer}
+                  label={t('common.temperature')}
+                  value={fmtTemp(router.temp, tempUnit)}
+                  pct={Math.min(100, ((router.temp ?? 0) / 90) * 100)}
+                  hot={router.hotMetric === 'temp'}
+                  title={router.hotMetric === 'temp' ? t('routers.tempThreshold', { value: fmtTemp(router.tempThreshold ?? 65, tempUnit) }) : undefined}
+                />
+              )}
             </>
           )}
         </div>
