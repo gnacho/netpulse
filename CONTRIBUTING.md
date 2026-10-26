@@ -7,6 +7,7 @@ Thanks for spending time on NetPulse. This is how changes land.
 - For anything non-trivial, open an issue first so we can agree on the approach before you write code.
 - Work on your own fork and open a pull request against `main`. Never push to this repository directly.
 - Issues and pull requests are written in English.
+- For vendor-specific router integrations, read [docs/external-integrations.md](docs/external-integrations.md). The default architecture is a separate Go pusher maintained with the hardware owner, not another vendor API in the server.
 
 ## Delivery format
 

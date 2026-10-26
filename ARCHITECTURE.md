@@ -169,7 +169,8 @@ localhost) — en LAN HTTP la tarjeta de Ajustes lo avisa.
 
 ## Agente OpenWrt (Fase 3, piloto)
 
-`POST /api/ingest/agent` (Bearer por equipo, token sha256 en `kv`, rate-limit
+`POST /api/ingest/agent` (Bearer por equipo, token sha256 en `kv`,
+`X-Agent-Signature` = HMAC-SHA256(token, body exacto) en hex, rate-limit
 30/min, body ≤ 2 MB) + CRUD `/api/agents`. El adapter live-agent usa el último
 payload como estado del router; si `last_seen` expira (TTL 90 s) degrada a SSH
 con alerta `system` y avisa al recuperar. El binario `agent/` (stdlib-only,
@@ -177,6 +178,8 @@ CGO=0, ~5,8 MB arm64 — suelo realista con TLS/x509) ejecuta localmente las
 sondas del tier rápido (package `probe` compartido con server-go vía
 `replace ../agent`), stateless, push con backoff y buffer RAM acotado; procd +
 `install-agent.sh`. Diseño completo y hoja de ruta en `docs/AGENTE-OPENWRT.md`.
+Guía para integraciones externas con binarios Go separados:
+`docs/external-integrations.md`.
 
 Jobs de mantenimiento (cada hora): borrado de filas > 7 días, sesiones
 expiradas y `PRAGMA wal_checkpoint(TRUNCATE)`. Migración Node→Go automática
