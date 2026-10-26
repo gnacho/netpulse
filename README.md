@@ -102,10 +102,14 @@ the platform:
 |---|---|---|
 | OpenWrt (incl. GL.iNet) | Native `netpulse-agent` package (`.ipk`/`.apk`) | procd, UCI config, `luci-app-netpulse`, in-app install and upgrade |
 | Asuswrt / Asuswrt-Merlin | Static binary in `/jffs`, env file | No `ubus`: falls back to `/proc`, `iw` and `lldpd`. Manual install and update |
-| RouterOS | Built-in pusher | Topology and clients derived from the router's own tables |
-| External router families | Separate Go pusher | See the [external integrations guide](docs/external-integrations.md) |
+| RouterOS | Separate Go pusher in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | System, ports, DHCP, ARP, FDB, temperature, firmware and WAN traffic |
+| External router families | Separate Go pusher in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | See the [external integrations guide](docs/external-integrations.md) |
 | Managed switches | SNMP | Port states, speeds and LLDP-MIB neighbours |
-| Anything else with SSH | Server-side polling | No agent needed; slower, stateless per poll |
+
+Vendor integrations live outside the server on purpose. An OpenWrt router never
+carries code for RouterOS, Bbox or another platform, and each integration can be
+tested and released on its own schedule. Whoever owns the hardware validates it,
+while NetPulse maintains only the shared ingest contract.
 
 **And the rest of the tour:**
 

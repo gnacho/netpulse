@@ -189,15 +189,13 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 <AgentBadge agent={agent} agentOnly={router.agentOnly} deviceType={router.type} />
               </div>
               <div className="truncate text-caption text-text-muted">
-                {router.type === 'routeros'
-                  ? (router.model || 'RouterOS')
-                  : router.type === 'managed-switch'
-                    ? (router.model || 'Switch')
-                    : isPrimary
-                      ? router.model
-                      : `OpenWrt · ${router.modelShort}`}
+                {router.type === 'managed-switch'
+                  ? (router.model || 'Switch')
+                  : isPrimary
+                    ? router.model
+                    : `OpenWrt · ${router.modelShort}`}
               </div>
-              {isPrimary && router.type !== 'routeros' && router.type !== 'managed-switch' && (
+              {isPrimary && router.type !== 'managed-switch' && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-0.5">
                   {/* #1136: el punto AdGuard solo con AdGuard configurado. */}
                   {adguard.host && (

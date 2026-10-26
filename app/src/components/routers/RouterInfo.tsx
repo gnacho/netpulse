@@ -81,13 +81,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     { label: t('routerDetail.info.timezone'), node: ex.timezone ?? '—' },
     {
       label: t('routerDetail.info.access'),
-      node: router.type === 'routeros' ? (
-        <span className="inline-flex items-center gap-1.5">
-          <Terminal className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
-          RouterOS API
-          <span className="rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">8728</span>
-        </span>
-      ) : router.type === 'managed-switch' || router.type === 'external' ? (
+      node: router.type === 'managed-switch' || router.type === 'external' ? (
         <span className="inline-flex items-center gap-1.5">
           SNMP / API
         </span>
@@ -147,7 +141,7 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
         )}
         {/* #1098: mismo criterio que el botón web: mostrar el comando
             exacto que se va a copiar. */}
-        {router.type !== 'routeros' && router.type !== 'managed-switch' && router.type !== 'external' && (
+        {router.type !== 'managed-switch' && router.type !== 'external' && (
           <button
             onClick={copySsh}
             title={`ssh root@${router.ip}`}

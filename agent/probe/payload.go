@@ -109,6 +109,11 @@ type SystemData struct {
 	LossPct   *float64   `json:"lossPct"`             // solo gateway (ping WAN)
 	Backhaul  string     `json:"backhaul,omitempty"`  // "cable"|"wifi" (ausente = desconocido)
 	BridgeMAC string     `json:"bridgeMac,omitempty"` // MAC de br-lan (uplinks/topología)
+	// Flash and FirmwareAvailable let an external pusher report storage and
+	// pending firmware without a vendor-specific server adapter. Both are
+	// optional and remain empty when the source does not expose them.
+	Flash             string `json:"flash,omitempty"`
+	FirmwareAvailable string `json:"firmwareAvailable,omitempty"`
 }
 
 // WirelessData: clientes asociados + radios agregadas por banda.

@@ -104,9 +104,14 @@ de la plataforma:
 |---|---|---|
 | OpenWrt (incl. GL.iNet) | Paquete nativo `netpulse-agent` (`.ipk`/`.apk`) | procd, config UCI, `luci-app-netpulse`, instalación y upgrade desde la app |
 | Asuswrt / Asuswrt-Merlin | Binario estático en `/jffs`, fichero de entorno | Sin `ubus`: recurre a `/proc`, `iw` y `lldpd`. Instalación y actualización manuales |
-| RouterOS | Pusher integrado | Topología y clientes deducidos de las tablas del propio router |
+| RouterOS | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Sistema, puertos, DHCP, ARP, FDB, temperatura, firmware y tráfico WAN |
+| Otras familias de router | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Ver la [guía de integraciones externas](docs/external-integrations.md) |
 | Switches gestionados | SNMP | Estado de bocas, velocidades y vecinos LLDP-MIB |
-| Cualquier otra cosa con SSH | Sondeo server-side | Sin agente; más lento y sin estado entre sondeos |
+
+Las integraciones de fabricante viven fuera del servidor a propósito. Un router
+OpenWrt no lleva código de RouterOS, Bbox ni de ninguna otra plataforma, y cada
+integración se prueba y publica con su propio calendario. Quien tiene el hardware
+lo valida, mientras NetPulse mantiene solo el contrato común de ingesta.
 
 **Y el resto del tour:**
 

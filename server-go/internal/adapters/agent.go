@@ -691,6 +691,8 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		out.lossPct = sd.LossPct
 		out.backhaul = sd.Backhaul
 		out.brMac = sd.BridgeMAC
+		out.flash = sd.Flash
+		out.firmwareAvailable = sd.FirmwareAvailable
 	} else if cached != nil && cached.system != nil {
 		// #441: push event-driven (wireless-only) sin system → conserva las
 		// últimas vitals buenas cacheadas en vez de pintar ceros falsos.

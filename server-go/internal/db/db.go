@@ -651,10 +651,12 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		}
 	}
 
-	// RouterOS (Type "routeros"): credenciales de la REST API nativa.
-	migrate(sqldb, "routers", "routeros_user", "ALTER TABLE routers ADD COLUMN routeros_user TEXT")
-	migrate(sqldb, "routers", "routeros_password", "ALTER TABLE routers ADD COLUMN routeros_password TEXT")
-	migrate(sqldb, "routers", "routeros_insecure", "ALTER TABLE routers ADD COLUMN routeros_insecure INTEGER NOT NULL DEFAULT 0")
+	// RouterOS moved out of the server (#1574). Keep existing units visible
+	// as external routers until their owner deploys the pusher. Their old
+	// credential columns are left in place as inert legacy schema.
+	if _, err := sqldb.Exec(`UPDATE routers SET type = 'external', agent_only = 1 WHERE type = 'routeros'`); err != nil {
+		log.Printf("[netpulse] aviso: no se pudieron migrar los routers RouterOS a external: %v", err)
+	}
 
 	// #1129: las MACs de roam_events se ingirieron en minúsculas (así vienen
 	// en los logs hostapd/dawn/usteer) mientras el resto de la app canonicaliza

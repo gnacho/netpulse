@@ -133,6 +133,32 @@ func TestPolledFromAgentSystemAntiparpadeo(t *testing.T) {
 	}
 }
 
+// #1574: los campos neutros de flash y firmware de un agente externo llegan
+// al snapshot del router, igual que los de un agente nativo.
+func TestPolledFromAgentNeutralFlashFirmware(t *testing.T) {
+	l := NewLive(nil, nil, []RouterConfig{{ID: "rb1", Host: "192.168.88.1", AgentOnly: true}}, nil)
+	cfg := l.routers[0]
+
+	payload := &probe.Payload{
+		Router:  "rb1",
+		Ts:      1000,
+		Version: "t",
+		Kind:    "external",
+	}
+	payload.Data.System = &probe.SystemData{
+		Flash:             "128",
+		FirmwareAvailable: "7.16.2",
+	}
+
+	out := l.polledFromAgent(cfg, payload)
+	if out.flash != "128" {
+		t.Fatalf("flash=%q, esperaba 128", out.flash)
+	}
+	if out.firmwareAvailable != "7.16.2" {
+		t.Fatalf("firmwareAvailable=%q, esperaba 7.16.2", out.firmwareAvailable)
+	}
+}
+
 // #537: RouterServingDHCP devuelve el router cuyo snapshot reportó la MAC en
 // su tabla de leases (el servidor DHCP real, no necesariamente el gateway).
 func TestRouterServingDHCP(t *testing.T) {

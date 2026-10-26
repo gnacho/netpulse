@@ -1653,10 +1653,6 @@
       "openWrtBadge": "OpenWrt",
       "consolePolling": "Sondeo por consola",
       "consolePollingHint": "El server entra en la web del switch para leer firmware, uptime y MAC. La consola del firmware admite una sola sesión: cada sondeo cierra la sesión de cualquiera que esté dentro. Desactívalo si te echa de la web (con el beacon v1.3+ los datos llegan igual por UDP).",
-      "routerosUser": "Usuario RouterOS",
-      "routerosPassword": "Contraseña RouterOS",
-      "routerosPasswordPlaceholder": "Déjalo en blanco para conservar la actual",
-      "routerosInsecure": "Aceptar certificado TLS autofirmado",
       "disabled": "Pausada",
       "disabledHint": "No se sondea ni alerta; conserva el histórico. La insignia Pausada la distingue en la flota y queda fuera de los desplegables.",
       "disabledBadge": "Pausada"

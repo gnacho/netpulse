@@ -295,10 +295,6 @@ type Live struct {
 	snmpPorts map[string]map[string]snmpPortSample
 	// snmpLastPoll (issue #414): timestamp del último poll SNMP real por router.
 	snmpLastPoll map[string]time.Time
-	// roNetPrev: última muestra de contadores rx/tx del interfaz WAN de un
-	// router RouterOS, para calcular bps por delta entre polls (igual que
-	// GetNetDev de OpenWrt sobre /proc/net/dev, routeros_api.go).
-	roNetPrev map[string]netByteSample
 	// fwAlert (#1411): estado de la alerta de firmware por unidad con target
 	// configurado: qué relación se alertó y contra qué versiones. Con eso la
 	// alerta es un episodio por unidad (se abre una vez, se actualiza solo si
@@ -509,7 +505,6 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
-		roNetPrev:            map[string]netByteSample{},
 		snmpFdbCount:         map[string]int{},
 		snmpBrMac:            map[string]string{},
 		snmpPollStats:        map[string]*snmpPollStat{},
@@ -719,10 +714,9 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	l.gatewayCfg = pickGateway(l.routers)
 	l.clients = map[string]*OpenWrtClient{}
 	for _, c := range l.routers {
-		// RouterOS no habla SSH/ubus: se sondea por su REST API (routeros_live.go),
-		// sin cliente SSH. Asuswrt tampoco se sondea por SSH (no hay ubus): su
-		// única fuente es el agente (#1481); sin agente la unidad cae a offline.
-		if !c.AgentOnly && c.Type != "routeros" && c.Type != "asuswrt" {
+		// Asuswrt is not polled over SSH (it has no ubus): its only source is
+		// the agent (#1481), and without one the unit goes offline.
+		if !c.AgentOnly && c.Type != "asuswrt" {
 			l.clients[c.ID] = NewOpenWrtClient(c, l.pool, "root", "")
 		}
 	}
@@ -778,11 +772,6 @@ func (l *Live) SetRouters(list []RouterConfig) {
 	for id := range l.snmpBrMac {
 		if !ids[id] {
 			delete(l.snmpBrMac, id)
-		}
-	}
-	for id := range l.roNetPrev {
-		if !ids[id] {
-			delete(l.roNetPrev, id)
 		}
 	}
 	for id := range l.snmpLastMetricsTick {
@@ -1163,9 +1152,6 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	}
 	if cfg.SnmpEnabled {
 		return l.pollRouterSNMP(cfg)
-	}
-	if cfg.Type == "routeros" {
-		return l.pollRouterROS(cfg)
 	}
 	l.mu.Lock()
 	client := l.clients[cfg.ID]
@@ -1562,8 +1548,6 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if isGw {
 		r.Role, r.RoleBadge = "Gateway principal", "Principal"
-	} else if p.cfg.Type == "routeros" {
-		r.Role, r.RoleBadge = "Router", "Router"
 	} else if cfgIsSwitch(p.cfg) {
 		// external sondeado por SNMP = switch en la práctica (#661); evita el
 		// fallback AP para los switches SNMP de crowedavid (#1137).
@@ -1612,8 +1596,8 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.firmwareAvailable != "" {
 		r.FirmwareOutdated = true
 		l.evalFirmwareUnknownTarget(p.cfg.ID, name, "")
-		// Rama RouterOS (sondeo API): se conserva el aviso por ciclo como
-		// hasta #1411; la dedup de 5 min lo acota.
+		// External pushers keep the per-cycle warning as before #1411; the
+		// five-minute dedup bounds it.
 		l.engine.Emit(AlertEvent{
 			ID:       fmt.Sprintf("alert-firmware-%s-%d", p.cfg.ID, time.Now().UnixMilli()),
 			Category: alerts.CatSystem, Urgent: false,
@@ -1712,8 +1696,6 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 			model = "GL.iNet"
 		case "asuswrt":
 			model = "Asuswrt"
-		case "routeros":
-			model = "RouterOS"
 		case "managed-switch":
 			model = "Managed Switch"
 		}
@@ -1730,8 +1712,6 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 		}
 		if gw != nil && cfg.ID == gw.ID {
 			r.Role, r.RoleBadge = "Gateway principal", "Principal"
-		} else if cfg.Type == "routeros" {
-			r.Role, r.RoleBadge = "Router", "Router"
 		} else if cfg.Type == "managed-switch" || (cfg.Type == "external" && cfg.SnmpEnabled) {
 			r.Role, r.RoleBadge = "Switch", "SW"
 		} else if cfg.Type == "external" {
@@ -4395,11 +4375,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		l.mu.Unlock()
 	}
 	if gw != nil && id == gw.ID {
-		// AdGuard Home y WireGuard (OpenWrt/GL.iNet ubus/SSH) no aplican a RouterOS.
-		if cfg.Type != "routeros" {
-			detail.Adguard = l.pollAdGuard(ctx)
-			detail.Wireguard = l.pollWireGuard(clients)
-		}
+		detail.Adguard = l.pollAdGuard(ctx)
+		detail.Wireguard = l.pollWireGuard(clients)
 	} else {
 		// Backhaul real del AP: boca que enlaza con otro router + latencia
 		// (la elección de boca vive en backhaul.go).

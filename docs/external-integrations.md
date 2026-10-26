@@ -4,6 +4,8 @@ NetPulse is OpenWrt-first. The native agent belongs on an OpenWrt router when th
 
 Other router families can integrate without adding their vendor API, authentication, parsers or polling loops to the NetPulse server. The recommended model is a separate Go agent, maintained by somebody who owns and tests the hardware.
 
+Integrations live in the central `netpulse-integrations` repository, one directory per vendor. The repository owner chooses maintainers by directory through `CODEOWNERS`. This keeps code, tests, releases and hardware notes discoverable without growing the server or scattering dozens of small repositories.
+
 This document is for contributors building that kind of integration.
 
 ## The model
@@ -13,7 +15,7 @@ Vendor router API
        |
        | vendor-specific client and parsers
        v
-<vendor>-pusher, in its own repository
+<vendor>-pusher, in netpulse-integrations/<vendor>
        |
        | HTTPS, probe.Payload, Bearer token + HMAC
        v
@@ -27,7 +29,7 @@ The external agent runs on any always-on host that can reach both the router and
 
 The split of responsibility is deliberate:
 
-| External agent repository | NetPulse core |
+| Integration directory | NetPulse core |
 | --- | --- |
 | Vendor authentication and sessions | External agent registration and tokens |
 | Vendor endpoints, retries and quirks | Signed ingestion and replay protection |
@@ -47,7 +49,7 @@ Open an issue before implementing a core change or proposing a new integration f
 - The first read-only slice and what it contributes to NetPulse.
 - Which existing payload sections can carry the data.
 - Which data does not fit the current contract.
-- Who will maintain the external repository and validate releases.
+- Who will maintain the integration directory and validate releases.
 
 Follow the hardware evidence rules in [CONTRIBUTING.md](../CONTRIBUTING.md). A new router family, protocol or vendor API needs real fixtures, explicit gaps and a public validation history. Do not replace missing evidence with simulated success.
 
@@ -119,7 +121,7 @@ Contract rules:
 - Stay below the ingestion rate limit. Do not use one HTTP request per client or per metric.
 - Send one coherent snapshot per cycle. If a section fails, follow the nil and empty semantics instead of fabricating data.
 
-The working RouterOS implementation in [`agent/cmd/routeros-pusher`](../agent/cmd/routeros-pusher/) shows configuration, token use, signing and pushing. It is a reference for the transport, not a template that requires copying the whole native agent.
+The working RouterOS implementation in [`netpulse-integrations/routeros`](https://github.com/gnacho/netpulse-integrations/tree/main/routeros) shows configuration, token use, signing and pushing. RouterOS is supported only through this integration: the server has no RouterOS adapter or credentials. It is also a reference for the transport, not a template that requires copying the whole native agent.
 
 ## Preserve the meaning of the data
 
@@ -152,21 +154,23 @@ Before implementing a core extension, open or update the issue with:
 5. Which generic UI or history consumer will use it.
 6. How an older external agent and an older server behave with the field.
 
-Vendor-specific parsing remains in the external repository even when the neutral field is added to core.
+Vendor-specific parsing remains in the integration directory even when the neutral field is added to core.
 
-## Build the external repository
+## Build the integration directory
 
-A recommended repository contains:
+Inside `netpulse-integrations`, a recommended layout is:
 
 ```text
-cmd/<vendor>-pusher/main.go
-internal/vendorapi/       # vendor HTTP client and session handling
-internal/translate/       # vendor responses to probe.Payload
-internal/translate/testdata/
-README.md
-CHANGELOG.md
-LICENSE
+<vendor>/
+  cmd/<vendor>-pusher/main.go
+  internal/vendorapi/       # vendor HTTP client and session handling
+  internal/translate/       # vendor responses to probe.Payload
+  internal/translate/testdata/
+  README.md
+  CHANGELOG.md
 ```
+
+The repository also carries the root `LICENSE`, `README.md`, CI workflow and `CODEOWNERS`. Each vendor directory declares its own maintainers there. A contributor can start with a pull request and become code owner for that directory after the integration has real hardware validation.
 
 Recommended properties:
 
@@ -176,9 +180,9 @@ Recommended properties:
 - Small timeouts, bounded retries and one coherent push loop.
 - No write operations against the vendor router in the first version.
 - A documented minimum NetPulse version when a newer contract field is used.
-- Releases with binaries and a changelog, maintained by the integration owner.
+- Tags per integration, for example `routeros/v0.1.0`, with binaries and a changelog.
 
-Name the project clearly, for example `netpulse-bbox-pusher` or `netpulse-unifi-pusher`. Do not describe a community integration as maintained by the NetPulse project unless that is actually the case.
+Do not describe a community integration as maintained by the NetPulse project unless that is actually the case. The directory maintainer owns the vendor client, its releases and its hardware validation. NetPulse maintainers own the ingestion contract and neutral core fields.
 
 ## Run it without Docker
 
@@ -209,7 +213,7 @@ WantedBy=multi-user.target
 
 Keep the environment file readable only by the service user. Run the pusher on a host that stays on. If it runs on a laptop and the laptop sleeps or shuts down, NetPulse will correctly mark the router stale.
 
-External agents do not use the native OpenWrt self-upgrade or reinstall path. Release and upgrade procedures belong to the external repository.
+External agents do not use the native OpenWrt self-upgrade or reinstall path. Release and upgrade procedures belong to the integration directory.
 
 ## Tests and hardware validation
 
@@ -236,18 +240,18 @@ Content-Type: application/json
 
 This endpoint requires an admin session and returns the token. Creating or rotating a token invalidates the previous one, so update the external service configuration before expecting the next push.
 
-Store the token like a password. Do not put it in a public repository, a ticket, a fixture or a command transcript. Test with a local or disposable NetPulse instance when possible.
+Store the token as a secret. Do not put it in a public repository, a ticket, a fixture or a command transcript. Test with a local or disposable NetPulse instance when possible.
 
 ## Definition of done
 
 An external integration is ready to propose when:
 
-- The vendor-specific code lives in the external repository.
+- The vendor-specific code lives in its integration directory.
 - The first version is read-only and uses the existing ingestion contract where possible.
 - Every core change is neutral, documented and covered by tests.
 - Fixtures and mappings preserve units, identity and absence semantics.
 - HMAC, 202 handling, retries and credential handling are tested.
-- The README explains installation, systemd operation, upgrades and compatibility.
+- The directory README explains installation, systemd operation, upgrades and compatibility.
 - The maintainer and the tested hardware are identified.
 - The validation history lists what works, what fails and what is not implemented.
 
