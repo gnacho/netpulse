@@ -371,6 +371,8 @@ Per router, one card per WiFi radio with the **current channel**, the **recommen
 
 The plan is computed from each radio's **neighbor scans**. There is a key difference here: routers running the **NetGrip** panel (the gateway and the APs managed by its panel) **do not scan neighbors**; routers with the **NetPulse agent** do. That is why some routers show no recommendation.
 
+Since agent 3.0.25 the periodic scan is **off by default** (`NETPULSE_SCAN_INTERVAL=0` in `/etc/netpulse-agent.env`): `iw scan` takes the radio off-channel for 2-4s and some beacon-sensitive clients (ESP8266/ESP32 devices, Cast speakers) get disassociated in that window (see #1557). Neighbors refresh when you open this page if the data is older than 6 hours (one scan per physical radio, with a 5 minute gap between requests) and with the **Scan now** button. To go back to periodic scans, set `NETPULSE_SCAN_INTERVAL=30m` (or any interval) in `/etc/netpulse-agent.env` and restart the agent.
+
 ### How to read it
 
 - **Current channel** in large text, **recommended channel** highlighted when different.
