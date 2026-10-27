@@ -96,6 +96,14 @@ pausar sin borrarla: sin sondeo ni alertas, con su histórico intacto.
   </picture>
 </p>
 
+**Tests de velocidad WAN, a mano o programados.** Lanza una prueba desde el
+servidor cuando la necesites o prográmala por intervalo, semanal, mensual o en
+la hora de menos tráfico según los siete días anteriores. Los resultados se
+guardan en SQLite, con una gráfica de una semana y el historial reciente.
+Puedes elegir M-Lab NDT (la opción por defecto), Ookla, Cloudflare, LibreSpeed
+o un endpoint HTTP personalizado, y recibir una alerta si la bajada queda por
+debajo del porcentaje que hayas fijado para tu plan contratado.
+
 **Sobre qué corre.** El servidor es un binario estático de Go en cualquier
 caja Linux. El agente es quien habla con tus routers, y cómo llega depende
 de la plataforma:

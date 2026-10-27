@@ -94,6 +94,13 @@ kept.
   </picture>
 </p>
 
+**WAN speed tests, on demand or on a schedule.** Run a test from the server
+whenever you need one, or schedule it by interval, weekly, monthly, or during
+the quietest hour based on the previous seven days of traffic. Results stay in
+SQLite with a seven-day chart and recent history. Choose M-Lab NDT (the default),
+Ookla, Cloudflare, LibreSpeed or a custom HTTP endpoint, and get an alert when
+download speed falls below your chosen percentage of the contracted plan.
+
 **What it runs on.** The server is one static Go binary on any Linux box.
 The agent is what talks to your routers, and how it gets there depends on
 the platform:

@@ -151,6 +151,26 @@
           </div>
         </details>
 
+        <!-- WAN speed tests -->
+        <details class="card feature feature-fold reveal" id="speed-tests">
+          <summary>
+            <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a8 8 0 1 1 16 0"/><path d="m12 14 4-4"/><path d="M5 19h14"/></svg>
+            <div class="feature-head">
+              <h3 data-i18n="featuresPage.speedtestTitle">Tests de velocidad WAN</h3>
+              <p class="feature-tag" data-i18n="featuresPage.speedtestTag">Tu conexión, medida a lo largo del tiempo.</p>
+            </div>
+            <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+          </summary>
+          <div class="feature-body">
+            <p data-i18n="featuresPage.speedtestP">Lanza una prueba desde el servidor cuando la necesites o prográmala por intervalo, semanal, mensual o en la hora de menos tráfico según los últimos siete días. Los resultados se guardan en SQLite y se muestran en una gráfica de una semana y un historial de ejecuciones.</p>
+            <ul class="feature-list">
+              <li data-i18n="featuresPage.speedtestL1">M-Lab NDT por defecto, con Ookla, Cloudflare, LibreSpeed y endpoints HTTP personalizados</li>
+              <li data-i18n="featuresPage.speedtestL2">Ejecución manual desde Resumen o Ajustes</li>
+              <li data-i18n="featuresPage.speedtestL3">Alerta si la bajada cae por debajo del porcentaje elegido de tu plan contratado</li>
+            </ul>
+          </div>
+        </details>
+
         <!-- Topology -->
         <details class="card feature feature-fold reveal">
           <summary>
@@ -233,6 +253,27 @@
               <li data-i18n="featuresPage.agentL4">owut check: comprueba si tu router tiene actualización de firmware</li>
               <li data-i18n="featuresPage.agentL5">Actualizaciones de firmware desde la UI, solo OpenWrt vanilla</li>
             </ul>
+          </div>
+        </details>
+
+        <!-- External router integrations -->
+        <details class="card feature feature-fold reveal" id="external-integrations">
+          <summary>
+            <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V4m6 3V4M9 20v-3m6 3v-3M7 9H4m3 6H4m16-6h-3m3 6h-3"/><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+            <div class="feature-head">
+              <h3 data-i18n="featuresPage.integrationsTitle">Integraciones externas de routers</h3>
+              <p class="feature-tag" data-i18n="featuresPage.integrationsTag">Compatibilidad con más fabricantes sin cargar todo en el servidor.</p>
+            </div>
+            <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
+          </summary>
+          <div class="feature-body">
+            <p data-i18n="featuresPage.integrationsP">RouterOS y Asuswrt/Merlin envían datos firmados a través de la misma API de ingesta. Sus pushers viven en netpulse-integrations, fuera del servidor y del agente nativo de OpenWrt. Cada integración tiene sus propios tests, releases y responsable de hardware.</p>
+            <ul class="feature-list">
+              <li data-i18n="featuresPage.integrationsL1">RouterOS: sistema, puertos, DHCP, ARP, FDB, temperatura, firmware y WAN.</li>
+              <li data-i18n="featuresPage.integrationsL2">Asuswrt/Merlin: pusher ARM64 en el router que reutiliza /proc, iw y lldpd.</li>
+              <li data-i18n="featuresPage.integrationsL3">Se registran como externos y comparten el historial, la topología, las alertas y la interfaz.</li>
+            </ul>
+            <a class="chip-link" href="https://github.com/gnacho/netpulse-integrations" target="_blank" rel="noopener" data-i18n="featuresPage.integrationsLink">Ver netpulse-integrations</a>
           </div>
         </details>
 
