@@ -167,7 +167,7 @@ folded section below).
 **1. Install the server** on the box:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh
+curl -fsSL --retry 3 -o /tmp/netpulse-install.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh && sh /tmp/netpulse-install.sh
 ```
 
 The installer is plain, readable shell ([inspect it first](install.sh)): it
@@ -268,7 +268,7 @@ absent.
 **Latency sidecar.** Optional long-term TCP latency probes per router:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh | sh
+curl -fsSL --retry 3 -o /tmp/netpulse-install-collector.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh && sh /tmp/netpulse-install-collector.sh
 ```
 
 **On-box mode.** No spare box? The server itself runs on an OpenWrt router,

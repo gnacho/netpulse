@@ -175,7 +175,7 @@ sección plegada de más abajo).
 **1. Instala el servidor** en la caja:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh
+curl -fsSL --retry 3 -o /tmp/netpulse-install.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh && sh /tmp/netpulse-install.sh
 ```
 
 El instalador es shell plano y legible ([inspecciónalo primero](install.sh)):
@@ -278,7 +278,7 @@ no está.
 opcionales:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh | sh
+curl -fsSL --retry 3 -o /tmp/netpulse-install-collector.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh && sh /tmp/netpulse-install-collector.sh
 ```
 
 **Modo on-box.** ¿Sin caja aparte? El servidor corre en el propio router
