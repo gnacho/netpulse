@@ -149,6 +149,15 @@ func TestIngestTokenValidoEInvalido(t *testing.T) {
 	if !strings.Contains(install, "install-agent.sh") || !strings.Contains(install, token) || !strings.Contains(install, "--slug=patio") || !strings.Contains(install, "--ssh-key=") {
 		t.Fatalf("one-liner: %q", install)
 	}
+	// #1577: el one-liner descarga a fichero y lo ejecuta tras `&&`. Con
+	// `curl | sh` un curl a medias (descarga truncada) alimentaba al shell con
+	// un script incompleto y el error real (exit de curl) se perdía.
+	if strings.Contains(install, "| sh") {
+		t.Fatalf("one-liner no debe encadenar curl a sh: %q", install)
+	}
+	if !strings.Contains(install, "-o /tmp/netpulse-install-agent.sh") || !strings.Contains(install, "&& sh /tmp/netpulse-install-agent.sh") {
+		t.Fatalf("one-liner debe descargar a fichero y ejecutarlo: %q", install)
+	}
 	// kv guarda sha256, NUNCA el token en claro
 	var stored string
 	if err := ts.db.QueryRow("SELECT value FROM kv WHERE key = 'agent.token.patio'").Scan(&stored); err != nil {

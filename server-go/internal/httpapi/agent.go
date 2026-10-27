@@ -518,8 +518,13 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	} else if tr.ServerFP != "" {
 		fpArg = " --server-fp=" + tr.ServerFP
 	}
+	// #1577: descarga a fichero y ejecuta SOLO si curl terminó bien. Con
+	// `curl | sh` el código de salida de curl se perdía: una descarga
+	// truncada (proxy, corte de red) llegaba al shell como script
+	// incompleto y moría con un "Syntax error: Unterminated quoted string"
+	// en una línea sin relación con la causa.
 	return fmt.Sprintf(
-		"%scurl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh | sh -s -- --host=%s --server=%s --slug=%s --token=%s%s%s%s",
+		"%scurl -fsSL --retry 3 -o /tmp/netpulse-install-agent.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh && sh /tmp/netpulse-install-agent.sh --host=%s --server=%s --slug=%s --token=%s%s%s%s",
 		caArg, host, server, slug, token, caFileArg, fpArg, sshKeyArg)
 }
 
