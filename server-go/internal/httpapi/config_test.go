@@ -106,11 +106,11 @@ func TestConfigRoutersCRUD(t *testing.T) {
 		t.Fatalf("type inválido: %d", res.StatusCode)
 	}
 
-	// #1481: asuswrt es un type válido (unidad agent-only sin SSH/procd).
+	// #1579: Asuswrt/Merlin se registra como external desde el pusher.
 	res = doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
 		`{"name":"GT-BE98 Pro","host":"192.168.8.30","type":"asuswrt","agent_only":true}`)
-	if res.StatusCode != 201 {
-		t.Fatalf("type asuswrt: %d, want 201", res.StatusCode)
+	if res.StatusCode != 400 {
+		t.Fatalf("type asuswrt: %d, want 400", res.StatusCode)
 	}
 
 	// POST JSON inválido → 400 invalid_json

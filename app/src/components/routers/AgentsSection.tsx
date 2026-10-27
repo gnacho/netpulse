@@ -39,9 +39,7 @@ import { cn, copyToClipboard } from '@/lib/utils'
 
 function isOpenWrtType(t: string | undefined): boolean {
   if (!t) return true
-  // #1481: asuswrt es agent-driven como openwrt/glinet (badge, tabla de
-  // agentes y botón Actualizar); lo que NO tiene es SSH para install/reinstall.
-  return t === 'glinet' || t === 'openwrt' || t === 'asuswrt'
+  return t === 'glinet' || t === 'openwrt'
 }
 
 // copyText: alias del helper compartido con fallback para orígenes no
@@ -85,19 +83,16 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
   // #483: sin agente = TOD router nativo OpenWrt sin agente (antes solo los
   // agent-only): la fila ofrece Instalar, que registra y despliega.
   const isMissing = agent === undefined
-  // #1481: en asuswrt no hay SSH/procd: ni install (copiar comando) ni
-  // reinstall ni uninstall; el agente se actualiza con el botón Actualizar.
-  const isAsuswrt = router?.type === 'asuswrt'
-  const canRecover = isOpenWrt && !isAsuswrt && (isStale || isMissing) && auth?.role === 'admin'
+  const canRecover = isOpenWrt && (isStale || isMissing) && auth?.role === 'admin'
   // #443: reinstall disponible SIEMPRE para admins en agentes nativos OpenWrt
   // (sanos o caídos): antes solo aparecía cuando estaba stale o faltaba, y el
   // duplicado vivía en la tarjeta Info del detalle.
-  const canReinstall = auth?.role === 'admin' && isOpenWrt && !isAsuswrt && (agent !== undefined || isMissing)
+  const canReinstall = auth?.role === 'admin' && isOpenWrt && (agent !== undefined || isMissing)
   // #624: desinstalar el agente vía SSH (liberar espacio en routers con poco
   // room, p. ej. UniFi 6 Lite). Solo agentes nativos OpenWrt con agente
   // presente: no tiene sentido desinstalar algo que no está, ni un NetGrip
   // (que se gestiona desde su propio panel) ni un scraper externo.
-  const canUninstall = auth?.role === 'admin' && isOpenWrt && !isAsuswrt && agent !== undefined && agent.kind !== 'external' && agent.kind !== 'netgrip'
+  const canUninstall = auth?.role === 'admin' && isOpenWrt && agent !== undefined && agent.kind !== 'external' && agent.kind !== 'netgrip'
   // #1382: retirar el agente de la flota (revoca token + olvida estado) solo
   // se ofrece con el agente SIN pulso (equipo apagado o quitado de la red):
   // retirar uno vivo deja un proceso empujando contra un token revocado.

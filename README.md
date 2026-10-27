@@ -101,7 +101,7 @@ the platform:
 | Platform | How the agent runs | Notes |
 |---|---|---|
 | OpenWrt (incl. GL.iNet) | Native `netpulse-agent` package (`.ipk`/`.apk`) | procd, UCI config, `luci-app-netpulse`, in-app install and upgrade |
-| Asuswrt / Asuswrt-Merlin | Static binary in `/jffs`, env file | No `ubus`: falls back to `/proc`, `iw` and `lldpd`. Manual install and update |
+| Asuswrt / Asuswrt-Merlin | External `asuswrt-pusher` in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt) | Static binary in `/jffs`, using `/proc`, `iw` and `lldpd`. Manual install and update |
 | RouterOS | Separate Go pusher in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | System, ports, DHCP, ARP, FDB, temperature, firmware and WAN traffic |
 | External router families | Separate Go pusher in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | See the [external integrations guide](docs/external-integrations.md) |
 | Managed switches | SNMP | Port states, speeds and LLDP-MIB neighbours |
@@ -161,8 +161,8 @@ one by one, and everything above is clickable in the **[live demo](https://demo.
 
 You need a Linux box with systemd (x86_64, arm64 or armv7; a small LXC or VM
 is plenty) and OpenWrt/GL.iNet routers on your LAN. Asuswrt/Merlin is
-supported too, and anything with SSH or SNMP can be added by hand (see the
-folded section below).
+supported through an external integration, and anything with SSH or SNMP can
+be added by hand (see the folded section below).
 
 **1. Install the server** on the box:
 
@@ -194,8 +194,8 @@ offer an **Install agent** button. One click and the server registers the
 agent, pushes the right binary for the router's architecture, writes the
 config and starts the service; it shows up as connected within seconds.
 Routers the server cannot SSH into use the pairing token instead
-(**Settings → Agent adoption**, see the folded section below), and Asuswrt
-takes a manual binary as described there.
+(**Settings → Agent adoption**, see the folded section below). Asuswrt/Merlin
+uses the external pusher described there.
 
 **5. Take it with you.** Install the PWA from your browser (Add to home
 screen / Install app) and enable Web Push in Settings: alerts reach your
@@ -239,31 +239,15 @@ Agent adoption shows a reusable pairing token:
 `install-agent.sh --pairing-token` (run from any machine that can reach both
 the router and the server) registers the agent on first contact.
 
-**Asuswrt / Merlin.** The agent also runs on Asuswrt and Asuswrt-Merlin
-routers (tested on a GT-BE98 Pro with RT-AX92U mesh nodes). There is no
-`opkg` there, so it is a plain static binary: pick
-`netpulse-agent_<version>_linux_arm64.tar.gz` (or `armv7`, `mips`,
-`mipsle` for older hardware) from the
-[latest release](https://github.com/gnacho/netpulse/releases), copy it to
-`/jffs/` (which survives firmware updates, unlike `/tmp`), and point it at
-your server. The config file defaults to `/etc/netpulse-agent.env`, so keep
-it in `/jffs` and name it explicitly:
+**Asuswrt / Merlin.** Support lives in the external
+[`asuswrt-pusher`](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt)
+integration. Build its static binary, create the router as type `external`
+and copy the binary and environment file to `/jffs/`, which survives firmware
+updates. The integration README covers boot startup and manual upgrades.
 
-```sh
-cat > /jffs/netpulse-agent.env <<'EOF'
-NETPULSE_SERVER=http://<netpulse-server-ip>:3000
-NETPULSE_SLUG=<slug>
-NETPULSE_TOKEN=<64-hex token>
-EOF
-NETPULSE_ENV_FILE=/jffs/netpulse-agent.env /jffs/netpulse-agent &
-```
-
-To start it at boot, add that same line to `/jffs/scripts/init-start` (or
-`services-start`). There is no procd and no SSH-based reinstall: updates go
-through the agent's own `upgrade` command, or by copying the new binary.
-Everything that does not need `ubus` works, including the topology (bridge
-FDB, `iw`, `lldpd`); features that depend on GL.iNet specifics are simply
-absent.
+The pusher uses the portable probes for system data, wireless, DHCP, bridge
+FDB, ARP and LLDP. Features that require `ubus` or GL.iNet services remain
+absent, and the native agent upgrade and reinstall actions are not available.
 
 **Latency sidecar.** Optional long-term TCP latency probes per router:
 

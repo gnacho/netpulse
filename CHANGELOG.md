@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Changed
+
+- **Asuswrt/Merlin pasa a integración externa (#1579)**: el tipo nativo `asuswrt` se migra a `external` conservando el token, las sondas portables siguen compartidas y el nuevo `asuswrt-pusher` vive en `netpulse-integrations`. Desaparecen el alta como `asuswrt` y su actualización desde la UI. La instalación y actualización pasan a ser manuales, como en las demás integraciones externas.
+
 ## [2.47.0] - 2026-10-23
 
 ### Added

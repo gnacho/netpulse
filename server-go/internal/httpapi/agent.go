@@ -447,8 +447,7 @@ func (s *server) rotateTokenHot(slug, token string) string {
 			break
 		}
 	}
-	// #1481: asuswrt no tiene SSH para rotar el token en caliente.
-	if host == "" || !s.routerUpgradeable(slug) || s.routerTypeOf(slug) == "asuswrt" {
+	if host == "" || !s.routerUpgradeable(slug) {
 		return "no_router"
 	}
 	if _, err := s.pool.Run(host, reinstall.TokenPushScript(slug, token), 60*time.Second); err != nil {
@@ -582,10 +581,7 @@ type agentUpgradeInfo struct {
 // actualizable; los de type managed-switch/external NO (son scrapers que no
 // usan el agente nativo y no entienden el comando "upgrade").
 func agentUpgradeable(typ string) bool {
-	// #1481: asuswrt se actualiza con el comando "upgrade" del agente (baja el
-	// binario y se lo cambia él mismo, sin procd); el REINSTALL por SSH sigue
-	// prohibido (handleAgentReinstall lo excluye aparte).
-	return typ == "" || typ == "openwrt" || typ == "glinet" || typ == "asuswrt"
+	return typ == "" || typ == "openwrt" || typ == "glinet"
 }
 
 // routerTypeOf: tipo de la fila routers para el slug ("" si no existe).
@@ -895,15 +891,6 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 			"este dispositivo no usa el agente nativo OpenWrt (scraper); reinstálalo con su propio mecanismo")
 		return
 	}
-	// #1481: asuswrt no tiene SSH/procd para un reinstall por el servidor; el
-	// agente se actualiza con el comando "upgrade" (o copiando el binario a
-	// mano), no reinstalando.
-	if s.routerTypeOf(slug) == "asuswrt" {
-		writeError(w, http.StatusConflict, "no_reinstall_asuswrt",
-			"en Asuswrt el agente se actualiza con el botón Actualizar (o copiando el binario); el reinstall por SSH no aplica")
-		return
-	}
-
 	// #1204: el env del agente lleva la sonda de latencia ACTIVA (WAN en el
 	// gateway, ping al gateway en los APs): el server resuelve el rol desde
 	// la tabla routers.
@@ -1040,10 +1027,10 @@ func (s *server) handleAgentsReemit(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("[netpulse] reemit: env re-emitido a %d/%d agentes", reemitted, len(out))
 	writeJSON(w, http.StatusOK, map[string]any{
-		"agents":  out,
+		"agents":    out,
 		"reemitted": reemitted,
-		"total":   len(out),
-		"message": fmt.Sprintf("env re-emitido a %d de %d agentes", reemitted, len(out)),
+		"total":     len(out),
+		"message":   fmt.Sprintf("env re-emitido a %d de %d agentes", reemitted, len(out)),
 	})
 }
 

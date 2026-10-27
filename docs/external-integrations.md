@@ -25,7 +25,7 @@ NetPulse POST /api/ingest/agent
 Normal fleet state, history and UI
 ```
 
-The external agent runs on any always-on host that can reach both the router and NetPulse. It can be a small static binary managed by systemd. Docker is optional, never a requirement.
+The external agent usually runs on any always-on host that can reach both the router and NetPulse. It can be a small static binary managed by systemd. The Asuswrt/Merlin pusher runs on the router itself. Docker is optional, never a requirement.
 
 The split of responsibility is deliberate:
 
@@ -122,6 +122,8 @@ Contract rules:
 - Send one coherent snapshot per cycle. If a section fails, follow the nil and empty semantics instead of fabricating data.
 
 The working RouterOS implementation in [`netpulse-integrations/routeros`](https://github.com/gnacho/netpulse-integrations/tree/main/routeros) shows configuration, token use, signing and pushing. RouterOS is supported only through this integration: the server has no RouterOS adapter or credentials. It is also a reference for the transport, not a template that requires copying the whole native agent.
+
+Asuswrt/Merlin follows the same external contract through [`netpulse-integrations/asuswrt`](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt). It reuses the portable probes from `agent/probe`, but not the native command, backup or upgrade runtime. Existing `asuswrt` router rows migrate to `external` with their agent tokens preserved.
 
 ## Preserve the meaning of the data
 

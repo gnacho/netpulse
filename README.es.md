@@ -103,7 +103,7 @@ de la plataforma:
 | Plataforma | Cómo corre el agente | Notas |
 |---|---|---|
 | OpenWrt (incl. GL.iNet) | Paquete nativo `netpulse-agent` (`.ipk`/`.apk`) | procd, config UCI, `luci-app-netpulse`, instalación y upgrade desde la app |
-| Asuswrt / Asuswrt-Merlin | Binario estático en `/jffs`, fichero de entorno | Sin `ubus`: recurre a `/proc`, `iw` y `lldpd`. Instalación y actualización manuales |
+| Asuswrt / Asuswrt-Merlin | `asuswrt-pusher` externo en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt) | Binario estático en `/jffs`, con `/proc`, `iw` y `lldpd`. Instalación y actualización manuales |
 | RouterOS | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Sistema, puertos, DHCP, ARP, FDB, temperatura, firmware y tráfico WAN |
 | Otras familias de router | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Ver la [guía de integraciones externas](docs/external-integrations.md) |
 | Switches gestionados | SNMP | Estado de bocas, velocidades y vecinos LLDP-MIB |
@@ -168,9 +168,9 @@ anterior se puede tocar en la **[demo en vivo](https://demo.netpulse.cloudless.c
 ## Empieza en unos cinco minutos
 
 Necesitas una caja Linux con systemd (x86_64, arm64 o armv7; un LXC o VM
-pequeña sobra) y routers OpenWrt/GL.iNet en tu LAN. Asuswrt/Merlin también
-está soportado, y cualquier cosa con SSH o SNMP se añade a mano (mira la
-sección plegada de más abajo).
+pequeña sobra) y routers OpenWrt/GL.iNet en tu LAN. Asuswrt/Merlin se soporta
+mediante una integración externa, y cualquier cosa con SSH o SNMP se añade a
+mano (mira la sección plegada de más abajo).
 
 **1. Instala el servidor** en la caja:
 
@@ -204,7 +204,7 @@ el agente, empuja el binario correcto para la arquitectura del router,
 escribe la config y arranca el servicio; aparece como conectado en segundos.
 Los routers a los que el servidor no llega por SSH usan el token de
 emparejamiento (**Ajustes → Adopción de agentes**, mira la sección plegada
-de abajo), y Asuswrt lleva un binario manual como se cuenta en esa sección.
+de abajo). Asuswrt/Merlin utiliza el pusher externo descrito en esa sección.
 
 **5. Llévatela contigo.** Instala la PWA desde el navegador (Añadir a
 pantalla de inicio / Instalar app) y activa Web Push en Ajustes: las alertas
@@ -248,31 +248,16 @@ SSH, Ajustes → Adopción de agentes muestra un token reutilizable:
 `install-agent.sh --pairing-token` (ejecutado desde cualquier máquina que
 alcance el router y el servidor) registra el agente en el primer contacto.
 
-**Asuswrt / Merlin.** El agente también corre en routers Asuswrt y
-Asuswrt-Merlin (probado en un GT-BE98 Pro con nodos mesh RT-AX92U). Allí no
-hay `opkg`: es un binario estático al uso. Coge
-`netpulse-agent_<versión>_linux_arm64.tar.gz` (o `armv7`, `mips`, `mipsle`
-para hardware más viejo) de la
-[última release](https://github.com/gnacho/netpulse/releases), cópialo a
-`/jffs/` (que sobrevive a los firmwares, a diferencia de `/tmp`) y apúntalo
-a tu servidor. El fichero de config por defecto es
-`/etc/netpulse-agent.env`, así que déjalo en `/jffs` y nómbralo explícito:
+**Asuswrt / Merlin.** El soporte vive en la integración externa
+[`asuswrt-pusher`](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt).
+Compila su binario estático, crea el router con tipo `external` y copia el
+binario y el fichero de entorno a `/jffs/`, que sobrevive a las
+actualizaciones de firmware. El README de la integración explica el arranque
+al boot y las actualizaciones manuales.
 
-```sh
-cat > /jffs/netpulse-agent.env <<'EOF'
-NETPULSE_SERVER=http://<ip-del-servidor-netpulse>:3000
-NETPULSE_SLUG=<slug>
-NETPULSE_TOKEN=<token de 64 hex>
-EOF
-NETPULSE_ENV_FILE=/jffs/netpulse-agent.env /jffs/netpulse-agent &
-```
-
-Para arrancarlo al boot, añade esa misma línea a `/jffs/scripts/init-start`
-(o `services-start`). No hay procd ni reinstall por SSH: las actualizaciones
-van por el comando `upgrade` del propio agente o copiando el binario nuevo.
-Todo lo que no necesita `ubus` funciona, incluida la topología (FDB del
-bridge, `iw`, `lldpd`); lo que depende de específicos de GL.iNet simplemente
-no está.
+El pusher usa las sondas portables para sistema, WiFi, DHCP, FDB del bridge,
+ARP y LLDP. Lo que necesita `ubus` o servicios de GL.iNet sigue ausente, y las
+acciones de upgrade y reinstall del agente nativo no están disponibles.
 
 **Sidecar de latencia.** Sondeos TCP de latencia por router a largo plazo,
 opcionales:

@@ -651,11 +651,11 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		}
 	}
 
-	// RouterOS moved out of the server (#1574). Keep existing units visible
-	// as external routers until their owner deploys the pusher. Their old
-	// credential columns are left in place as inert legacy schema.
-	if _, err := sqldb.Exec(`UPDATE routers SET type = 'external', agent_only = 1 WHERE type = 'routeros'`); err != nil {
-		log.Printf("[netpulse] aviso: no se pudieron migrar los routers RouterOS a external: %v", err)
+	// RouterOS and Asuswrt/Merlin moved to external integrations (#1574,
+	// #1579). Keep existing units visible until their owner deploys the
+	// pusher. Legacy credential columns remain in place as inert schema.
+	if _, err := sqldb.Exec(`UPDATE routers SET type = 'external', agent_only = 1 WHERE type IN ('routeros', 'asuswrt')`); err != nil {
+		log.Printf("[netpulse] aviso: no se pudieron migrar los routers RouterOS/Asuswrt a external: %v", err)
 	}
 
 	// #1129: las MACs de roam_events se ingirieron en minúsculas (así vienen

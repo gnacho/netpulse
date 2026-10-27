@@ -194,8 +194,8 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 	if typ == "" {
 		typ = "openwrt"
 	}
-	if typ != "glinet" && typ != "openwrt" && typ != "managed-switch" && typ != "external" && typ != "asuswrt" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external' | 'asuswrt'")
+	if typ != "glinet" && typ != "openwrt" && typ != "managed-switch" && typ != "external" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
 		return
 	}
 	var firmwareTarget string
@@ -333,8 +333,8 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	var typ *string
 	if in.Type != "" {
 		t := in.Type
-		if t != "glinet" && t != "openwrt" && t != "managed-switch" && t != "external" && t != "asuswrt" {
-			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external' | 'asuswrt'")
+		if t != "glinet" && t != "openwrt" && t != "managed-switch" && t != "external" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'glinet' | 'openwrt' | 'managed-switch' | 'external'")
 			return
 		}
 		typ = &t
