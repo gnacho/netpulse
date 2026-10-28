@@ -13,6 +13,8 @@ Thanks for spending time on NetPulse. This is how changes land.
 
 Every pull request runs `pr-checks` (server build with the embedded agents, tests for both Go modules, frontend build with its type check) and `gitleaks`. The PR must be green before review.
 
+Run `make check` before pushing to reproduce `pr-checks` locally. It installs the frontend dependencies, lints and builds the app, refreshes the embedded SPA, cross-compiles the agent binaries and runs the Go tests for both modules.
+
 - **New server code goes in its own file by domain**, next to its test. `live.go` is wiring only; do not append features to it. This keeps review, conflict resolution and revert easy.
 - **String contracts get constants.** Do not match on loose literals; if a value is part of a contract (`PeerKind` and friends), it gets a constant or a helper.
 - **Every behavior change ships with a test** that would fail without it. Real device fixtures and table-driven cases are preferred; no invented readings.
