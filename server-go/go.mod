@@ -10,7 +10,7 @@ require (
 	github.com/gonzalop/mq v0.9.12
 	github.com/gosnmp/gosnmp v1.45.0
 	github.com/m-lab/ndt7-client-go v0.10.1
-	github.com/mark3labs/mcp-go v1.1.1
+	github.com/mark3labs/mcp-go v1.4.0
 	github.com/showwin/speedtest-go v1.8.3
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
