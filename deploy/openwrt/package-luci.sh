@@ -41,19 +41,10 @@ PKG_RELEASE="${PKG_RELEASE:-$(sed -n 's/^PKG_RELEASE:=//p' "$APP_DIR/Makefile" |
 # toolchain component differs across OpenWrt releases); same scheme as
 # package.sh.
 SDK_DIR_URL="https://downloads.openwrt.org/releases/${SDK_VERSION}/targets/${SDK_TARGET}/"
-SDK_NAME="$(curl -fsSL "$SDK_DIR_URL" 2>/dev/null | grep -o 'openwrt-sdk-[^"]*\.tar\.zst' | head -1 || true)"
-if [ -z "$SDK_NAME" ]; then
-  echo "ERROR: SDK not found under ${SDK_DIR_URL}" >&2
-  exit 1
-fi
-SDK_URL="${SDK_DIR_URL}${SDK_NAME}"
-
-echo "  SDK: $SDK_URL"
-
+# shellcheck source=deploy/openwrt/sdk.sh
+. "$SCRIPT_DIR/sdk.sh"
+SDK_DIR="$(download_verified_sdk "$SDK_DIR_URL" "$WORK_DIR")" || exit 1
 cd "$WORK_DIR"
-curl -fsSL "$SDK_URL" -o sdk.tar.zst
-tar --zstd -xf sdk.tar.zst
-SDK_DIR="$WORK_DIR/${SDK_NAME%.tar.zst}"
 
 OUT_DIR="$REPO_ROOT/dist/packages"
 mkdir -p "$OUT_DIR"

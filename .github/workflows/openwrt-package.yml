@@ -57,7 +57,7 @@ jobs:
             goarch: amd64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Resolve release tag
         id: tag
@@ -76,14 +76,16 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           for i in $(seq 1 80); do
-            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q "netpulse-agent_.*_linux_${{ matrix.goarch }}.tar.gz"; then
-              echo "Agent tarballs present after $i attempts"
+            assets="$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+            if printf '%s\n' "$assets" | grep -q "netpulse-agent_.*_linux_${{ matrix.goarch }}.tar.gz" \
+              && printf '%s\n' "$assets" | grep -qx 'checksums.txt'; then
+              echo "Agent tarballs and checksums present after $i attempts"
               exit 0
             fi
-            echo "Waiting for agent tarballs ($i/80)..."
+            echo "Waiting for agent tarballs and checksums ($i/80)..."
             sleep 15
           done
-          echo "ERROR: agent tarballs not found on $TAG after 20 min" >&2
+          echo "ERROR: agent tarballs or checksums not found on $TAG after 20 min" >&2
           exit 1
 
       - name: Download netpulse-agent ${{ matrix.goarch }} binary
@@ -91,9 +93,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          gh release download "$TAG" -p "netpulse-agent_*_linux_${{ matrix.goarch }}.tar.gz" --dir /tmp/agent
+          gh release download "$TAG" -p "netpulse-agent_*_linux_${{ matrix.goarch }}.tar.gz" -p checksums.txt --dir /tmp/agent
           cd /tmp/agent
-          tar xzf netpulse-agent_*_linux_${{ matrix.goarch }}.tar.gz
+          asset="$(ls netpulse-agent_*_linux_${{ matrix.goarch }}.tar.gz)"
+          awk -v n="$asset" '{candidate=$NF; sub(/^\*/, "", candidate); if (candidate == n) print}' checksums.txt > agent-checksums.txt
+          test -s agent-checksums.txt
+          sha256sum -c agent-checksums.txt
+          tar xzf "$asset"
           ls -la netpulse-agent
           file netpulse-agent
 
@@ -134,7 +140,7 @@ jobs:
             format: apk
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Resolve release tag
         id: tag
@@ -209,7 +215,7 @@ jobs:
             goarch: amd64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Resolve release tag
         id: tag
@@ -228,14 +234,16 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           for i in $(seq 1 80); do
-            if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -q "netpulse_.*_linux_${{ matrix.goarch }}.tar.gz"; then
-              echo "Server tarball present after $i attempts"
+            assets="$(gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null || true)"
+            if printf '%s\n' "$assets" | grep -q "netpulse_.*_linux_${{ matrix.goarch }}.tar.gz" \
+              && printf '%s\n' "$assets" | grep -qx 'checksums.txt'; then
+              echo "Server tarball and checksums present after $i attempts"
               exit 0
             fi
-            echo "Waiting for server tarball ($i/80)..."
+            echo "Waiting for server tarball and checksums ($i/80)..."
             sleep 15
           done
-          echo "ERROR: server tarball not found on $TAG after 20 min" >&2
+          echo "ERROR: server tarball or checksums not found on $TAG after 20 min" >&2
           exit 1
 
       - name: Download netpulse server ${{ matrix.goarch }} binary
@@ -243,9 +251,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          gh release download "$TAG" -p "netpulse_*_linux_${{ matrix.goarch }}.tar.gz" --dir /tmp/server
+          gh release download "$TAG" -p "netpulse_*_linux_${{ matrix.goarch }}.tar.gz" -p checksums.txt --dir /tmp/server
           cd /tmp/server
-          tar xzf netpulse_*_linux_${{ matrix.goarch }}.tar.gz
+          asset="$(ls netpulse_*_linux_${{ matrix.goarch }}.tar.gz)"
+          awk -v n="$asset" '{candidate=$NF; sub(/^\*/, "", candidate); if (candidate == n) print}' checksums.txt > server-checksums.txt
+          test -s server-checksums.txt
+          sha256sum -c server-checksums.txt
+          tar xzf "$asset"
           ls -la netpulse
           file netpulse
 

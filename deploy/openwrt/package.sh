@@ -47,20 +47,10 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # (24.10 uses gcc-13.3.0, 25.12 uses gcc-14.3.0), so resolve the real name
 # from the download index instead of hardcoding it.
 SDK_DIR_URL="https://downloads.openwrt.org/releases/${SDK_VERSION}/targets/${SDK_TARGET}/"
-SDK_NAME="$(curl -fsSL "$SDK_DIR_URL" 2>/dev/null | grep -o 'openwrt-sdk-[^"]*\.tar\.zst' | head -1 || true)"
-if [ -z "$SDK_NAME" ]; then
-  echo "ERROR: SDK not found under ${SDK_DIR_URL}" >&2
-  exit 1
-fi
-SDK_URL="${SDK_DIR_URL}${SDK_NAME}"
-
-echo "  SDK: $SDK_URL"
-
-# Download and extract the SDK
+# shellcheck source=deploy/openwrt/sdk.sh
+. "$SCRIPT_DIR/sdk.sh"
+SDK_DIR="$(download_verified_sdk "$SDK_DIR_URL" "$WORK_DIR")" || exit 1
 cd "$WORK_DIR"
-curl -fsSL "$SDK_URL" -o sdk.tar.zst
-tar --zstd -xf sdk.tar.zst
-SDK_DIR="$WORK_DIR/${SDK_NAME%.tar.zst}"
 
 # Package architecture for the .ipk control file. OpenWrt names the staging
 # dir "target-<arch>_musl", so derive it from there instead of hardcoding a
