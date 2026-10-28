@@ -37,6 +37,14 @@ type TokenValidator interface {
 	ValidateBearer(raw string) (*User, string)
 }
 
+// Scopes de los API tokens. Un token read solo puede usar métodos seguros,
+// write puede mutar rutas no admin y admin alcanza también RequireAdmin.
+const (
+	ScopeRead  = "read"
+	ScopeWrite = "write"
+	ScopeAdmin = "admin"
+)
+
 // APITokenFromContext devuelve el scope del token API usado ("" si no es token).
 func APITokenFromContext(ctx context.Context) string {
 	s, _ := ctx.Value(ctxAPIToken).(string)
@@ -113,6 +121,10 @@ func RequireAuth(d *db.DB, secret string, tv TokenValidator, next http.Handler) 
 		if tv != nil {
 			if raw := bearerToken(r); raw != "" {
 				if user, scope := tv.ValidateBearer(raw); user != nil {
+					if !scopeAllowsMethod(scope, r.Method) {
+						WriteError(w, http.StatusForbidden, "insufficient_scope")
+						return
+					}
 					ctx := context.WithValue(r.Context(), ctxUser, user)
 					ctx = context.WithValue(ctx, ctxAPIToken, scope)
 					next.ServeHTTP(w, r.WithContext(ctx))
@@ -142,12 +154,34 @@ func bearerToken(r *http.Request) string {
 	return strings.TrimPrefix(v, "Bearer ")
 }
 
+// scopeAllowsMethod aplica el contrato de los scopes al método HTTP. Un token
+// read es de solo lectura: GET, HEAD y OPTIONS. write y admin pueden mutar,
+// pero solo admin supera además RequireAdmin.
+func scopeAllowsMethod(scope, method string) bool {
+	switch scope {
+	case ScopeWrite, ScopeAdmin:
+		return true
+	case ScopeRead:
+		switch method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			return true
+		}
+	}
+	return false
+}
+
 // RequireAdmin exige role === 'admin' (tras RequireAuth) → 403 {error:'forbidden'}.
+// Con un API token exige además scope admin: un token read o write emitido por
+// un admin no hereda el rol y no entra en rutas de administración.
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := UserFromContext(r.Context())
 		if user == nil || user.Role != "admin" {
 			WriteError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if scope := APITokenFromContext(r.Context()); scope != "" && scope != ScopeAdmin {
+			WriteError(w, http.StatusForbidden, "insufficient_scope")
 			return
 		}
 		next.ServeHTTP(w, r)

@@ -541,7 +541,7 @@ This is the largest screen. Main sections:
 - **Agent adoption**: pairing token and server fingerprint.
 - **AdGuard Home**: configuration of the read-only connection to the router's AdGuard panel.
 - **My profile**: name, language, password and sign out.
-- **API Tokens**: bearer tokens for integrations.
+- **API Tokens**: bearer tokens for integrations. A `read` token only allows `GET`, `HEAD` and `OPTIONS`, a `write` token can also mutate non-admin resources, and only an `admin` token reaches administration routes and the database download.
 - **About**: version, links, push/PWA, Telegram and system data.
 
 ### Design decisions

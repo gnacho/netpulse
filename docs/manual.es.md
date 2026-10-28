@@ -541,7 +541,7 @@ Es la pantalla más grande. Secciones principales:
 - **Adopción de agentes**: token de emparejamiento y huella del servidor.
 - **AdGuard Home**: configuración de la conexión de solo lectura al panel AdGuard del router.
 - **Mi perfil**: nombre, idioma, contraseña y salir.
-- **API Tokens**: tokens bearer para integraciones.
+- **API Tokens**: tokens bearer para integraciones. Un token `read` solo permite `GET`, `HEAD` y `OPTIONS`, un token `write` puede además mutar recursos que no son de administración, y solo un token `admin` alcanza las rutas de administración y la descarga de la base de datos.
 - **Acerca de**: versión, enlaces, push/PWA, Telegram y datos del sistema.
 
 ### Decisiones de diseño

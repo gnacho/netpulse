@@ -15,9 +15,9 @@ import (
 
 const (
 	TokenPrefix = "np_"
-	ScopeRead   = "read"
-	ScopeWrite  = "write"
-	ScopeAdmin  = "admin"
+	ScopeRead   = auth.ScopeRead
+	ScopeWrite  = auth.ScopeWrite
+	ScopeAdmin  = auth.ScopeAdmin
 )
 
 type Token struct {
@@ -45,8 +45,8 @@ func randomHex(n int) string {
 	return hex.EncodeToString(b)
 }
 
-func newID() string    { return randomHex(16) }
-func newRaw() string    { return randomHex(24) }
+func newID() string  { return randomHex(16) }
+func newRaw() string { return randomHex(24) }
 
 type Store struct {
 	db     *db.DB

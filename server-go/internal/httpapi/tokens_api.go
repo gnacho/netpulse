@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 
+	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 )
 
@@ -51,9 +52,9 @@ func (s *server) handleTokensCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Name       string `json:"name"`
-		Scope      string `json:"scope"`
-		ExpiresIn  int    `json:"expiresInDays"`
+		Name      string `json:"name"`
+		Scope     string `json:"scope"`
+		ExpiresIn int    `json:"expiresInDays"`
 	}
 	if status := readJSONBody(w, r, &body); status != 0 {
 		writeBodyError(w, status, "invalid_body", "")
@@ -62,6 +63,18 @@ func (s *server) handleTokensCreate(w http.ResponseWriter, r *http.Request) {
 	if body.Name == "" || body.Scope == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "name and scope required")
 		return
+	}
+	// Un token no puede elevarse por encima de sí mismo: solo un admin con
+	// sesión (o un token admin) puede emitir otro token admin.
+	if body.Scope == apitoken.ScopeAdmin {
+		if user.Role != "admin" {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+		if scope := auth.APITokenFromContext(r.Context()); scope != "" && scope != apitoken.ScopeAdmin {
+			writeError(w, http.StatusForbidden, "insufficient_scope")
+			return
+		}
 	}
 	id, raw, err := s.tokenStore.Create(body.Name, body.Scope, user.ID, body.ExpiresIn)
 	if err != nil {
