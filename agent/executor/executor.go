@@ -99,6 +99,7 @@ var (
 	// Allowlist de dominios de descarga: SOLO releases oficiales de AdGuard.
 	// Cualquier otra URL (incluida un attacker que controle el plan) se rechaza.
 	reDownloadURL = regexp.MustCompile(`^https://github\.com/AdguardTeam/AdGuardHome/releases/download/v[0-9]+\.[0-9]+\.[0-9]+/AdGuardHome_linux_[a-z0-9]+\.tar\.gz$`)
+	reSHA256      = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 	reMode        = regexp.MustCompile(`^[0-7]{3,4}$`)
 	// base64 estándar (sin newlines). La validación final la hace base64.Decode.
 	reBase64 = regexp.MustCompile(`^[A-Za-z0-9+/]+={0,2}$`)
@@ -115,6 +116,8 @@ var (
 type opSpec struct {
 	required map[string]*regexp.Regexp
 	build    func(args map[string]string) (cmd string, cmdArgs []string)
+	pre      func(run Runner, args map[string]string) int
+	post     func(run Runner, args map[string]string) int
 	// exec, si está presente, reemplaza a build. Para Kinds que no son un
 	// simple exec.Command (p. ej. write_file escribe el fichero en Go).
 	exec func(run Runner, args map[string]string) int
@@ -252,10 +255,21 @@ var allowlist = map[string]opSpec{
 	// estricta de URL (solo releases oficiales de AdGuard).  El dest se valida
 	// con reFilePath. No shell libre: la URL va como arg, no interpolada.
 	"download": {
-		required: map[string]*regexp.Regexp{"url": reDownloadURL, "dest": reFilePath},
+		required: map[string]*regexp.Regexp{"url": reDownloadURL, "dest": reFilePath, "sha256": reSHA256},
 		pathArgs: []string{"dest"},
 		build: func(a map[string]string) (string, []string) {
 			return "uclient-fetch", []string{a["url"], "-O", a["dest"]}
+		},
+		post: func(run Runner, a map[string]string) int {
+			out, code := run.Run("sha256sum", a["dest"])
+			if code != 0 {
+				return code
+			}
+			fields := strings.Fields(strings.TrimSpace(out))
+			if len(fields) == 0 || !strings.EqualFold(fields[0], a["sha256"]) {
+				return 1
+			}
+			return 0
 		},
 		configs: func(a map[string]string) []string { return nil },
 	},
@@ -303,6 +317,17 @@ var allowlist = map[string]opSpec{
 	"extract_tarball": {
 		required: map[string]*regexp.Regexp{"src": reFilePath, "dest": reDirPath},
 		pathArgs: []string{"src", "dest"},
+		pre: func(run Runner, a map[string]string) int {
+			names, code := run.Run("tar", "-tzf", a["src"])
+			if code != 0 || unsafeTarNames(names) {
+				return 1
+			}
+			verbose, code := run.Run("tar", "-tvzf", a["src"])
+			if code != 0 || unsafeTarTypes(verbose) {
+				return 1
+			}
+			return 0
+		},
 		build: func(a map[string]string) (string, []string) {
 			return "tar", []string{"-xzf", a["src"], "-C", a["dest"]}
 		},
@@ -440,6 +465,39 @@ func (e *Executor) SetRunner(r Runner) { e.run = r }
 func (e *Executor) SetClock(f func() time.Time) { e.now = f }
 
 // Validate comprueba que una Op pasa el allowlist sin ejecutarla.
+func unsafeTarNames(out string) bool {
+	for _, line := range strings.Split(out, "\n") {
+		name := strings.TrimSpace(line)
+		if name == "" {
+			continue
+		}
+		if filepath.IsAbs(name) {
+			return true
+		}
+		for _, part := range strings.FieldsFunc(name, func(r rune) bool { return r == '/' || r == '\\' }) {
+			if part == ".." {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func unsafeTarTypes(out string) bool {
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		switch line[0] {
+		case '-', 'd':
+		default:
+			return true
+		}
+	}
+	return false
+}
+
 func Validate(op Op) error {
 	spec, ok := allowlist[op.Kind]
 	if !ok {
@@ -564,11 +622,19 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 
 		spec := allowlist[op.Kind]
 		var code int
-		if spec.exec != nil {
-			code = spec.exec(e.run, op.Args)
-		} else {
-			cmd, cmdArgs := spec.build(op.Args)
-			_, code = e.run.Run(cmd, cmdArgs...)
+		if spec.pre != nil {
+			code = spec.pre(e.run, op.Args)
+		}
+		if code == 0 {
+			if spec.exec != nil {
+				code = spec.exec(e.run, op.Args)
+			} else {
+				cmd, cmdArgs := spec.build(op.Args)
+				_, code = e.run.Run(cmd, cmdArgs...)
+			}
+		}
+		if code == 0 && spec.post != nil {
+			code = spec.post(e.run, op.Args)
 		}
 		if code != 0 {
 			if op.Kind == "wg_check" || op.Kind == "dawn_check" || op.Kind == "usteer_check" {

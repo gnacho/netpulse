@@ -179,11 +179,27 @@ func TestValidateSectionWithDigits(t *testing.T) {
 func TestValidateDownloadURLAllowlist(t *testing.T) {
 	// URL oficial válida
 	valid := Op{Kind: "download", Args: map[string]string{
-		"url":  "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
-		"dest": "/tmp/AdGuardHome.tar.gz",
+		"url":    "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+		"dest":   "/tmp/AdGuardHome.tar.gz",
+		"sha256": strings.Repeat("a", 64),
 	}}
 	if err := Validate(valid); err != nil {
 		t.Fatalf("valid download URL rejected: %v", err)
+	}
+	missingSum := Op{Kind: "download", Args: map[string]string{
+		"url":  "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+		"dest": "/tmp/AdGuardHome.tar.gz",
+	}}
+	if err := Validate(missingSum); err == nil {
+		t.Fatal("download without sha256 should be rejected")
+	}
+	badSum := Op{Kind: "download", Args: map[string]string{
+		"url":    "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+		"dest":   "/tmp/AdGuardHome.tar.gz",
+		"sha256": "no-es-un-sha",
+	}}
+	if err := Validate(badSum); err == nil {
+		t.Fatal("download with malformed sha256 should be rejected")
 	}
 	// URL maliciosa (dominio distinto) → rechazo
 	bad := Op{Kind: "download", Args: map[string]string{
@@ -363,12 +379,15 @@ func TestApplyPlanConDownloadWriteChmod(t *testing.T) {
 	// (escribe de verdad en /tmp). service via fakeRunner.
 	tmpFile := "/tmp/netpulse-plan-test-" + t.Name()
 	defer os.Remove(tmpFile)
+	sha := strings.Repeat("b", 64)
+	fr.outputs["sha256sum"] = sha + "  " + tmpFile
 
 	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
 	ops := []Op{
 		{Kind: "download", Args: map[string]string{
-			"url":  "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
-			"dest": tmpFile,
+			"url":    "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+			"dest":   tmpFile,
+			"sha256": sha,
 		}, Desc: "Download AdGuard tarball"},
 		{Kind: "write_file", Args: map[string]string{
 			"path":        "/tmp/netpulse-plan-test-cfg.yaml",
@@ -393,6 +412,85 @@ func TestApplyPlanConDownloadWriteChmod(t *testing.T) {
 	// Y que write_file escribió el fichero config.
 	if _, err := os.ReadFile("/tmp/netpulse-plan-test-cfg.yaml"); err != nil {
 		t.Errorf("config file not written: %v", err)
+	}
+}
+
+func TestApplyDownloadChecksumMismatch(t *testing.T) {
+	fr := newFakeRunner()
+	fr.outputs["sha256sum"] = strings.Repeat("c", 64) + "  /tmp/netpulse-plan-test-download"
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	res := e.Apply([]Op{{
+		Kind: "download",
+		Args: map[string]string{
+			"url":    "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.52/AdGuardHome_linux_arm64.tar.gz",
+			"dest":   "/tmp/netpulse-plan-test-download",
+			"sha256": strings.Repeat("d", 64),
+		},
+		Desc: "Download with wrong digest",
+	}})
+	if res.Status != "failed" {
+		t.Fatalf("expected failed, got %s", res.Status)
+	}
+}
+
+func TestUnsafeTarNames(t *testing.T) {
+	for _, name := range []string{"../etc/passwd", "/etc/passwd", `a\..\b`, "a/../../b"} {
+		if !unsafeTarNames(name) {
+			t.Errorf("unsafe name accepted: %q", name)
+		}
+	}
+	for _, name := range []string{"AdGuardHome/AdGuardHome", "dir/file", ""} {
+		if unsafeTarNames(name) {
+			t.Errorf("safe name rejected: %q", name)
+		}
+	}
+}
+
+func TestUnsafeTarTypes(t *testing.T) {
+	for _, line := range []string{"lrwxrwxrwx 0 0 0 0 Jan 1 00:00 link", "hrw-r--r-- 0 0 0 0 Jan 1 00:00 hard", "brw-r--r-- 0 0 0 0 Jan 1 00:00 dev"} {
+		if !unsafeTarTypes(line) {
+			t.Errorf("unsafe tar type accepted: %q", line)
+		}
+	}
+	for _, line := range []string{"-rw-r--r-- 0 0 0 0 Jan 1 00:00 file", "drwxr-xr-x 0 0 0 0 Jan 1 00:00 dir"} {
+		if unsafeTarTypes(line) {
+			t.Errorf("safe tar type rejected: %q", line)
+		}
+	}
+}
+
+func TestApplyExtractRejectsUnsafeTarNames(t *testing.T) {
+	fr := newFakeRunner()
+	fr.outputs["tar -tzf"] = "../escape\n"
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	res := e.Apply([]Op{{
+		Kind: "extract_tarball",
+		Args: map[string]string{"src": "/tmp/netpulse-extract-test.tar.gz", "dest": "/tmp/netpulse-extract-test"},
+		Desc: "Extract unsafe tarball",
+	}})
+	if res.Status != "failed" {
+		t.Fatalf("expected failed, got %s", res.Status)
+	}
+	if strings.Contains(strings.Join(fr.calls, "\n"), "tar -xzf") {
+		t.Fatal("unsafe tarball must not be extracted")
+	}
+}
+
+func TestApplyExtractRejectsUnsafeTarTypes(t *testing.T) {
+	fr := newFakeRunner()
+	fr.outputs["tar -tzf"] = "ok\n"
+	fr.outputs["tar -tvzf"] = "lrwxrwxrwx 0 0 0 0 Jan 1 00:00 link\n"
+	e := &Executor{run: fr, now: time.Now, gwTarget: "192.168.1.1"}
+	res := e.Apply([]Op{{
+		Kind: "extract_tarball",
+		Args: map[string]string{"src": "/tmp/netpulse-extract-test.tar.gz", "dest": "/tmp/netpulse-extract-test"},
+		Desc: "Extract symlink tarball",
+	}})
+	if res.Status != "failed" {
+		t.Fatalf("expected failed, got %s", res.Status)
+	}
+	if strings.Contains(strings.Join(fr.calls, "\n"), "tar -xzf") {
+		t.Fatal("tarball with symlink must not be extracted")
 	}
 }
 

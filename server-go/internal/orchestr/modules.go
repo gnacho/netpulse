@@ -122,6 +122,35 @@ func adGuardDisableOps() []executor.Op {
 //
 // La estructura del tarball oficial es `AdGuardHome/AdGuardHome` (binario) +
 // README/LICENSE/homepage; por eso se extrae a /tmp y se mueve solo el binario.
+func adguardSHA256(suffix string) string {
+	switch suffix {
+	case "386":
+		return "617958e1423e300fe199bccce610c95d589ba1511dc2ffacfb9336146c1d39b6"
+	case "amd64":
+		return "b07c392732ac63c4f79eb374cacec002be4bd9105a47dced0c5c41d8e34e3ade"
+	case "arm64":
+		return "98404a4ab26c71a59d5b7fc9d24c061cd5d4439a77822cfb73909f8e39fefd46"
+	case "armv5":
+		return "382f02fc746d67dc5d3ec1d172e22185b30bd9f6a1b7fa836e12e16683a5c47f"
+	case "armv6":
+		return "5df2b92f9c3869d93310f8ab19f7eee8988f510f3e5cecd239c8fe7bbb442ac8"
+	case "armv7":
+		return "aac52acd7932297f6120f999ea70bd49fefc3c22c7c461d734c5248edf35878c"
+	case "mips":
+		return "e2332387d2d8e5df4f9da3fe4321e067f781aba63eb31790e38cc29d223f6900"
+	case "mipsle":
+		return "9ab35c8d04167fc473d5b81df5b69f5be91a56652b4445e76755a07c6ab5a8e3"
+	case "mips64":
+		return "29e72436c015f8c5f6acbefb070ffb275cbd02c2f986426abb797ef54707be9f"
+	case "mips64le":
+		return "4edefe4eb49ef1a88e72c7845482a38ee1b400dd69875b3972ca38b9c075c6b4"
+	case "ppc64le":
+		return "9ec1a95db8d7ca43e0fccfb826e8706059898791ef16a6c3ccdf2b620cb0b2d2"
+	default:
+		return ""
+	}
+}
+
 func adGuardBinaryOps(sc AdGuardScenario, port, dns string) []executor.Op {
 	suffix := sc.AdguardSuffix
 	if suffix == "" {
@@ -130,7 +159,7 @@ func adGuardBinaryOps(sc AdGuardScenario, port, dns string) []executor.Op {
 	url := fmt.Sprintf("https://github.com/AdguardTeam/AdGuardHome/releases/download/%s/AdGuardHome_linux_%s.tar.gz", adguardVersion, suffix)
 	config := fmt.Sprintf(adGuardConfigTemplate, port, dns)
 	return []executor.Op{
-		{Kind: "download", Args: map[string]string{"url": url, "dest": "/tmp/AdGuardHome.tar.gz"}, Desc: "Download AdGuard Home " + adguardVersion + " (" + suffix + ")"},
+		{Kind: "download", Args: map[string]string{"url": url, "dest": "/tmp/AdGuardHome.tar.gz", "sha256": adguardSHA256(suffix)}, Desc: "Download AdGuard Home " + adguardVersion + " (" + suffix + ")"},
 		{Kind: "extract_tarball", Args: map[string]string{"src": "/tmp/AdGuardHome.tar.gz", "dest": "/tmp/agh-inst"}, Desc: "Extract tarball to /tmp/agh-inst"},
 		{Kind: "mv", Args: map[string]string{"src": "/tmp/agh-inst/AdGuardHome/AdGuardHome", "dest": "/usr/bin/AdGuardHome"}, Desc: "Install AdGuardHome binary to /usr/bin"},
 		{Kind: "chmod", Args: map[string]string{"mode": "0755", "path": "/usr/bin/AdGuardHome"}, Desc: "Make binary executable"},
