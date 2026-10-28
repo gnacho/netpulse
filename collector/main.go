@@ -131,10 +131,12 @@ func main() {
 			return
 		}
 		cctx, ccancel := context.WithCancel(ctx)
-		children[t.Name] = childProc{cancel: ccancel, addr: t.Addr}
+		done := make(chan struct{})
+		children[t.Name] = childProc{cancel: ccancel, addr: t.Addr, done: done}
 		wg.Add(1)
 		go func(t Target) {
 			defer wg.Done()
+			defer close(done)
 			runProbe(cctx, ts, t, &mu, last)
 		}(t)
 		slog.Info("target añadido", "name", t.Name, "addr", t.Addr)
@@ -220,6 +222,7 @@ func main() {
 type childProc struct {
 	cancel context.CancelFunc
 	addr   string
+	done   <-chan struct{}
 }
 
 // reconcileTargets arranca sondas nuevas, reinicia las que cambiaron de host y
@@ -235,6 +238,7 @@ func reconcileTargets(children map[string]childProc, targets []Target, onStart f
 				continue // sin cambios
 			}
 			c.cancel()
+			waitChild(t.Name, c)
 			delete(children, t.Name)
 			slog.Warn("target cambió de host: reiniciando sonda",
 				"name", t.Name, "antes", c.addr, "ahora", t.Addr)
@@ -244,9 +248,23 @@ func reconcileTargets(children map[string]childProc, targets []Target, onStart f
 	for name, c := range children {
 		if !seen[name] {
 			c.cancel()
+			waitChild(name, c)
 			delete(children, name)
 			onStop(name)
 		}
+	}
+}
+
+// waitChild espera a que la sonda haya terminado para que no escriba en `last`
+// después de purgarla ni después de arrancar la sonda del host nuevo.
+func waitChild(name string, c childProc) {
+	if c.done == nil {
+		return
+	}
+	select {
+	case <-c.done:
+	case <-time.After(probeTimeout + time.Second):
+		slog.Warn("sonda no terminó tras cancelar", "name", name)
 	}
 }
 
@@ -332,6 +350,9 @@ func runProbe(ctx context.Context, ts *timeseries.TimeSeries, t Target, mu *sync
 	defer tick.Stop()
 	for {
 		res := probe(t.Addr)
+		if ctx.Err() != nil {
+			return
+		}
 		if res.OK {
 			ts.Write("tcp_latency_ms."+t.Name, res.LatencyMs)
 		}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Bug C4.3: colisión de slug → sufijo -2, -3… (nunca ignorar el segundo target).
@@ -125,6 +126,74 @@ func TestReconcileRemovePurges(t *testing.T) {
 	}
 	if _, ok := last["gw"]; !ok {
 		t.Error("last perdió gw, que sigue activo")
+	}
+}
+
+// F-23: antes de purgar `last` hay que esperar a que la sonda cancelada
+// termine. Si no, la sonda puede resucitar el target eliminado.
+func TestReconcileWaitsForProbeBeforeStop(t *testing.T) {
+	s := &spyReconcile{}
+	done := make(chan struct{})
+	children := map[string]childProc{
+		"ap": {addr: "192.168.1.2:22", cancel: func() {}, done: done},
+	}
+	returned := make(chan struct{})
+	go func() {
+		reconcileTargets(children, nil, s.onStart(children), s.onStop())
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+		t.Fatal("reconcileTargets terminó antes de que la sonda acabara")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if len(s.stopped) != 0 {
+		t.Fatalf("onStop se llamó con la sonda viva: %v", s.stopped)
+	}
+
+	close(done)
+	select {
+	case <-returned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("reconcileTargets no terminó tras acabar la sonda")
+	}
+	if !reflect.DeepEqual(s.stopped, []string{"ap"}) {
+		t.Errorf("onStop = %v, quiero [ap]", s.stopped)
+	}
+}
+
+// F-23: al cambiar de host, la sonda vieja debe terminar antes de arrancar la
+// nueva, para que no escriba una muestra del endpoint anterior.
+func TestReconcileWaitsForOldProbeBeforeStart(t *testing.T) {
+	s := &spyReconcile{}
+	done := make(chan struct{})
+	children := map[string]childProc{
+		"gw": {addr: "192.168.1.1:22", cancel: func() {}, done: done},
+	}
+	returned := make(chan struct{})
+	go func() {
+		reconcileTargets(children, []Target{{Name: "gw", Addr: "192.168.1.254:22"}}, s.onStart(children), s.onStop())
+		close(returned)
+	}()
+
+	select {
+	case <-returned:
+		t.Fatal("reconcileTargets arrancó la sonda nueva antes de acabar la vieja")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if len(s.started) != 0 {
+		t.Fatalf("onStart se llamó con la sonda vieja viva: %+v", s.started)
+	}
+
+	close(done)
+	select {
+	case <-returned:
+	case <-time.After(2 * time.Second):
+		t.Fatal("reconcileTargets no terminó tras acabar la sonda vieja")
+	}
+	if len(s.started) != 1 || s.started[0].Addr != "192.168.1.254:22" {
+		t.Errorf("arrancadas = %+v, quiero gw con el host nuevo", s.started)
 	}
 }
 
