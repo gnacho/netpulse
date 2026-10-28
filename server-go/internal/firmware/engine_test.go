@@ -39,11 +39,16 @@ func (f *fakeSender) SendPrivileged(slug, event string, data any) error {
 
 func (f *fakeSender) count() int { return len(f.sent) }
 
+const (
+	testTargetURL = "https://x/image.bin"
+	testChecksum  = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+)
+
 func setTarget(t *testing.T, s *Store, routerID string) {
 	t.Helper()
 	if err := s.SetTarget(Target{
 		RouterID: routerID, Model: "m", CurrentVersion: "v1",
-		TargetVersion: "v2", TargetURL: "http://x/image.bin", Checksum: "abc",
+		TargetVersion: "v2", TargetURL: testTargetURL, Checksum: testChecksum,
 	}); err != nil {
 		t.Fatalf("set target: %v", err)
 	}
@@ -74,6 +79,37 @@ func TestEngineStartUpgradeInProgress(t *testing.T) {
 
 // TestEngineStartUpgradeSendsCommand: el flujo manual crea la fila requested
 // y envía el comando firmware_upgrade con el payload correcto.
+func TestEngineStartUpgradeRejectsInvalidTarget(t *testing.T) {
+	cases := []struct {
+		name     string
+		url      string
+		checksum string
+	}{
+		{"http", "http://x/image.bin", testChecksum},
+		{"sin checksum", testTargetURL, ""},
+		{"checksum corto", testTargetURL, "abc"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := open(t)
+			if err := s.SetTarget(Target{
+				RouterID: "rt1", Model: "m", CurrentVersion: "v1",
+				TargetVersion: "v2", TargetURL: tc.url, Checksum: tc.checksum,
+			}); err != nil {
+				t.Fatalf("set target: %v", err)
+			}
+			send := &fakeSender{ok: true}
+			e := NewEngine(s, send)
+			if _, err := e.StartUpgrade("rt1"); !errors.Is(err, ErrInvalidTarget) {
+				t.Fatalf("esperaba ErrInvalidTarget, got %v", err)
+			}
+			if send.count() != 0 {
+				t.Fatalf("no deberia enviar comando: %+v", send.sent)
+			}
+		})
+	}
+}
+
 func TestEngineStartUpgradeSendsCommand(t *testing.T) {
 	s := open(t)
 	setTarget(t, s, "rt1")
@@ -91,7 +127,7 @@ func TestEngineStartUpgradeSendsCommand(t *testing.T) {
 		t.Fatalf("comando no enviado correctamente: %+v", send.sent)
 	}
 	cmd := send.sent[0].data.(map[string]any)
-	if cmd["upgradeId"] != id || cmd["targetUrl"] != "http://x/image.bin" || cmd["checksum"] != "abc" {
+	if cmd["upgradeId"] != id || cmd["targetUrl"] != testTargetURL || cmd["checksum"] != testChecksum {
 		t.Fatalf("payload incorrecto: %+v", cmd)
 	}
 }
@@ -130,7 +166,7 @@ func TestEngineStartUpgradeInsecureTransport(t *testing.T) {
 // (transición requested + comando enviado).
 func TestEngineLaunchScheduled(t *testing.T) {
 	s := open(t)
-	id, err := s.ScheduleUpgrade("rt1", "v2", "http://x/image.bin", "abc", 1000)
+	id, err := s.ScheduleUpgrade("rt1", "v2", testTargetURL, testChecksum, 1000)
 	if err != nil {
 		t.Fatalf("schedule: %v", err)
 	}
@@ -153,7 +189,7 @@ func TestEngineLaunchScheduled(t *testing.T) {
 // la fila pasa a failed (sin tocar ningún dispositivo).
 func TestEngineLaunchScheduledAgentOffline(t *testing.T) {
 	s := open(t)
-	id, err := s.ScheduleUpgrade("rt1", "v2", "http://x/image.bin", "abc", 1000)
+	id, err := s.ScheduleUpgrade("rt1", "v2", testTargetURL, testChecksum, 1000)
 	if err != nil {
 		t.Fatalf("schedule: %v", err)
 	}

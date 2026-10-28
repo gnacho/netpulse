@@ -9,7 +9,9 @@
 package firmware
 
 import (
+	"encoding/hex"
 	"errors"
+	"net/url"
 
 	"github.com/gnacho/netpulse/server-go/internal/sse"
 )
@@ -19,10 +21,25 @@ import (
 // agent_not_connected 503, insecure_agent_transport 409).
 var (
 	ErrNoTarget          = errors.New("firmware: no target configurado")
+	ErrInvalidTarget     = errors.New("firmware: target invalido")
 	ErrUpgradeInProgress = errors.New("firmware: upgrade en curso")
 	ErrAgentNotConnected = errors.New("firmware: agente no conectado")
 	ErrInsecureTransport = errors.New("firmware: el agente no usa HTTPS")
 )
+
+func validateFirmwareTarget(rawURL, checksum string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || u.Scheme != "https" {
+		return ErrInvalidTarget
+	}
+	if len(checksum) != 64 {
+		return ErrInvalidTarget
+	}
+	if _, err := hex.DecodeString(checksum); err != nil {
+		return ErrInvalidTarget
+	}
+	return nil
+}
 
 // Sender envía comandos al agente vía SSE. Lo implementa *sse.AgentHub.
 type Sender interface {
@@ -51,6 +68,9 @@ func (e *Engine) StartUpgrade(routerID string) (int64, error) {
 	if target == nil || target.TargetURL == "" {
 		return 0, ErrNoTarget
 	}
+	if err := validateFirmwareTarget(target.TargetURL, target.Checksum); err != nil {
+		return 0, err
+	}
 	id, err := e.store.BeginUpgradeIfIdle(routerID, target.TargetVersion, target.TargetURL, target.Checksum)
 	if err != nil {
 		return 0, err
@@ -78,6 +98,10 @@ func (e *Engine) LaunchScheduled(u Upgrade) error {
 // dispatch envía el comando firmware_upgrade y fija el estado inicial
 // (requested si salió, failed si no). Secuencia idéntica al flujo manual.
 func (e *Engine) dispatch(id int64, routerID, targetURL, checksum string) error {
+	if err := validateFirmwareTarget(targetURL, checksum); err != nil {
+		_ = e.store.SetStatus(id, "failed", "invalid target", "")
+		return err
+	}
 	if e.send == nil {
 		_ = e.store.SetStatus(id, "failed", "no agent hub", "")
 		return ErrAgentNotConnected

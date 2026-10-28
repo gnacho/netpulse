@@ -135,7 +135,7 @@ func TestFirmwareTargetCRUD(t *testing.T) {
 	}
 
 	// Configurar target.
-	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"http://x/image.bin","checksum":"abc"}`
+	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"https://x/image.bin","checksum":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`
 	res = postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/target", payload, cookie)
 	if res.StatusCode != 200 {
 		t.Fatalf("POST target: status %d body %v", res.StatusCode, readJSON(t, res))
@@ -218,7 +218,7 @@ func TestFirmwareUpgradeNoAgent(t *testing.T) {
 	cookie := adminCookieFor(t, srv)
 	rid := addTestRouter(t, srv.db)
 
-	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"http://x/image.bin","checksum":"abc"}`
+	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"https://x/image.bin","checksum":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`
 	postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/target", payload, cookie).Body.Close()
 
 	res := postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/upgrade", "{}", cookie)
@@ -228,6 +228,21 @@ func TestFirmwareUpgradeNoAgent(t *testing.T) {
 	}
 	if body["error"] != "agent_not_connected" {
 		t.Fatalf("error: %v", body["error"])
+	}
+}
+
+func TestFirmwareUpgradeRejectsInvalidTarget(t *testing.T) {
+	srv, _ := firmwareTestServer(t)
+	cookie := adminCookieFor(t, srv)
+	rid := addTestRouter(t, srv.db)
+
+	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"http://x/image.bin","checksum":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`
+	postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/target", payload, cookie).Body.Close()
+
+	res := postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/upgrade", "{}", cookie)
+	body := readJSON(t, res)
+	if res.StatusCode != 400 || body["error"] != "invalid_target" {
+		t.Fatalf("esperaba 400 invalid_target, got %d %v", res.StatusCode, body)
 	}
 }
 
@@ -268,7 +283,7 @@ func TestFirmwareUpgradeRequested(t *testing.T) {
 		t.Fatal("el stream SSE no se conectó")
 	}
 
-	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"http://x/image.bin","checksum":"abc"}`
+	payload := `{"model":"glinet-flint2","currentVersion":"23.05.3","targetVersion":"23.05.4","targetUrl":"https://x/image.bin","checksum":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}`
 	postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/target", payload, cookie).Body.Close()
 
 	res := postJSON(t, srv.URL, "/api/firmware-upgrades/"+rid+"/upgrade", "{}", cookie)

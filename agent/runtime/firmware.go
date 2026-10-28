@@ -24,8 +24,9 @@ import (
 )
 
 var (
-	firmwarePendingFile = "/etc/netpulse/.firmware-upgrade-pending"
-	firmwareTmpDir      = "/tmp"
+	firmwarePendingFile         = "/etc/netpulse/.firmware-upgrade-pending"
+	firmwareTmpDir              = "/tmp"
+	maxFirmwareImageBytes int64 = 128 << 20
 )
 
 // Variables de comando para poder inyectar fakes en tests.
@@ -47,6 +48,20 @@ type pendingFirmware struct {
 	TargetVersion string `json:"targetVersion"`
 }
 
+func validateFirmwareTarget(rawURL, checksum string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || !strings.EqualFold(u.Scheme, "https") {
+		return fmt.Errorf("la imagen debe servirse por https")
+	}
+	if len(checksum) != 64 {
+		return fmt.Errorf("checksum sha256 invalido")
+	}
+	if _, err := hex.DecodeString(checksum); err != nil {
+		return fmt.Errorf("checksum sha256 invalido")
+	}
+	return nil
+}
+
 // handleFirmwareUpgrade procesa el comando firmware_upgrade del servidor.
 func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data string) {
 	log := opts.logger()
@@ -58,6 +73,11 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 	}
 	if cmd.TargetURL == "" {
 		log.Warn("[netpulse-agent] firmware_upgrade: sin targetUrl")
+		return
+	}
+	if err := validateFirmwareTarget(cmd.TargetURL, cmd.Checksum); err != nil {
+		log.Warn("[netpulse-agent] firmware_upgrade: target rechazado", "err", err)
+		reportFirmwareResult(opts, transport, cmd.UpgradeID, false, err.Error(), "", "")
 		return
 	}
 
@@ -124,6 +144,9 @@ func checkPendingFirmwareUpgrade(opts Options, transport http.RoundTripper) {
 
 // downloadImage descarga la imagen y verifica el sha256. onPct recibe 0-100.
 func downloadImage(ctx context.Context, hc *http.Client, url, dest, checksum string, onPct func(int)) error {
+	if checksum == "" {
+		return fmt.Errorf("checksum requerido")
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -145,21 +168,27 @@ func downloadImage(ctx context.Context, hc *http.Client, url, dest, checksum str
 	if onPct != nil && res.ContentLength > 0 {
 		body = &progressReader{r: res.Body, total: res.ContentLength, onPct: onPct}
 	}
-	n, err := io.Copy(f, body)
+	n, err := io.Copy(f, io.LimitReader(body, maxFirmwareImageBytes+1))
 	closeErr := f.Close()
 	if err != nil {
+		_ = os.Remove(dest)
 		return err
 	}
 	if closeErr != nil {
+		_ = os.Remove(dest)
 		return closeErr
 	}
 	if n == 0 {
+		_ = os.Remove(dest)
 		return fmt.Errorf("imagen vacía")
 	}
-	if checksum != "" {
-		if err := verifyImageSha256(dest, checksum); err != nil {
-			return err
-		}
+	if n > maxFirmwareImageBytes {
+		_ = os.Remove(dest)
+		return fmt.Errorf("imagen mayor de %d MB", maxFirmwareImageBytes>>20)
+	}
+	if err := verifyImageSha256(dest, checksum); err != nil {
+		_ = os.Remove(dest)
+		return err
 	}
 	return nil
 }
