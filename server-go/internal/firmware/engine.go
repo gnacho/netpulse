@@ -14,9 +14,9 @@ import "errors"
 // flujo manual ya devolvía (no_target 400, upgrade_in_progress 409,
 // agent_not_connected 503).
 var (
-	ErrNoTarget           = errors.New("firmware: no target configurado")
-	ErrUpgradeInProgress  = errors.New("firmware: upgrade en curso")
-	ErrAgentNotConnected  = errors.New("firmware: agente no conectado")
+	ErrNoTarget          = errors.New("firmware: no target configurado")
+	ErrUpgradeInProgress = errors.New("firmware: upgrade en curso")
+	ErrAgentNotConnected = errors.New("firmware: agente no conectado")
 )
 
 // Sender envía comandos al agente vía SSE. Lo implementa *sse.AgentHub.
@@ -46,10 +46,7 @@ func (e *Engine) StartUpgrade(routerID string) (int64, error) {
 	if target == nil || target.TargetURL == "" {
 		return 0, ErrNoTarget
 	}
-	if up, _ := e.store.LatestUpgrade(routerID); up != nil && up.Status != "done" && up.Status != "failed" {
-		return 0, ErrUpgradeInProgress
-	}
-	id, err := e.store.BeginUpgrade(routerID, target.TargetVersion, target.TargetURL, target.Checksum)
+	id, err := e.store.BeginUpgradeIfIdle(routerID, target.TargetVersion, target.TargetURL, target.Checksum)
 	if err != nil {
 		return 0, err
 	}

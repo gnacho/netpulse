@@ -23,11 +23,6 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
-// Estados no terminales de un upgrade (clásico + owut).
-func owutUpgradeActive(status string) bool {
-	return status != "" && status != "done" && status != "failed"
-}
-
 // Cinturones de plataforma (#761): firmware de fabricante fuera, y sin owut
 // instalado no se lanza nada.
 var (
@@ -245,17 +240,17 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 				"owut no está instalado en el router: instálalo primero con el botón Instalar owut.")
 			return
 		}
-		if up, _ := s.firmware.LatestUpgrade(id); up != nil && owutUpgradeActive(up.Status) {
-			writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
-			return
-		}
 		target := ""
 		if t, _ := s.firmware.GetTarget(id); t != nil {
 			target = t.TargetVersion
 		}
-		uid, err := s.firmware.BeginUpgrade(id, target, "", "")
+		uid, err := s.firmware.BeginUpgradeIfIdle(id, target, "", "")
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
+			if errors.Is(err, firmware.ErrUpgradeInProgress) {
+				writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
+			} else {
+				writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
+			}
 			return
 		}
 		_ = s.firmware.SetEngine(uid, "owut")
@@ -317,10 +312,7 @@ func (s *server) startOwutUpgrade(routerID, targetVersion, origin string, remove
 	} else if !plat.Owut {
 		return 0, ErrOwutNotInstalled
 	}
-	if up, _ := s.firmware.LatestUpgrade(routerID); up != nil && owutUpgradeActive(up.Status) {
-		return 0, firmware.ErrUpgradeInProgress
-	}
-	id, err := s.firmware.BeginUpgrade(routerID, targetVersion, "", "")
+	id, err := s.firmware.BeginUpgradeIfIdle(routerID, targetVersion, "", "")
 	if err != nil {
 		return 0, err
 	}

@@ -3,6 +3,7 @@ package firmware
 
 import (
 	"database/sql"
+	"sync"
 	"time"
 )
 
@@ -19,16 +20,16 @@ type Target struct {
 
 // Upgrade es el estado de un upgrade iniciado.
 type Upgrade struct {
-	ID            int64   `json:"id"`
-	RouterID      string  `json:"routerId"`
-	TargetVersion string  `json:"targetVersion"`
-	TargetURL     string  `json:"targetUrl"`
-	Checksum      string  `json:"checksum"`
-	Status        string  `json:"status"`
-	Error         string  `json:"error,omitempty"`
-	BackupPath    string  `json:"backupPath,omitempty"`
-	StartedAt     int64   `json:"startedAt"`
-	FinishedAt    *int64  `json:"finishedAt,omitempty"`
+	ID            int64  `json:"id"`
+	RouterID      string `json:"routerId"`
+	TargetVersion string `json:"targetVersion"`
+	TargetURL     string `json:"targetUrl"`
+	Checksum      string `json:"checksum"`
+	Status        string `json:"status"`
+	Error         string `json:"error,omitempty"`
+	BackupPath    string `json:"backupPath,omitempty"`
+	StartedAt     int64  `json:"startedAt"`
+	FinishedAt    *int64 `json:"finishedAt,omitempty"`
 	// ScheduledFor: programación desatendida (#494), epoch ms UTC. nil = el
 	// upgrade es del flujo manual/inmediato. Nota: StartedAt/FinishedAt siguen
 	// en unix SEGUNDOS (convención previa), ScheduledFor en ms.
@@ -40,7 +41,8 @@ type Upgrade struct {
 
 // Store persiste targets y upgrades.
 type Store struct {
-	db *sql.DB
+	db          *sql.DB
+	admissionMu sync.Mutex
 }
 
 // NewStore crea el store.
@@ -107,6 +109,31 @@ func (s *Store) BeginUpgrade(routerID, targetVersion, targetURL, checksum string
 	`, routerID, targetVersion, targetURL, checksum, time.Now().Unix())
 	if err != nil {
 		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// BeginUpgradeIfIdle inserts a requested upgrade only when no active upgrade exists for the router.
+func (s *Store) BeginUpgradeIfIdle(routerID, targetVersion, targetURL, checksum string) (int64, error) {
+	s.admissionMu.Lock()
+	defer s.admissionMu.Unlock()
+	res, err := s.db.Exec(`
+		INSERT INTO firmware_upgrades (router_id, target_version, target_url, checksum, status, started_at)
+		SELECT ?, ?, ?, ?, 'requested', ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM firmware_upgrades
+			WHERE router_id = ? AND status NOT IN ('done', 'failed')
+		)
+	`, routerID, targetVersion, targetURL, checksum, time.Now().Unix(), routerID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if n == 0 {
+		return 0, ErrUpgradeInProgress
 	}
 	return res.LastInsertId()
 }
@@ -223,6 +250,8 @@ func (s *Store) DismissLatest(routerID string) error {
 // Una fila por router: si ya hay una pendiente, se actualizan target y hora;
 // si no, se inserta. scheduledFor es epoch ms UTC.
 func (s *Store) ScheduleUpgrade(routerID, targetVersion, targetURL, checksum string, scheduledFor int64) (int64, error) {
+	s.admissionMu.Lock()
+	defer s.admissionMu.Unlock()
 	var id int64
 	err := s.db.QueryRow(`
 		SELECT id FROM firmware_upgrades WHERE router_id = ? AND status = 'scheduled'
@@ -286,9 +315,18 @@ func (s *Store) DueScheduled(nowMs int64) ([]Upgrade, error) {
 // Guarded: solo transiciona si sigue en 'scheduled' (single-flight frente a
 // un segundo tick o a un cancelado). Devuelve true si la transición se aplicó.
 func (s *Store) StartScheduled(id int64) (bool, error) {
+	s.admissionMu.Lock()
+	defer s.admissionMu.Unlock()
 	res, err := s.db.Exec(`
-		UPDATE firmware_upgrades SET status = 'requested' WHERE id = ? AND status = 'scheduled'
-	`, id)
+		UPDATE firmware_upgrades SET status = 'requested'
+		WHERE id = ? AND status = 'scheduled'
+		AND NOT EXISTS (
+			SELECT 1 FROM firmware_upgrades other
+			WHERE other.router_id = firmware_upgrades.router_id
+				AND other.id <> ?
+				AND other.status NOT IN ('done', 'failed', 'scheduled')
+		)
+	`, id, id)
 	if err != nil {
 		return false, err
 	}
