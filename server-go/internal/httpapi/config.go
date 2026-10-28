@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/discover"
 	"github.com/gnacho/netpulse/server-go/internal/pve"
@@ -89,9 +90,56 @@ func (s *server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// routerListItem es la vista HTTP de un router. Omite la comunidad SNMP,
+// que solo necesita el adapter para sondear, y expone si esta configurada.
+type routerListItem struct {
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Host             string `json:"host"`
+	Type             string `json:"type"`
+	IsGateway        bool   `json:"is_gateway"`
+	AgentOnly        bool   `json:"agent_only"`
+	CreatedAt        int64  `json:"created_at"`
+	FirmwareTarget   string `json:"firmware_target,omitempty"`
+	SnmpEnabled      bool   `json:"snmp_enabled"`
+	SnmpCommunitySet bool   `json:"snmp_community_set"`
+	SnmpPort         int    `json:"snmp_port,omitempty"`
+	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"`
+	Disabled         bool   `json:"disabled"`
+	ConsolePolling   bool   `json:"console_polling"`
+	SSHPort          int    `json:"ssh_port,omitempty"`
+	TempThreshold    *int   `json:"temp_threshold,omitempty"`
+}
+
+func newRouterListItem(rt adapters.RouterConfig) routerListItem {
+	return routerListItem{
+		ID:               rt.ID,
+		Name:             rt.Name,
+		Host:             rt.Host,
+		Type:             rt.Type,
+		IsGateway:        rt.IsGateway,
+		AgentOnly:        rt.AgentOnly,
+		CreatedAt:        rt.CreatedAt,
+		FirmwareTarget:   rt.FirmwareTarget,
+		SnmpEnabled:      rt.SnmpEnabled,
+		SnmpCommunitySet: rt.SnmpCommunity != "",
+		SnmpPort:         rt.SnmpPort,
+		SnmpPollInterval: rt.SnmpPollInterval,
+		Disabled:         rt.Disabled,
+		ConsolePolling:   rt.ConsolePolling,
+		SSHPort:          rt.SSHPort,
+		TempThreshold:    rt.TempThreshold,
+	}
+}
+
 // GET /api/config/routers — lista configurada (no el estado sondeado).
 func (s *server) handleListConfigRouters(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"routers": routerstore.ListRouters(s.db.DB)})
+	routers := routerstore.ListRouters(s.db.DB)
+	items := make([]routerListItem, 0, len(routers))
+	for _, rt := range routers {
+		items = append(items, newRouterListItem(rt))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"routers": items})
 }
 
 type routerInput struct {
@@ -252,7 +300,7 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.syncRouters()
-	writeJSON(w, http.StatusCreated, map[string]any{"router": created})
+	writeJSON(w, http.StatusCreated, map[string]any{"router": newRouterListItem(created)})
 }
 
 // DELETE /api/config/routers/:id — 204 o 404.
@@ -402,7 +450,7 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.syncRouters()
-	writeJSON(w, http.StatusOK, map[string]any{"router": updated})
+	writeJSON(w, http.StatusOK, map[string]any{"router": newRouterListItem(updated)})
 }
 
 // --- AdGuard Home (GL.iNet) — solo admin; la contraseña NO se devuelve ---

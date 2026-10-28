@@ -63,6 +63,20 @@ func TestRutasAdminDevuelven403ParaRolUser(t *testing.T) {
 		{"GET", "/api/config/discover"},
 		{"PUT", "/api/wireguard/peers/qooNaqES5pnpfSeBQ6WNQmMYVIyiTYqiY75NtQmhLJ8/urgent"},
 		{"GET", "/api/wireguard/urgent"},
+		{"PUT", "/api/alerts/config"},
+		{"POST", "/api/alerts/read"},
+		{"POST", "/api/alerts/read-all"},
+		{"POST", "/api/alerts/clear"},
+		{"POST", "/api/alerts/dismiss"},
+		{"POST", "/api/alerts/silence"},
+		{"POST", "/api/alerts/unsilence"},
+		{"POST", "/api/alerts/impostor-approve"},
+		{"POST", "/api/alerts/impostor-revoke"},
+		{"POST", "/api/alerts/impostor-rule"},
+		{"POST", "/api/alert-rules"},
+		{"PUT", "/api/alert-rules/1"},
+		{"DELETE", "/api/alert-rules/1"},
+		{"POST", "/api/usteer/aa:bb:cc:dd:ee:ff/kick"},
 	}
 	for _, rt := range adminOnly {
 		if got := do(t, rt.method, ts.URL, rt.path, userCookie).StatusCode; got != 403 {
@@ -71,10 +85,25 @@ func TestRutasAdminDevuelven403ParaRolUser(t *testing.T) {
 	}
 
 	// Las lecturas equivalentes siguen abiertas a cualquier sesión.
-	readable := []string{"/api/agents", "/api/config/routers", "/api/overview"}
+	readable := []string{
+		"/api/agents",
+		"/api/config/routers",
+		"/api/overview",
+		"/api/alerts",
+		"/api/alerts/config",
+		"/api/alerts/silenced",
+		"/api/alerts/impostor-approved",
+		"/api/alerts/impostor-rule",
+		"/api/alert-rules",
+	}
 	for _, p := range readable {
 		if got := do(t, "GET", ts.URL, p, userCookie).StatusCode; got != 200 {
 			t.Errorf("GET %s como user: got %d want 200", p, got)
+		}
+	}
+	for _, rt := range adminOnly {
+		if got := do(t, rt.method, ts.URL, rt.path, adminCookie).StatusCode; got == 403 {
+			t.Errorf("%s %s como admin: got 403", rt.method, rt.path)
 		}
 	}
 

@@ -369,7 +369,7 @@ interface ConfigRouter {
   disabled: boolean
   firmware_target: string
   snmp_enabled: boolean
-  snmp_community: string
+  snmp_community_set: boolean
   snmp_port: number
   snmp_poll_interval: number
   ssh_port?: number
@@ -423,6 +423,8 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
   const [editConsolePolling, setEditConsolePolling] = useState(true)
   const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
+  const [editSnmpCommunitySet, setEditSnmpCommunitySet] = useState(false)
+  const [editSnmpCommunityTouched, setEditSnmpCommunityTouched] = useState(false)
   const [editSnmpPort, setEditSnmpPort] = useState(161)
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
   const [editSshPort, setEditSshPort] = useState(22)
@@ -616,7 +618,9 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditFirmwareTarget(r.firmware_target ?? '')
     setEditSnmpEnabled(r.snmp_enabled ?? false)
     setEditConsolePolling(r.console_polling ?? true)
-    setEditSnmpCommunity(r.snmp_community ?? '')
+    setEditSnmpCommunity('')
+    setEditSnmpCommunitySet(r.snmp_community_set)
+    setEditSnmpCommunityTouched(false)
     setEditSnmpPort(r.snmp_port ?? 161)
     setEditSnmpPollInterval(r.snmp_poll_interval ?? 60)
     setEditSshPort(r.ssh_port ?? 22)
@@ -642,7 +646,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           disabled: editDisabled,
           firmware_target: editFirmwareTarget.trim(),
           snmp_enabled: editSnmpEnabled,
-          snmp_community: editSnmpCommunity.trim() || undefined,
+          snmp_community: editSnmpCommunityTouched ? editSnmpCommunity.trim() : undefined,
           snmp_port: editSnmpPort,
           snmp_poll_interval: editSnmpPollInterval,
           ssh_port: editSshPort,
@@ -1214,11 +1218,27 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           id="snmp-community"
                           type="text"
                           value={editSnmpCommunity}
-                          onChange={(e) => setEditSnmpCommunity(e.target.value)}
+                          onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
                           placeholder="public"
                           aria-label={t('settings.routers.snmpCommunity')}
                           className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                         />
+                        {editSnmpCommunitySet && !editSnmpCommunityTouched && (
+                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{t('settings.routers.snmpCommunityConfigured')}</span>
+                            <button
+                              type="button"
+                              className="text-primary underline"
+                              onClick={() => {
+                                setEditSnmpCommunity('')
+                                setEditSnmpCommunitySet(false)
+                                setEditSnmpCommunityTouched(true)
+                              }}
+                            >
+                              {t('settings.routers.snmpCommunityClear')}
+                            </button>
+                          </div>
+                        )}
                       </div>
                         <div>
                           <label htmlFor="snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">

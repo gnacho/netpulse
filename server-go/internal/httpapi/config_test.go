@@ -513,8 +513,11 @@ func TestConfigRoutersSNMP(t *testing.T) {
 	if router["snmp_enabled"] != true {
 		t.Fatalf("snmp_enabled tras alta: %v", router)
 	}
-	if router["snmp_community"] != "public" {
-		t.Fatalf("snmp_community tras alta: %v", router)
+	if _, ok := router["snmp_community"]; ok {
+		t.Fatalf("snmp_community no debe exponerse: %v", router)
+	}
+	if router["snmp_community_set"] != true {
+		t.Fatalf("snmp_community_set tras alta: %v", router)
 	}
 	if router["snmp_port"] != float64(161) {
 		t.Fatalf("snmp_port tras alta: %v", router)
@@ -530,8 +533,25 @@ func TestConfigRoutersSNMP(t *testing.T) {
 	if rt["snmp_enabled"] != false {
 		t.Fatalf("snmp_enabled tras PUT: %v", rt)
 	}
-	if rt["snmp_community"] != "secret" {
-		t.Fatalf("snmp_community tras PUT: %v", rt)
+	if _, ok := rt["snmp_community"]; ok {
+		t.Fatalf("snmp_community no debe exponerse tras PUT: %v", rt)
+	}
+	if rt["snmp_community_set"] != true {
+		t.Fatalf("snmp_community_set tras PUT: %v", rt)
+	}
+
+	res = doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"sw3","host":"192.168.8.22","type":"managed-switch"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router sin SNMP: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	router = body["router"].(map[string]any)
+	if _, ok := router["snmp_community"]; ok {
+		t.Fatalf("snmp_community no debe exponerse sin configurar: %v", router)
+	}
+	if router["snmp_community_set"] != false {
+		t.Fatalf("snmp_community_set sin configurar: %v", router)
 	}
 
 	res = doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
@@ -657,5 +677,55 @@ func TestProxmoxTestEndpoint(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode == http.StatusOK {
 		t.Fatalf("sin sesión devolvió %d", res.StatusCode)
+	}
+}
+
+func TestConfigRoutersHidesSNMPCommunity(t *testing.T) {
+	srv := makeTestServer(t)
+	_, adminCookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", adminCookie,
+		`{"name":"sw-secret","host":"192.168.8.30","type":"managed-switch","snmp_enabled":true,"snmp_community":"public"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router: %d", res.StatusCode)
+	}
+	res.Body.Close()
+
+	viewerCookie := createUserAndLogin(t, srv.URL, adminCookie, "viewer-snmp", "test123456", "user")
+	readToken := mintToken(t, srv.URL, adminCookie, "read")
+
+	cases := []struct {
+		name string
+		res  *http.Response
+	}{
+		{"viewer", doReq(t, "GET", srv.URL+"/api/config/routers", viewerCookie, "")},
+		{"read token", tokenRequest(t, "GET", srv.URL, "/api/config/routers", readToken, "")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer tc.res.Body.Close()
+			if tc.res.StatusCode != 200 {
+				t.Fatalf("GET config routers: %d", tc.res.StatusCode)
+			}
+			body := readJSON(t, tc.res)
+			routers, ok := body["routers"].([]any)
+			if !ok {
+				t.Fatalf("routers: %T", body["routers"])
+			}
+			for _, item := range routers {
+				rt, ok := item.(map[string]any)
+				if !ok || rt["id"] != "sw-secret" {
+					continue
+				}
+				if _, leaked := rt["snmp_community"]; leaked {
+					t.Fatal("snmp_community must not be exposed")
+				}
+				if rt["snmp_community_set"] != true {
+					t.Fatalf("snmp_community_set: %v", rt["snmp_community_set"])
+				}
+				return
+			}
+			t.Fatal("router sw-secret not found")
+		})
 	}
 }
