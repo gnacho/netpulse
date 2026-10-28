@@ -29,6 +29,15 @@ selfheal_binary() {
     [ -f "$ENV_FILE" ] || return 1
     . "$ENV_FILE" 2>/dev/null
     [ -n "${NETPULSE_SERVER:-}" ] && [ -n "${NETPULSE_TOKEN:-}" ] && [ -n "${NETPULSE_SLUG:-}" ] || return 1
+    case "${NETPULSE_SERVER%%:*}" in
+        https|HTTPS) ;;
+        *)
+            [ "${NETPULSE_ALLOW_INSECURE_COMMANDS:-}" = "1" ] || {
+                logger -t netpulse-agent "self-heal: HTTP sin NETPULSE_ALLOW_INSECURE_COMMANDS=1, binario no descargado"
+                return 1
+            }
+            ;;
+    esac
     case "$(uname -m)" in
         aarch64|arm64) local ARCH=arm64 ;;
         armv7l|armv7|armhf|arm) local ARCH=arm ;;

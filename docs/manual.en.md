@@ -147,6 +147,8 @@ The agent also refuses privileged SSE events when `NETPULSE_SERVER` is not HTTPS
 
 Use them only while moving the fleet to HTTPS, then remove them. Binary upgrades always require the `X-Checksum-Sha256` header: both the agent upgrade and the self-heal discard the binary when the header is missing or the digest does not match.
 
+The init self-heal follows the same transport policy: it only downloads the binary when `NETPULSE_SERVER` is HTTPS or `NETPULSE_ALLOW_INSECURE_COMMANDS=1` is set. Without that valve, an HTTP agent missing its binary does not self-heal and logs the refusal. That is preferable to running a binary downloaded over an unauthenticated channel.
+
 ---
 
 ## Device detail

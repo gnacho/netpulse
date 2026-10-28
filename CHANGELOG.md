@@ -11,6 +11,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - **Asuswrt/Merlin pasa a integración externa (#1579)**: el tipo nativo `asuswrt` se migra a `external` conservando el token, las sondas portables siguen compartidas y el nuevo `asuswrt-pusher` vive en `netpulse-integrations`. Desaparecen el alta como `asuswrt` y su actualización desde la UI. La instalación y actualización pasan a ser manuales, como en las demás integraciones externas.
 
+### Fixed
+
+- **Self-heal del agente sin binario por HTTP**: el init solo descarga el binario si el servidor es HTTPS o si `NETPULSE_ALLOW_INSECURE_COMMANDS=1` está activo. Antes aceptaba un checksum que viajaba por el mismo canal HTTP, así que un intermediario podía sustituir binario y digest. La guarda está en el init instalado, en el heredoc del instalador y en el init que genera la reinstalación.
+
 ## [2.47.0] - 2026-10-23
 
 ### Added

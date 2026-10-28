@@ -147,6 +147,8 @@ El agente también rechaza los eventos SSE privilegiados cuando `NETPULSE_SERVER
 
 Úsalas solo mientras mueves la flota a HTTPS y retíralas después. Las actualizaciones de binario exigen siempre la cabecera `X-Checksum-Sha256`: tanto la actualización del agente como el self-heal descartan el binario si falta la cabecera o el digest no coincide.
 
+El self-heal del init aplica la misma política de transporte: solo descarga el binario si `NETPULSE_SERVER` es HTTPS o si `NETPULSE_ALLOW_INSECURE_COMMANDS=1`. Sin esa válvula, un agente HTTP al que le falta el binario no se auto-repara y registra el rechazo. Es preferible a ejecutar un binario descargado por un canal no autenticado.
+
 ---
 
 ## Detalle del dispositivo

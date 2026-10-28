@@ -3,7 +3,9 @@
 package reinstall_test
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -268,6 +270,33 @@ func TestScriptSelfHealVerifiesDigest(t *testing.T) {
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("init embebido sin %q en el self-heal", want)
+		}
+	}
+}
+
+func TestSelfHealRequiresHTTPSOrExplicitOptIn(t *testing.T) {
+	want := []string{
+		`[ "${NETPULSE_ALLOW_INSECURE_COMMANDS:-}" = "1" ]`,
+		"self-heal: HTTP sin NETPULSE_ALLOW_INSECURE_COMMANDS=1, binario no descargado",
+	}
+	generated := scriptForTest()
+	for _, w := range want {
+		if !strings.Contains(generated, w) {
+			t.Errorf("init generado sin guarda de transporte: falta %q", w)
+		}
+	}
+	for _, path := range []string{
+		"../../../agent/deploy/netpulse-agent.init",
+		"../../../install-agent.sh",
+	} {
+		b, err := os.ReadFile(filepath.Clean(path))
+		if err != nil {
+			t.Fatalf("leyendo %s: %v", path, err)
+		}
+		for _, w := range want {
+			if !strings.Contains(string(b), w) {
+				t.Errorf("%s sin guarda de transporte: falta %q", path, w)
+			}
 		}
 	}
 }
