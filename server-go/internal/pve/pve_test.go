@@ -2,6 +2,9 @@ package pve
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -283,5 +286,42 @@ func TestNodeIPWithoutAnyAddress(t *testing.T) {
 		NodeIP(context.Background(), "pve1")
 	if err != nil || ip != "" {
 		t.Fatalf("ip=%q err=%v", ip, err)
+	}
+}
+
+func TestClientTLSVerification(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"data":[]}`))
+	}))
+	defer srv.Close()
+
+	cert := srv.Certificate()
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+	sum := sha256.Sum256(cert.Raw)
+	fingerprint := hex.EncodeToString(sum[:])
+
+	base := Config{URL: srv.URL, TokenID: "root@pam!netpulse", Secret: "uuid-secret"}
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr bool
+	}{
+		{name: "default rejects self-signed", wantErr: true},
+		{name: "configured CA", mutate: func(c *Config) { c.CAPEM = string(caPEM) }},
+		{name: "pinned fingerprint", mutate: func(c *Config) { c.FingerprintSHA256 = fingerprint }},
+		{name: "wrong fingerprint", mutate: func(c *Config) { c.FingerprintSHA256 = strings.Repeat("0", 64) }, wantErr: true},
+		{name: "explicit insecure", mutate: func(c *Config) { c.Insecure = true }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base
+			if tt.mutate != nil {
+				tt.mutate(&cfg)
+			}
+			if _, err := NewClient(cfg).ClusterResources(context.Background()); (err != nil) != tt.wantErr {
+				t.Fatalf("error: got %v wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

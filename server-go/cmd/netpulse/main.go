@@ -118,6 +118,15 @@ func withSSEWriteTimeout(next http.Handler, long time.Duration) http.Handler {
 
 // newHTTPServer construye un http.Server con los timeouts comunes (issue #210).
 // Compartido entre el listener HTTP de PORT y el listener HTTPS adicional (#696).
+// listenAddr joins the configured bind address and port. An empty bind keeps
+// the historical all-interfaces listener.
+func listenAddr(bind string, port int) string {
+	if bind == "" {
+		return fmt.Sprintf(":%d", port)
+	}
+	return net.JoinHostPort(bind, strconv.Itoa(port))
+}
+
 func newHTTPServer(addr string, h http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              addr,
@@ -812,12 +821,12 @@ func run() error {
 	}
 	defer tlsMgr.Close()
 	// FORK: on the plain port, what the HTTP mode allows (a no-op in full).
-	srv := newHTTPServer(fmt.Sprintf(":%d", cfg.Port), withSSEWriteTimeout(tlsMgr.PlainHandler(handler), sseWriteTimeout))
+	srv := newHTTPServer(listenAddr(cfg.BindAddr, cfg.Port), withSSEWriteTimeout(tlsMgr.PlainHandler(handler), sseWriteTimeout))
 
 	// Listener HTTPS adicional (#696): mismo handler y timeouts que el HTTP.
 	var tlsSrv *http.Server
 	if extraTLSConf != nil {
-		tlsSrv = newHTTPServer(fmt.Sprintf(":%d", cfg.TLSPort), withSSEWriteTimeout(handler, sseWriteTimeout))
+		tlsSrv = newHTTPServer(listenAddr(cfg.BindAddr, cfg.TLSPort), withSSEWriteTimeout(handler, sseWriteTimeout))
 		tlsSrv.TLSConfig = extraTLSConf
 	}
 

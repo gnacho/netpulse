@@ -1961,6 +1961,9 @@ interface PveInstanceCfg {
   url: string
   tokenId: string
   secret?: string
+  caPem?: string
+  fingerprintSha256?: string
+  insecure?: boolean
 }
 
 function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
@@ -2015,6 +2018,9 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         name: editing.name.trim(),
         url: editing.url.trim(),
         tokenId: editing.tokenId.trim(),
+        caPem: editing.caPem?.trim() ?? '',
+        fingerprintSha256: editing.fingerprintSha256?.trim() ?? '',
+        insecure: editing.insecure === true,
       }
       if (editing.secret) body.secret = editing.secret
       const res = await fetch('/api/config/proxmox', {
@@ -2049,6 +2055,9 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     try {
       const body: Record<string, unknown> = {
         id: inst.id.trim(), url: inst.url.trim(), tokenId: inst.tokenId.trim(),
+        caPem: inst.caPem?.trim() ?? '',
+        fingerprintSha256: inst.fingerprintSha256?.trim() ?? '',
+        insecure: inst.insecure === true,
       }
       if (inst.secret) body.secret = inst.secret
       const res = await fetch('/api/config/proxmox/test', {
@@ -2091,7 +2100,10 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }
 
-  const empty = { id: '', name: '', url: '', tokenId: '', secret: '' }
+  const empty = {
+    id: '', name: '', url: '', tokenId: '', secret: '',
+    caPem: '', fingerprintSha256: '', insecure: false,
+  }
 
   // Detectar (#967): POST /api/config/proxmox/detect barre la /24 de los
   // hosts de la flota en dos fases (TCP :8006 masivo + confirmación TLS en
@@ -2199,6 +2211,34 @@ function ProxmoxManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               aria-label={t('settings.proxmox.url')}
               className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
             />
+            <textarea
+              value={editing.caPem ?? ''}
+              onChange={(e) => setEditing({ ...editing, caPem: e.target.value })}
+              placeholder={t('settings.proxmox.caPemPlaceholder')}
+              aria-label={t('settings.proxmox.caPem')}
+              rows={3}
+              className="w-full resize-y rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+            <input
+              type="text"
+              value={editing.fingerprintSha256 ?? ''}
+              onChange={(e) => setEditing({ ...editing, fingerprintSha256: e.target.value })}
+              placeholder={t('settings.proxmox.fingerprintPlaceholder')}
+              aria-label={t('settings.proxmox.fingerprint')}
+              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            />
+            <label className="flex items-start gap-2 text-caption text-text-secondary">
+              <input
+                type="checkbox"
+                checked={editing.insecure === true}
+                onChange={(e) => setEditing({ ...editing, insecure: e.target.checked })}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>{t('settings.proxmox.insecure')}</span>
+            </label>
+            {editing.insecure === true && (
+              <p className="text-caption leading-relaxed text-warn">{t('settings.proxmox.insecureHint')}</p>
+            )}
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <input
                 type="text"

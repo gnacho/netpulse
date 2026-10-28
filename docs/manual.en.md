@@ -36,6 +36,10 @@ NetPulse is multi-user with password authentication. The installer prints an ini
 
 There is also a **demo mode** that opens without a password or backend: it shows a sample network with dozens of devices so you can explore the UI. In demo there is no real data and the write features are disabled.
 
+### Transport security
+
+When neither TLS nor on-box HTTPS is enabled, the server binds to `127.0.0.1` by default. A fresh installation therefore does not accept logins from the LAN. Set `NETPULSE_BIND=0.0.0.0` only when you deliberately want to expose it, and enable TLS (`NETPULSE_TLS_ENABLED=1`) for any remote access. With TLS or on-box HTTPS enabled the bind stays open unless `NETPULSE_BIND` says otherwise.
+
 ---
 
 ## Overview
@@ -553,6 +557,7 @@ This is the largest screen. Main sections:
 - **Topology overrides** and **Trusted devices** (admin only).
 - **Agent adoption**: pairing token and server fingerprint.
 - **AdGuard Home**: configuration of the read-only connection to the router's AdGuard panel.
+- **Proxmox VE**: read-only cluster inventory. Besides the URL and token, you can paste a CA certificate, pin a SHA-256 fingerprint or enable an explicit insecure mode for a trusted self-signed host.
 - **My profile**: name, language, password and sign out.
 - **API Tokens**: bearer tokens for integrations. A `read` token only allows `GET`, `HEAD` and `OPTIONS`, a `write` token can also mutate non-admin resources, and only an `admin` token reaches administration routes and the database download.
 - **About**: version, links, push/PWA, Telegram and system data.

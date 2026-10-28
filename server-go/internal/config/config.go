@@ -6,6 +6,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -43,6 +44,7 @@ type Webhook struct {
 // Config es la config normalizada (equivalente al objeto de loadConfig).
 type Config struct {
 	Port            int
+	BindAddr        string // listener HTTP; loopback por defecto sin TLS
 	NodeEnv         string
 	StaticDir       string // resuelta (absoluta)
 	DataDir         string // resuelta (absoluta)
@@ -559,6 +561,21 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_BIND: dirección del listener HTTP. Sin TLS ni on-box el default
+	// es loopback; con TLS u on-box se mantiene el comportamiento histórico
+	// (todas las interfaces). Un valor explícito manda.
+	bindAddr := "127.0.0.1"
+	if tlsEnabled || onbox {
+		bindAddr = ""
+	}
+	if v := strings.TrimSpace(env["NETPULSE_BIND"]); v != "" {
+		if v == "localhost" || net.ParseIP(v) != nil {
+			bindAddr = v
+		} else {
+			errs.issues = append(errs.issues, issue{"NETPULSE_BIND", "Expected an IP address or localhost"})
+		}
+	}
+
 	// NETPULSE_TLS_CERT / NETPULSE_TLS_KEY: paths del cert del usuario. Ambos
 	// o ninguno (fail-fast si solo viene uno).
 	tlsCert := strings.TrimSpace(env["NETPULSE_TLS_CERT"])
@@ -645,6 +662,7 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 
 	return &Config{
 		Port:                       port,
+		BindAddr:                   bindAddr,
 		NodeEnv:                    nodeEnv,
 		StaticDir:                  resolve(staticDir),
 		DataDir:                    resolve(dataDir),

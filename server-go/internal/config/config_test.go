@@ -310,3 +310,40 @@ func TestLoadAutoReinstallConAgentURL(t *testing.T) {
 		t.Fatalf("AUTO_REINSTALL sin ninguna URL debe fallar señalando el par: %v", err)
 	}
 }
+
+func TestLoadBindAddrLoopbackByDefault(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BindAddr != "127.0.0.1" {
+		t.Fatalf("BindAddr = %q, esperaba loopback sin TLS", cfg.BindAddr)
+	}
+}
+
+func TestLoadBindAddrOverride(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_BIND": "0.0.0.0"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BindAddr != "0.0.0.0" {
+		t.Fatalf("BindAddr = %q, esperaba 0.0.0.0", cfg.BindAddr)
+	}
+}
+
+func TestLoadBindAddrTLSKeepsAllInterfaces(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "1"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BindAddr != "" {
+		t.Fatalf("BindAddr = %q, esperaba vacío con TLS", cfg.BindAddr)
+	}
+}
+
+func TestLoadBindAddrInvalido(t *testing.T) {
+	_, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_BIND": "not-an-ip"}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_BIND") {
+		t.Fatalf("NETPULSE_BIND inválido debe fallar señalando la variable: %v", err)
+	}
+}

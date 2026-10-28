@@ -604,10 +604,11 @@ func (s *server) handleDeleteAdguardConfig(w http.ResponseWriter, r *http.Reques
 func (s *server) handleGetProxmoxConfig(w http.ResponseWriter, r *http.Request) {
 	instances := pve.LoadInstances(s.db.DB)
 	// Vista sanitizada: el secret JAMAS sale del server (#764).
-	view := make([]map[string]string, 0, len(instances))
+	view := make([]map[string]any, 0, len(instances))
 	for _, in := range instances {
-		view = append(view, map[string]string{
+		view = append(view, map[string]any{
 			"id": in.ID, "name": in.Name, "url": in.URL, "tokenId": in.TokenID,
+			"caPem": in.CAPEM, "fingerprintSha256": in.FingerprintSHA256, "insecure": in.Insecure,
 		})
 	}
 	out := map[string]any{
@@ -631,11 +632,14 @@ type proxmoxInput struct {
 }
 
 type proxmoxInstanceInput struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	URL     string `json:"url"`
-	TokenID string `json:"tokenId"`
-	Secret  string `json:"secret"` // vacío en edición = conservar el actual
+	ID                string  `json:"id"`
+	Name              string  `json:"name"`
+	URL               string  `json:"url"`
+	TokenID           string  `json:"tokenId"`
+	Secret            string  `json:"secret"` // vacío en edición = conservar el actual
+	CAPEM             *string `json:"caPem"`
+	FingerprintSHA256 *string `json:"fingerprintSha256"`
+	Insecure          *bool   `json:"insecure"`
 }
 
 // PUT /api/config/proxmox - upsert de UNA instancia multi (#764): body
@@ -677,7 +681,8 @@ func (s *server) handlePutProxmoxConfig(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if current != nil {
-		if url == "" && tokenID == "" && strings.TrimSpace(in.Name) == "" && in.Secret == "" {
+		if url == "" && tokenID == "" && strings.TrimSpace(in.Name) == "" && in.Secret == "" &&
+			in.CAPEM == nil && in.FingerprintSHA256 == nil && in.Insecure == nil {
 			writeError(w, http.StatusBadRequest, "invalid_input", "nada que actualizar")
 			return
 		}
@@ -689,6 +694,15 @@ func (s *server) handlePutProxmoxConfig(w http.ResponseWriter, r *http.Request) 
 		}
 		if in.Secret != "" {
 			current.Secret = in.Secret
+		}
+		if in.CAPEM != nil {
+			current.CAPEM = strings.TrimSpace(*in.CAPEM)
+		}
+		if in.FingerprintSHA256 != nil {
+			current.FingerprintSHA256 = strings.TrimSpace(*in.FingerprintSHA256)
+		}
+		if in.Insecure != nil {
+			current.Insecure = *in.Insecure
 		}
 		if n := strings.TrimSpace(in.Name); n != "" {
 			current.Name = n
@@ -709,7 +723,17 @@ func (s *server) handlePutProxmoxConfig(w http.ResponseWriter, r *http.Request) 
 	if name == "" {
 		name = id
 	}
-	inst := pve.Instance{ID: id, Name: name, Config: pve.Config{URL: url, TokenID: tokenID, Secret: in.Secret}}
+	cfg := pve.Config{URL: url, TokenID: tokenID, Secret: in.Secret}
+	if in.CAPEM != nil {
+		cfg.CAPEM = strings.TrimSpace(*in.CAPEM)
+	}
+	if in.FingerprintSHA256 != nil {
+		cfg.FingerprintSHA256 = strings.TrimSpace(*in.FingerprintSHA256)
+	}
+	if in.Insecure != nil {
+		cfg.Insecure = *in.Insecure
+	}
+	inst := pve.Instance{ID: id, Name: name, Config: cfg}
 	if err := pve.UpsertInstance(s.db.DB, inst); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 		return
@@ -763,6 +787,15 @@ func (s *server) handleTestProxmoxConfig(w http.ResponseWriter, r *http.Request)
 	}
 	if in.Secret != "" {
 		cfg.Secret = in.Secret
+	}
+	if in.CAPEM != nil {
+		cfg.CAPEM = strings.TrimSpace(*in.CAPEM)
+	}
+	if in.FingerprintSHA256 != nil {
+		cfg.FingerprintSHA256 = strings.TrimSpace(*in.FingerprintSHA256)
+	}
+	if in.Insecure != nil {
+		cfg.Insecure = *in.Insecure
 	}
 	if !cfg.Enabled() {
 		writeError(w, http.StatusBadRequest, "invalid_input", "faltan url, tokenId o secret")

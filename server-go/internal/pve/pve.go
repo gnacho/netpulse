@@ -11,14 +11,19 @@
 //
 //	Authorization: PVEAPIToken=USER@REALM!TOKENID=UUID
 //
-// TLS: el certificado del cluster es self-signed (pve-api-daemon genera uno
-// propio); el cliente acepta cualquier cert (configurable en el futuro con
-// CA fija). Solo lectura: GET únicamente.
+// TLS: el certificado del cluster suele ser self-signed. Por defecto se valida
+// contra las raíces del sistema; se puede fijar una CA (caPem) o el SHA-256 del
+// certificado hoja (fingerprintSha256). "insecure" desactiva la validación de
+// forma explícita. Solo lectura: GET únicamente.
 package pve
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,6 +42,12 @@ type Config struct {
 	// Secret: la parte UUID del token (se muestra una sola vez al crearlo).
 	// NUNCA viaja en respuestas de la API (la config se expone sanitizada).
 	Secret string `json:"secret,omitempty"`
+	// CAPEM: CA en PEM para validar el certificado del cluster.
+	CAPEM string `json:"caPem,omitempty"`
+	// FingerprintSHA256: SHA-256 en hex del certificado hoja.
+	FingerprintSHA256 string `json:"fingerprintSha256,omitempty"`
+	// Insecure: desactiva la validación TLS. Solo para transiciones controladas.
+	Insecure bool `json:"insecure,omitempty"`
 }
 
 // Enabled: true si hay config completa.
@@ -50,20 +61,67 @@ const httpTimeout = 5 * time.Second
 type Client struct {
 	cfg Config
 	hc  *http.Client
+	err error
 }
 
-// NewClient crea el cliente (sin red: solo guarda config). TLS: los clusters
-// PVE usan un certificado self-signed (pve-api-daemon genera uno propio al
-// instalar); el cliente acepta cualquier cert (InsecureSkipVerify) porque la
-// autenticación real es el token API, no el cert. Una CA fija configurable se
-// podría añadir en el futuro si hiciera falta.
+// NewClient crea el cliente (sin red: solo guarda config). Por defecto valida
+// el certificado contra las raíces del sistema. CAPEM añade una CA,
+// FingerprintSHA256 fija el certificado hoja e Insecure desactiva la validación.
 func NewClient(cfg Config) *Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #561
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	var clientErr error
+	switch {
+	case cfg.Insecure:
+		tlsCfg.InsecureSkipVerify = true
+	case cfg.FingerprintSHA256 != "":
+		want, err := normalizeFingerprint(cfg.FingerprintSHA256)
+		if err != nil {
+			clientErr = err
+			break
+		}
+		tlsCfg.InsecureSkipVerify = true
+		tlsCfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			return verifyFingerprint(rawCerts, want)
+		}
+	case cfg.CAPEM != "":
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM([]byte(cfg.CAPEM)) {
+			clientErr = fmt.Errorf("PVE: invalid caPem")
+			break
+		}
+		tlsCfg.RootCAs = pool
+	}
+	transport.TLSClientConfig = tlsCfg
 	return &Client{
 		cfg: cfg,
 		hc:  &http.Client{Timeout: httpTimeout, Transport: transport},
+		err: clientErr,
 	}
+}
+
+func normalizeFingerprint(v string) (string, error) {
+	s := strings.ToLower(strings.TrimSpace(v))
+	s = strings.NewReplacer(":", "", " ", "", "-", "").Replace(s)
+	if len(s) != 64 {
+		return "", fmt.Errorf("PVE: fingerprintSha256 must be 64 hex characters")
+	}
+	if _, err := hex.DecodeString(s); err != nil {
+		return "", fmt.Errorf("PVE: invalid fingerprintSha256: %w", err)
+	}
+	return s, nil
+}
+
+func verifyFingerprint(rawCerts [][]byte, want string) error {
+	if len(rawCerts) == 0 {
+		return fmt.Errorf("PVE: no peer certificate")
+	}
+	sum := sha256.Sum256(rawCerts[0])
+	got := hex.EncodeToString(sum[:])
+	if subtle.ConstantTimeCompare([]byte(got), []byte(want)) != 1 {
+		return fmt.Errorf("PVE: certificate fingerprint mismatch")
+	}
+	return nil
 }
 
 func (c *Client) authHeader() string {
@@ -71,6 +129,9 @@ func (c *Client) authHeader() string {
 }
 
 func (c *Client) get(ctx context.Context, path string, dst any) error {
+	if c.err != nil {
+		return c.err
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", c.cfg.URL+path, nil)
 	if err != nil {
 		return err

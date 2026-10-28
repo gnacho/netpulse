@@ -647,6 +647,43 @@ func TestProxmoxConfig(t *testing.T) {
 	}
 }
 
+func TestProxmoxTLSConfig(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie,
+		`{"id":"casa","name":"Casa","url":"https://192.168.1.100:8006","tokenId":"root@pam!netpulse","secret":"uuid-1234","caPem":"PEM-CA","fingerprintSha256":"AABB","insecure":true}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT proxmox tls: %d %v", res.StatusCode, body)
+	}
+
+	res = doReq(t, "GET", srv.URL+"/api/config/proxmox", cookie, "")
+	body := readJSON(t, res)
+	instances, _ := body["instances"].([]any)
+	if len(instances) != 1 {
+		t.Fatalf("instances: %v", instances)
+	}
+	inst, _ := instances[0].(map[string]any)
+	if inst["caPem"] != "PEM-CA" || inst["fingerprintSha256"] != "AABB" || inst["insecure"] != true {
+		t.Fatalf("GET proxmox tls: %v", inst)
+	}
+
+	res = doReq(t, "PUT", srv.URL+"/api/config/proxmox", cookie,
+		`{"id":"casa","caPem":"","fingerprintSha256":"","insecure":false}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT proxmox tls clear: %d %v", res.StatusCode, body)
+	}
+	res = doReq(t, "GET", srv.URL+"/api/config/proxmox", cookie, "")
+	body = readJSON(t, res)
+	instances, _ = body["instances"].([]any)
+	inst, _ = instances[0].(map[string]any)
+	if inst["caPem"] != "" || inst["fingerprintSha256"] != "" || inst["insecure"] != false {
+		t.Fatalf("GET proxmox tls clear: %v", inst)
+	}
+}
+
 // The Proxmox test endpoint: a failure is a result the form can show, not an
 // HTTP error, and it needs a session like the rest of the config API.
 func TestProxmoxTestEndpoint(t *testing.T) {
