@@ -1428,6 +1428,7 @@ export default function Devices() {
     }
   }
   const [deviceOverrides, setDeviceOverrides] = useState<Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string; notifyOffline?: boolean }>>(() => {
+    if (!isDemo) return {}
     try {
       const raw = localStorage.getItem('netpulse-device-overrides')
       return raw ? (JSON.parse(raw) as Record<string, { iconOverride?: string; nameOverride?: string; typeOverride?: string; notifyOffline?: boolean }>) : {}
@@ -1436,13 +1437,24 @@ export default function Devices() {
     }
   })
 
+  // #1631 F-29: los overrides locales solo tienen sentido en la demo. En live
+  // el servidor es la fuente de verdad y una entrada vieja no debe ganarle.
+  useEffect(() => {
+    if (isDemo) return
+    try {
+      localStorage.removeItem('netpulse-device-overrides')
+    } catch {
+      /* ignore */
+    }
+  }, [isDemo])
+
   // Lista enriquecida de clientes: en demo local expande el canon a los 65
   // del dataset reconciliado; en live solo fusiona metadatos conocidos sobre
   // la API. D6: los equipos de infraestructura (host hipervisor, sus CTs y
   // switches gestionados con LLDP) se reclasifican al grupo de filtro 'infra'.
   const { allDevices, infraById } = useMemo(() => {
     const list = buildClientDevices(devices, isDemo).map((d) => {
-      const ov = deviceOverrides[d.id]
+      const ov = isDemo ? deviceOverrides[d.id] : undefined
       // '' o ausente = automático: en ese caso manda el valor del server
       // (que en live ya trae los overrides aplicados, #797).
       return {
@@ -1698,7 +1710,11 @@ export default function Devices() {
   const exportCsv = useCallback(() => {
     const routerName = new Map((routers ?? []).map((r) => [r.id, r.name]))
     const esc = (v: unknown): string => {
-      const s = v === null || v === undefined ? '' : String(v)
+      let s = v === null || v === undefined ? '' : String(v)
+      // #1631 F-18: neutraliza prefijos que Excel y LibreOffice interpretan
+      // como formula, sin tocar numeros negativos legitimos (signalDbm, etc.).
+      const numeric = /^-?\d+(?:[.,]\d+)?$/.test(s)
+      if (!numeric && /^[=+\-@\t\r]/.test(s)) s = "'" + s
       return /[",\n;]/.test(s) ? '"' + s.replaceAll('"', '""') + '"' : s
     }
     const head = ['name', 'hostname', 'mac', 'ip', 'type', 'group', 'manufacturer', 'router', 'band', 'online', 'signalDbm', 'port', 'portLabel', 'firstSeenMs', 'lastSeenMs', 'dhcpLease', 'adguard', 'traffic24hRx', 'traffic24hTx']
@@ -1760,6 +1776,9 @@ export default function Devices() {
 
   const persistOverride = useCallback(
     (id: string, patch: { iconOverride: string; nameOverride: string; typeOverride: string; notifyOffline: boolean } | null) => {
+      // #1631 F-29: en live el override lo persiste el servidor y no se toca
+      // localStorage.
+      if (!isDemo) return
       setDeviceOverrides((prev) => {
         const next = { ...prev }
         if (patch && (patch.iconOverride || patch.nameOverride || patch.typeOverride || patch.notifyOffline)) {
@@ -1780,7 +1799,7 @@ export default function Devices() {
         return next
       })
     },
-    []
+    [isDemo]
   )
 
   // #797: el patch es absoluto ('' = volver al automático); antes el early

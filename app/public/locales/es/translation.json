@@ -1735,6 +1735,7 @@
       "active": "Sesión activa en este dispositivo",
       "activeCaption": "Tendrás que volver a introducir la contraseña para entrar.",
       "logout": "Cerrar sesión",
+      "logoutError": "No se pudo cerrar la sesión. Sigue activa.",
       "title": "Mi perfil",
       "demoActive": "Modo demo activo",
       "demoCaption": "Datos simulados locales, sin conexión a tu red.",

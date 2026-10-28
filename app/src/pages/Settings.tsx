@@ -66,7 +66,7 @@ import { InfoTip } from '@/components/InfoTip'
 import { useNetPulse } from '@/data/DataProvider'
 import { fmtEs } from '@/data/mock'
 import { useAuth } from '@/data/AuthContext'
-import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, urlBase64ToUint8Array } from '@/data/push'
+import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, unsubscribeCurrentDevice, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { useIntegrations } from '@/hooks/useIntegrations'
@@ -5145,6 +5145,7 @@ export default function Settings() {
   const { devices, wan, isDemo, refresh: refreshOverview } = useNetPulse()
   const auth = useAuth()
   const [adminPanel, setAdminPanel] = useState<'users' | 'backups' | 'autoupdate' | null>(null)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
 
   // ——— Orquestación (issue #121): toggle opt-in en la AdminBar ———
   const [orchOn, setOrchOn] = useState(false)
@@ -6408,12 +6409,25 @@ export default function Settings() {
                     exitDemo()
                     return
                   }
-                  void fetch('/api/auth/logout', { method: 'POST' })
-                    .catch(() => undefined)
-                    .finally(() => {
+                  setLogoutError(null)
+                  void (async () => {
+                    // #1631 F-20: la suscripción push se retira antes de
+                    // revocar la cookie, porque la baja exige sesión válida.
+                    await unsubscribeCurrentDevice()
+                    try {
+                      const res = await fetch('/api/auth/logout', { method: 'POST' })
+                      if (!res.ok) {
+                        // #1631 F-19: no afirmar que la sesión terminó si el
+                        // servidor no revocó la cookie.
+                        setLogoutError(t('settings.session.logoutError'))
+                        return
+                      }
                       window.dispatchEvent(new Event('netpulse-unauthorized'))
                       window.location.assign('/login')
-                    })
+                    } catch {
+                      setLogoutError(t('settings.session.logoutError'))
+                    }
+                  })()
                 }}
                 className="ml-auto flex h-9 shrink-0 items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15"
               >
@@ -6421,6 +6435,12 @@ export default function Settings() {
                 <span className="hidden sm:inline">{isDemo ? t('demo.exit') : t('settings.session.logout')}</span>
               </button>
             </div>
+
+            {logoutError && (
+              <p role="alert" className="mt-2 text-caption text-danger">
+                {logoutError}
+              </p>
+            )}
 
             {showPwdForm && !isDemo && (
               <form

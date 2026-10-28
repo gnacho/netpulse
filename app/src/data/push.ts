@@ -55,17 +55,38 @@ export async function postPushSubscribe(sub: PushSubscriptionPayload): Promise<b
 }
 
 /** POST /api/push/unsubscribe. El resultado no bloquea la baja local. */
-export async function postPushUnsubscribe(endpoint: string): Promise<boolean> {
+export async function postPushUnsubscribe(endpoint: string, redirectOn401 = true): Promise<boolean> {
   try {
     const res = await fetch('/api/push/unsubscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ endpoint }),
     })
-    if (res.status === 401) redirectLogin()
+    if (res.status === 401 && redirectOn401) redirectLogin()
     return res.ok // 204
   } catch {
     return false
+  }
+}
+
+/**
+ * #1631 F-20: da de baja este navegador antes de revocar la sesión.
+ *
+ * Se llama desde el logout, con la cookie todavía válida, para que el servidor
+ * pueda borrar la fila. Si la llamada falla se elimina igualmente la
+ * suscripción local, y el servidor la purgará en el siguiente 404/410.
+ */
+export async function unsubscribeCurrentDevice(): Promise<void> {
+  if (pushContext() !== 'ok') return
+  try {
+    const reg = await navigator.serviceWorker.getRegistration()
+    const sub = reg ? await reg.pushManager.getSubscription() : null
+    if (!sub) return
+    const endpoint = sub.endpoint
+    await postPushUnsubscribe(endpoint, false)
+    await sub.unsubscribe().catch(() => false)
+  } catch {
+    /* best effort */
   }
 }
 

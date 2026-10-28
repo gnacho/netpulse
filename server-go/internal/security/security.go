@@ -17,7 +17,7 @@ var Headers = []struct{ K, V string }{
 	// una violación CSP y las transiciones no corren. El riesgo de CSS
 	// inline es muy inferior al de script inline (la app no renderiza HTML
 	// controlado por el usuario), y script-src sigue sin 'unsafe-inline'.
-	{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'"},
+	{"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'"},
 }
 
 // HSTS is the Strict-Transport-Security value for a server whose every

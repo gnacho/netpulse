@@ -1735,6 +1735,7 @@
       "active": "Active session on this device",
       "activeCaption": "You will have to enter the password again to sign in.",
       "logout": "Sign out",
+      "logoutError": "Could not sign out. Your session is still active.",
       "title": "My profile",
       "demoActive": "Demo mode active",
       "demoCaption": "Local simulated data, no connection to your network.",

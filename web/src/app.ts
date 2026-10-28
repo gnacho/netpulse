@@ -1299,18 +1299,20 @@ function initAppearance() {
 }
 
 /* ---------- copiar comando ---------- */
+// #1631 F-30: el comando es una constante del bundle, no texto leído del DOM.
+const INSTALL_CMD = 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh'
+const AGENT_CMD = 'opkg install netpulse-agent'
+
 function initCopy() {
   const btn = document.getElementById('copyBtn')
   if (!btn) return
   btn.addEventListener('click', async () => {
-    const cmd = document.getElementById('installCmd').textContent
-    copyText(cmd, btn)
+    copyText(INSTALL_CMD, btn)
   })
   const agentBtn = document.getElementById('agentCopyBtn')
   if (agentBtn) {
     agentBtn.addEventListener('click', async () => {
-      const cmd = document.getElementById('agentCmd').textContent
-      copyText(cmd, agentBtn)
+      copyText(AGENT_CMD, agentBtn)
     })
   }
 }
