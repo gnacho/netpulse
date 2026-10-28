@@ -12,8 +12,14 @@ import (
 // fakeRunner registra los comandos ejecutados y devuelve respuestas canned.
 type fakeRunner struct {
 	calls     []string
+	inputs    []string
 	responses map[string]int    // prefix → exitCode (0 si no está)
 	outputs   map[string]string // prefix → stdout cuando exitCode es 0
+}
+
+func (f *fakeRunner) RunInput(input, name string, args ...string) (string, int) {
+	f.inputs = append(f.inputs, input)
+	return f.Run(name, args...)
 }
 
 func newFakeRunner() *fakeRunner {
@@ -464,6 +470,8 @@ func TestApplyFailingOpReverts(t *testing.T) {
 
 func TestApplyHealthcheckFailRollsBack(t *testing.T) {
 	fr := newFakeRunner()
+	snap := "config dhcp 'lan'\n\toption dns '8.8.8.8'\n\tlist domain '$(reboot)'"
+	fr.outputs["uci export"] = snap
 	// Hacer que el ping falle (healthcheck)
 	fr.responses["ping"] = 1
 
@@ -492,6 +500,9 @@ func TestApplyHealthcheckFailRollsBack(t *testing.T) {
 	}
 	if !foundImport {
 		t.Fatal("should have imported snapshot on rollback")
+	}
+	if len(fr.inputs) == 0 || fr.inputs[0] != snap {
+		t.Fatalf("snapshot should reach uci import via stdin, got %q", fr.inputs)
 	}
 }
 

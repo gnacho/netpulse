@@ -39,6 +39,7 @@ type ApplyResult struct {
 // Runner ejecuta comandos en el router. Interfaz para inyectar fakes en tests.
 type Runner interface {
 	Run(name string, args ...string) (stdout string, exitCode int)
+	RunInput(input, name string, args ...string) (stdout string, exitCode int)
 }
 
 // shellRunner usa exec.Command en producción.
@@ -46,6 +47,21 @@ type shellRunner struct{}
 
 func (shellRunner) Run(name string, args ...string) (string, int) {
 	out, err := exec.Command(name, args...).Output()
+	code := 0
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			code = ee.ExitCode()
+		} else {
+			code = -1
+		}
+	}
+	return string(out), code
+}
+
+func (shellRunner) RunInput(input, name string, args ...string) (string, int) {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = strings.NewReader(input)
+	out, err := cmd.Output()
 	code := 0
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
@@ -559,7 +575,7 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 				// Healthcheck del módulo: rollback real restaurando snapshots UCI
 				// y relanzando los servicios afectados.
 				for cfg, snap := range snapshots {
-					e.run.Run("sh", "-c", fmt.Sprintf("echo '%s' | uci import", snap))
+					e.run.RunInput(snap, "uci", "import", cfg)
 					e.run.Run("uci", "commit", cfg)
 				}
 				if op.Kind == "wg_check" {
@@ -597,7 +613,7 @@ func (e *Executor) Apply(ops []Op) ApplyResult {
 	if !e.healthcheck() {
 		// ROLLBACK: restaurar snapshots.
 		for cfg, snap := range snapshots {
-			e.run.Run("sh", "-c", fmt.Sprintf("echo '%s' | uci import", snap))
+			e.run.RunInput(snap, "uci", "import", cfg)
 			e.run.Run("uci", "commit", cfg)
 		}
 		return ApplyResult{Status: "rolled_back", Error: "healthcheck_failed", Snapshot: strings.Join(affected, ","), DurationMs: ms(e.now(), start)}
