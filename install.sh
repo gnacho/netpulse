@@ -342,6 +342,7 @@ if [ ! -f "$STATE_DIR/.env" ]; then
         $SUDO tee "$STATE_DIR/.env" >/dev/null <<EOF
 PORT=$PORT
 DATA_DIR=./data
+NETPULSE_BIND=127.0.0.1
 AUTH_USER=admin
 AUTH_PASS=$ADMIN_PASS
 DEMO_MODE=$DEMO
@@ -550,8 +551,12 @@ printf 'Data:     %s (SQLite, .env, SSH keypair)\n' "$STATE_DIR"
 # Access line (#1647): a fresh install without TLS binds the listener to
 # loopback, so the LAN URL was wrong. Honour NETPULSE_BIND when it is set.
 BIND_ADDR=$(sed -n 's/^NETPULSE_BIND=//p' "$STATE_DIR/.env" 2>/dev/null | head -1 || true)
-if [ -z "$BIND_ADDR" ] && [ "${FRESH_CREDENTIALS:-0}" -eq 1 ]; then
-    BIND_ADDR=127.0.0.1
+if [ -z "$BIND_ADDR" ]; then
+    if [ -f "$STATE_DIR/data/netpulse.db" ]; then
+        BIND_ADDR=0.0.0.0
+    else
+        BIND_ADDR=127.0.0.1
+    fi
 fi
 if [ -n "$BIND_ADDR" ] && [ "$BIND_ADDR" != "0.0.0.0" ]; then
     printf 'Access:   http://%s:%s (local only)\n' "$BIND_ADDR" "$PORT"

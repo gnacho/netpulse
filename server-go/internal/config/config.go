@@ -15,6 +15,33 @@ import (
 	"time"
 )
 
+const bindModeFile = ".bind-mode"
+
+const (
+	bindModeLoopback = "loopback"
+	bindModeLAN      = "lan"
+)
+
+func readBindMode(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	switch mode := strings.TrimSpace(string(b)); mode {
+	case bindModeLoopback, bindModeLAN:
+		return mode
+	default:
+		return ""
+	}
+}
+
+func writeBindMode(path, mode string) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return
+	}
+	_ = os.WriteFile(path, []byte(mode+"\n"), 0o600)
+}
+
 // RouterSeed es una entrada de ROUTERS_JSON (semilla opcional de la tabla routers).
 type RouterSeed struct {
 	ID   string `json:"id"`
@@ -564,14 +591,26 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	// NETPULSE_BIND: dirección del listener HTTP. Sin TLS, sin on-box y en una
 	// instalación nueva el default es loopback (#1607). Si ya existe la base de
 	// datos se trata de una actualización, así que se conserva el listener
-	// histórico en todas las interfaces para no cortar el acceso (#1647). Un
-	// valor explícito manda siempre.
+	// histórico en todas las interfaces para no cortar el acceso (#1647). La
+	// decisión se guarda en data/.bind-mode: así un reinicio no vuelve a
+	// abrir una instalación nueva que ya creó la base de datos. Un valor
+	// explícito manda siempre.
 	dataPath := dataDir
 	if !filepath.IsAbs(dataPath) {
 		dataPath = filepath.Join(serverRoot, dataPath)
 	}
+	bindModePath := filepath.Join(dataPath, bindModeFile)
+	bindMode := readBindMode(bindModePath)
+	if bindMode == "" {
+		if _, err := os.Stat(filepath.Join(dataPath, "netpulse.db")); err == nil {
+			bindMode = bindModeLAN
+		} else {
+			bindMode = bindModeLoopback
+		}
+		writeBindMode(bindModePath, bindMode)
+	}
 	bindAddr := "127.0.0.1"
-	if _, err := os.Stat(filepath.Join(dataPath, "netpulse.db")); err == nil {
+	if bindMode == bindModeLAN {
 		bindAddr = ""
 	}
 	if tlsEnabled || onbox {

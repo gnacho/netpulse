@@ -9,7 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
-- **UI inaccesible desde la LAN tras actualizar a 2.48.0 (#1647)**: el listener HTTP pasaba a `127.0.0.1` en cualquier instalación sin TLS, así que la actualización cortaba el acceso desde otros equipos sin ningún aviso. Ahora el loopback queda reservado a instalaciones nuevas (todavía sin base de datos), las que ya tienen `netpulse.db` conservan todas las interfaces, el arranque registra la dirección real y avisa cuando es solo local, el instalador deja de anunciar una URL de LAN que no responde y `NETPULSE_BIND` sigue mandando.
+- **UI inaccesible desde la LAN tras actualizar a 2.48.0 (#1647)**: el listener HTTP pasaba a `127.0.0.1` en cualquier instalación sin TLS, así que la actualización cortaba el acceso desde otros equipos sin ningún aviso. Ahora el loopback queda reservado a instalaciones nuevas (todavía sin base de datos), las que ya tienen `netpulse.db` conservan todas las interfaces, la decisión se guarda en `data/.bind-mode` para que un reinicio no abra una instalación nueva, el `.env` nuevo escribe `NETPULSE_BIND=127.0.0.1`, el arranque registra la dirección real y avisa cuando es solo local, el instalador deja de anunciar una URL de LAN que no responde y `NETPULSE_BIND` sigue mandando.
 
 ## [2.48.0] - 2026-10-28
 
