@@ -7,6 +7,7 @@ package httpapi
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,6 +25,28 @@ import (
 // maxFirmwareUpload: tope de una imagen subida (las de OpenWrt rondan 8-25 MB;
 // 100 MB da margen para perfiles con muchos paquetes empaquetados).
 const maxFirmwareUpload = 100 << 20
+
+func validFirmwareID(id string) bool {
+	if id == "" || id == "." || id == ".." {
+		return false
+	}
+	if strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+		return false
+	}
+	return filepath.Base(id) == id
+}
+
+func firmwareUploadPath(dir, id string) (string, bool) {
+	if !validFirmwareID(id) {
+		return "", false
+	}
+	dest := filepath.Join(dir, id+".bin")
+	rel, err := filepath.Rel(dir, dest)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", false
+	}
+	return dest, true
+}
 
 func (s *server) registerFirmwareUploadRoutes(mux *http.ServeMux) {
 	if s.firmware == nil {
@@ -55,10 +78,24 @@ func (s *server) registerFirmwareUploadRoutes(mux *http.ServeMux) {
 	// por el agente vía NETPULSE_AGENT_URL/PublicURL) + checksum calculado.
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/image", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("routerId")
-		if err := r.ParseMultipartForm(maxFirmwareUpload); err != nil {
-			writeError(w, http.StatusRequestEntityTooLarge, "image_too_large", fmt.Sprintf("imagen mayor de %d MB", maxFirmwareUpload>>20))
+		if !validFirmwareID(id) {
+			writeError(w, http.StatusBadRequest, "invalid_router_id")
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxFirmwareUpload+(1<<20))
+		if err := r.ParseMultipartForm(maxFirmwareUpload); err != nil {
+			if r.MultipartForm != nil {
+				r.MultipartForm.RemoveAll()
+			}
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				writeError(w, http.StatusRequestEntityTooLarge, "image_too_large", fmt.Sprintf("imagen mayor de %d MB", maxFirmwareUpload>>20))
+				return
+			}
+			writeError(w, http.StatusBadRequest, "invalid_body")
+			return
+		}
+		defer r.MultipartForm.RemoveAll()
 		f, hdr, err := r.FormFile("image")
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_body", "campo multipart 'image' requerido")
@@ -71,7 +108,11 @@ func (s *server) registerFirmwareUploadRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
 			return
 		}
-		dest := filepath.Join(dir, id+".bin")
+		dest, valid := firmwareUploadPath(dir, id)
+		if !valid {
+			writeError(w, http.StatusBadRequest, "invalid_router_id")
+			return
+		}
 		tmp := dest + ".tmp"
 		df, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 		if err != nil {
@@ -264,7 +305,7 @@ func pruneFirmwareBackups(dir, slug string) {
 // de uploads.
 func (s *server) handleFirmwareImage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("routerId")
-	if id == "" || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+	if !validFirmwareID(id) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
@@ -272,7 +313,12 @@ func (s *server) handleFirmwareImage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "no_db")
 		return
 	}
-	path := filepath.Join(filepath.Dir(s.db.Path), "firmware-uploads", id+".bin")
+	dir := filepath.Join(filepath.Dir(s.db.Path), "firmware-uploads")
+	path, valid := firmwareUploadPath(dir, id)
+	if !valid {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
 	st, err := os.Stat(path)
 	if err != nil || st.IsDir() {
 		writeError(w, http.StatusNotFound, "not_found")

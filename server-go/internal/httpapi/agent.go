@@ -1213,8 +1213,12 @@ func (s *server) handleAgentExecutorToken(w http.ResponseWriter, r *http.Request
 	var body struct {
 		Token string `json:"token"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Token == "" {
-		writeError(w, http.StatusBadRequest, "invalid json")
+	if status := readJSONBody(w, r, &body); status != 0 {
+		writeBodyError(w, status, "invalid_json", "invalid json")
+		return
+	}
+	if len(body.Token) == 0 || len(body.Token) > 512 {
+		writeError(w, http.StatusBadRequest, "invalid_token", "token must be 1-512 bytes")
 		return
 	}
 	if _, err := s.db.Exec(
