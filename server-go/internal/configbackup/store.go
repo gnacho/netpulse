@@ -54,17 +54,28 @@ func (s *Store) Save(routerID, snapshotID string, configs string, data []byte) e
 	if s.db == nil {
 		return nil
 	}
-	_, err := s.db.Exec(
-		"INSERT INTO config_snapshots (router_id, snapshot_id, created_at, size_bytes, configs, data) VALUES (?,?,?,?,?,?)",
-		routerID, snapshotID, time.Now().UnixMilli(), len(data), configs, data)
+	tx, err := s.db.Begin()
 	if err != nil {
+		return fmt.Errorf("begin snapshot transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(
+		"INSERT INTO config_snapshots (router_id, snapshot_id, created_at, size_bytes, configs, data) VALUES (?,?,?,?,?,?)",
+		routerID, snapshotID, time.Now().UnixMilli(), len(data), configs, data); err != nil {
 		return fmt.Errorf("insert snapshot: %w", err)
 	}
 
-	s.db.Exec(
+	if _, err := tx.Exec(
 		`DELETE FROM config_snapshots WHERE router_id = ? AND id NOT IN (
-			SELECT id FROM config_snapshots WHERE router_id = ? ORDER BY created_at DESC LIMIT ?)`,
-		routerID, routerID, maxPerRouter)
+			SELECT id FROM config_snapshots WHERE router_id = ? ORDER BY created_at DESC, id DESC LIMIT ?)`,
+		routerID, routerID, maxPerRouter); err != nil {
+		return fmt.Errorf("prune snapshots: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit snapshot: %w", err)
+	}
 	return nil
 }
 
@@ -76,7 +87,7 @@ func (s *Store) List(routerID string) ([]Snapshot, error) {
 		return nil, nil
 	}
 	rows, err := s.db.Query(
-		"SELECT id, router_id, snapshot_id, created_at, size_bytes, configs FROM config_snapshots WHERE router_id = ? ORDER BY created_at DESC",
+		"SELECT id, router_id, snapshot_id, created_at, size_bytes, configs FROM config_snapshots WHERE router_id = ? ORDER BY created_at DESC, id DESC",
 		routerID)
 	if err != nil {
 		return nil, err
@@ -102,7 +113,7 @@ func (s *Store) ListAll() ([]Snapshot, error) {
 		return nil, nil
 	}
 	rows, err := s.db.Query(
-		"SELECT id, router_id, snapshot_id, created_at, size_bytes, configs FROM config_snapshots ORDER BY created_at DESC LIMIT 200")
+		"SELECT id, router_id, snapshot_id, created_at, size_bytes, configs FROM config_snapshots ORDER BY created_at DESC, id DESC LIMIT 200")
 	if err != nil {
 		return nil, err
 	}
