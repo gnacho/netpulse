@@ -209,6 +209,23 @@ func Run(ctx context.Context, opts Options) error {
 	// SSE bidireccional: el servidor envía comandos al agente. Reutiliza el
 	// mismo transporte (mismo pinning SPKI que el push).
 	refreshCh := make(chan struct{}, 1)
+	commandCh := make(chan func(), 16)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case fn := <-commandCh:
+				fn()
+			}
+		}
+	}()
+	enqueue := func(fn func()) {
+		select {
+		case commandCh <- fn:
+		case <-ctx.Done():
+		}
+	}
 	go func() {
 		sse := sseclient.New(opts.Server, opts.Slug, opts.Token,
 			&http.Client{Timeout: 0, Transport: transport},
@@ -220,24 +237,32 @@ func Run(ctx context.Context, opts Options) error {
 					}
 				}
 				if ev.Name == "apply" && ev.Data != "" {
-					go a.handleApply(ex, transport, ev.Data)
+					data := ev.Data
+					enqueue(func() { a.handleApply(ex, transport, data) })
 				}
 				if ev.Name == "upgrade" {
-					if opts.OnUpgrade != nil {
-						go opts.OnUpgrade(ev.Data)
-					} else {
-						go handleUpgrade(opts, transport, ev.Data)
-					}
+					data := ev.Data
+					enqueue(func() {
+						if opts.OnUpgrade != nil {
+							opts.OnUpgrade(data)
+						} else {
+							handleUpgrade(opts, transport, data)
+						}
+					})
 				}
 				if ev.Name == "firmware_upgrade" && ev.Data != "" {
-					go handleFirmwareUpgrade(opts, transport, ev.Data)
+					data := ev.Data
+					enqueue(func() { handleFirmwareUpgrade(opts, transport, data) })
 				}
 				if ev.Name == "config_backup" {
-					if opts.OnConfigBackup != nil {
-						go opts.OnConfigBackup(ev.Data)
-					} else {
-						go handleConfigBackup(opts, transport)
-					}
+					data := ev.Data
+					enqueue(func() {
+						if opts.OnConfigBackup != nil {
+							opts.OnConfigBackup(data)
+						} else {
+							handleConfigBackup(opts, transport)
+						}
+					})
 				}
 				log.Debug("[netpulse-agent] SSE evento", "event", ev.Name)
 			})
