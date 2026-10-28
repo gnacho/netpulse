@@ -177,6 +177,65 @@ func TestBeaconOctetsRecordBytes(t *testing.T) {
 	}
 }
 
+// gnacho/netpulse#1620: ie/oe del beacon son los errores RX/TX por puerto
+// (equivalentes a ifInErrors/ifOutErrors). Deben acabar en la serie, y un
+// beacon antiguo sin esos campos sigue siendo válido con ceros.
+func TestBeaconPortErrorsRecorded(t *testing.T) {
+	s, token := newBeaconTestServer(t)
+
+	addr, err := s.startBeaconListener("127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listener: %v", err)
+	}
+	defer s.beaconConn.Close()
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":1,"slug":"switch16","token":"%s","ports":[{"n":3,"l":3,"tx":10,"rx":20,"ih":0,"il":1000,"oh":0,"ol":2000,"ie":7,"oe":9}]}`,
+		token))
+	waitFresh(t, s, "switch16")
+
+	deadline := time.Now().Add(3 * time.Second)
+	var rxErr, txErr uint64
+	for {
+		err := s.db.QueryRow(`SELECT rx_errors, tx_errors FROM port_series_raw
+			WHERE router_id = ? AND port_id = ?`, "switch16", "lan3").Scan(&rxErr, &txErr)
+		if err == nil && (rxErr != 0 || txErr != 0) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("serie de puertos sin errores (err: %v, ie: %d, oe: %d)", err, rxErr, txErr)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if rxErr != 7 {
+		t.Fatalf("rx_errors = %d, esperaba 7", rxErr)
+	}
+	if txErr != 9 {
+		t.Fatalf("tx_errors = %d, esperaba 9", txErr)
+	}
+
+	sendUDP(t, addr, fmt.Sprintf(
+		`{"v":1,"seq":2,"slug":"switch16","token":"%s","ports":[{"n":4,"l":3,"tx":1,"rx":2,"ih":0,"il":10,"oh":0,"ol":20}]}`,
+		token))
+
+	deadline = time.Now().Add(3 * time.Second)
+	var oldRx, oldTx uint64
+	for {
+		err := s.db.QueryRow(`SELECT rx_errors, tx_errors FROM port_series_raw
+			WHERE router_id = ? AND port_id = ?`, "switch16", "lan4").Scan(&oldRx, &oldTx)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("puerto sin ie/oe no registrado (err: %v)", err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if oldRx != 0 || oldTx != 0 {
+		t.Fatalf("beacon sin ie/oe dejó errores rx=%d tx=%d, esperaba 0/0", oldRx, oldTx)
+	}
+}
+
 // Spec 2026-09 (#865): el datagrama de estado puede traer fw/up/mac; el
 // server los convierte en System sin tocar el sondeo de consola (#639).
 func TestBeaconSystemFieldsFromStatusDatagram(t *testing.T) {

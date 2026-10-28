@@ -37,6 +37,9 @@ import (
 // ih/il y oh/ol = mitades alta/baja de 32 bits de los octetos acumulados
 // ifInOctets/ifOutOctets (nativos de 64 bits del MIB del RTL837x,
 // gnacho/netpulse#1535, beacon del firmware a partir de v0.1.0-f25dfc6).
+// ie/oe = contadores acumulados de errores RX/TX del puerto, equivalentes a
+// ifInErrors/ifOutErrors de la IF-MIB (selector 48 del RTL837x,
+// gnacho/netpulse#1620, beacon del firmware a partir de v0.1.0-<fork>).
 // Ausentes (0) en beacons antiguos: la serie deriva fps de tramas y bps
 // solo cuando hay bytes.
 type beaconPort struct {
@@ -48,6 +51,8 @@ type beaconPort struct {
 	Il uint32 `json:"il,omitempty"`
 	Oh uint32 `json:"oh,omitempty"`
 	Ol uint32 `json:"ol,omitempty"`
+	Ie uint32 `json:"ie,omitempty"`
+	Oe uint32 `json:"oe,omitempty"`
 }
 
 // beaconSFP: diagnóstico digital (DDM/DOM) de una boca óptica del beacon
@@ -481,6 +486,8 @@ func (s *server) recordBeaconPortSamples(slug string, bps []beaconPort) {
 			TxBytes:   uint64(bp.Oh)<<32 | uint64(bp.Ol),
 			RxFrames:  uint64(bp.Rx),
 			TxFrames:  uint64(bp.Tx),
+			RxErrors:  uint64(bp.Ie),
+			TxErrors:  uint64(bp.Oe),
 			SpeedMbps: speedMbps,
 		})
 	}
