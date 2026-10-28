@@ -5,15 +5,18 @@
 package push_test
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -212,15 +215,34 @@ func testEvent() alerts.AlertEvent {
 	}
 }
 
-func newNotifier(t *testing.T, d *db.DB) *push.Notifier {
+func newNotifier(t *testing.T, d *db.DB, clients ...*http.Client) *push.Notifier {
 	t.Helper()
 	pub, priv, err := push.EnsureVAPIDKeys(d)
 	if err != nil {
 		t.Fatalf("vapid: %v", err)
 	}
-	n := push.NewNotifier(d, pub, priv)
+	var n *push.Notifier
+	if len(clients) > 0 && clients[0] != nil {
+		n = push.NewNotifierWithClient(d, pub, priv, clients[0])
+	} else {
+		n = push.NewNotifier(d, pub, priv)
+	}
 	t.Cleanup(n.Close)
 	return n
+}
+
+// testPushClient routes every request to the given test TLS server, so tests
+// can use public-looking endpoints such as https://push.example.
+func testPushClient(srv *httptest.Server) *http.Client {
+	return &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
+			},
+		},
+	}
 }
 
 // El Notifier envía un POST cifrado aes128gcm con cabecera VAPID al endpoint
@@ -231,7 +253,7 @@ func TestNotifierSendsEncryptedPayload(t *testing.T) {
 	ua := newBrowserSub(t)
 
 	got := make(chan capturedPush, 1)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		got <- capturedPush{method: r.Method, header: r.Header.Clone(), body: body}
 		w.WriteHeader(http.StatusCreated)
@@ -239,12 +261,12 @@ func TestNotifierSendsEncryptedPayload(t *testing.T) {
 	defer srv.Close()
 
 	if _, err := push.UpsertSubscription(d, push.Subscription{
-		Endpoint: srv.URL, Auth: ua.authB, P256dh: ua.pubB,
+		Endpoint: "https://push.example/send", Auth: ua.authB, P256dh: ua.pubB,
 	}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
-	n := newNotifier(t, d)
+	n := newNotifier(t, d, testPushClient(srv))
 	n.Notify(testEvent())
 
 	var req capturedPush
@@ -306,24 +328,23 @@ func TestNotifierPurgesGoneSubscription(t *testing.T) {
 	ua := newBrowserSub(t)
 
 	got := make(chan struct{}, 2)
-	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got <- struct{}{}
-		w.WriteHeader(http.StatusGone)
-	}))
-	defer dead.Close()
-	alive := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		got <- struct{}{}
+		if r.URL.Path == "/dead" {
+			w.WriteHeader(http.StatusGone)
+			return
+		}
 		w.WriteHeader(http.StatusCreated)
 	}))
-	defer alive.Close()
+	defer srv.Close()
 
-	for _, ep := range []string{dead.URL, alive.URL} {
+	for _, ep := range []string{"https://push.example/dead", "https://push.example/alive"} {
 		if _, err := push.UpsertSubscription(d, push.Subscription{Endpoint: ep, Auth: ua.authB, P256dh: ua.pubB}); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 	}
 
-	n := newNotifier(t, d)
+	n := newNotifier(t, d, testPushClient(srv))
 	n.Notify(testEvent())
 	for i := 0; i < 2; i++ {
 		select {
@@ -338,7 +359,7 @@ func TestNotifierPurgesGoneSubscription(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(subs) != 1 || subs[0].Endpoint != alive.URL {
+	if len(subs) != 1 || subs[0].Endpoint != "https://push.example/alive" {
 		t.Fatalf("tras purga: %+v", subs)
 	}
 }
@@ -394,7 +415,7 @@ func TestNotifierLocalizesPerSubscription(t *testing.T) {
 		body []byte
 	}
 	ch := make(chan got, 2)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		ch <- got{path: r.URL.Path, body: body}
 		w.WriteHeader(http.StatusCreated)
@@ -409,13 +430,13 @@ func TestNotifierLocalizesPerSubscription(t *testing.T) {
 		{"/en", "en", uaEN},
 	} {
 		if _, err := push.UpsertSubscription(d, push.Subscription{
-			Endpoint: srv.URL + s.path, Auth: s.ua.authB, P256dh: s.ua.pubB, Language: s.lang,
+			Endpoint: "https://push.example" + s.path, Auth: s.ua.authB, P256dh: s.ua.pubB, Language: s.lang,
 		}); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 	}
 
-	n := newNotifier(t, d)
+	n := newNotifier(t, d, testPushClient(srv))
 	n.Notify(alerts.AlertEvent{
 		ID: "alert-agent-down-gateway", Category: alerts.CatRouter, Urgent: true, Severity: "warn",
 		Type: "agent-down", Title: "CANARY", Description: "CANARY",

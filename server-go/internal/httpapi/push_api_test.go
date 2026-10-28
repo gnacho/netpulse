@@ -4,6 +4,7 @@
 package httpapi_test
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -93,8 +94,8 @@ func TestPushEndpointsContract(t *testing.T) {
 		`{"endpoint":"","keys":{"auth":"a","p256dh":"p"}}`,
 		`{"endpoint":"https://x/y"}`,
 		`{"endpoint":"https://x/y","keys":{"auth":"","p256dh":"p"}}`,
-		`{"endpoint":"https://x/y","keys":{"auth":"a","p256dh":"p"}}`,               // sin language
-		`{"endpoint":"https://x/y","keys":{"auth":"a","p256dh":"p"},"language":""}`,  // language vacío
+		`{"endpoint":"https://x/y","keys":{"auth":"a","p256dh":"p"}}`,                 // sin language
+		`{"endpoint":"https://x/y","keys":{"auth":"a","p256dh":"p"},"language":""}`,   // language vacío
 		`{"endpoint":"https://x/y","keys":{"auth":"a","p256dh":"p"},"language":"fr"}`, // idioma no soportado
 	} {
 		res = doJSON(t, "POST", ts.URL, "/api/push/subscribe", cookie, bad)
@@ -124,4 +125,34 @@ func TestPushEndpointsContract(t *testing.T) {
 		t.Fatalf("unsubscribe sin endpoint: %d, esperaba 400", res.StatusCode)
 	}
 	res.Body.Close()
+}
+
+func TestPushSubscribeRejectsNonPublicEndpoints(t *testing.T) {
+	ts := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	for _, endpoint := range []string{
+		"http://push.example/x",
+		"https://127.0.0.1/x",
+		"https://192.168.1.10/x",
+		"https://[::1]/x",
+		"https://localhost/x",
+		"https://169.254.169.254/latest/meta-data",
+		"https://user:pass@push.example/x",
+	} {
+		body := fmt.Sprintf(`{"endpoint":%q,"keys":{"auth":"a","p256dh":"p"},"language":"es"}`, endpoint)
+		res := doJSON(t, "POST", ts.URL, "/api/push/subscribe", cookie, body)
+		if res.StatusCode != 400 {
+			t.Fatalf("subscribe %s: %d, esperaba 400", endpoint, res.StatusCode)
+		}
+		res.Body.Close()
+	}
+
+	var n int
+	if err := ts.db.QueryRow("SELECT COUNT(*) FROM push_subscriptions").Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("suscripciones persistidas: %d, esperaba 0", n)
+	}
 }

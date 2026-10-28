@@ -63,6 +63,10 @@ func (s *server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_body", "endpoint, keys.auth, keys.p256dh y language (es|en) son obligatorios")
 		return
 	}
+	if err := push.ValidateEndpoint(body.Endpoint); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_endpoint", err.Error())
+		return
+	}
 	created, err := push.UpsertSubscription(s.db, push.Subscription{
 		Endpoint:  body.Endpoint,
 		Auth:      body.Keys.Auth,

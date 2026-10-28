@@ -68,11 +68,24 @@ type Notifier struct {
 // NewNotifier crea el Notifier y arranca su worker. pub/priv son el par
 // VAPID de EnsureVAPIDKeys.
 func NewNotifier(d *db.DB, pub, priv string) *Notifier {
+	return newNotifier(d, pub, priv, newSafeHTTPClient())
+}
+
+// NewNotifierWithClient permite inyectar un cliente HTTP. Se usa en tests que
+// necesitan alcanzar un push service TLS local; produccion usa NewNotifier.
+func NewNotifierWithClient(d *db.DB, pub, priv string, client *http.Client) *Notifier {
+	if client == nil {
+		client = newSafeHTTPClient()
+	}
+	return newNotifier(d, pub, priv, client)
+}
+
+func newNotifier(d *db.DB, pub, priv string, client *http.Client) *Notifier {
 	n := &Notifier{
 		db:     d,
 		pub:    pub,
 		priv:   priv,
-		client: &http.Client{Timeout: sendTimeout},
+		client: client,
 		ch:     make(chan alerts.AlertEvent, queueCap),
 		done:   make(chan struct{}),
 	}
@@ -155,6 +168,10 @@ func (n *Notifier) sendAll(ev alerts.AlertEvent) {
 }
 
 func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
+	if err := ValidateEndpoint(s.Endpoint); err != nil {
+		slog.Warn("push: endpoint rechazado", "endpoint", s.Endpoint, "error", err)
+		return
+	}
 	resp, err := webpush.SendNotificationWithContext(context.Background(), body,
 		&webpush.Subscription{
 			Endpoint: s.Endpoint,
