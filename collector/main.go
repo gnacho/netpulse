@@ -4,9 +4,9 @@
 // con un dial TCP al puerto 22 cada 5s y persiste latencia/disponibilidad en su
 // propia SQLite (frontera: 1 fichero = 1 escritor; nunca escribe en netpulse.db).
 //
-// Lecciones aplicadas:
-//   - go-collector-stack: apagado con WaitGroup solo para lo que drena/persiste.
-//   - sqlite-timeseries-daemon: schema metrics/samples/buckets/daily + NightlyJob.
+// Decisiones de diseño:
+//   - Apagado con WaitGroup solo para lo que drena/persiste.
+//   - Schema metrics/samples/buckets/daily + NightlyJob.
 //   - Beszel/OMV: heartbeat + fichero de estado (state.json) desde el día 1.
 //   - LXC sin cap_net_raw: no hay ping ICMP; el dial TCP es la sonda.
 package main

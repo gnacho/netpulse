@@ -1,5 +1,5 @@
 /**
- * NetPulse — DataProvider (contrato SÍNCRONO, webapp-stack §Patrón frontend).
+ * NetPulse - DataProvider (contrato SÍNCRONO del frontend).
  *
  * Los componentes NUNCA ven HTTP: leen el bundle de dominio del contexto
  * (`useNetPulse()`). Internamente:

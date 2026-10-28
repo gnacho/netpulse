@@ -3,8 +3,7 @@
 // Implementa alerts.Notifier con entrega a una URL externa: firma
 // HMAC-SHA256 del body, reintentos con backoff exponencial + jitter
 // (4xx no se reintenta salvo 429; 5xx sí), DLQ en tabla webhook_events si
-// se agotan los reintentos. Patrón del skill email-webhook-notifications
-// (references/webhook-patterns.md) aplicado a NetPulse.
+// se agotan los reintentos.
 //
 // Notify NUNCA bloquea al llamador: encola el evento y un worker único lo
 // drena. Si la cola está llena se descarta (la alerta ya está en /api/alerts).
@@ -32,7 +31,7 @@ import (
 
 const (
 	queueCap   = 64
-	maxBodyCap = 64 << 10 // 64 KB (recomendación de seguridad del skill)
+	maxBodyCap = 64 << 10 // 64 KB para acotar el cuerpo aceptado
 )
 
 // payload es el contrato del webhook (firmado): event_id para idempotencia

@@ -1,5 +1,5 @@
 /**
- * NetPulse — AuthGate (webapp-stack §AuthGate + Login).
+ * NetPulse - AuthGate y Login.
  *
  * - Backend presente: `GET /api/auth/me` → 401 ⇒ redirect a `/login`;
  *   200 ⇒ render de la app.

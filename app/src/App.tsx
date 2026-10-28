@@ -23,7 +23,7 @@ import Help from '@/pages/Help'
 import Placeholder from '@/pages/Placeholder'
 
 /**
- * Jerarquía (webapp-stack §Patrón frontend):
+ * Jerarquía del frontend:
  *   ThemeProvider (inline en main.tsx) > AuthGate > DataProvider > Layout > Routes
  * La ruta `/login` queda FUERA del Layout y del gate.
  */

@@ -171,7 +171,7 @@ oficial de OpenWrt.
 - ✅ WiFi disconnect → push < 3s
 - ✅ CPU < 1% idle (muy por debajo del 5%)
 - ⚠️ RSS 11-12 MB (por encima del criterio de 10 MB, aceptado; dentro del
-  presupuesto de 40 MB del skill go-collector-stack)
+  presupuesto de 40 MB del colector Go)
 - ✅ opkg install funcional en gateway (24.10)
 - ⚠️ Compatibilidad OpenWrt: probado 24.10 y 25.12, no 23.05.
 
@@ -207,13 +207,13 @@ independiente; ordenados por valor/esfuerzo.
    histórico largo, deuda desde merge v2; **decisión 6-Ago: descartada la
    frontera sidecar-readonly** — el tráfico/cpu/ram/temp ya los captura el
    propio server-go en `metrics`, ampliar el sidecar duplicaría la adquisición,
-   justo lo que evita go-collector-stack):
+   justo lo que evita la arquitectura actual):
    - La tabla `metrics` del server-go solo conserva **7 días** (RetentionMS en
      db.go) mientras la webapp ofrece selector 1h/24h/7d/30d → el 30d está
-     vacío de datos. Resolver con la escalera del skill sqlite-timeseries-daemon
+     vacío de datos. Resolver con una escalera de retención y downsampling
      sobre la MISMA tabla: raw (7d, ya existe) → **buckets 5min (1 año)** →
-     **daily (∞)**, job nocturno de rollup→purga→checkpoint (referencia
-     references/jobs.md). Aditivo, sin tocar el sidecar. **HECHO: PR #24.**
+     **daily (∞)**, con job nocturno de rollup→purga→checkpoint.
+     Aditivo, sin tocar el sidecar. **HECHO: PR #24.**
    - El endpoint de histórico (`metricsHistory`) sirve corto de `metrics` y
      largo (30d) de `metrics_buckets` con downsampling (ventanas 6h).
    - ⏸️ Bonus pendiente: **informe semanal de disponibilidad** (deuda auditoría
@@ -271,7 +271,7 @@ independiente; ordenados por valor/esfuerzo.
    **no implementados en el código**, solo planificación del commit 4a4428e):
    - **Webhook saliente** ✅ HECHO (PR #31): notificaciones de alertas a URLs
      externas con firma HMAC-SHA256, reintentos con backoff y DLQ — patrón
-     EasyZFS v2.4.0, skill `email-webhook-notifications`. Endpoint admin
+     EasyZFS v2.4.0. Endpoint admin
      `GET /api/webhook/dlq`. **INACTIVO en producción** (falta WEBHOOK_URL/
      SECRET en .env — decisión del usuario).
    - **API de ingesta (webhook entrante)** ⏸️ DIFERIDO (decisión 6-Ago):
@@ -279,17 +279,10 @@ independiente; ordenados por valor/esfuerzo.
      NetPulse sin agente (lista de orígenes permitida, anti-SSRF). Reutiliza
      el patrón HMAC de Fase 6 (el único HMAC que existe hoy es el de la
      ingesta del agente).
-   - **✅ Skill `api-ingest-go` CREADA (6-Ago)**: cubre el hueco de
-     conocimiento del entrante (firma, orígenes, anti-SSRF, idempotencia por
-     event_id, rate limit, body cap). `api-stack` es solo Node (no aplica a
-     backend Go); `email-webhook-notifications` solo cubre saliente.
-   - **Prácticas del curado `learn/skills_go_api_development.md` (6-Ago)**: de
-     ese catálogo solo aplica al entrante el **request ID** (UUID por request
-     en headers/logs; hoy no existe `x-request-id` en server-go). Ya cubiertos:
-     rate-limit por IP en ingesta (`ipRateLimit`, ventana 1 min), envelope de
-     error propio con i18n (no RFC 7807), samber golang-* instalados. El resto
-     del catálogo (pgx/sqlc/Redis, Gin/Echo/Fiber, gRPC/OTel) NO aplica:
-     stack SQLite + stdlib net/http.
+   - **Criterios técnicos para la ingesta entrante**: firma, orígenes
+     permitidos, anti-SSRF, idempotencia por `event_id`, rate limit y body cap.
+     Queda como mejora añadir request ID en headers/logs. La pila se mantiene
+     en SQLite y stdlib `net/http`.
 
 Quedan fuera de esta fase (a propósito): Web Push (requiere decisión de infra
 HTTPS en CT 226, no es micromejora) y el informe semanal de disponibilidad
@@ -615,7 +608,7 @@ Objetivo: alertas más inteligentes y menos ruidosas.
    Búsqueda libre. Exportación.
 4. **16.4 — Silencio programado**: "no molestar" en ventanas de
    mantenimiento.
-5. **16.5 — Email**: SMTP además de webhook (skill `email-webhook-notifications`).
+5. **16.5 — Email**: SMTP además de webhook, reutilizando el patrón de entrega y reintentos.
 
 ---
 

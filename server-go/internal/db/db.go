@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS metrics (
   PRIMARY KEY (router_id, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_metrics_router_ts ON metrics(router_id, ts);
--- Escalera de retención (skill sqlite-timeseries-daemon): raw 7 días → buckets
+-- Escalera de retención: raw 7 días → buckets
 -- 5 min 1 año → daily ∞. El job nocturno hace el rollup en este orden; el
 -- endpoint de histórico sirve largo plazo desde estos niveles.
 CREATE TABLE IF NOT EXISTS metrics_buckets (
@@ -754,8 +754,8 @@ func (d *DB) Maintenance() {
 	}
 }
 
-// NightlyJob ejecuta el rollup de la escalera de retención (skill
-// sqlite-timeseries-daemon): samples→buckets (ventana = retención raw, 7d) →
+// NightlyJob ejecuta el rollup de la escalera de retención:
+// samples→buckets (ventana = retención raw, 7d) →
 // buckets→daily (solape 35 días) → checkpoint → optimize. Orden obligatorio:
 // agregar antes de purgar; idempotente (INSERT OR REPLACE) por si el daemon
 // estuvo caído.

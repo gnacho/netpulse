@@ -18,7 +18,7 @@ import (
 )
 
 // Techos para los comandos uci sobre SSH (show = lectura, apply = escritura
-// + commit + reload). Los fija el skill de ejecución; no son configurables.
+// + commit + reload). Son límites fijos del ejecutor, no configurables.
 const (
 	uciShowTimeout  = 10 * time.Second
 	uciApplyTimeout = 20 * time.Second

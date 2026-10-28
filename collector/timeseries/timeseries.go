@@ -6,7 +6,7 @@
 //	ts.Write("latency_ms", 12.3)          // buffer; flush cada 1s/50 muestras
 //	go ts.RunNightlyJob(ctx, 3, 30)       // job diario 03:30 local (rollup+purga+mantenimiento)
 //	ts.Series("latency_ms", from, to, 800)
-//	ts.Close()                            // SIGTERM: flush + checkpoint (patrón go-collector-stack)
+//	ts.Close()                            // SIGTERM: flush + checkpoint
 package timeseries
 
 import (
@@ -138,7 +138,7 @@ func orDefault(s, def string) string {
 	return s
 }
 
-// Write aplica el filtro de sanidad (references/sanidad.md §1) y encola.
+// Write aplica el filtro de sanidad y encola.
 func (t *TimeSeries) Write(key string, value float64) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -242,7 +242,7 @@ func (t *TimeSeries) flushLocked() {
 	t.buffer = t.buffer[:0]
 }
 
-// NightlyJob ejecuta el orden obligatorio (references/jobs.md): rollup → purga →
+// NightlyJob ejecuta el orden obligatorio: rollup → purga →
 // checkpoint → optimize → VACUUM condicional.
 func (t *TimeSeries) NightlyJob() {
 	t.mu.Lock()
@@ -320,7 +320,7 @@ func (t *TimeSeries) RunNightlyJob(ctx context.Context, hour, min int) {
 
 type Point [2]float64 // [ts, value]
 
-// Series devuelve la serie downsampleada (fuente según rango, references/series-api.md).
+// Series devuelve la serie downsampleada y selecciona la fuente según el rango.
 func (t *TimeSeries) Series(key string, from, to int64, points int) (string, []Point, error) {
 	t.mu.Lock()
 	m, ok := t.metrics[key]
@@ -360,7 +360,7 @@ func (t *TimeSeries) Series(key string, from, to int64, points int) (string, []P
 	return resolution, LTTB(data, points), nil
 }
 
-// Health: tamaño del WAL, freelist y última muestra por métrica (references/jobs.md).
+// Health: tamaño del WAL, freelist y última muestra por métrica.
 func (t *TimeSeries) Health(dbPath string) map[string]any {
 	var walBytes int64
 	if st, err := os.Stat(dbPath + "-wal"); err == nil {

@@ -1,6 +1,4 @@
-# NetPulse (backend Go) — unit systemd
-# NOTA: la skill 'infraestructura' del usuario refinará este fichero en el
-# despliegue real (puerto 80 con CAP_NET_BIND_SERVICE, reverse proxy HTTPS, etc).
+# NetPulse (backend Go) - unit systemd
 #
 # Instalación (migrando desde la versión Node):
 #   1. Descarga el binario de CI (release go-latest) o compílalo (ver server-go/README.md)
