@@ -18,6 +18,7 @@
 package httpapi
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
+	"github.com/gnacho/netpulse/server-go/internal/sse"
 	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
 
@@ -219,8 +221,8 @@ type upgradeProgress struct {
 // handleAgentUpgrade (admin): ordena a un agente conectado que se actualice
 // descargando el binario embebido del propio servidor.
 //
-//	Códigos: 404 slug desconocido (sin token), 409 agente no conectado por SSE,
-//	         202 comando enviado, 503 sin AgentHub.
+//	Códigos: 404 slug desconocido (sin token), 409 agente en HTTP o no conectado,
+//	         202 comando enviado o encolado, 503 sin AgentHub.
 func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !agentSlugRe.MatchString(slug) {
@@ -242,7 +244,12 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 	// El agente conoce su propia arquitectura (runtime.GOARCH); no hace falta
 	// pasársela. Data vacía {}. Si no está conectado por SSE, el upgrade se
 	// ENCOLA y se enviará en cuanto vuelva a conectar (#284).
-	status := s.sendOrQueueUpgrade(slug)
+	status, err := s.sendOrQueueUpgrade(slug)
+	if errors.Is(err, sse.ErrInsecureAgentTransport) {
+		writeError(w, http.StatusConflict, "insecure_agent_transport",
+			"el agente sigue en HTTP; los comandos privilegiados exigen HTTPS")
+		return
+	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "status": status})
 }
 
@@ -252,18 +259,22 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 // agente la empuje (#401): nativos → binario embebido; netgrip → su última
 // release pública; external → nunca llega aquí (upgrade-all los filtra y el
 // comando individual no tiene sentido para un scraper).
-func (s *server) sendOrQueueUpgrade(slug string) string {
+func (s *server) sendOrQueueUpgrade(slug string) (string, error) {
 	target := agentbin.EmbeddedAgentVersion
 	if s.agentKindOf(slug) == "netgrip" {
 		target = netgripLatest()
 	}
-	if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
+	err := s.agentHub.SendPrivileged(slug, "upgrade", map[string]any{})
+	if err == nil {
 		// Paso inicial del progreso en vivo (#284): el comando salió.
 		s.upgrades.begin(slug, target)
-		return "sent"
+		return "sent", nil
+	}
+	if errors.Is(err, sse.ErrInsecureAgentTransport) {
+		return "insecure_transport", err
 	}
 	s.upgrades.queue(slug)
-	return "queued"
+	return "queued", nil
 }
 
 // FlushQueuedUpgrade envía el upgrade pendiente de un agente que acaba de
@@ -280,7 +291,7 @@ func (s *server) FlushQueuedUpgrade(slug string) {
 	if s.agentKindOf(slug) == "netgrip" {
 		target = netgripLatest()
 	}
-	if s.agentHub.Send(slug, "upgrade", map[string]any{}) {
+	if err := s.agentHub.SendPrivileged(slug, "upgrade", map[string]any{}); err == nil {
 		s.upgrades.begin(slug, target)
 	} else {
 		s.upgrades.queue(slug)
@@ -309,7 +320,12 @@ func (s *server) handleAgentBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	if !s.agentHub.Send(slug, "config_backup", map[string]any{}) {
+	if err := s.agentHub.SendPrivileged(slug, "config_backup", map[string]any{}); err != nil {
+		if errors.Is(err, sse.ErrInsecureAgentTransport) {
+			writeError(w, http.StatusConflict, "insecure_agent_transport",
+				"el agente sigue en HTTP; los comandos privilegiados exigen HTTPS")
+			return
+		}
 		writeError(w, http.StatusConflict, "not_connected", "agente no conectado por SSE")
 		return
 	}
@@ -423,8 +439,11 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 					// comando SSE dispara el self-update del propio
 					// NetGrip, no el del agente nativo.
 					if version != "" && cmpSemver(netgripLatest(), version) > 0 {
-						item.Status = s.sendOrQueueUpgrade(slug)
+						item.Status, err = s.sendOrQueueUpgrade(slug)
 						item.Upgraded = item.Status == "sent"
+						if errors.Is(err, sse.ErrInsecureAgentTransport) {
+							item.Status = "insecure_transport"
+						}
 						if item.Status == "sent" {
 							sent++
 						}
@@ -439,8 +458,11 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 				// binario embebido (build incluido); un agente más nuevo no
 				// está desactualizado y el botón ofrecería un downgrade.
 				case !agentbin.EmbeddedMismatch() && version != "" && vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) < 0:
-					item.Status = s.sendOrQueueUpgrade(slug)
+					item.Status, err = s.sendOrQueueUpgrade(slug)
 					item.Upgraded = item.Status == "sent"
+					if errors.Is(err, sse.ErrInsecureAgentTransport) {
+						item.Status = "insecure_transport"
+					}
 					if item.Status == "sent" {
 						sent++
 					}

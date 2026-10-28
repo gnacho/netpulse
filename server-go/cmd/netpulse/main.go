@@ -492,6 +492,7 @@ func run() error {
 	agentHub := sse.NewAgentHub(func(slug, token string) bool {
 		return checkAgentToken(dbHandle, slug, token)
 	})
+	agentHub.SetAllowInsecureCommands(cfg.AllowInsecureAgentCommands)
 
 	// Scheduler de upgrades programados (#494): tick 30 s, reutiliza el motor
 	// compartido (firmware.Engine) del flujo manual vía el AgentHub.
@@ -750,33 +751,33 @@ func run() error {
 	}
 
 	handler := httpapi.NewHandler(httpapi.Deps{
-		Config:          cfg,
-		DB:              dbHandle,
-		Adapter:         adapter,
-		Hub:             hub,
-		Secret:          secret,
-		Static:          static,
-		Updater:         upd,
-		Agents:          agentReg,
-		Pool:            sshPool,
-		Rearmer:         arm,
-		AgentHub:        agentHub,
-		ServerFP:        serverFP,
-		ServerFPFunc:    serverFPFunc,
-		TLS:             tlsMgr,
-		Orchestr:        orchMgr,
-		MQTT:            mqttMgr,
-		TokenStore:      tokenStore,
-		CollectorReader: collReader,
-		WiFiSLE:         wifiSLE,
-		PathAnalysis:    pathStore,
-		ConfigBackup:    cfgBackup,
-		Firmware:        fwStore,
+		Config:           cfg,
+		DB:               dbHandle,
+		Adapter:          adapter,
+		Hub:              hub,
+		Secret:           secret,
+		Static:           static,
+		Updater:          upd,
+		Agents:           agentReg,
+		Pool:             sshPool,
+		Rearmer:          arm,
+		AgentHub:         agentHub,
+		ServerFP:         serverFP,
+		ServerFPFunc:     serverFPFunc,
+		TLS:              tlsMgr,
+		Orchestr:         orchMgr,
+		MQTT:             mqttMgr,
+		TokenStore:       tokenStore,
+		CollectorReader:  collReader,
+		WiFiSLE:          wifiSLE,
+		PathAnalysis:     pathStore,
+		ConfigBackup:     cfgBackup,
+		Firmware:         fwStore,
 		FirmwareReleases: fwReleases,
-		Speedtest:       stScheduler,
-		AlertEmitter:    adapter.AlertsEngine(),
-		ChannelPlan:     chPlan,
-		MCP:             mcpSrv,
+		Speedtest:        stScheduler,
+		AlertEmitter:     adapter.AlertsEngine(),
+		ChannelPlan:      chPlan,
+		MCP:              mcpSrv,
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},

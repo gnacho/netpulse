@@ -447,14 +447,30 @@ selfheal_binary() {
             esac ;;
         *) return 1 ;;
     esac
-    local url tmp
+    local url tmp hdr digest sum
     url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"
     logger -t netpulse-agent "self-heal: binario ausente, descargando de $NETPULSE_SERVER"
     tmp=/tmp/netpulse-agent.$$
+    hdr=/tmp/netpulse-agent.hdr.$$
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL -m 120 -H "Authorization: Bearer $NETPULSE_TOKEN" -o "$tmp" "$url" || return 1
+        curl -fsSL -m 120 -D "$hdr" -H "Authorization: Bearer $NETPULSE_TOKEN" -o "$tmp" "$url" || { rm -f "$tmp" "$hdr"; return 1; }
     else
-        wget -q -T 60 -O "$tmp" --header="Authorization: Bearer $NETPULSE_TOKEN" "$url" || return 1
+        wget -S -T 60 -O "$tmp" --header="Authorization: Bearer $NETPULSE_TOKEN" "$url" 2>"$hdr" || { rm -f "$tmp" "$hdr"; return 1; }
+    fi
+    digest=$(grep -i '^[[:space:]]*x-checksum-sha256:' "$hdr" 2>/dev/null | tail -n 1 | tr -d '\r' | awk '{print $2}')
+    rm -f "$hdr"
+    case "$digest" in
+        ""|*[!0123456789abcdefABCDEF]*)
+            logger -t netpulse-agent "self-heal: sin X-Checksum-Sha256 válido, binario descartado"
+            rm -f "$tmp"
+            return 1 ;;
+    esac
+    [ "${#digest}" -eq 64 ] || { logger -t netpulse-agent "self-heal: digest con longitud inválida, binario descartado"; rm -f "$tmp"; return 1; }
+    sum=$(sha256sum "$tmp" 2>/dev/null | awk '{print $1}')
+    if [ -z "$sum" ] || [ "$(printf '%s' "$sum" | tr 'A-F' 'a-f')" != "$(printf '%s' "$digest" | tr 'A-F' 'a-f')" ]; then
+        logger -t netpulse-agent "self-heal: SHA-256 no coincide, binario descartado"
+        rm -f "$tmp"
+        return 1
     fi
     chmod 0755 "$tmp" && mv "$tmp" /usr/sbin/netpulse-agent || { rm -f "$tmp"; return 1; }
     logger -t netpulse-agent "self-heal: binario restaurado"

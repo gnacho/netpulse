@@ -250,6 +250,9 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusBadRequest, "no_target", "Configura el target de firmware antes de actualizar")
 		case errors.Is(err, firmware.ErrUpgradeInProgress):
 			writeError(w, http.StatusConflict, "upgrade_in_progress", "Ya hay un upgrade en curso")
+		case errors.Is(err, firmware.ErrInsecureTransport):
+			writeError(w, http.StatusConflict, "insecure_agent_transport",
+				"el agente sigue en HTTP; los comandos privilegiados exigen HTTPS")
 		case errors.Is(err, firmware.ErrAgentNotConnected):
 			writeError(w, http.StatusServiceUnavailable, "agent_not_connected", "El agente no está conectado vía SSE")
 		case err != nil:

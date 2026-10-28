@@ -53,6 +53,14 @@ func LoadConfigFromEnv(envFile string) (Options, error) {
 		HeartbeatFile: get("NETPULSE_HEARTBEAT_FILE"),
 		EnvFile:       envFile,
 	}
+	switch strings.ToLower(strings.TrimSpace(get("NETPULSE_ALLOW_INSECURE_COMMANDS"))) {
+	case "1", "true", "yes", "on":
+		opts.AllowInsecureCommands = true
+	case "", "0", "false", "no", "off":
+	default:
+		slog.Warn("[netpulse-agent] NETPULSE_ALLOW_INSECURE_COMMANDS inválido, se ignora",
+			"value", get("NETPULSE_ALLOW_INSECURE_COMMANDS"))
+	}
 	if v := get("NETPULSE_INTERVAL"); v != "" {
 		if sec, err := strconv.Atoi(v); err == nil && sec > 0 {
 			opts.Interval = time.Duration(sec) * time.Second

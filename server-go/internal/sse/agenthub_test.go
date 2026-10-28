@@ -1,7 +1,9 @@
 package sse
 
 import (
+	"errors"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -43,5 +45,41 @@ func TestAgentConnWriteConcurrentNoRace(t *testing.T) {
 	want := totalWrites * len("event: ping\ndata: {}\n\n")
 	if got != want {
 		t.Fatalf("body length = %d, want %d (interleaved/corrupted writes)", got, want)
+	}
+}
+
+func TestSendPrivilegedRequiresTLSTransport(t *testing.T) {
+	h := NewAgentHub(func(string, string) bool { return true })
+	rec := httptest.NewRecorder()
+	c := &agentConn{slug: "router", w: rec, flusher: rec, done: make(chan struct{})}
+	h.conns["router"] = c
+
+	if err := h.SendPrivileged("router", "upgrade", map[string]int{"n": 1}); !errors.Is(err, ErrInsecureAgentTransport) {
+		t.Fatalf("HTTP debía rechazarse, got %v", err)
+	}
+	if rec.Body.Len() != 0 {
+		t.Fatalf("no debía escribir nada, body: %q", rec.Body.String())
+	}
+
+	h.SetAllowInsecureCommands(true)
+	if err := h.SendPrivileged("router", "upgrade", map[string]int{"n": 1}); err != nil {
+		t.Fatalf("con la válvula debía permitirse, got %v", err)
+	}
+	if !strings.Contains(rec.Body.String(), "event: upgrade") {
+		t.Fatalf("no llegó el evento: %q", rec.Body.String())
+	}
+}
+
+func TestSendPrivilegedAllowsTLSAndRejectsDisconnected(t *testing.T) {
+	h := NewAgentHub(func(string, string) bool { return true })
+	rec := httptest.NewRecorder()
+	c := &agentConn{slug: "router", secure: true, w: rec, flusher: rec, done: make(chan struct{})}
+	h.conns["router"] = c
+
+	if err := h.SendPrivileged("router", "apply", map[string]string{"plan": "x"}); err != nil {
+		t.Fatalf("TLS debía permitirse, got %v", err)
+	}
+	if err := h.SendPrivileged("otro", "apply", nil); !errors.Is(err, ErrAgentNotConnected) {
+		t.Fatalf("desconectado debía dar ErrAgentNotConnected, got %v", err)
 	}
 }

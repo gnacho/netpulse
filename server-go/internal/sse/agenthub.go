@@ -5,11 +5,22 @@ package sse
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gnacho/netpulse/server-go/internal/auth"
+)
+
+var (
+	// ErrAgentNotConnected indica que el agente no tiene stream SSE abierto.
+	ErrAgentNotConnected = errors.New("agent not connected")
+	// ErrInsecureAgentTransport indica que el agente habla HTTP y los
+	// comandos privilegiados exigen HTTPS salvo transición explícita.
+	ErrInsecureAgentTransport = errors.New("agent transport is not secure")
 )
 
 // AgentHub gestiona conexiones SSE por slug de agente.
@@ -17,8 +28,9 @@ type AgentHub struct {
 	// checkToken(slug, token) → true si el token es válido
 	checkToken func(slug, token string) bool
 
-	mu    sync.Mutex
-	conns map[string]*agentConn // slug → conexión activa
+	mu            sync.Mutex
+	conns         map[string]*agentConn // slug → conexión activa
+	allowInsecure bool                  // transición: aceptar comandos sobre HTTP
 	// onConnect se llama (en su propia goroutine) cuando un agente conecta
 	// su stream; lo usa httpapi para enviar upgrades encolados (#284).
 	onConnectMu sync.Mutex
@@ -27,6 +39,7 @@ type AgentHub struct {
 
 type agentConn struct {
 	slug    string
+	secure  bool // la conexión llegó por TLS
 	w       http.ResponseWriter
 	flusher http.Flusher
 	wmu     sync.Mutex
@@ -41,6 +54,14 @@ type agentConn struct {
 // NewAgentHub crea el hub de agentes. checkToken valida el Bearer del agente.
 func NewAgentHub(checkToken func(string, string) bool) *AgentHub {
 	return &AgentHub{checkToken: checkToken, conns: map[string]*agentConn{}}
+}
+
+// SetAllowInsecureCommands permite enviar comandos privilegiados a agentes
+// conectados por HTTP. Solo para la transición a HTTPS.
+func (h *AgentHub) SetAllowInsecureCommands(allow bool) {
+	h.mu.Lock()
+	h.allowInsecure = allow
+	h.mu.Unlock()
 }
 
 // SetOnConnect registra el callback de conexión de agente (#284).
@@ -89,6 +110,32 @@ func (h *AgentHub) Send(slug, event string, data any) bool {
 		return false
 	}
 	return true
+}
+
+// SendPrivileged envía un comando que acaba en root (apply, upgrade,
+// firmware, config_backup). Exige que la conexión del agente sea TLS, salvo
+// que el operador haya habilitado la transición insegura.
+func (h *AgentHub) SendPrivileged(slug, event string, data any) error {
+	h.mu.Lock()
+	c, ok := h.conns[slug]
+	allowInsecure := h.allowInsecure
+	h.mu.Unlock()
+	if !ok {
+		return ErrAgentNotConnected
+	}
+	if !c.secure && !allowInsecure {
+		return ErrInsecureAgentTransport
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	payload := fmt.Sprintf("event: %s\ndata: %s\n\n", event, raw)
+	if err := c.write(payload); err != nil {
+		h.removeConn(c)
+		return err
+	}
+	return nil
 }
 
 func (h *AgentHub) removeConn(c *agentConn) {
@@ -171,7 +218,7 @@ func (h *AgentHub) HandleStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
-	c := &agentConn{slug: slug, w: w, flusher: flusher, done: make(chan struct{})}
+	c := &agentConn{slug: slug, secure: auth.IsSecureRequest(r), w: w, flusher: flusher, done: make(chan struct{})}
 	h.mu.Lock()
 	h.conns[slug] = c
 	h.mu.Unlock()

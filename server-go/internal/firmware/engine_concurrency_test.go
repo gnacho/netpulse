@@ -8,9 +8,9 @@ import (
 
 type auditConcurrentSender struct{ calls atomic.Int64 }
 
-func (s *auditConcurrentSender) Send(string, string, any) bool {
+func (s *auditConcurrentSender) SendPrivileged(string, string, any) error {
 	s.calls.Add(1)
-	return true
+	return nil
 }
 
 func TestAuditConcurrentStartUpgradeIsSingleFlight(t *testing.T) {

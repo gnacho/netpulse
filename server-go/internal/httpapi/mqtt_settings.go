@@ -5,6 +5,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
+	"github.com/gnacho/netpulse/server-go/internal/sse"
 )
 
 // mqttRedactedPass sustituye la contraseña del broker en la copia del plan que
@@ -225,10 +227,14 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 				continue
 			}
 			data, _ := json.Marshal(map[string]any{"plan_id": plan.ID, "ops": []executor.Op{op}})
-			if !s.agentHub.Send(rt.ID, "apply", json.RawMessage(data)) {
+			if err := s.agentHub.SendPrivileged(rt.ID, "apply", json.RawMessage(data)); err != nil {
 				// No se entregó: el plan vuelve a pending (no se simula éxito).
 				s.restorePlan(orchMgr, plan.ID, "applying", "pending", actor, "sse delivery failed")
-				res["error"] = "agent_not_connected"
+				if errors.Is(err, sse.ErrInsecureAgentTransport) {
+					res["error"] = "insecure_agent_transport"
+				} else {
+					res["error"] = "agent_not_connected"
+				}
 				results = append(results, res)
 				continue
 			}

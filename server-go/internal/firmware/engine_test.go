@@ -5,26 +5,36 @@ package firmware
 import (
 	"errors"
 	"testing"
+
+	"github.com/gnacho/netpulse/server-go/internal/sse"
 )
 
 // fakeSender implementa Sender registrando los comandos enviados. `ok` fija el
-// resultado de Send (false = agente no conectado).
+// resultado de SendPrivileged (false = agente no conectado) y `err` permite
+// simular un transporte inseguro.
 type fakeSender struct {
 	sent []struct {
 		slug  string
 		event string
 		data  any
 	}
-	ok bool
+	ok  bool
+	err error
 }
 
-func (f *fakeSender) Send(slug, event string, data any) bool {
+func (f *fakeSender) SendPrivileged(slug, event string, data any) error {
 	f.sent = append(f.sent, struct {
 		slug  string
 		event string
 		data  any
 	}{slug, event, data})
-	return f.ok
+	if f.err != nil {
+		return f.err
+	}
+	if !f.ok {
+		return errors.New("agent not connected")
+	}
+	return nil
 }
 
 func (f *fakeSender) count() int { return len(f.sent) }
@@ -98,6 +108,21 @@ func TestEngineStartUpgradeAgentOffline(t *testing.T) {
 	up, _ := s.LatestUpgrade("rt1")
 	if up == nil || up.Status != "failed" {
 		t.Fatalf("esperaba failed, got %+v", up)
+	}
+}
+
+// TestEngineStartUpgradeInsecureTransport: un agente que sigue en HTTP deja la
+// fila failed y devuelve ErrInsecureTransport, sin confundirlo con offline.
+func TestEngineStartUpgradeInsecureTransport(t *testing.T) {
+	s := open(t)
+	setTarget(t, s, "rt1")
+	e := NewEngine(s, &fakeSender{err: sse.ErrInsecureAgentTransport})
+	if _, err := e.StartUpgrade("rt1"); !errors.Is(err, ErrInsecureTransport) {
+		t.Fatalf("esperaba ErrInsecureTransport, got %v", err)
+	}
+	up, _ := s.LatestUpgrade("rt1")
+	if up == nil || up.Status != "failed" || up.Error != "insecure agent transport" {
+		t.Fatalf("esperaba failed con insecure agent transport, got %+v", up)
 	}
 }
 

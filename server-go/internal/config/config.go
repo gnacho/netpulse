@@ -42,35 +42,38 @@ type Webhook struct {
 
 // Config es la config normalizada (equivalente al objeto de loadConfig).
 type Config struct {
-	Port             int
-	NodeEnv          string
-	StaticDir        string // resuelta (absoluta)
-	DataDir          string // resuelta (absoluta)
-	SessionSecret    string // "" si falta (autogenerado en kv)
-	AuthUser         string
-	AuthPass         string
-	DemoMode         bool
-	MaxSSEClients    int
-	Routers          []RouterSeed
-	SSHKeyPath       string
-	Adguard          *AdGuard
-	Webhook          *Webhook
-	WGInterface      string
-	CookieSecure     string // "auto" | "always" | "never"
-	TrustProxy       bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
-	MaxTsDriftSec    int    // ventana frescura ts agente en s (0 → default 5 min)
-	GithubRepo       string
-	GithubToken      string
-	ServerRoot       string
-	AutoRearm        bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
-	AutoReinstall    bool   // NETPULSE_AUTO_REINSTALL=1: el supervisor escala rearm→reinstall (#457); exige PUBLIC_URL
-	PublicURL        string // NETPULSE_PUBLIC_URL: URL base con la que los routers alcanzan al server (reinstall/self-heal)
-	AgentURL         string // NETPULSE_AGENT_URL: URL base preferente SOLO para agentes (install line, reinstall, reemit, auto-reinstall); manda sobre PublicURL (#1335)
-	BeaconListen     string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
-	AgentAutoenroll  bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
-	Onbox            bool   // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
-	GhostPortEnabled bool   // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
-	MCPEnabled       bool   // NETPULSE_MCP_ENABLED=1: servidor MCP embebido en /mcp (#1114); default false
+	Port            int
+	NodeEnv         string
+	StaticDir       string // resuelta (absoluta)
+	DataDir         string // resuelta (absoluta)
+	SessionSecret   string // "" si falta (autogenerado en kv)
+	AuthUser        string
+	AuthPass        string
+	DemoMode        bool
+	MaxSSEClients   int
+	Routers         []RouterSeed
+	SSHKeyPath      string
+	Adguard         *AdGuard
+	Webhook         *Webhook
+	WGInterface     string
+	CookieSecure    string // "auto" | "always" | "never"
+	TrustProxy      bool   // confiar en X-Forwarded-For/-Proto (detrás de proxy)
+	MaxTsDriftSec   int    // ventana frescura ts agente en s (0 → default 5 min)
+	GithubRepo      string
+	GithubToken     string
+	ServerRoot      string
+	AutoRearm       bool   // NETPULSE_AUTO_REARM=1: supervisor rearma agentes caídos
+	AutoReinstall   bool   // NETPULSE_AUTO_REINSTALL=1: el supervisor escala rearm→reinstall (#457); exige PUBLIC_URL
+	PublicURL       string // NETPULSE_PUBLIC_URL: URL base con la que los routers alcanzan al server (reinstall/self-heal)
+	AgentURL        string // NETPULSE_AGENT_URL: URL base preferente SOLO para agentes (install line, reinstall, reemit, auto-reinstall); manda sobre PublicURL (#1335)
+	BeaconListen    string // NETPULSE_BEACON_LISTEN: socket UDP de beacons embebidos (#291); "" = off, p. ej. ":5140"
+	AgentAutoenroll bool   // AGENT_AUTOENROLL=1: el responder UDP entrega token de alta y /pair lo acepta (#367)
+	// NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS=1: envía comandos privilegiados
+	// a agentes conectados por HTTP. Solo para la transición a HTTPS.
+	AllowInsecureAgentCommands bool
+	Onbox                      bool // NETPULSE_ONBOX=1: modo on-box (Fase 9: config UCI, bootstrap AUTH_PASS)
+	GhostPortEnabled           bool // GHOST_PORT_ENABLED=1: activa alertas de ghost port (#419); default false
+	MCPEnabled                 bool // NETPULSE_MCP_ENABLED=1: servidor MCP embebido en /mcp (#1114); default false
 	// NETPULSE_TLS_ENABLED=1: listener HTTPS adicional (puerto NETPULSE_TLS_PORT,
 	// default 443) junto al HTTP de PORT. Opt-in: sin la variable, arranque
 	// idéntico al actual. El modo on-box ya sirve HTTPS en PORT (Fase 9) y no
@@ -406,6 +409,20 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
+	// NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS: '0'|'1', opcional. Permite
+	// enviar comandos privilegiados a agentes que siguen en HTTP. Solo para
+	// la transición a HTTPS; el default los rechaza con 409.
+	allowInsecureAgentCommands := false
+	if v, ok := env["NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			allowInsecureAgentCommands = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
 	// ADGUARD_*: cliente estándar solo si hay URL válida
 	var adguard *AdGuard
 	if v, ok := env["ADGUARD_URL"]; ok && v != "" {
@@ -627,46 +644,47 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	}
 
 	return &Config{
-		Port:              port,
-		NodeEnv:           nodeEnv,
-		StaticDir:         resolve(staticDir),
-		DataDir:           resolve(dataDir),
-		SessionSecret:     sessionSecret,
-		AuthUser:          authUser,
-		AuthPass:          authPass,
-		DemoMode:          demoMode,
-		MaxSSEClients:     maxSSE,
-		Routers:           routers,
-		SSHKeyPath:        sshKeyPath,
-		Adguard:           adguard,
-		Webhook:           webhook,
-		WGInterface:       wgInterface,
-		CookieSecure:      cookieSecure,
-		TrustProxy:        trustProxy,
-		MaxTsDriftSec:     maxTsDriftSec,
-		GithubRepo:        githubRepo,
-		GithubToken:       githubToken,
-		ServerRoot:        serverRoot,
-		AutoRearm:         autoRearm,
-		AutoReinstall:     autoReinstall,
-		PublicURL:         publicURL,
-		AgentURL:          agentURL,
-		BeaconListen:      beaconListen,
-		AgentAutoenroll:   agentAutoenroll,
-		Onbox:             onbox,
-		GhostPortEnabled:  ghostPortEnabled,
-		MCPEnabled:        mcpEnabled,
-		RTLConsolePass:    rtlPass,
-		RTLConsolePollSec: rtlPollSec,
-		PollIntervalSec:   pollIntervalSec,
-		TLSEnabled:        tlsEnabled,
-		TLSPort:           tlsPort,
-		TLSPortSet:        tlsPortSet,
-		TLSCert:           tlsCert,
-		TLSKey:            tlsKey,
-		TLSCA:             tlsCA,
-		TLSNames:          tlsNames,
-		HTTPMode:          httpMode,
+		Port:                       port,
+		NodeEnv:                    nodeEnv,
+		StaticDir:                  resolve(staticDir),
+		DataDir:                    resolve(dataDir),
+		SessionSecret:              sessionSecret,
+		AuthUser:                   authUser,
+		AuthPass:                   authPass,
+		DemoMode:                   demoMode,
+		MaxSSEClients:              maxSSE,
+		Routers:                    routers,
+		SSHKeyPath:                 sshKeyPath,
+		Adguard:                    adguard,
+		Webhook:                    webhook,
+		WGInterface:                wgInterface,
+		CookieSecure:               cookieSecure,
+		TrustProxy:                 trustProxy,
+		MaxTsDriftSec:              maxTsDriftSec,
+		GithubRepo:                 githubRepo,
+		GithubToken:                githubToken,
+		ServerRoot:                 serverRoot,
+		AutoRearm:                  autoRearm,
+		AutoReinstall:              autoReinstall,
+		PublicURL:                  publicURL,
+		AgentURL:                   agentURL,
+		BeaconListen:               beaconListen,
+		AgentAutoenroll:            agentAutoenroll,
+		AllowInsecureAgentCommands: allowInsecureAgentCommands,
+		Onbox:                      onbox,
+		GhostPortEnabled:           ghostPortEnabled,
+		MCPEnabled:                 mcpEnabled,
+		RTLConsolePass:             rtlPass,
+		RTLConsolePollSec:          rtlPollSec,
+		PollIntervalSec:            pollIntervalSec,
+		TLSEnabled:                 tlsEnabled,
+		TLSPort:                    tlsPort,
+		TLSPortSet:                 tlsPortSet,
+		TLSCert:                    tlsCert,
+		TLSKey:                     tlsKey,
+		TLSCA:                      tlsCA,
+		TLSNames:                   tlsNames,
+		HTTPMode:                   httpMode,
 	}, nil
 }
 

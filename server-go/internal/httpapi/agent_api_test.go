@@ -71,6 +71,7 @@ func makeAgentTestServer(t *testing.T) *agentTestServer {
 		sum := sha256.Sum256([]byte(token))
 		return hex.EncodeToString(sum[:]) == stored
 	})
+	agentHub.SetAllowInsecureCommands(true)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(), Hub: hub, Secret: secret,
 		Agents: reg, Started: time.Now(), AgentHub: agentHub,

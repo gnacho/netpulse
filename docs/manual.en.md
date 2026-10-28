@@ -136,6 +136,17 @@ For routers the server cannot reach over SSH, use the **pairing token** (Setting
 2. Click **Update agents** and confirm.
 3. Follow the progress panel: per agent you will see the status (waiting, downloading, installing, updated, or no response). An agent that does not respond within a few seconds requires manual reinstall.
 
+### Agent transport security
+
+Privileged agent commands (apply, upgrade, firmware upgrade and config backup) require the agent to reach the server over HTTPS. If the agent reports over plain HTTP, the server rejects the command with `insecure_agent_transport` and leaves it queued or pending instead of sending it in clear.
+
+The agent also refuses privileged SSE events when `NETPULSE_SERVER` is not HTTPS. During a migration to HTTPS, two environment variables open a temporary exception:
+
+- `NETPULSE_ALLOW_INSECURE_COMMANDS=1` on the agent.
+- `NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS=1` on the server.
+
+Use them only while moving the fleet to HTTPS, then remove them. Binary upgrades always require the `X-Checksum-Sha256` header: both the agent upgrade and the self-heal discard the binary when the header is missing or the digest does not match.
+
 ---
 
 ## Device detail

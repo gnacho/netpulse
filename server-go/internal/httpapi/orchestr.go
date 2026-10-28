@@ -18,6 +18,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+	"github.com/gnacho/netpulse/server-go/internal/sse"
 )
 
 // registerOrchestrRoutes registra las rutas de orquestación (solo admin).
@@ -196,8 +197,13 @@ func (s *server) registerOrchestrRoutes(mux *http.ServeMux, mgr *orchestr.Manage
 			return
 		}
 		cmdData, _ := json.Marshal(map[string]any{"plan_id": id, "ops": diff})
-		if !s.agentHub.Send(plan.RouterID, "apply", json.RawMessage(cmdData)) {
+		if err := s.agentHub.SendPrivileged(plan.RouterID, "apply", json.RawMessage(cmdData)); err != nil {
 			s.restorePlan(mgr, id, "rolling_back", "applied", actor, "sse delivery failed")
+			if errors.Is(err, sse.ErrInsecureAgentTransport) {
+				writeError(w, http.StatusConflict, "insecure_agent_transport",
+					"el agente sigue en HTTP; los comandos privilegiados exigen HTTPS")
+				return
+			}
 			writeError(w, http.StatusServiceUnavailable, "agent_not_connected",
 				"El agente no está conectado vía SSE")
 			return
@@ -292,8 +298,13 @@ func (s *server) applyPlanHandler(w http.ResponseWriter, r *http.Request, mgr *o
 		return
 	}
 	applyData, _ := json.Marshal(map[string]any{"plan_id": id, "ops": plan.Diff})
-	if !s.agentHub.Send(plan.RouterID, "apply", json.RawMessage(applyData)) {
+	if err := s.agentHub.SendPrivileged(plan.RouterID, "apply", json.RawMessage(applyData)); err != nil {
 		s.restorePlan(mgr, id, "applying", "pending", actor, "sse delivery failed")
+		if errors.Is(err, sse.ErrInsecureAgentTransport) {
+			writeError(w, http.StatusConflict, "insecure_agent_transport",
+				"el agente sigue en HTTP; los comandos privilegiados exigen HTTPS")
+			return
+		}
 		writeError(w, http.StatusServiceUnavailable, "agent_not_connected",
 			"El agente no está conectado vía SSE")
 		return

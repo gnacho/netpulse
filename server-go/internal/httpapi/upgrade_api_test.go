@@ -40,6 +40,11 @@ type upgradeTestServer struct {
 // kv, como producción). El AgentHub habilita stream/refresh/upgrade.
 func makeUpgradeTestServer(t *testing.T) *upgradeTestServer {
 	t.Helper()
+	return makeUpgradeTestServerWithOptions(t, true)
+}
+
+func makeUpgradeTestServerWithOptions(t *testing.T, allowInsecure bool) *upgradeTestServer {
+	t.Helper()
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
 	dataDir := t.TempDir()
@@ -73,6 +78,7 @@ func makeUpgradeTestServer(t *testing.T) *upgradeTestServer {
 		sum := sha256.Sum256([]byte(token))
 		return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(stored)) == 1
 	})
+	hub.SetAllowInsecureCommands(allowInsecure)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(),
 		Hub:    sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
@@ -264,6 +270,22 @@ func TestUpgradeConectado202(t *testing.T) {
 	}
 	if len(body) != 2 {
 		t.Fatalf("body con claves extra: %v", body)
+	}
+	cancel()
+	<-done
+}
+
+func TestUpgradeRejectsHTTPTransportWithoutOptIn(t *testing.T) {
+	ts := makeUpgradeTestServerWithOptions(t, false)
+	st, tok := createUpgradeToken(t, ts, "patio")
+	if st != 201 || tok == "" {
+		t.Fatalf("create: %d", st)
+	}
+	cancel, done := openStream(t, ts, "patio", tok)
+
+	status, body := postUpgrade(t, ts, "patio", ts.cookie)
+	if status != 409 || body["error"] != "insecure_agent_transport" {
+		t.Fatalf("http sin opt-in: got %d %v", status, body)
 	}
 	cancel()
 	<-done

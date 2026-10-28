@@ -255,6 +255,23 @@ func TestScriptEmptyDigestSkipsVerify(t *testing.T) {
 	}
 }
 
+func TestScriptSelfHealVerifiesDigest(t *testing.T) {
+	s := reinstall.Script(
+		"r", strings.Repeat("b2", 32), "https://np.example.org", strings.Repeat("c1", 32),
+		map[string]string{"arm64": "x", "arm": "x", "amd64": "x"},
+	)
+	for _, want := range []string{
+		"x-checksum-sha256:",
+		`sha256sum "$tmp"`,
+		"self-heal: sin X-Checksum-Sha256 válido, binario descartado",
+		"self-heal: SHA-256 no coincide, binario descartado",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("init embebido sin %q en el self-heal", want)
+		}
+	}
+}
+
 // #851: con server https y FP derivado, el .env generado debe llevar
 // NETPULSE_SERVER_FP o el agente entra en bucle fatal al arrancar.
 func TestScriptIncludesServerFP(t *testing.T) {

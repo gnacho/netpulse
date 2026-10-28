@@ -52,6 +52,7 @@ func makeURLTestServer(t *testing.T, extraEnv map[string]string) *agentTestServe
 	reg := adapters.NewAgentRegistry(90 * time.Second)
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
 	agentHub := sse.NewAgentHub(func(_, _ string) bool { return false })
+	agentHub.SetAllowInsecureCommands(true)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(), Hub: hub, Secret: secret,
 		Agents: reg, Started: time.Now(), AgentHub: agentHub,

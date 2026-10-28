@@ -40,7 +40,11 @@ type Options struct {
 	Slug         string // slug del equipo (agent.token.<slug> en el servidor)
 	ServerFP     string // SHA-256 del SPKI del servidor en hex (https obligatorio)
 	PairingToken string // modo bootstrap: pairing una vez y salir
-	Interval     time.Duration
+	// AllowInsecureCommands permite aceptar comandos privilegiados por HTTP
+	// (NETPULSE_ALLOW_INSECURE_COMMANDS=1). Solo para la transicion a HTTPS:
+	// el valor por defecto los rechaza y deja el agente reportando.
+	AllowInsecureCommands bool
+	Interval              time.Duration
 	// ScanInterval: mínimo entre scans de vecinos del prober (#699). 0 =
 	// probe.DefaultScanInterval; probe.ScanDisabled = sin scans periódicos
 	// (env NETPULSE_SCAN_INTERVAL, "0" lo desactiva).
@@ -226,6 +230,18 @@ func Run(ctx context.Context, opts Options) error {
 		case <-ctx.Done():
 		}
 	}
+	privilegedErr := privilegedEventAllowed(opts.Server, opts.AllowInsecureCommands)
+	if privilegedErr != nil {
+		log.Warn("[netpulse-agent] comandos privilegiados deshabilitados", "err", privilegedErr)
+	}
+	enqueuePrivileged := func(event string, fn func()) {
+		if privilegedErr != nil {
+			log.Warn("[netpulse-agent] comando privilegiado rechazado",
+				"event", event, "err", privilegedErr)
+			return
+		}
+		enqueue(fn)
+	}
 	go func() {
 		sse := sseclient.New(opts.Server, opts.Slug, opts.Token,
 			&http.Client{Timeout: 0, Transport: transport},
@@ -238,11 +254,11 @@ func Run(ctx context.Context, opts Options) error {
 				}
 				if ev.Name == "apply" && ev.Data != "" {
 					data := ev.Data
-					enqueue(func() { a.handleApply(ex, transport, data) })
+					enqueuePrivileged("apply", func() { a.handleApply(ex, transport, data) })
 				}
 				if ev.Name == "upgrade" {
 					data := ev.Data
-					enqueue(func() {
+					enqueuePrivileged("upgrade", func() {
 						if opts.OnUpgrade != nil {
 							opts.OnUpgrade(data)
 						} else {
@@ -252,11 +268,11 @@ func Run(ctx context.Context, opts Options) error {
 				}
 				if ev.Name == "firmware_upgrade" && ev.Data != "" {
 					data := ev.Data
-					enqueue(func() { handleFirmwareUpgrade(opts, transport, data) })
+					enqueuePrivileged("firmware_upgrade", func() { handleFirmwareUpgrade(opts, transport, data) })
 				}
 				if ev.Name == "config_backup" {
 					data := ev.Data
-					enqueue(func() {
+					enqueuePrivileged("config_backup", func() {
 						if opts.OnConfigBackup != nil {
 							opts.OnConfigBackup(data)
 						} else {

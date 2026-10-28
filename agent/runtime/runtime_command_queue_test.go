@@ -50,12 +50,13 @@ func TestRunSerializesPrivilegedCommands(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(ctx, Options{
-			Server:        srv.URL,
-			Token:         "tok",
-			Slug:          "patio",
-			Interval:      20 * time.Millisecond,
-			HeartbeatFile: filepath.Join(t.TempDir(), "hb"),
-			Version:       "test",
+			Server:                srv.URL,
+			Token:                 "tok",
+			Slug:                  "patio",
+			AllowInsecureCommands: true,
+			Interval:              20 * time.Millisecond,
+			HeartbeatFile:         filepath.Join(t.TempDir(), "hb"),
+			Version:               "test",
 			OnUpgrade: func(data string) {
 				started <- data
 				<-release

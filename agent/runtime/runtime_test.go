@@ -62,6 +62,30 @@ NETPULSE_HEARTBEAT_FILE=/tmp/hb
 	}
 }
 
+func TestLoadConfigAllowInsecureCommands(t *testing.T) {
+	dir := t.TempDir()
+	env := filepath.Join(dir, "agent.env")
+	base := "NETPULSE_SERVER=http://example.com:3000\nNETPULSE_TOKEN=abc123\nNETPULSE_SLUG=patio\n"
+
+	writeFile(t, env, base+"NETPULSE_ALLOW_INSECURE_COMMANDS=1\n")
+	opts, err := LoadConfigFromEnv(env)
+	if err != nil {
+		t.Fatalf("LoadConfigFromEnv: %v", err)
+	}
+	if !opts.AllowInsecureCommands {
+		t.Fatal("NETPULSE_ALLOW_INSECURE_COMMANDS=1 debe activar la válvula")
+	}
+
+	writeFile(t, env, base+"NETPULSE_ALLOW_INSECURE_COMMANDS=0\n")
+	opts, err = LoadConfigFromEnv(env)
+	if err != nil {
+		t.Fatalf("LoadConfigFromEnv: %v", err)
+	}
+	if opts.AllowInsecureCommands {
+		t.Fatal("NETPULSE_ALLOW_INSECURE_COMMANDS=0 debe mantener la válvula cerrada")
+	}
+}
+
 // #883: los comentarios inline (" #" tras el valor) no deben formar parte
 // del valor; en concreto NETPULSE_SCAN_INTERVAL=0 con comentario debe
 // aplicar "sin scans periódicos", no caer en el default.

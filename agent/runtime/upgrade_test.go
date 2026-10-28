@@ -4,11 +4,14 @@
 package runtime
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -176,7 +179,9 @@ func TestReportUpgradeProgressSteps(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		case "/api/agents/patio/binary":
 			data := make([]byte, 64)
+			sum := sha256.Sum256(data)
 			w.Header().Set("Content-Length", "64")
+			w.Header().Set("X-Checksum-Sha256", hex.EncodeToString(sum[:]))
 			_, _ = w.Write(data)
 		case "/api/agents/patio/upgrade-result":
 			w.WriteHeader(http.StatusOK)
@@ -218,5 +223,72 @@ func TestReportUpgradeProgressSteps(t *testing.T) {
 	}
 	if !hasSwapping || !hasRestarting {
 		t.Fatalf("pasos incompletos: %v", steps)
+	}
+}
+
+func TestUpgradeRejectsMissingOrMismatchedDigest(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		digest string
+	}{
+		{"sin digest", ""},
+		{"digest que no coincide", strings.Repeat("0", 64)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			var steps []string
+			var result map[string]any
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/agents/patio/upgrade-progress":
+					var body struct {
+						Step string `json:"step"`
+					}
+					_ = json.NewDecoder(r.Body).Decode(&body)
+					mu.Lock()
+					steps = append(steps, body.Step)
+					mu.Unlock()
+					w.WriteHeader(http.StatusOK)
+				case "/api/agents/patio/binary":
+					data := make([]byte, 64)
+					if tc.digest != "" {
+						w.Header().Set("X-Checksum-Sha256", tc.digest)
+					}
+					_, _ = w.Write(data)
+				case "/api/agents/patio/upgrade-result":
+					mu.Lock()
+					result = nil
+					_ = json.NewDecoder(r.Body).Decode(&result)
+					mu.Unlock()
+					w.WriteHeader(http.StatusOK)
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+
+			oldTmp := tmpBinPath
+			tmpBinPath = filepath.Join(t.TempDir(), "netpulse-agent.new")
+			defer func() { tmpBinPath = oldTmp }()
+			oldPath := currentBinPath
+			currentBinPath = func() string { return filepath.Join(t.TempDir(), "netpulse-agent") }
+			defer func() { currentBinPath = oldPath }()
+
+			handleUpgrade(Options{Server: srv.URL, Slug: "patio", Token: "tok"}, nil, "")
+
+			mu.Lock()
+			defer mu.Unlock()
+			for _, step := range steps {
+				if step == "swapping" || step == "restarting" {
+					t.Fatalf("no debía instalar nada, pasos: %v", steps)
+				}
+			}
+			if result == nil {
+				t.Fatal("no se reportó el resultado del upgrade")
+			}
+			if ok, _ := result["ok"].(bool); ok {
+				t.Fatalf("el upgrade debía fallar, resultado: %v", result)
+			}
+		})
 	}
 }

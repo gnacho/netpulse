@@ -28,9 +28,10 @@ import (
 const (
 	defaultBinPath  = "/usr/sbin/netpulse-agent"
 	agentInitScript = "/etc/init.d/netpulse-agent"
-	// tmpBinPath: descarga temporal del binario nuevo antes del swap atómico.
-	tmpBinPath = "/tmp/netpulse-agent.new"
 )
+
+// tmpBinPath es la descarga temporal del binario nuevo antes del swap atómico.
+var tmpBinPath = "/tmp/netpulse-agent.new"
 
 // netpulseArch traduce runtime.GOARCH al nombre de binario que sirve el
 // servidor (agentbin: amd64/arm64/armv7). GOARCH "arm" (armv7) no casa con
@@ -85,7 +86,7 @@ func (p *progressReader) Read(buf []byte) (int, error) {
 // en dest con permisos 0755. Error si la petición no es 200 o el cuerpo está
 // vacío. onPct (opcional) recibe el progreso 0-100 de la descarga (#284).
 // Devuelve el valor de la cabecera X-Checksum-Sha256 (vacía si el server no
-// la manda) para que el llamante verifique la integridad.
+// la manda). El llamante exige que no esté vacía antes de instalar.
 func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest string, onPct func(pct int)) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -234,14 +235,19 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 		return
 	}
 
-	// Integridad (#284): sha256 contra la cabecera del servidor, ANTES del swap.
-	if digest != "" {
-		reportUpgradeProgress(opts, transport, "verifying", 0)
-		if err := verifySha256(tmpBinPath, digest); err != nil {
-			log.Error("[netpulse-agent] upgrade: verificación falló", "err", err)
-			reportUpgradeResult(opts, transport, false, err.Error())
-			return
-		}
+	// Integridad (#284): sha256 obligatorio contra la cabecera del servidor,
+	// ANTES del swap. Sin digest no se instala nada.
+	if digest == "" {
+		err := errors.New("el servidor no envió X-Checksum-Sha256; upgrade rechazado")
+		log.Error("[netpulse-agent] upgrade: falta el digest", "err", err)
+		reportUpgradeResult(opts, transport, false, err.Error())
+		return
+	}
+	reportUpgradeProgress(opts, transport, "verifying", 0)
+	if err := verifySha256(tmpBinPath, digest); err != nil {
+		log.Error("[netpulse-agent] upgrade: verificación falló", "err", err)
+		reportUpgradeResult(opts, transport, false, err.Error())
+		return
 	}
 
 	dst := currentBinPath()

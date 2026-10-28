@@ -69,6 +69,7 @@ func firmwareTestServerWithAdapter(t *testing.T, adapter adapters.Snapshotter, r
 	orchestrMgr := orchestr.New(d)
 	agents := adapters.NewAgentRegistry(0)
 	agentHub := sse.NewAgentHub(func(_, _ string) bool { return true })
+	agentHub.SetAllowInsecureCommands(true)
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
 	chPlan := channelplan.NewStore(d.DB)
 	handler := httpapi.NewHandler(httpapi.Deps{

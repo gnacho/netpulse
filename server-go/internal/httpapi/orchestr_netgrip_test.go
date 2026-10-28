@@ -78,6 +78,7 @@ func newSSEPlanServer(t *testing.T, ov *adapters.Overview, opts ...serverOption)
 	reg := adapters.NewAgentRegistry(0)
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
 	agentHub := sse.NewAgentHub(func(_, _ string) bool { return true })
+	agentHub.SetAllowInsecureCommands(true)
 	mqttMgr := mqttpub.NewManager(mqttpub.Config{
 		Enabled: true, Host: "broker.test", Port: 1883,
 		User: "netpulse", Pass: "broker-pass", Instance: "netpulse",

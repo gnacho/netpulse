@@ -133,6 +133,33 @@ func TestLoadTLSEnumInvalido(t *testing.T) {
 	}
 }
 
+func TestLoadAllowInsecureAgentCommands(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.AllowInsecureAgentCommands {
+		t.Fatal("la válvula debe estar cerrada por defecto")
+	}
+
+	cfg, err = Load(map[string]string{
+		"AUTH_PASS": "segura-y-larga", "NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS": "1",
+	}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.AllowInsecureAgentCommands {
+		t.Fatal("NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS=1 debe activar la válvula")
+	}
+
+	_, err = Load(map[string]string{
+		"AUTH_PASS": "segura-y-larga", "NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS": "2",
+	}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS") {
+		t.Fatalf("un valor inválido debe fallar señalando la variable: %v", err)
+	}
+}
+
 func TestLoadTLSCertKeyPareja(t *testing.T) {
 	cfg, err := Load(map[string]string{
 		"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "1",

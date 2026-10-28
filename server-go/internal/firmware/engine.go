@@ -8,20 +8,25 @@
 // transición a failed si el agente no está disponible.
 package firmware
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/gnacho/netpulse/server-go/internal/sse"
+)
 
 // Errores centinela del motor, mapeados por httpapi a los códigos HTTP que el
 // flujo manual ya devolvía (no_target 400, upgrade_in_progress 409,
-// agent_not_connected 503).
+// agent_not_connected 503, insecure_agent_transport 409).
 var (
 	ErrNoTarget          = errors.New("firmware: no target configurado")
 	ErrUpgradeInProgress = errors.New("firmware: upgrade en curso")
 	ErrAgentNotConnected = errors.New("firmware: agente no conectado")
+	ErrInsecureTransport = errors.New("firmware: el agente no usa HTTPS")
 )
 
 // Sender envía comandos al agente vía SSE. Lo implementa *sse.AgentHub.
 type Sender interface {
-	Send(slug, event string, data any) bool
+	SendPrivileged(slug, event string, data any) error
 }
 
 // Engine ejecuta upgrades con el motor compartido (store + sender).
@@ -83,7 +88,11 @@ func (e *Engine) dispatch(id int64, routerID, targetURL, checksum string) error 
 		"checksum":   checksum,
 		"keepConfig": true,
 	}
-	if !e.send.Send(routerID, "firmware_upgrade", cmd) {
+	if err := e.send.SendPrivileged(routerID, "firmware_upgrade", cmd); err != nil {
+		if errors.Is(err, sse.ErrInsecureAgentTransport) {
+			_ = e.store.SetStatus(id, "failed", "insecure agent transport", "")
+			return ErrInsecureTransport
+		}
 		_ = e.store.SetStatus(id, "failed", "agent not connected", "")
 		return ErrAgentNotConnected
 	}

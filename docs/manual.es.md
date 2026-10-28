@@ -136,6 +136,17 @@ Para routers a los que el servidor no puede acceder por SSH, usa el **token de e
 2. Pulsa **Actualizar agentes** y confirma.
 3. Sigue el panel de progreso: por cada agente verás el estado (esperando, descargando, instalando, actualizado o sin respuesta). Un agente que no responde en unos segundos requiere reinstalación manual.
 
+### Seguridad del transporte del agente
+
+Los comandos privilegiados del agente (aplicar, actualizar, actualizar firmware y copia de configuración) exigen que el agente llegue al servidor por HTTPS. Si el agente reporta por HTTP en claro, el servidor rechaza el comando con `insecure_agent_transport` y lo deja en cola o pendiente en lugar de enviarlo sin cifrar.
+
+El agente también rechaza los eventos SSE privilegiados cuando `NETPULSE_SERVER` no es HTTPS. Durante una migración a HTTPS, dos variables de entorno abren una excepción temporal:
+
+- `NETPULSE_ALLOW_INSECURE_COMMANDS=1` en el agente.
+- `NETPULSE_ALLOW_INSECURE_AGENT_COMMANDS=1` en el servidor.
+
+Úsalas solo mientras mueves la flota a HTTPS y retíralas después. Las actualizaciones de binario exigen siempre la cabecera `X-Checksum-Sha256`: tanto la actualización del agente como el self-heal descartan el binario si falta la cabecera o el digest no coincide.
+
 ---
 
 ## Detalle del dispositivo
