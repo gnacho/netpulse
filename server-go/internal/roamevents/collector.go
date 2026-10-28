@@ -29,20 +29,20 @@ import (
 
 // Tipo de evento roaming.
 const (
-	TypeConnected     = "connected"
-	TypeDisconnected  = "disconnected"
+	TypeConnected    = "connected"
+	TypeDisconnected = "disconnected"
 	TypeDawnDecision = "dawn_decision"
 )
 
 // Event es una fila de roam_events (entrada del feed).
 type Event struct {
-	ID        int64  `json:"id"`
-	TsMs      int64  `json:"ts_ms"`
-	RouterID  string `json:"router_id"`
-	Type      string `json:"type"`
-	MAC       string `json:"mac,omitempty"`
-	Iface     string `json:"iface,omitempty"`
-	Detail    string `json:"detail,omitempty"`
+	ID       int64  `json:"id"`
+	TsMs     int64  `json:"ts_ms"`
+	RouterID string `json:"router_id"`
+	Type     string `json:"type"`
+	MAC      string `json:"mac,omitempty"`
+	Iface    string `json:"iface,omitempty"`
+	Detail   string `json:"detail,omitempty"`
 }
 
 // RouterHost resuelve router_id → host para que el Collector haga SSH.

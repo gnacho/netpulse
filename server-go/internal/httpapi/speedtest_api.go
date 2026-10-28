@@ -4,7 +4,8 @@
 // GET  /api/speedtest/history  serie de la ventana ?hours= (default 168).
 // POST /api/speedtest/run      lanza un test manual (202; 409 si ya corre).
 // GET/PUT /api/settings/speedtest  configuración (intervalo, servidor,
-//                                 umbral de alerta) — admin.
+//
+//	umbral de alerta) — admin.
 //
 // Deps.Speedtest nil (demo) → 503 unavailable, como el resto de deps nulas.
 package httpapi

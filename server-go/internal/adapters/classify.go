@@ -125,7 +125,7 @@ func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldp
 // devolver (y las claves devices.types.* del frontend). El override manual de
 // tipo (#797) valida contra esta lista.
 var ValidDeviceTypes = map[string]bool{
-	"modem": true, // #1495: ONT/módem en bridge (primer salto del enlace WAN)
+	"modem":   true, // #1495: ONT/módem en bridge (primer salto del enlace WAN)
 	"consola": true, "tv": true, "camara": true, "altavoz": true,
 	"tablet": true, "movil": true, "portatil": true, "servidor": true,
 	"ordenador": true, "switch": true, "iot": true, "desconocido": true,

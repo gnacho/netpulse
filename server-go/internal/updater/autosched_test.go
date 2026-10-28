@@ -112,7 +112,7 @@ func TestSchedulerShotAppliesWhenDue(t *testing.T) {
 	_ = AutoUpdateSettings{Enabled: true, Kind: AutoDaily, Time: "03:30"}
 	s.shot(AutoUpdateSettings{}, autoRunState{})
 	if ua.applied.Load() != 1 {
-		t.Fatalf("debe aplicar: %d", ua.applied)
+		t.Fatalf("debe aplicar: %d", ua.applied.Load())
 	}
 	if _, res := AutoRunState(db); res != "applied" {
 		t.Fatalf("lastResult: %q", res)
@@ -178,6 +178,6 @@ func TestSchedulerTickMarksBeforeApply(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if ua.applied.Load() != 1 {
-		t.Fatalf("tick con settings vencidos debe aplicar: %d", ua.applied)
+		t.Fatalf("tick con settings vencidos debe aplicar: %d", ua.applied.Load())
 	}
 }

@@ -182,9 +182,9 @@ func (d *Demo) Tick(context.Context) error {
 // Snapshotter
 // ---------------------------------------------------------------------------
 
-func (d *Demo) Mode() string              { return "demo" }
-func (d *Demo) SetRouters([]RouterConfig) {} // la demo ignora la configuración
-func (d *Demo) Close() error              { return nil }
+func (d *Demo) Mode() string                { return "demo" }
+func (d *Demo) SetRouters([]RouterConfig)   {} // la demo ignora la configuración
+func (d *Demo) Close() error                { return nil }
 func (d *Demo) DismissUnknownDevice(string) {}
 
 func (d *Demo) GetUsteer(context.Context) (*Usteer, error) { return nil, nil }
@@ -228,7 +228,7 @@ func (d *Demo) buildOverview() *Overview {
 		UnreadAlerts:      d.engine.UnreadCount(),
 		DistributionNodes: dists,
 		Topology:          BuildTopoSemantics(d.routers, d.devices, wg, dists, "", nil, nil, nil), // SPEC-65 D65-3
-		VM:                ViewModelVersion,                                    // SPEC-65 D65-4
+		VM:                ViewModelVersion,                                                       // SPEC-65 D65-4
 		Ts:                time.Now().Unix(),
 	}
 }

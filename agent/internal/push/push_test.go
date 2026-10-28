@@ -153,9 +153,9 @@ func TestPushFlushDescartaStales(t *testing.T) {
 	c := New(srv.URL, "tok", srv.Client())
 
 	now := time.Now().Unix()
-	staleA := mkPayload(now - 600)  // 10 min de edad: fuera de ventana
-	staleB := mkPayload(now - 480)  // 8 min: ídem
-	fresh := mkPayload(now)         // recién generado
+	staleA := mkPayload(now - 600) // 10 min de edad: fuera de ventana
+	staleB := mkPayload(now - 480) // 8 min: ídem
+	fresh := mkPayload(now)        // recién generado
 
 	// Servidor caído: A entra directo al buffer; el Push de B drena (A se
 	// descarta por stale) y B acaba también en el buffer.

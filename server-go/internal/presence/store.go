@@ -11,10 +11,10 @@ import (
 const peopleKey = "presence.people.v1"
 
 type Person struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	MACs    []string `json:"macs"`
-	Color   string   `json:"color"`
+	ID    string   `json:"id"`
+	Name  string   `json:"name"`
+	MACs  []string `json:"macs"`
+	Color string   `json:"color"`
 }
 
 type PresenceEvent struct {
@@ -25,16 +25,16 @@ type PresenceEvent struct {
 }
 
 type Status struct {
-	Person    string `json:"person"`
-	Home      bool   `json:"home"`
-	LastSeen  int64  `json:"lastSeen"`
-	DevicesOnline int `json:"devicesOnline"`
+	Person        string `json:"person"`
+	Home          bool   `json:"home"`
+	LastSeen      int64  `json:"lastSeen"`
+	DevicesOnline int    `json:"devicesOnline"`
 }
 
 type Store struct {
-	mu   sync.RWMutex
-	db   *db.DB
-	people []Person
+	mu          sync.RWMutex
+	db          *db.DB
+	people      []Person
 	macToPerson map[string]string
 }
 

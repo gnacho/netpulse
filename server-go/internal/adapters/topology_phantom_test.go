@@ -19,9 +19,9 @@ const (
 // los devuelve lldpcli) y su FDB aprende al gateway por lan1 (root port).
 func phantomPolled(neighbors []LldpNeighbor, fdb map[string]string) map[string]*routerPolled {
 	return map[string]*routerPolled{
-		"gw":  {cfg: RouterConfig{ID: "gw", IsGateway: true}, brMac: macGw},
-		"rt2": {cfg: RouterConfig{ID: "rt2", Type: "openwrt"}, brMac: macRT2},
-		"rt3": {cfg: RouterConfig{ID: "rt3", Type: "openwrt"}, brMac: macRT3},
+		"gw":     {cfg: RouterConfig{ID: "gw", IsGateway: true}, brMac: macGw},
+		"rt2":    {cfg: RouterConfig{ID: "rt2", Type: "openwrt"}, brMac: macRT2},
+		"rt3":    {cfg: RouterConfig{ID: "rt3", Type: "openwrt"}, brMac: macRT3},
 		"swCore": {cfg: RouterConfig{ID: "swCore", Type: "managed-switch"}, brMac: macSwCor},
 		"swFar":  {cfg: RouterConfig{ID: "swFar", Type: "managed-switch"}, brMac: macSwFar},
 		"rt4": {cfg: RouterConfig{ID: "rt4", Type: "openwrt"}, brMac: "44:00:00:00:00:44",

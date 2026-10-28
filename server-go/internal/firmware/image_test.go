@@ -13,7 +13,7 @@ func sampleProfiles() map[string]any {
 	return map[string]any{
 		"profiles": map[string]any{
 			"redmi_ax6": map[string]any{
-				"image_prefix": "openwrt-25.12.5-qualcommax-ipq807x-redmi_ax6",
+				"image_prefix":      "openwrt-25.12.5-qualcommax-ipq807x-redmi_ax6",
 				"supported_devices": []string{"redmi,ax6"},
 				"images": []map[string]any{
 					{"filesystem": "squashfs", "name": "openwrt-25.12.5-qualcommax-ipq807x-redmi_ax6-squashfs-factory.ubi", "sha256": "aaaa", "type": "factory"},
@@ -21,7 +21,7 @@ func sampleProfiles() map[string]any {
 				},
 			},
 			"glinet_flint2": map[string]any{
-				"image_prefix":   "openwrt-25.12.5-qualcommax-ipq807x-glinet_flint2",
+				"image_prefix":      "openwrt-25.12.5-qualcommax-ipq807x-glinet_flint2",
 				"supported_devices": []string{"glinet,flint2"},
 				"images": []map[string]any{
 					{"filesystem": "squashfs", "name": "openwrt-25.12.5-qualcommax-ipq807x-glinet_flint2-squashfs-sysupgrade.bin", "sha256": "bbbb", "type": "sysupgrade"},

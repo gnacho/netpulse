@@ -296,7 +296,6 @@ func TestSeedSkipsConfigButKeepsDedup(t *testing.T) {
 	}
 }
 
-
 // TestEmitOrUpdateReepisodeAfterRestart (#1094): una alerta leída en una
 // sesión previa que se re-emite tras el arranque (p. ej. "Agent outdated"
 // al reiniciar el server) vuelve a NO-leída: es un episodio nuevo y el

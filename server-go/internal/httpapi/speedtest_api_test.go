@@ -73,7 +73,7 @@ func makeSpeedtestServer(t *testing.T, runner speedtest.Runner) *testServer {
 	sched.SetHTTPRunner(runner)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(),
-		Hub: sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
+		Hub:    sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil }),
 		Secret: secret, Agents: adapters.NewAgentRegistry(0),
 		TokenStore:  apitoken.NewStore(d, secret),
 		ChannelPlan: channelplan.NewStore(d.DB),

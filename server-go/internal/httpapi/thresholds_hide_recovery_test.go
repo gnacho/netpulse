@@ -55,4 +55,3 @@ func TestThresholdsHideRecoveryRoundTrip(t *testing.T) {
 		t.Fatalf("GET tras PUT off: hideRecoveryEvents = %v, esperaba false", body["hideRecoveryEvents"])
 	}
 }
-

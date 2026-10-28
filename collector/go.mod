@@ -2,6 +2,8 @@ module github.com/gnacho/netpulse/collector
 
 go 1.26.0
 
+toolchain go1.26.10
+
 require modernc.org/sqlite v1.60.1
 
 require (

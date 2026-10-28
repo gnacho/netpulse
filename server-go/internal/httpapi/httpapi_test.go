@@ -17,9 +17,9 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/apitoken"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/channelplan"
+	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
-	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
@@ -94,12 +94,12 @@ func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 	chPlan := channelplan.NewStore(d.DB)
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapter, Hub: hub, Secret: secret,
-		Started:       time.Now(),
-		TokenStore:    tokenStore,
-		ConfigBackup:  configBackup,
-		Orchestr:      orchestrMgr,
-		Agents:        agents,
-		ChannelPlan:   chPlan,
+		Started:      time.Now(),
+		TokenStore:   tokenStore,
+		ConfigBackup: configBackup,
+		Orchestr:     orchestrMgr,
+		Agents:       agents,
+		ChannelPlan:  chPlan,
 	})
 	srv := httptest.NewServer(handler)
 	ts := &testServer{Server: srv, db: d, secret: secret}
@@ -884,11 +884,11 @@ func TestSecurityHeaders(t *testing.T) {
 	res := get(t, srv.URL, "/api/health", "")
 	res.Body.Close()
 	want := map[string]string{
-		"X-Content-Type-Options":    "nosniff",
-		"X-Frame-Options":           "DENY",
-		"Referrer-Policy":           "strict-origin-when-cross-origin",
-		"Permissions-Policy":        "geolocation=(), microphone=(), camera=()",
-		"Content-Security-Policy":   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'",
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "DENY",
+		"Referrer-Policy":         "strict-origin-when-cross-origin",
+		"Permissions-Policy":      "geolocation=(), microphone=(), camera=()",
+		"Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'",
 	}
 	for k, v := range want {
 		if got := res.Header.Get(k); got != v {

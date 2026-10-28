@@ -57,12 +57,12 @@ func (s *Store) SaveScan(routerID string, ts int64, scans []probe.ScanResult) er
 
 // ScanRow es un vecino persistido (forma plana para la UI/API).
 type ScanRow struct {
-	Iface    string `json:"iface"`
-	BSSID    string `json:"bssid"`
-	SSID     string `json:"ssid"`
-	Channel  int    `json:"channel"`
-	Freq     int    `json:"freq"`
-	Signal   int    `json:"signal"`
+	Iface   string `json:"iface"`
+	BSSID   string `json:"bssid"`
+	SSID    string `json:"ssid"`
+	Channel int    `json:"channel"`
+	Freq    int    `json:"freq"`
+	Signal  int    `json:"signal"`
 	// WidthMhz: ancho anunciado por el vecino (#1087); 0 = desconocido
 	// (agente viejo o BSS sin HT/VHT): la UI dibuja 20 MHz de fallback.
 	WidthMhz int    `json:"widthMhz"`

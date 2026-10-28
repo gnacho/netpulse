@@ -8,9 +8,9 @@ import (
 // suppression: if a parent router is offline, child router alerts are marked
 // as suppressed instead of discarded (issue #332).
 type SuppressionGraph struct {
-	mu      sync.RWMutex
-	parent  map[string]string   // child -> parent routerId
-	down    map[string]bool     // routerId -> currently offline
+	mu     sync.RWMutex
+	parent map[string]string // child -> parent routerId
+	down   map[string]bool   // routerId -> currently offline
 }
 
 func NewSuppressionGraph() *SuppressionGraph {

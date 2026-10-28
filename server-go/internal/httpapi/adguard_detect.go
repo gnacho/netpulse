@@ -19,7 +19,7 @@ import (
 // host de la flota sirve la API de AdGuard Home.
 type adguardDetectResponse struct {
 	Found  bool   `json:"found"`
-	Mode   string `json:"mode,omitempty"`   // "glinet" | "standard"
+	Mode   string `json:"mode,omitempty"` // "glinet" | "standard"
 	Host   string `json:"host,omitempty"`
 	Port   int    `json:"port,omitempty"`
 	Source string `json:"source,omitempty"` // "gateway" | "fleet"

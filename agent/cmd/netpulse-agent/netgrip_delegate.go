@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	netgripAddr       = "http://127.0.0.1:8080"
-	netgripTokenPath  = "/etc/netgrip/executor-token"
-	netgripTimeout    = 30 * time.Second
+	netgripAddr      = "http://127.0.0.1:8080"
+	netgripTokenPath = "/etc/netgrip/executor-token"
+	netgripTimeout   = 30 * time.Second
 )
 
 func readNetgripToken() (string, error) {

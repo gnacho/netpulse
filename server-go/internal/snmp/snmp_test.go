@@ -228,17 +228,17 @@ func TestIfFamilyClassification(t *testing.T) {
 		typ    int
 		family string
 	}{
-		{6, ""},          // ethernetCsmacd: física
-		{117, ""},        // gigabitEthernet: física
-		{161, "lag"},     // ieee8023adLag (LGS310C poN)
-		{136, "vlan"},    // l3ipvlan (LGS310C vlan1)
-		{135, "vlan"},    // l2vlan
-		{209, "bridge"},  // bridge
-		{131, "tunnel"},  // tunnel
-		{24, "virtual"},  // softwareLoopback
-		{53, "virtual"},  // propVirtual
-		{0, ""},          // sin ifType: físico (walk fallido conserva todo)
-		{9999, ""},       // desconocido: se trata como físico por exclusión
+		{6, ""},         // ethernetCsmacd: física
+		{117, ""},       // gigabitEthernet: física
+		{161, "lag"},    // ieee8023adLag (LGS310C poN)
+		{136, "vlan"},   // l3ipvlan (LGS310C vlan1)
+		{135, "vlan"},   // l2vlan
+		{209, "bridge"}, // bridge
+		{131, "tunnel"}, // tunnel
+		{24, "virtual"}, // softwareLoopback
+		{53, "virtual"}, // propVirtual
+		{0, ""},         // sin ifType: físico (walk fallido conserva todo)
+		{9999, ""},      // desconocido: se trata como físico por exclusión
 	}
 	for _, c := range cases {
 		if got := ifFamily(c.typ); got != c.family {

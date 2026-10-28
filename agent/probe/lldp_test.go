@@ -296,15 +296,15 @@ func TestLldpdBridgeOnly(t *testing.T) {
 		ifaces string
 		want   bool
 	}{
-		{"", false},                    // sin opción UCI: lldpd escucha en físicas
-		{"br-lan", true},               // el caso del issue (stock qualcommax)
-		{"br-lan,br-guest", true},      // varios bridges: igual de ciego
-		{"lan*,wan", false},            // el fix aplicado en la flota
-		{"lan1", false},                // puerto físico suelto
-		{"br-lan,lan1", false},         // mixto: ya escucha en físicas
-		{" lan1 , wan ", false},        // espacios tolerados
-		{"eth0", false},                // Linux genérico con nombre eth
-		{",,,", false},                 // tokens vacíos: sin binding efectivo
+		{"", false},               // sin opción UCI: lldpd escucha en físicas
+		{"br-lan", true},          // el caso del issue (stock qualcommax)
+		{"br-lan,br-guest", true}, // varios bridges: igual de ciego
+		{"lan*,wan", false},       // el fix aplicado en la flota
+		{"lan1", false},           // puerto físico suelto
+		{"br-lan,lan1", false},    // mixto: ya escucha en físicas
+		{" lan1 , wan ", false},   // espacios tolerados
+		{"eth0", false},           // Linux genérico con nombre eth
+		{",,,", false},            // tokens vacíos: sin binding efectivo
 	}
 	for _, c := range cases {
 		if got := LldpdBridgeOnly(c.ifaces); got != c.want {

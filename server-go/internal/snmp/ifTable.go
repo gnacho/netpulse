@@ -9,24 +9,24 @@ import (
 )
 
 type PortStats struct {
-	Index      int
-	Name       string
-	Descr      string
-	Alias      string
-	Type       int
+	Index int
+	Name  string
+	Descr string
+	Alias string
+	Type  int
 	// Familia de la interfaz para las NO físicas (#1125): "lag", "vlan",
 	// "bridge", "tunnel" o "virtual". Vacío = boca física (o ifType no
 	// reportado por walk fallido: se conserva en el grupo físico, la misma
 	// defensa de la #1115). El frontend las agrupa colapsadas al pie de la
 	// tarjeta de puertos en vez de ocultarlas.
-	Family     string
-	SpeedBps   uint64
+	Family        string
+	SpeedBps      uint64
 	HighSpeedMbps uint32
-	OperUp     bool
-	RxBytes    uint64
-	TxBytes    uint64
-	RxErrors   uint64
-	TxErrors   uint64
+	OperUp        bool
+	RxBytes       uint64
+	TxBytes       uint64
+	RxErrors      uint64
+	TxErrors      uint64
 }
 
 func (p PortStats) SpeedString() string {

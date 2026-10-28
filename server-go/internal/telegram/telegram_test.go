@@ -119,11 +119,11 @@ func TestCategoryEmoji(t *testing.T) {
 
 func TestHTMLEscape(t *testing.T) {
 	cases := map[string]string{
-		"hello":          "hello",
-		"<b>bold</b>":    "&lt;b&gt;bold&lt;/b&gt;",
-		"a & b":          "a &amp; b",
-		"no special":     "no special",
-		"<>&":            "&lt;&gt;&amp;",
+		"hello":       "hello",
+		"<b>bold</b>": "&lt;b&gt;bold&lt;/b&gt;",
+		"a & b":       "a &amp; b",
+		"no special":  "no special",
+		"<>&":         "&lt;&gt;&amp;",
 	}
 	for input, want := range cases {
 		got := htmlEscape(input)

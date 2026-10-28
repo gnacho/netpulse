@@ -43,23 +43,23 @@ type ProbeResult struct {
 }
 
 type Outage struct {
-	ID         int64    `json:"id"`
-	StartedAt  int64    `json:"startedAt"`
-	EndedAt    *int64   `json:"endedAt"`
-	DurationS  *int64   `json:"durationS"`
+	ID          int64    `json:"id"`
+	StartedAt   int64    `json:"startedAt"`
+	EndedAt     *int64   `json:"endedAt"`
+	DurationS   *int64   `json:"durationS"`
 	TargetsDown []string `json:"targetsDown"`
 }
 
 type Summary struct {
-	LastProbe  *ProbeResult `json:"lastProbe"`
-	CurrentOutage *Outage   `json:"currentOutage"`
-	TotalOutages24h int     `json:"totalOutages24h"`
-	AvgLatency24h   float64 `json:"avgLatency24h"`
+	LastProbe       *ProbeResult `json:"lastProbe"`
+	CurrentOutage   *Outage      `json:"currentOutage"`
+	TotalOutages24h int          `json:"totalOutages24h"`
+	AvgLatency24h   float64      `json:"avgLatency24h"`
 }
 
 type Store struct {
-	mu   sync.Mutex
-	db   *db.DB
+	mu     sync.Mutex
+	db     *db.DB
 	outage *Outage
 }
 

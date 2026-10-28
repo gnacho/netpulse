@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 )
+
 // handleDeviceLinkPut: body {"target": "<mac>"} — enlaza la MAC {mac} como
 // alias del cliente {target}. Reglas: no enlaces a sí mismo, ni alias ya
 // enlazada (desenlazar primero), ni target que sea a su vez alias (sin

@@ -20,13 +20,13 @@ const (
 	kvKeyChatID   = "telegram.chat_id"
 	kvKeyEnabled  = "telegram.enabled"
 
-	apiBase       = "https://api.telegram.org"
-	queueCap      = 64
-	maxRetries    = 3
-	baseRetry     = 2 * time.Second
-	sendTimeout   = 10 * time.Second
-	parseMode     = "HTML"
-	maxMsgLen     = 4096
+	apiBase     = "https://api.telegram.org"
+	queueCap    = 64
+	maxRetries  = 3
+	baseRetry   = 2 * time.Second
+	sendTimeout = 10 * time.Second
+	parseMode   = "HTML"
+	maxMsgLen   = 4096
 )
 
 type kvStore interface {

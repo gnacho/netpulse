@@ -376,4 +376,3 @@ func TestListEventsFilters(t *testing.T) {
 		t.Errorf("filtro since 2000: %d, want 2", len(got))
 	}
 }
-

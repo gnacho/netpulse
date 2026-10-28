@@ -545,8 +545,8 @@ func TestFleetFdbEvidenceRegisteredMac(t *testing.T) {
 			"A0:36:9F:7E:38:BC": "eth1", // NAS en tránsito por el uplink
 		}},
 		"core": {brMac: "AA:BB:CC:00:00:07", fdb: map[string]string{
-			"AA:BB:CC:00:00:01": "xg7",   // root port hacia gw
-			"A0:36:9F:7E:38:BC": "xg4",   // NIC del NAS
+			"AA:BB:CC:00:00:01": "xg7", // root port hacia gw
+			"A0:36:9F:7E:38:BC": "xg4", // NIC del NAS
 		}},
 		"nas": {brMac: "02:42:AC:11:00:03", fdb: map[string]string{}},
 	}

@@ -39,9 +39,9 @@ type DawnDesired struct {
 	Duration           string `json:"duration,omitempty"`           // default "150"
 	MinNumberToKick    string `json:"minNumberToKick,omitempty"`    // default "3"
 	BandwidthThreshold string `json:"bandwidthThreshold,omitempty"` // default "6"
-	EvalAuthReq        string `json:"evalAuthReq,omitempty"`      // default "0"
-	EvalAssocReq       string `json:"evalAssocReq,omitempty"`     // default "0"
-	EvalProbeReq       string `json:"evalProbeReq,omitempty"`     // default "0"
+	EvalAuthReq        string `json:"evalAuthReq,omitempty"`        // default "0"
+	EvalAssocReq       string `json:"evalAssocReq,omitempty"`       // default "0"
+	EvalProbeReq       string `json:"evalProbeReq,omitempty"`       // default "0"
 	IEEE80211K         bool   `json:"ieee80211k,omitempty"`
 	IEEE80211R         bool   `json:"ieee80211r,omitempty"`
 	IEEE80211V         bool   `json:"ieee80211v,omitempty"`
@@ -73,10 +73,10 @@ type DawnRadio struct {
 
 // DawnScenario describe el estado detectado de DAWN en un router.
 type DawnScenario struct {
-	Manager       string        // apk | opkg | ""
+	Manager       string // apk | opkg | ""
 	DawnInstalled bool
 	DawnRunning   bool
-	WpadVariant   string        // basic | mbedtls | wolfssl | openssl | other | ""
+	WpadVariant   string // basic | mbedtls | wolfssl | openssl | other | ""
 	HostapdDirOK  bool
 	Global        map[string]string
 	SSIDs         []DawnSSID

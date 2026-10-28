@@ -49,7 +49,7 @@ var ErrNoProfile = fmt.Errorf("firmware: perfil no encontrado para el board_name
 // RestrictToTarget helper no usado por ahora; se añade si hay que filtrar.
 type profilesJSON struct {
 	Profiles map[string]struct {
-		ImagePrefix      string `json:"image_prefix"`
+		ImagePrefix      string   `json:"image_prefix"`
 		SupportedDevices []string `json:"supported_devices"`
 		Images           []struct {
 			Filesystem string `json:"filesystem"`
@@ -90,7 +90,7 @@ func (r *ImageResolver) Resolve(ctx context.Context, version, target, boardName 
 	}
 	// El board_name (p.ej. "redmi,ax6") casa con supported_devices de un perfil.
 	var best *struct {
-		ImagePrefix      string `json:"image_prefix"`
+		ImagePrefix      string   `json:"image_prefix"`
 		SupportedDevices []string `json:"supported_devices"`
 		Images           []struct {
 			Filesystem string `json:"filesystem"`

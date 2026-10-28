@@ -198,7 +198,7 @@ func (l *Live) EvalSsidImpostors() {
 			routerName = rn
 		}
 		l.engine.Emit(AlertEvent{
-			ID:       alertID,
+			ID: alertID,
 			// CatClients y no CatSignal: signal está en LevelNone por defecto
 			// (alertas de cobertura) y una alerta de SEGURIDAD no puede
 			// quedar invisible en la config stock (#1358).

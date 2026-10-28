@@ -28,8 +28,8 @@ import (
 // UsteerDesired es el estado deseado del modulo usteer.
 type UsteerDesired struct {
 	Enabled                bool   `json:"enabled"`
-	SSID                   string `json:"ssid,omitempty"`               // SSID a gestionar; vacio = todas las de modo AP
-	MobilityDomain         string `json:"mobilityDomain,omitempty"`       // p. ej. "2025"
+	SSID                   string `json:"ssid,omitempty"`                   // SSID a gestionar; vacio = todas las de modo AP
+	MobilityDomain         string `json:"mobilityDomain,omitempty"`         // p. ej. "2025"
 	Aggressiveness         string `json:"aggressiveness,omitempty"`         // default "3"
 	BandSteeringThreshold  string `json:"bandSteeringThreshold,omitempty"`  // default "5"
 	LoadBalancingThreshold string `json:"loadBalancingThreshold,omitempty"` // default "0"
@@ -65,14 +65,14 @@ type UsteerRadio struct {
 
 // UsteerScenario describe el estado detectado de usteer en un router.
 type UsteerScenario struct {
-	Manager        string            // apk | opkg | ""
+	Manager         string // apk | opkg | ""
 	UsteerInstalled bool
 	UsteerRunning   bool
-	WpadVariant    string            // basic | mbedtls | wolfssl | openssl | other | ""
-	HostapdDirOK   bool
-	Config         map[string]string // usteer.@usteer[-1] options
-	SSIDs          []UsteerSSID
-	Radios         []UsteerRadio
+	WpadVariant     string // basic | mbedtls | wolfssl | openssl | other | ""
+	HostapdDirOK    bool
+	Config          map[string]string // usteer.@usteer[-1] options
+	SSIDs           []UsteerSSID
+	Radios          []UsteerRadio
 }
 
 const probeUsteerCmd = `echo '===PKG_MGR==='

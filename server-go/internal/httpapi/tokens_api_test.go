@@ -7,6 +7,15 @@ import (
 	"testing"
 )
 
+func mustDo(t *testing.T, req *http.Request) *http.Response {
+	t.Helper()
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	return resp
+}
+
 func TestTokensCRUD(t *testing.T) {
 	ts := makeTestServer(t)
 	defer ts.Close()
@@ -24,7 +33,7 @@ func TestTokensCRUD(t *testing.T) {
 		req, _ := http.NewRequest("POST", ts.URL+"/api/tokens", bytes.NewReader(createBody))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Cookie", "session="+cookie)
-		resp, _ := http.DefaultClient.Do(req)
+		resp := mustDo(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("create: expected 201, got %d", resp.StatusCode)
@@ -38,7 +47,7 @@ func TestTokensCRUD(t *testing.T) {
 	{
 		req, _ := http.NewRequest("GET", ts.URL+"/api/tokens", nil)
 		req.Header.Set("Cookie", "session="+cookie)
-		resp, _ := http.DefaultClient.Do(req)
+		resp := mustDo(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("list: expected 200, got %d", resp.StatusCode)
@@ -58,7 +67,7 @@ func TestTokensCRUD(t *testing.T) {
 	{
 		req, _ := http.NewRequest("DELETE", ts.URL+"/api/tokens/"+created.ID, nil)
 		req.Header.Set("Cookie", "session="+cookie)
-		resp, _ := http.DefaultClient.Do(req)
+		resp := mustDo(t, req)
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusNoContent {
 			t.Fatalf("delete: expected 204, got %d", resp.StatusCode)
@@ -68,7 +77,7 @@ func TestTokensCRUD(t *testing.T) {
 	{
 		req, _ := http.NewRequest("GET", ts.URL+"/api/tokens", nil)
 		req.Header.Set("Cookie", "session="+cookie)
-		resp, _ := http.DefaultClient.Do(req)
+		resp := mustDo(t, req)
 		defer resp.Body.Close()
 		var body struct {
 			Tokens []struct{ ID string } `json:"tokens"`
@@ -91,7 +100,7 @@ func TestTokenBearerAuth(t *testing.T) {
 	req, _ := http.NewRequest("POST", ts.URL+"/api/tokens", bytes.NewReader(createBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", "session="+cookie)
-	resp, _ := http.DefaultClient.Do(req)
+	resp := mustDo(t, req)
 	defer resp.Body.Close()
 	var created struct {
 		Token string `json:"token"`
@@ -103,7 +112,7 @@ func TestTokenBearerAuth(t *testing.T) {
 
 	req, _ = http.NewRequest("GET", ts.URL+"/api/overview", nil)
 	req.Header.Set("Authorization", "Bearer "+created.Token)
-	resp2, _ := http.DefaultClient.Do(req)
+	resp2 := mustDo(t, req)
 	defer resp2.Body.Close()
 	if resp2.StatusCode == http.StatusUnauthorized {
 		t.Fatal("bearer token should authenticate, got 401")
@@ -116,7 +125,7 @@ func TestTokenBearerInvalid(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", ts.URL+"/api/overview", nil)
 	req.Header.Set("Authorization", "Bearer np_invalidtoken")
-	resp, _ := http.DefaultClient.Do(req)
+	resp := mustDo(t, req)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("invalid bearer should get 401, got %d", resp.StatusCode)

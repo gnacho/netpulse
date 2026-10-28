@@ -40,7 +40,7 @@ func TestInsertAndQuery(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		if err := s.Insert(Sample{
 			MAC: "aa:bb:cc:dd:ee:ff", RouterID: "gw",
-			TS: now.Add(time.Duration(i) * time.Minute),
+			TS:      now.Add(time.Duration(i) * time.Minute),
 			RxBytes: uint64(i * 1000), TxBytes: uint64(i * 500),
 			RxBps: float64(i * 8000), TxBps: float64(i * 4000),
 		}); err != nil {
@@ -102,7 +102,7 @@ func TestTopClients(t *testing.T) {
 		for j := 0; j < 5; j++ {
 			_ = s.Insert(Sample{
 				MAC: mac, RouterID: "gw",
-				TS: now.Add(time.Duration(j) * time.Minute),
+				TS:      now.Add(time.Duration(j) * time.Minute),
 				RxBytes: uint64((i + 1) * 1000), TxBytes: uint64((i + 1) * 500),
 			})
 		}

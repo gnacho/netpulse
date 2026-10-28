@@ -84,7 +84,7 @@ func (s *Store) Summary(routerID string, windowHours int) (*Summary, error) {
 		return nil, err
 	}
 	if dhcpReqs > 0 {
-		sc.DHCPSuccessPct = math.Round(float64(dhcpAcks) / float64(dhcpReqs) * 1000) / 10
+		sc.DHCPSuccessPct = math.Round(float64(dhcpAcks)/float64(dhcpReqs)*1000) / 10
 	} else {
 		sc.DHCPSuccessPct = 100
 	}
@@ -130,7 +130,7 @@ func (s *Store) Series(routerID string, from, to int64) ([]SLEReport, error) {
 			return nil, err
 		}
 		if r.DHCPRequests > 0 {
-			r.DHCPSuccessPct = math.Round(float64(r.DHCPAcks) / float64(r.DHCPRequests) * 1000) / 10
+			r.DHCPSuccessPct = math.Round(float64(r.DHCPAcks)/float64(r.DHCPRequests)*1000) / 10
 		} else {
 			r.DHCPSuccessPct = 100
 		}

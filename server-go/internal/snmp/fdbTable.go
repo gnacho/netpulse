@@ -8,9 +8,9 @@ import (
 )
 
 type FdbEntry struct {
-	MAC            string
+	MAC             string
 	BridgePortIndex int
-	IfIndex        int
+	IfIndex         int
 }
 
 // FdbPoll es el resultado de sondear el FDB de un switch. Además de las

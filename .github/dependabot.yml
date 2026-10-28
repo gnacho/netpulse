@@ -11,6 +11,10 @@ updates:
     directory: /agent
     schedule:
       interval: monthly
+  - package-ecosystem: gomod
+    directory: /collector
+    schedule:
+      interval: monthly
   - package-ecosystem: npm
     directory: /app
     schedule:

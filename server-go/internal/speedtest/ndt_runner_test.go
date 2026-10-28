@@ -9,9 +9,9 @@ import (
 
 func TestNdtServerHost(t *testing.T) {
 	cases := map[string]string{
-		"":                            "",
-		"   ":                         "",
-		"ndt-mlab1-mad04.mlab-oti.org": "ndt-mlab1-mad04.mlab-oti.org",
+		"":                                      "",
+		"   ":                                   "",
+		"ndt-mlab1-mad04.mlab-oti.org":          "ndt-mlab1-mad04.mlab-oti.org",
 		"wss://ndt.example.com/ndt/v7/download": "ndt.example.com",
 		"ndt.example.com:4443":                  "ndt.example.com:4443",
 	}

@@ -171,8 +171,8 @@ func TestLiveRouterOfflineFlappingDoesNotRearm(t *testing.T) {
 
 	// Flap: éxitos aislados no cierran el incidente ni rearman.
 	l.mu.Lock()
-	l.trackRouterRecovered(cfg) // streak 1
-	l.trackRouterRecovered(cfg) // streak 2
+	l.trackRouterRecovered(cfg)           // streak 1
+	l.trackRouterRecovered(cfg)           // streak 2
 	l.trackRouterOffline(cfg, errDown, 2) // vuelve a caer: sin alerta nueva
 	l.mu.Unlock()
 	if list := l.engine.List(); len(list) != 1 || !strings.HasPrefix(list[0].ID, "alert-offline-patio-") {
