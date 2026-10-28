@@ -138,6 +138,14 @@ func (h *AgentHub) SendPrivileged(slug, event string, data any) error {
 	return nil
 }
 
+func (h *AgentHub) swapConn(c *agentConn) *agentConn {
+	h.mu.Lock()
+	old := h.conns[c.slug]
+	h.conns[c.slug] = c
+	h.mu.Unlock()
+	return old
+}
+
 func (h *AgentHub) removeConn(c *agentConn) {
 	h.mu.Lock()
 	if h.conns[c.slug] == c {
@@ -202,26 +210,23 @@ func (h *AgentHub) HandleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cerrar conexión anterior del mismo slug. El write va FUERA del mutex:
-	// un cliente lento no debe bloquear Send/remove de otros (issue #200).
-	h.mu.Lock()
-	old, ok := h.conns[slug]
-	h.mu.Unlock()
-	if ok {
-		_ = old.write("event: bye\ndata: {}\n\n")
-		time.Sleep(100 * time.Millisecond) // dar tiempo al flush
-		h.removeConn(old)
-	}
-
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
 	c := &agentConn{slug: slug, secure: auth.IsSecureRequest(r), w: w, flusher: flusher, done: make(chan struct{})}
-	h.mu.Lock()
-	h.conns[slug] = c
-	h.mu.Unlock()
+	// El reemplazo del mapa es atomico: dos streams simultaneos no pueden
+	// leer el mismo "old" y dejar uno de ellos fuera del mapa. El "bye" se
+	// escribe fuera del mutex para que un cliente lento no bloquee al resto
+	// (issue #200).
+	old := h.swapConn(c)
+	if old != nil {
+		go func() {
+			_ = old.write("event: bye\ndata: {}\n\n")
+			old.close()
+		}()
+	}
 	defer h.removeConn(c)
 	defer func() { // FORK: runs first, before the handler returns
 		c.wmu.Lock()

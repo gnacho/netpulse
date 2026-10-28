@@ -155,13 +155,6 @@ func (h *Hub) NotifyShutdown() {
 
 // HandleStream sirve GET /api/stream (requiere sesión: RequireAuth antes).
 func (h *Hub) HandleStream(w http.ResponseWriter, r *http.Request) {
-	h.mu.Lock()
-	full := len(h.clients) >= h.maxClients
-	h.mu.Unlock()
-	if full {
-		auth.WriteError(w, http.StatusServiceUnavailable, "too_many_clients")
-		return
-	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		auth.WriteError(w, http.StatusInternalServerError, "internal_error")
@@ -169,19 +162,24 @@ func (h *Hub) HandleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := auth.SessionIDFromContext(r.Context())
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("Cache-Control", "no-cache") // sobrescribe el no-store
-	// Deliberadamente SIN Content-Encoding (ver sse.js:3-6).
-	w.WriteHeader(http.StatusOK)
-
 	h.mu.Lock()
+	if len(h.clients) >= h.maxClients {
+		h.mu.Unlock()
+		auth.WriteError(w, http.StatusServiceUnavailable, "too_many_clients")
+		return
+	}
 	c := &client{id: h.nextID, sessionID: sessionID, w: w, flusher: flusher, done: make(chan struct{})}
 	h.nextID++
 	h.clients[c.id] = c
 	h.mu.Unlock()
 	defer h.remove(c)
 	defer c.finish() // FORK: runs first, before the handler returns
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Cache-Control", "no-cache") // sobrescribe el no-store
+	// Deliberadamente SIN Content-Encoding (ver sse.js:3-6).
+	w.WriteHeader(http.StatusOK)
 
 	// Primer snapshot inmediato al conectar
 	if h.getOverview != nil {
