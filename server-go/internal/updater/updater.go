@@ -130,6 +130,7 @@ type Updater struct {
 	db *sql.DB
 
 	mu         sync.Mutex
+	checkMu    sync.Mutex
 	current    string
 	latest     *string
 	latestMsg  *string
@@ -480,6 +481,9 @@ func parseSemver(s string) [3]int {
 // rolling compara contra el último commit de main; en modo estable contra
 // el último release tag (semver).
 func (u *Updater) Check(ctx context.Context) Status {
+	u.checkMu.Lock()
+	defer u.checkMu.Unlock()
+
 	var current, latest, latestMsg, latestBody, errCode string
 	var latestSHA string
 	currentVersion := u.version
@@ -642,17 +646,17 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 
 	// Historial + marcador: version_from es el commit actual, version_to el
 	// objetivo (latest de GitHub si ya se consultó).
-	from := u.current
-	if from == "" || from == "desconocido" {
-		from = gitShort(u.repoRoot)
-	}
 	u.mu.Lock()
+	from := u.current
 	var to *string
 	if u.latest != nil {
 		c := *u.latest
 		to = &c
 	}
 	u.mu.Unlock()
+	if from == "" || from == "desconocido" {
+		from = gitShort(u.repoRoot)
+	}
 	historyID := u.recordStart(from, to, initiatedBy)
 	u.persistPendingApply(from, to)
 	startedAt := time.Now()

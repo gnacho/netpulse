@@ -25,6 +25,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -259,7 +260,10 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "demo": true})
 		return
 	}
-	s.agents.Ingest(&p)
+	if !s.acceptAgentPush(&p) {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stale": true})
+		return
+	}
 	// FORK: which agents still report over plain HTTP (Settings > HTTPS).
 	s.noteAgentTransport(p.Router, auth.IsSecureRequest(r))
 	// Fase 18 (#452): persistir scans pasivos de vecinos si el payload trae
@@ -1203,6 +1207,33 @@ func cmpSemver(a, b string) int { return vercmp.Cmp(a, b) }
 // Lo llama el propio NetGrip al arrancar: NetPulse lo necesita para delegarle
 // ops (p. ej. la propagación de MQTT) sin depender de que haya subido un
 // backup de configuración antes.
+func (s *server) acceptAgentPush(p *probe.Payload) bool {
+	s.pushMu.Lock()
+	defer s.pushMu.Unlock()
+
+	key := "agent.last_push_ts." + p.Router
+	var last int64
+	if s.db != nil {
+		var raw string
+		if err := s.db.QueryRow("SELECT value FROM kv WHERE key = ?", key).Scan(&raw); err == nil {
+			last, _ = strconv.ParseInt(raw, 10, 64)
+		}
+	}
+	if p.Ts <= last {
+		return false
+	}
+	s.agents.Ingest(p)
+	if s.db != nil {
+		if _, err := s.db.Exec(
+			`INSERT INTO kv (key, value) VALUES (?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+			key, strconv.FormatInt(p.Ts, 10)); err != nil {
+			log.Printf("[netpulse] no se pudo persistir el ultimo push de %s: %v", p.Router, err)
+		}
+	}
+	return true
+}
+
 func (s *server) handleAgentExecutorToken(w http.ResponseWriter, r *http.Request) {
 	slug := r.Header.Get("X-Router-ID")
 	token := bearerToken(r)

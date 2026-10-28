@@ -152,6 +152,7 @@ type server struct {
 	hub     *sse.Hub
 	secret  string
 	agents  *adapters.AgentRegistry
+	pushMu  sync.Mutex
 	pool    SSHRunner
 	rearmer *rearmer.Rearmer
 	lastOv  func() *adapters.Overview

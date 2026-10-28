@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -222,15 +223,16 @@ func TestIngestBodyGrandeYPayloadInvalido(t *testing.T) {
 func TestIngestRateLimit(t *testing.T) {
 	ts := makeAgentTestServer(t)
 	_, token, _ := createAgentToken(t, ts, "patio")
+	base := time.Now().Unix() + 60
 	// 30/min por IP: las 30 primeras pasan, la 31 es 429 con Retry-After
 	for i := 0; i < 30; i++ {
-		res := ingest(t, ts, token, "10.0.2.1", validPayload())
+		res := ingest(t, ts, token, "10.0.2.1", validPayload(base+int64(i)))
 		res.Body.Close()
 		if res.StatusCode != 202 {
 			t.Fatalf("push %d: %d", i, res.StatusCode)
 		}
 	}
-	res := ingest(t, ts, token, "10.0.2.1", validPayload())
+	res := ingest(t, ts, token, "10.0.2.1", validPayload(base+30))
 	defer res.Body.Close()
 	if res.StatusCode != 429 {
 		t.Fatalf("push 31 debería ser 429, dio %d", res.StatusCode)
@@ -243,7 +245,7 @@ func TestIngestRateLimit(t *testing.T) {
 		t.Fatalf("429 shape: %v retry=%q", body, res.Header.Get("Retry-After"))
 	}
 	// Otra IP no está limitada
-	res2 := ingest(t, ts, token, "10.0.2.2", validPayload())
+	res2 := ingest(t, ts, token, "10.0.2.2", validPayload(base+31))
 	res2.Body.Close()
 	if res2.StatusCode != 202 {
 		t.Fatalf("otra IP: %d", res2.StatusCode)
@@ -397,5 +399,38 @@ func TestIngestAntiReplay(t *testing.T) {
 	res.Body.Close()
 	if res.StatusCode != 202 {
 		t.Fatalf("ts en ventana debería dar 202, dio %d", res.StatusCode)
+	}
+}
+
+func TestIngestRejectsStaleAndEqualTimestamps(t *testing.T) {
+	ts := makeAgentTestServer(t)
+	_, token, _ := createAgentToken(t, ts, "patio")
+
+	now := time.Now().Unix()
+	res := ingest(t, ts, token, "10.0.2.1", validPayload(now))
+	res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		t.Fatalf("primer push: %d", res.StatusCode)
+	}
+
+	for _, stale := range []int64{now, now - 30} {
+		res := ingest(t, ts, token, "10.0.2.2", validPayload(stale))
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("push con ts=%d debería ser ignorado, dio %d", stale, res.StatusCode)
+		}
+	}
+
+	fresh, ok := ts.agents.Fresh("patio")
+	if !ok || fresh.Ts != now {
+		t.Fatalf("el estado aceptado cambió: ok=%v ts=%d want=%d", ok, fresh.Ts, now)
+	}
+
+	var raw string
+	if err := ts.db.QueryRow("SELECT value FROM kv WHERE key = 'agent.last_push_ts.patio'").Scan(&raw); err != nil {
+		t.Fatalf("kv: %v", err)
+	}
+	if raw != strconv.FormatInt(now, 10) {
+		t.Fatalf("timestamp persistido: got %q want %d", raw, now)
 	}
 }

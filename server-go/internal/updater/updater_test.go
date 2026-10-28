@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -406,5 +408,55 @@ func TestSubscribeBroadcast(t *testing.T) {
 	case <-ch:
 		t.Fatal("no debería llegar tras cancel")
 	default:
+	}
+}
+
+func TestCheckSerializedUnderConcurrency(t *testing.T) {
+	var inFlight, maxInFlight atomic.Int32
+	withAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/repos/owner/netpulse/commits/main":
+			n := inFlight.Add(1)
+			for {
+				m := maxInFlight.Load()
+				if n <= m || maxInFlight.CompareAndSwap(m, n) {
+					break
+				}
+			}
+			defer inFlight.Add(-1)
+			time.Sleep(50 * time.Millisecond)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"sha":"abc1234deadbeef","commit":{"message":"feat: algo"}}`)
+		case r.URL.Path == "/repos/owner/netpulse/releases/latest":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"tag_name":"v2.5.0"}`)
+		case r.URL.Path == "/repos/owner/netpulse/releases":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `[]`)
+		case strings.Contains(r.URL.Path, "/compare/"):
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"commits":[]}`)
+		default:
+			t.Errorf("path: %s", r.URL.Path)
+		}
+	})
+
+	root := t.TempDir()
+	writeDeployScript(t, root)
+	writeGitHead(t, root)
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			u.Check(context.Background())
+		}()
+	}
+	wg.Wait()
+
+	if got := maxInFlight.Load(); got != 1 {
+		t.Fatalf("commits/main max in flight=%d want 1", got)
 	}
 }
