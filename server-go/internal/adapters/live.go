@@ -364,6 +364,8 @@ type Live struct {
 	unknownGrace    map[string]int
 	unknownAlerted  map[string]bool
 	unknownGraceNum int // ticks antes de declarar desconocido (default 3, #234)
+	// rdns: reverse DNS fallback for devices nothing else named (rdns.go).
+	rdns *rdnsCache
 	// impostorActive (#1358): BSSID impostor → alertID emitida. Solo en
 	// memoria a propósito: si el server reinicia y el impostor sigue
 	// visible, la alerta se re-emite (seguridad prima sobre re-aviso).
@@ -593,6 +595,11 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 	// #1441: peers marcados como urgentes (persistidos en kv).
 	l.loadWGUrgent()
 	l.SetRouters(initial)
+	// Only a real, non-demo server resolves names: NewLive(nil, ...) in tests
+	// and the demo dataset stay off the network.
+	if cfg != nil && !cfg.DemoMode {
+		l.rdns = newRDNSCache()
+	}
 	return l
 }
 
@@ -3403,6 +3410,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if d.Name == mac {
 					d.Name = host
 				}
+			}
+		}
+		// Static-IP hosts never take a lease: fall back to their PTR record.
+		if d.Name == mac && d.IP != "" {
+			if host := l.rdns.Name(d.IP); host != "" {
+				d.Name = host
 			}
 		}
 		if randomMACs[mac] {
