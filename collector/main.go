@@ -180,7 +180,7 @@ func main() {
 	}()
 
 	// Job nocturno: rollup → purga → checkpoint → optimize → VACUUM condicional
-	go ts.RunNightlyJob(ctx, 3, 30)
+	ts.RunNightlyJob(ctx, 3, 30)
 
 	// /healthz — snapshot de `last` bajo RLock corto: las consultas a la DB del
 	// store (lentas con DB ocupada) NO se hacen con el mutex de sondas cogido.

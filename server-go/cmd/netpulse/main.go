@@ -840,6 +840,10 @@ func run() error {
 		log.Printf("[netpulse] ERROR: binarios de agente embebidos (%s) sin la versión %s: upgrades de agentes DESACTIVADOS hasta recompilar (#1246)", bad, agentbin.EmbeddedAgentVersion)
 		agentbin.SetEmbeddedMismatch(true)
 	}
+	fwScheduler.Start()
+	if fwReleases != nil {
+		fwReleases.Start()
+	}
 	go func() {
 		scheme := "http"
 		if cfg.Onbox {
@@ -857,10 +861,6 @@ func run() error {
 		p.Start()
 		mqttMgr.Start()
 		upd.Start()
-		go fwScheduler.Start()
-		if fwReleases != nil {
-			go fwReleases.Start()
-		}
 		if eventsCollector != nil {
 			eventsCollector.Start()
 		}

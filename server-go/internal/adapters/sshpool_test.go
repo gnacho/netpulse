@@ -255,3 +255,48 @@ func TestRemoveHostKeyCustomPort(t *testing.T) {
 		t.Fatalf("la entrada de host-b se perdió: %s", data)
 	}
 }
+
+func TestSSHPoolCloseDuringDialReleasesClient(t *testing.T) {
+	pool := newTestPool(t)
+	started := make(chan struct{})
+	ready := make(chan struct{})
+	closed := make(chan struct{}, 1)
+	pool.closeClient = func(c *ssh.Client) error {
+		closed <- struct{}{}
+		return nil
+	}
+	pool.dialTCP = func(network, addr string, cfg *ssh.ClientConfig) (*ssh.Client, error) {
+		close(started)
+		<-ready
+		return &ssh.Client{}, nil
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := pool.dial("10.0.0.3")
+		errCh <- err
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("dialTCP no arrancó")
+	}
+	pool.Close()
+	close(ready)
+
+	select {
+	case err := <-errCh:
+		if err == nil || err.Error() != "ssh pool closed" {
+			t.Fatalf("esperaba 'ssh pool closed', obtuve: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("dial no terminó tras Close")
+	}
+
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("el cliente SSH no se cerró al detectar el pool cerrado")
+	}
+}

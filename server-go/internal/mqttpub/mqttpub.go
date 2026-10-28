@@ -157,7 +157,7 @@ func (p *Publisher) Run(ctx context.Context) {
 
 		// The retained availability must not stay "online" after an
 		// intentional stop (a graceful DISCONNECT suppresses the will).
-		p.publishAvailability(client, "offline")
+		p.publishAvailabilityWithTimeout(client, "offline", shutdownWait-time.Second)
 		_ = client.Disconnect(context.Background())
 		return
 	}
@@ -280,15 +280,23 @@ func (p *Publisher) publishNewAlerts(client *mq.Client, ov *adapters.Overview) {
 }
 
 func (p *Publisher) publishAvailability(client *mq.Client, value string) {
-	publish(client, availabilityTopic(p.cfg.Instance), []byte(value), true)
+	p.publishAvailabilityWithTimeout(client, value, publishTimeout)
+}
+
+func (p *Publisher) publishAvailabilityWithTimeout(client *mq.Client, value string, timeout time.Duration) {
+	publishWithTimeout(client, availabilityTopic(p.cfg.Instance), []byte(value), true, timeout)
 }
 
 // publish sends one payload at QoS 1 (retained when retain is true).
 func publish(client *mq.Client, topic string, payload []byte, retain bool) {
+	publishWithTimeout(client, topic, payload, retain, publishTimeout)
+}
+
+func publishWithTimeout(client *mq.Client, topic string, payload []byte, retain bool, timeout time.Duration) {
 	if !client.IsConnected() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), publishTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	opts := []mq.PublishOption{mq.WithQoS(mq.AtLeastOnce)}
 	if retain {

@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func newTestTS(t *testing.T) *TimeSeries {
@@ -76,8 +75,7 @@ func TestCloseFlushesAndStopsCleanly(t *testing.T) {
 
 	// NightlyJob vivo con su ctx: debe parar antes de que Close cierre la DB.
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { defer close(done); ts.RunNightlyJob(ctx, 3, 30) }()
+	ts.RunNightlyJob(ctx, 3, 30)
 
 	// Lote pendiente sin llegar a flushBatch: solo el flush de Close lo persiste.
 	for i := 0; i < 10; i++ {
@@ -85,11 +83,6 @@ func TestCloseFlushesAndStopsCleanly(t *testing.T) {
 	}
 	cancel()
 	ts.Close()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-		t.Fatal("RunNightlyJob no paró tras cancel + Close")
-	}
 
 	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
 	if err != nil {

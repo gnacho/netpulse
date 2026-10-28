@@ -47,6 +47,10 @@ func NewScheduler(store *Store, launcher Launcher) *Scheduler {
 // Start lanza el bucle periódico (daemon; no retorna hasta Stop).
 func (s *Scheduler) Start() {
 	s.wg.Add(1)
+	go s.run()
+}
+
+func (s *Scheduler) run() {
 	defer s.wg.Done()
 	ticker := time.NewTicker(tickEvery)
 	defer ticker.Stop()

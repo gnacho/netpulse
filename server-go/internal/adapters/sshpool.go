@@ -52,7 +52,18 @@ type SSHPool struct {
 	conns  map[string]*sshConn
 	closed bool
 
-	dialTCP func(network, addr string, config *ssh.ClientConfig) (*ssh.Client, error)
+	dialTCP     func(network, addr string, config *ssh.ClientConfig) (*ssh.Client, error)
+	closeClient func(*ssh.Client) error
+}
+
+func (p *SSHPool) closeSSHClient(c *ssh.Client) error {
+	if c == nil {
+		return nil
+	}
+	if p.closeClient != nil {
+		return p.closeClient(c)
+	}
+	return c.Close()
 }
 
 type sshConn struct {
@@ -246,6 +257,11 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		p.mu.Unlock()
 		return nil, fmt.Errorf("ssh %s: %w", host, err)
 	}
+	if p.closed {
+		p.mu.Unlock()
+		_ = p.closeSSHClient(client)
+		return nil, errors.New("ssh pool closed")
+	}
 	entry.client = client
 	entry.failures = 0
 	entry.notUntil = time.Time{}
@@ -258,7 +274,7 @@ func (p *SSHPool) drop(host string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if e := p.conns[host]; e != nil && e.client != nil {
-		_ = e.client.Close()
+		_ = p.closeSSHClient(e.client)
 		e.client = nil
 	}
 }
@@ -365,7 +381,7 @@ func (p *SSHPool) Close() {
 	p.closed = true
 	for _, e := range p.conns {
 		if e.client != nil {
-			_ = e.client.Close()
+			_ = p.closeSSHClient(e.client)
 			e.client = nil
 		}
 	}

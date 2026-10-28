@@ -327,6 +327,10 @@ const releasesTick = 30 * time.Second
 // Start lanza el bucle periódico (daemon; no retorna hasta Stop).
 func (r *ReleasesRefresher) Start() {
 	r.wg.Add(1)
+	go r.run()
+}
+
+func (r *ReleasesRefresher) run() {
 	defer r.wg.Done()
 	// Al arrancar, publica la caché existente: el gating funciona desde el
 	// primer ciclo aunque el refresco todavía no haya tocado.

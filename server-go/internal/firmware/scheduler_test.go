@@ -69,15 +69,6 @@ func TestSchedulerStop(t *testing.T) {
 	s := open(t)
 	l := &fakeLauncher{}
 	sch := NewScheduler(s, l)
-	done := make(chan struct{})
-	go func() {
-		sch.Start()
-		close(done)
-	}()
+	sch.Start()
 	sch.Stop()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("Stop no terminó el bucle")
-	}
 }

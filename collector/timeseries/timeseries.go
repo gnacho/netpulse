@@ -4,7 +4,7 @@
 //	ts, _ := NewTimeSeries("data/metrics.db")
 //	ts.RegisterMetric(Metric{Key: "latency_ms", Unit: "ms", Kind: "gauge", MaxValue: ptr(60000.0)})
 //	ts.Write("latency_ms", 12.3)          // buffer; flush cada 1s/50 muestras
-//	go ts.RunNightlyJob(ctx, 3, 30)       // job diario 03:30 local (rollup+purga+mantenimiento)
+//	ts.RunNightlyJob(ctx, 3, 30)          // job diario 03:30 local (rollup+purga+mantenimiento)
 //	ts.Series("latency_ms", from, to, 800)
 //	ts.Close()                            // SIGTERM: flush + checkpoint
 package timeseries
@@ -302,6 +302,10 @@ func (t *TimeSeries) NightlyJob() {
 // RunNightlyJob programa el job a hour:min local cada día hasta ctx.Done().
 func (t *TimeSeries) RunNightlyJob(ctx context.Context, hour, min int) {
 	t.wg.Add(1)
+	go t.runNightlyJob(ctx, hour, min)
+}
+
+func (t *TimeSeries) runNightlyJob(ctx context.Context, hour, min int) {
 	defer t.wg.Done()
 	for {
 		now := time.Now()
