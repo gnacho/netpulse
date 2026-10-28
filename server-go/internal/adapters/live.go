@@ -627,10 +627,13 @@ func (l *Live) Mode() string { return "live" }
 // candidato a switch (red plana) devuelve vacío: el auto-cableado no
 // inventa nada.
 func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
+	l.mu.Lock()
 	gw := ""
 	if l.gatewayCfg != nil {
 		gw = l.gatewayCfg.ID
 	}
+	polled := cloneLastPolled(l.lastPolled)
+	l.mu.Unlock()
 	// Cobertura por unidad: MACs bridge de flota en su FDB y en cuántos
 	// puertos distintos.
 	type cover struct {
@@ -639,7 +642,7 @@ func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
 	}
 	cov := map[string]*cover{}
 	brMacOf := map[string]string{}
-	for id, p := range l.lastPolled {
+	for id, p := range polled {
 		if p == nil {
 			continue
 		}
@@ -683,13 +686,13 @@ func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
 	// también sale: su enlace al switch es el uplink de toda la casa.
 	infraBr := brMacOf[infra]
 	out := map[string]FdbUplink{}
-	for mac, port := range l.lastPolled[infra].fdb {
+	for mac, port := range polled[infra].fdb {
 		owner, ok := brMacOf[strings.ToUpper(mac)]
 		if !ok || owner == infra {
 			continue
 		}
 		childPort := ""
-		if lm, ok := l.lastPolled[owner]; ok && lm != nil {
+		if lm, ok := polled[owner]; ok && lm != nil {
 			childPort = lm.fdb[infraBr]
 		}
 		out[owner] = FdbUplink{ChildID: owner, ParentID: infra, Port: port, ChildPort: childPort}
@@ -698,6 +701,17 @@ func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
 }
 
 // Tick: no-op (el sondeo real ocurre en GetOverview, como el JS).
+func cloneLastPolled(src map[string]*routerPolled) map[string]*routerPolled {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]*routerPolled, len(src))
+	for id, p := range src {
+		dst[id] = p
+	}
+	return dst
+}
+
 func (l *Live) Tick(context.Context) error { return nil }
 
 // Close cierra el pool SSH.
@@ -1645,7 +1659,7 @@ func (l *Live) uplinkLldp(p *routerPolled) *LldpInfo {
 		return nil
 	}
 	l.mu.Lock()
-	polled := l.lastPolled
+	polled := cloneLastPolled(l.lastPolled)
 	l.mu.Unlock()
 	routers := routerIdentities(polled)
 	for i := range p.lldp {
@@ -4081,7 +4095,7 @@ func (l *Live) BoardInfoFor(id string) *BoardInfo {
 func (l *Live) GetRouters(context.Context) []Router {
 	l.mu.Lock()
 	routers := append([]RouterConfig(nil), l.routers...)
-	polled := l.lastPolled
+	polled := cloneLastPolled(l.lastPolled)
 	l.mu.Unlock()
 	out := make([]Router, 0, len(routers))
 	for _, cfg := range routers {
@@ -4177,7 +4191,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	}
 	p := l.lastPolled[id]
 	gw := l.gatewayCfg
-	polledAll := l.lastPolled
+	polledAll := cloneLastPolled(l.lastPolled)
 	l.mu.Unlock()
 	if cfg == nil {
 		return nil, nil
@@ -4434,7 +4448,7 @@ func (l *Live) latencySpark24h(routerID string) []float64 {
 // online, and without it a router's clients come out short.
 func (l *Live) attributedDevices() []Device {
 	l.mu.Lock()
-	polled := l.lastPolled
+	polled := cloneLastPolled(l.lastPolled)
 	l.mu.Unlock()
 	// #656/#678: memo sticky fresca ANTES de buildDevices (atribución) y como
 	// overlay de inferTopology (paridad con el overview), ANTES del sellado PVE
@@ -4490,7 +4504,7 @@ func (l *Live) RouterServingDHCP(mac string) string {
 		return ""
 	}
 	l.mu.Lock()
-	polled := l.lastPolled
+	polled := cloneLastPolled(l.lastPolled)
 	l.mu.Unlock()
 	for id, p := range polled {
 		if p == nil || p.cfg.AgentOnly {
