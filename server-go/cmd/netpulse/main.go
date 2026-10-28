@@ -850,7 +850,14 @@ func run() error {
 			scheme = "https"
 			srv.TLSConfig = tlsConf
 		}
-		log.Printf("[netpulse] v%s · modo %s · %s://localhost:%d", httpapi.Version, adapter.Mode(), scheme, cfg.Port)
+		listenHost := cfg.BindAddr
+		if listenHost == "" {
+			listenHost = "0.0.0.0"
+		}
+		log.Printf("[netpulse] v%s · modo %s · %s://%s:%d", httpapi.Version, adapter.Mode(), scheme, listenHost, cfg.Port)
+		if cfg.BindAddr == "127.0.0.1" || cfg.BindAddr == "localhost" {
+			log.Print("[netpulse] listener solo en loopback: la UI no responde desde la LAN (NETPULSE_BIND=0.0.0.0 para abrirla, o activa TLS)")
+		}
 		staticDesc := staticDir
 		if staticDesc == "" {
 			staticDesc = "(embed)"

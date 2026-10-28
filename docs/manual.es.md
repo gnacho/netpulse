@@ -38,7 +38,7 @@ Existe además un **modo demo** que se puede abrir sin contraseña ni backend: m
 
 ### Seguridad del transporte
 
-Cuando no hay TLS ni HTTPS on-box, el servidor escucha en `127.0.0.1` por defecto. Una instalación nueva no acepta inicios de sesión desde la LAN. Usa `NETPULSE_BIND=0.0.0.0` solo si quieres exponerlo a propósito, y activa TLS (`NETPULSE_TLS_ENABLED=1`) para cualquier acceso remoto. Con TLS u HTTPS on-box el bind queda abierto salvo que `NETPULSE_BIND` indique otra cosa.
+Cuando no hay TLS ni HTTPS on-box, el servidor escucha en `127.0.0.1` por defecto. Una instalación nueva no acepta inicios de sesión desde la LAN. Usa `NETPULSE_BIND=0.0.0.0` solo si quieres exponerlo a propósito, y activa TLS (`NETPULSE_TLS_ENABLED=1`) para cualquier acceso remoto. Con TLS u HTTPS on-box el bind queda abierto salvo que `NETPULSE_BIND` indique otra cosa. Una instalación que ya tiene su base de datos conserva el listener abierto en todas las interfaces, de modo que actualizar no corta el acceso.
 
 ---
 

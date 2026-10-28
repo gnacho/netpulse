@@ -4,6 +4,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -338,6 +340,23 @@ func TestLoadBindAddrTLSKeepsAllInterfaces(t *testing.T) {
 	}
 	if cfg.BindAddr != "" {
 		t.Fatalf("BindAddr = %q, esperaba vacío con TLS", cfg.BindAddr)
+	}
+}
+
+func TestLoadBindAddrExistingInstallKeepsAllInterfaces(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "data"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "data", "netpulse.db"), []byte("sqlite"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga"}, root)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BindAddr != "" {
+		t.Fatalf("BindAddr = %q, esperaba vacío cuando ya existe la base de datos", cfg.BindAddr)
 	}
 }
 

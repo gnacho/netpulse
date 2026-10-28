@@ -561,10 +561,19 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
-	// NETPULSE_BIND: dirección del listener HTTP. Sin TLS ni on-box el default
-	// es loopback; con TLS u on-box se mantiene el comportamiento histórico
-	// (todas las interfaces). Un valor explícito manda.
+	// NETPULSE_BIND: dirección del listener HTTP. Sin TLS, sin on-box y en una
+	// instalación nueva el default es loopback (#1607). Si ya existe la base de
+	// datos se trata de una actualización, así que se conserva el listener
+	// histórico en todas las interfaces para no cortar el acceso (#1647). Un
+	// valor explícito manda siempre.
+	dataPath := dataDir
+	if !filepath.IsAbs(dataPath) {
+		dataPath = filepath.Join(serverRoot, dataPath)
+	}
 	bindAddr := "127.0.0.1"
+	if _, err := os.Stat(filepath.Join(dataPath, "netpulse.db")); err == nil {
+		bindAddr = ""
+	}
 	if tlsEnabled || onbox {
 		bindAddr = ""
 	}

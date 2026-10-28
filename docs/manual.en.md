@@ -38,7 +38,7 @@ There is also a **demo mode** that opens without a password or backend: it shows
 
 ### Transport security
 
-When neither TLS nor on-box HTTPS is enabled, the server binds to `127.0.0.1` by default. A fresh installation therefore does not accept logins from the LAN. Set `NETPULSE_BIND=0.0.0.0` only when you deliberately want to expose it, and enable TLS (`NETPULSE_TLS_ENABLED=1`) for any remote access. With TLS or on-box HTTPS enabled the bind stays open unless `NETPULSE_BIND` says otherwise.
+When neither TLS nor on-box HTTPS is enabled, the server binds to `127.0.0.1` by default. A fresh installation therefore does not accept logins from the LAN. Set `NETPULSE_BIND=0.0.0.0` only when you deliberately want to expose it, and enable TLS (`NETPULSE_TLS_ENABLED=1`) for any remote access. With TLS or on-box HTTPS enabled the bind stays open unless `NETPULSE_BIND` says otherwise. An installation that already has its database keeps the listener open on every interface, so an upgrade does not cut access.
 
 ---
 
