@@ -5,8 +5,10 @@ package orchestr
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,18 +16,28 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
+// Errores del ciclo de vida del plan.
+var (
+	// ErrPlanNotFound: no hay ningún plan con ese id (p. ej. el agente
+	// reporta un plan de una base de datos que se recreó).
+	ErrPlanNotFound = errors.New("plan_not_found")
+	// ErrInvalidTransition: el plan no está en el estado del que parte la
+	// transición pedida. No se hacen UPDATE a ciegas.
+	ErrInvalidTransition = errors.New("invalid_plan_transition")
+)
+
 // Plan es un plan de orquestación: desired state → diff (Ops) → apply.
 type Plan struct {
-	ID        string             `json:"id"`
-	RouterID  string             `json:"routerId"`
-	Resource  string             `json:"resource"`
-	Desired   json.RawMessage    `json:"desired"`
-	Diff      []executor.Op      `json:"diff"`
-	Status    string             `json:"status"` // pending|applying|applied|failed|rolled_back
-	CreatedBy string             `json:"createdBy"`
-	CreatedAt int64              `json:"createdAt"`
-	AppliedAt *int64             `json:"appliedAt,omitempty"`
-	Result    *ApplyResult       `json:"result,omitempty"`
+	ID        string          `json:"id"`
+	RouterID  string          `json:"routerId"`
+	Resource  string          `json:"resource"`
+	Desired   json.RawMessage `json:"desired"`
+	Diff      []executor.Op   `json:"diff"`
+	Status    string          `json:"status"` // pending|applying|applied|failed|rolled_back
+	CreatedBy string          `json:"createdBy"`
+	CreatedAt int64           `json:"createdAt"`
+	AppliedAt *int64          `json:"appliedAt,omitempty"`
+	Result    *ApplyResult    `json:"result,omitempty"`
 	// Method NO se persiste: es metadato de la respuesta del POST /api/plans
 	// que indica el escenario detectado (apk|opkg|none|binary) para que el
 	// frontend lo muestre. Vacío en GET /api/plans/{id}.
@@ -98,38 +110,98 @@ func (m *Manager) GetPlan(id string) (*Plan, error) {
 	return &p, nil
 }
 
-// SetApplying marca el plan como en ejecución.
-func (m *Manager) SetApplying(id string) error {
-	_, err := m.db.Exec(`UPDATE orchestr_plans SET status = 'applying' WHERE id = ?`, id)
-	return err
+// SetApplying marca el plan como en ejecución (pending → applying).
+// Devuelve ErrInvalidTransition si el plan ya no está pendiente, de modo que
+// un apply repetido o fuera de orden no puede mover el estado a ciegas.
+func (m *Manager) SetApplying(id, actor string) error {
+	return m.transition(id, "pending", "applying", "applying", actor, "apply requested")
 }
 
-// SetRollingBack marca el plan como en revertido en curso (un admin disparó
-// POST /api/plans/{id}/rollback). Registra auditoría.
+// SetRollingBack marca el plan como revertido en curso (applied →
+// rolling_back) porque un admin disparó POST /api/plans/{id}/rollback.
+// Solo se acepta desde applied: revertir algo que no se aplicó no tiene
+// sentido y dejaría el plan colgado. Registra auditoría.
 func (m *Manager) SetRollingBack(id, actor string) error {
-	_, err := m.db.Exec(`UPDATE orchestr_plans SET status = 'rolling_back' WHERE id = ?`, id)
+	return m.transition(id, "applied", "rolling_back", "rollback", actor, "manual rollback triggered")
+}
+
+// RestoreTransition deshace una transición transitoria cuando el envío al
+// agente no llegó a entregarse (p. ej. applying → pending si el SSE falló).
+// El UPDATE va condicionado al estado de partida, así que nunca pisa un
+// resultado que el agente ya haya reportado. Registra auditoría "restore".
+func (m *Manager) RestoreTransition(id, from, to, actor, reason string) error {
+	switch {
+	case from != "applying" && from != "rolling_back":
+		return fmt.Errorf("%w: no se restaura desde %q", ErrInvalidTransition, from)
+	case to != "pending" && to != "applied":
+		return fmt.Errorf("%w: no se restaura a %q", ErrInvalidTransition, to)
+	}
+	detail := from + " -> " + to
+	if reason != "" {
+		detail += ": " + reason
+	}
+	return m.transition(id, from, to, "restore", actor, detail)
+}
+
+// transition mueve el plan de `from` a `to` solo si sigue en `from`
+// (UPDATE condicional, nunca a ciegas) y deja una línea de auditoría.
+func (m *Manager) transition(id, from, to, action, actor, detail string) error {
+	res, err := m.db.Exec(`UPDATE orchestr_plans SET status = ? WHERE id = ? AND status = ?`, to, id, from)
 	if err != nil {
 		return err
 	}
-	m.audit(id, "rollback", actor, "manual rollback triggered")
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		var cur string
+		switch err := m.db.QueryRow(`SELECT status FROM orchestr_plans WHERE id = ?`, id).Scan(&cur); {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrPlanNotFound
+		case err != nil:
+			return err
+		}
+		return fmt.Errorf("%w: estado %q, se esperaba %q", ErrInvalidTransition, cur, from)
+	}
+	m.audit(id, action, actor, detail)
 	return nil
 }
 
 // SetResult actualiza el plan con el resultado del agente y registra auditoría.
-// Si el plan estaba en 'rolling_back', traduce el resultado del agente al
-// estado semántico del plan (applied → rolled_back, fallido → failed).
+// El estado final depende del estado de partida: si el plan estaba en
+// 'rolling_back', el apply con las ops inversas se traduce a rolled_back;
+// si el rollback en sí falló, queda failed. Nunca deja rolling_back.
 func (m *Manager) SetResult(id string, res ApplyResult) error {
 	var prev string
 	if err := m.db.QueryRow(`SELECT status FROM orchestr_plans WHERE id = ?`, id).Scan(&prev); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPlanNotFound
+		}
 		return err
 	}
+	if res.Status == "" {
+		res.Status = "failed"
+		if res.Error == "" {
+			res.Error = "el agente no reportó estado"
+		}
+	}
 	final := res.Status
-	if prev == "rolling_back" {
+	switch prev {
+	case "rolled_back":
+		// rolled_back es terminal: un apply-result duplicado o tardío no
+		// puede resucitar un plan que ya se revirtió.
+		final = "rolled_back"
+	case "rolling_back":
 		switch res.Status {
-		case "applied":
+		case "applied", "rolled_back":
 			final = "rolled_back"
-		case "rolled_back":
+		case "failed":
 			final = "failed" // el propio rollback no pudo revertir
+		}
+	case "applying":
+		if res.Status == "rolled_back" {
+			final = "rolled_back"
 		}
 	}
 	resJSON, _ := json.Marshal(res)

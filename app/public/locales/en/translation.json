@@ -1979,6 +1979,8 @@
       "test": "Test connection",
       "propagate": "Propagate to NetGrip",
       "propagateEmpty": "There are no NetGrip routers in the fleet to propagate to.",
+      "propagatePending": "sent, awaiting confirmation",
+      "propagateHint": "Sent is not applied: the plan closes when the agent reports the result. The real state is shown in Orchestration.",
       "running": "publishing",
       "notRunning": "stopped"
     },

@@ -623,7 +623,7 @@ Los umbrales de temperatura, señal y latencia que definen la salud y las alerta
 
 ### Procedimiento: activarlo
 
-La forma habitual es la **tarjeta MQTT de Ajustes**: la activas, pones host, puerto y credenciales, pruebas la conexión y guardas; se aplica en caliente, sin reiniciar. Desde esa misma tarjeta puedes **propagar la configuración a los routers NetGrip** de la flota, para no configurarlos uno a uno.
+La forma habitual es la **tarjeta MQTT de Ajustes**: la activas, pones host, puerto y credenciales, pruebas la conexión y guardas; se aplica en caliente, sin reiniciar. Desde esa misma tarjeta puedes **propagar la configuración a los routers NetGrip** de la flota, para no configurarlos uno a uno. La propagación crea un plan por router y al agente solo se le deja **encolado**: la tarjeta lo marca como pendiente de confirmación y el resultado real (aplicado o fallido) se ve en Orquestación cuando el agente lo reporta.
 
 La alternativa son las variables de entorno (o las opciones UCI `mqtt_*` en modo on-box):
 

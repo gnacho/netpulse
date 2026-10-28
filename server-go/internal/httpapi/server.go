@@ -573,7 +573,7 @@ func NewHandler(d Deps) http.Handler {
 	s.registerOrchestrRoutes(mux, d.Orchestr)
 
 	// --- Ajustes MQTT (#838; solo admin) ---
-	s.registerMQTTRoutes(mux, d.MQTT)
+	s.registerMQTTRoutes(mux, d.MQTT, d.Orchestr)
 
 	// --- Ajustes globales en kv (issue #121: orchestration opt-in) ---
 	s.registerSettingsRoutes(mux)

@@ -1,75 +1,26 @@
-// orchestr_apply_test.go — tests del endpoint /api/orchestr/apply (#451).
+// orchestr_apply_test.go — tests del endpoint /api/orchestr/apply (#451) con
+// el contrato F-06: las ops (ya envueltas con ownership) van al agente por
+// SSE y no hay ninguna petición HTTP al executor de NetGrip.
 package httpapi_test
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/gnacho/netpulse/agent/executor"
-	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
 func TestOrchestrApplyCreatesAndAppliesPlan(t *testing.T) {
-	ts := makeTestServer(t)
-
-	var receivedOps []executor.Op
-	netgripMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/executor/apply" {
-			http.NotFound(w, r)
-			return
-		}
-		if auth := r.Header.Get("Authorization"); auth != "Bearer netgrip-secret" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		var body struct {
-			Ops []executor.Op `json:"ops"`
-		}
-		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		receivedOps = body.Ops
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-	}))
-	defer netgripMock.Close()
-
-	host := netgripMock.Listener.Addr().String()
-	_, err := routerstore.AddRouter(ts.db.DB, routerstore.AddInput{
-		Name:      "Flint 2",
-		Host:      host,
-		Type:      "openwrt",
-		IsGateway: true,
-	})
-	if err != nil {
-		t.Fatalf("add router: %v", err)
-	}
-	_, err = ts.db.Exec("UPDATE routers SET id = ? WHERE host = ?", "flint2", host)
-	if err != nil {
-		t.Fatalf("update router id: %v", err)
-	}
-
-	sum := sha256.Sum256([]byte("agent-token"))
-	_, err = ts.db.Exec("INSERT INTO kv (key, value) VALUES (?, ?)", "agent.token.flint2", hex.EncodeToString(sum[:]))
-	if err != nil {
-		t.Fatalf("insert agent token: %v", err)
-	}
-	_, err = ts.db.Exec(
-		"INSERT INTO kv (key, value) VALUES (?, ?)",
-		"netgrip.executor_token.flint2", "netgrip-secret")
-	if err != nil {
-		t.Fatalf("insert executor token: %v", err)
-	}
+	ts, _ := newSSEPlanServer(t, nil)
+	netgripMock, hits := countingNetGripMock(t)
+	addPlanRouter(t, ts, "flint2", netgripMock.Listener.Addr().String(), true, "netgrip-secret")
 
 	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+	events := connectAgentStream(t, ts.URL, "flint2")
 
 	ops := []executor.Op{{
 		Kind: "uci_set",
@@ -94,27 +45,37 @@ func TestOrchestrApplyCreatesAndAppliesPlan(t *testing.T) {
 		b, _ := io.ReadAll(res.Body)
 		t.Fatalf("apply: esperaba 202, got %d: %s", res.StatusCode, string(b))
 	}
+	if got := atomic.LoadInt32(hits); got != 0 {
+		t.Fatalf("NetGrip recibió %d peticiones HTTP; el apply debe ir por SSE", got)
+	}
 
-	// Verificar que el plan se creó y que NetGrip recibió ownership.
-	if len(receivedOps) < 3 {
-		t.Fatalf("NetGrip debería recibir al menos 3 ops, got %d", len(receivedOps))
+	// El agente recibe el plan completo, con las ops de ownership delante.
+	ev := waitAgentEvent(t, events, "apply")
+	var payload struct {
+		PlanID string        `json:"plan_id"`
+		Ops    []executor.Op `json:"ops"`
 	}
-	if receivedOps[0].Kind != "ownership_mode" || receivedOps[0].Args["enforce"] != "true" {
-		t.Errorf("op[0] debería ser ownership_mode enforce=true, got %+v", receivedOps[0])
+	if err := json.Unmarshal([]byte(ev.data), &payload); err != nil {
+		t.Fatalf("payload SSE apply inválido (%q): %v", ev.data, err)
 	}
-	if receivedOps[1].Kind != "uci_set_managed" {
-		t.Errorf("op[1] debería ser uci_set_managed, got %+v", receivedOps[1])
+	if len(payload.Ops) < 3 {
+		t.Fatalf("el agente debería recibir al menos 3 ops, got %d", len(payload.Ops))
+	}
+	if payload.Ops[0].Kind != "ownership_mode" || payload.Ops[0].Args["enforce"] != "true" {
+		t.Errorf("op[0] debería ser ownership_mode enforce=true, got %+v", payload.Ops[0])
+	}
+	if payload.Ops[1].Kind != "uci_set_managed" {
+		t.Errorf("op[1] debería ser uci_set_managed, got %+v", payload.Ops[1])
 	}
 
 	var planID string
 	if err := ts.db.QueryRow("SELECT id FROM orchestr_plans ORDER BY created_at DESC LIMIT 1").Scan(&planID); err != nil {
 		t.Fatalf("select plan: %v", err)
 	}
-	var status string
-	if err := ts.db.QueryRow("SELECT status FROM orchestr_plans WHERE id = ?", planID).Scan(&status); err != nil {
-		t.Fatalf("select status: %v", err)
+	if payload.PlanID != planID {
+		t.Errorf("plan_id SSE: got %q, want %q", payload.PlanID, planID)
 	}
-	if status != "applied" {
-		t.Fatalf("plan status: esperaba applied, got %s", status)
+	if got := planStatus(t, ts, planID); got != "applying" {
+		t.Fatalf("plan status: esperaba applying, got %s", got)
 	}
 }

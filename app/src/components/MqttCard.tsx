@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Loader2, Check, Eye, EyeOff, Radio, Share2 } from 'lucide-react'
+import { Send, Loader2, Check, Clock, Eye, EyeOff, Radio, Share2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
 import { InfoTip } from '@/components/InfoTip'
 
@@ -19,7 +19,14 @@ interface MqttConfig {
 interface PropagateResult {
   id: string
   name: string
-  delegated: boolean
+  // planId: plan real creado para este router en el servidor.
+  planId?: string
+  // queued: el comando quedó ENCOLADO en el agente. No significa aplicado:
+  // el plan se cierra cuando el agente reporta su resultado.
+  queued?: boolean
+  // delegated: alias histórico de queued (servidores antiguos).
+  delegated?: boolean
+  status?: string
   error?: string
 }
 
@@ -281,19 +288,26 @@ export default function MqttCard({ onSaved, bare = true }: { onSaved: () => void
           {results.length === 0 ? (
             <p>{t('settings.mqtt.propagateEmpty')}</p>
           ) : (
-            <ul className="space-y-0.5">
-              {results.map((r) => (
-                <li key={r.id} className="flex items-center gap-1.5">
-                  {r.delegated && !r.error ? (
-                    <Check className="h-3 w-3 text-ok" strokeWidth={2.5} />
-                  ) : (
-                    <span className="text-danger">!</span>
-                  )}
-                  <span>{r.name || r.id}</span>
-                  {r.error ? <span className="text-danger">({r.error})</span> : null}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-0.5">
+                {results.map((r) => (
+                  <li key={r.id} className="flex items-center gap-1.5">
+                    {r.error ? (
+                      <span className="text-danger">!</span>
+                    ) : (
+                      <Clock className="h-3 w-3 shrink-0 text-text-muted" strokeWidth={2} aria-hidden />
+                    )}
+                    <span>{r.name || r.id}</span>
+                    {r.error ? (
+                      <span className="text-danger">({r.error})</span>
+                    ) : r.queued || r.delegated ? (
+                      <span className="text-text-muted">{t('settings.mqtt.propagatePending')}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-text-muted">{t('settings.mqtt.propagateHint')}</p>
+            </>
           )}
         </div>
       )}

@@ -623,7 +623,7 @@ The temperature, signal and latency thresholds that define health and alerts are
 
 ### Procedure: enable it
 
-The usual way is the **MQTT card in Settings**: turn it on, enter host, port and credentials, test the connection and save; it applies live, without a restart. From the same card you can **propagate the configuration to the NetGrip routers** in the fleet, so you do not configure them one by one.
+The usual way is the **MQTT card in Settings**: turn it on, enter host, port and credentials, test the connection and save; it applies live, without a restart. From the same card you can **propagate the configuration to the NetGrip routers** in the fleet, so you do not configure them one by one. Propagation creates one plan per router and only **queues** it on its agent: the card marks it as awaiting confirmation and the real outcome (applied or failed) shows up in Orchestration when the agent reports it.
 
 The alternative is environment variables (or the UCI options `mqtt_*` with the on-box install):
 

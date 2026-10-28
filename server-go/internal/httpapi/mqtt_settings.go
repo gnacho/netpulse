@@ -4,6 +4,8 @@
 package httpapi
 
 import (
+	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,7 +13,13 @@ import (
 	"github.com/gnacho/netpulse/agent/executor"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
+	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 )
+
+// mqttRedactedPass sustituye la contraseña del broker en la copia del plan que
+// se persiste: el secreto viaja al agente por el canal autenticado (SSE), pero
+// no se duplica en orchestr_plans ni en el historial de auditoría.
+const mqttRedactedPass = "<redacted>"
 
 type mqttConfigResponse struct {
 	Enabled     bool   `json:"enabled"`
@@ -24,7 +32,7 @@ type mqttConfigResponse struct {
 	Running     bool   `json:"running"`
 }
 
-func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager) {
+func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, orchMgr *orchestr.Manager) {
 	adapter := &dbKVAdapter{db: s.db.DB}
 
 	mux.Handle("GET /api/settings/mqtt", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -124,10 +132,19 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager) {
 	})))
 
 	// propagate envía la configuración del broker a cada router NetGrip de la
-	// flota (op mqtt.configure vía su executor), para no configurarlos a mano.
+	// flota (op mqtt.configure) por SSE, al agente embebido en su NetGrip.
+	//
+	// Cada router recibe un plan REAL (fila en orchestr_plans, marcado
+	// applying antes del envío) y se identifica en la respuesta con su planId.
+	// La respuesta solo afirma que el comando quedó ENCOLADO en el agente: el
+	// resultado real llega después por POST /api/agents/{slug}/apply-result.
 	mux.Handle("POST /api/settings/mqtt/propagate", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if mgr == nil {
 			writeError(w, http.StatusServiceUnavailable, "mqtt_unavailable")
+			return
+		}
+		if orchMgr == nil {
+			writeError(w, http.StatusServiceUnavailable, "orchestr_unavailable")
 			return
 		}
 		cfg := mgr.Config()
@@ -140,6 +157,15 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager) {
 			writeError(w, http.StatusServiceUnavailable, "no_overview")
 			return
 		}
+		if s.agentHub == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_agent_hub")
+			return
+		}
+		actor := ""
+		if user := auth.UserFromContext(r.Context()); user != nil {
+			actor = user.Username
+		}
+		intervalSec := int(cfg.Interval.Seconds())
 		op := executor.Op{
 			Kind: "mqtt.configure",
 			Args: map[string]string{
@@ -148,21 +174,68 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager) {
 				"port":     strconv.Itoa(cfg.Port),
 				"user":     cfg.User,
 				"pass":     cfg.Pass,
-				"interval": strconv.Itoa(int(cfg.Interval.Seconds())),
+				"interval": strconv.Itoa(intervalSec),
 			},
 			Desc: "MQTT: aplicar el broker de NetPulse",
 		}
-		planID := "mqtt-propagate-" + strconv.FormatInt(time.Now().Unix(), 10)
+		// Copia persistida del op: el secreto se redacta (el agente recibe el
+		// valor real por el stream autenticado).
+		opPersisted := op
+		opPersisted.Args = map[string]string{}
+		for k, v := range op.Args {
+			opPersisted.Args[k] = v
+		}
+		if cfg.Pass != "" {
+			opPersisted.Args["pass"] = mqttRedactedPass
+		}
+		// Estado deseado persistido: la configuración del broker sin secreto.
+		desiredJSON, _ := json.Marshal(map[string]any{
+			"enabled":     true,
+			"host":        cfg.Host,
+			"port":        cfg.Port,
+			"user":        cfg.User,
+			"instance":    cfg.Instance,
+			"intervalSec": intervalSec,
+			"passSet":     cfg.Pass != "",
+		})
+
 		results := []map[string]any{}
 		for _, rt := range ov.Routers {
 			if s.agentKindOf(rt.ID) != "netgrip" {
 				continue
 			}
-			ok, err := s.applyViaNetGrip(rt.ID, planID, []executor.Op{op})
-			res := map[string]any{"id": rt.ID, "name": rt.Name, "delegated": ok}
-			if err != nil {
-				res["error"] = err.Error()
+			res := map[string]any{
+				"id": rt.ID, "name": rt.Name,
+				"queued": false, "delegated": false, "status": "not_queued",
 			}
+			plan, err := orchMgr.CreatePlan(rt.ID, "mqtt", desiredJSON, []executor.Op{opPersisted}, actor)
+			if err != nil {
+				log.Printf("[netpulse] mqtt propagate: no se pudo crear el plan de %s: %v", rt.ID, err)
+				res["error"] = "plan_error"
+				results = append(results, res)
+				continue
+			}
+			res["planId"] = plan.ID
+			// El estado se fija ANTES de enviar: si el agente responde al
+			// instante, su resultado encuentra el plan en applying.
+			if err := orchMgr.SetApplying(plan.ID, actor); err != nil {
+				log.Printf("[netpulse] mqtt propagate: no se pudo marcar applying el plan %s: %v", plan.ID, err)
+				res["error"] = "plan_error"
+				results = append(results, res)
+				continue
+			}
+			data, _ := json.Marshal(map[string]any{"plan_id": plan.ID, "ops": []executor.Op{op}})
+			if !s.agentHub.Send(rt.ID, "apply", json.RawMessage(data)) {
+				// No se entregó: el plan vuelve a pending (no se simula éxito).
+				s.restorePlan(orchMgr, plan.ID, "applying", "pending", actor, "sse delivery failed")
+				res["error"] = "agent_not_connected"
+				results = append(results, res)
+				continue
+			}
+			res["queued"] = true
+			// delegated: alias histórico de queued (compatibilidad de campo).
+			res["delegated"] = true
+			res["status"] = "queued"
 			results = append(results, res)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"results": results})

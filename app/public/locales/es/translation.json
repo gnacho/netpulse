@@ -1979,6 +1979,8 @@
       "test": "Probar conexión",
       "propagate": "Propagar a NetGrip",
       "propagateEmpty": "No hay routers NetGrip en la flota a los que propagar.",
+      "propagatePending": "enviado, pendiente de confirmación",
+      "propagateHint": "Enviado no es aplicado: el plan se cierra cuando el agente reporta el resultado. El estado real se ve en Orquestación.",
       "running": "publicando",
       "notRunning": "detenido"
     },
