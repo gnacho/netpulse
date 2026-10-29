@@ -28,6 +28,7 @@ const PAGES = [
   { file: 'index.html', slug: '', esSlug: '', outDir: '' },
   { file: 'features.html', slug: 'features/', esSlug: 'features', outDir: 'features' },
   { file: 'home-assistant.html', slug: 'home-assistant/', esSlug: 'home-assistant', outDir: 'home-assistant' },
+  { file: 'integrations.html', slug: 'integrations/', esSlug: 'integrations', outDir: 'integrations' },
 ]
 
 // URL canónica absoluta de una página de idioma. El español es el x-default:
