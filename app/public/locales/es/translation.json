@@ -693,8 +693,91 @@
     "orchestration": "Orquestación",
     "channelPlan": "Canales",
     "firmwareUpgrades": "Actualizaciones",
+    "integrations": "Integraciones",
     "help": "Ayuda",
     "rack": "Rack"
+  },
+  "integrations": {
+    "title": "Integraciones",
+    "subtitle": "Pushers externos de router",
+    "listTitle": "Integraciones configuradas",
+    "loading": "Cargando integraciones...",
+    "emptyTitle": "Aún no hay integraciones",
+    "emptyDesc": "Añade un pusher externo para un router al que NetPulse no llega directamente.",
+    "fresh": "Reciente",
+    "never": "nunca",
+    "states": {
+      "running": "En ejecución",
+      "stopped": "Detenido",
+      "error": "Error",
+      "installing": "Instalando"
+    },
+    "ago": {
+      "s": "hace {{count}} s",
+      "min": "hace {{count}} min",
+      "h": "hace {{count}} h",
+      "d_one": "hace {{count}} día",
+      "d_other": "hace {{count}} días"
+    },
+    "actions": {
+      "start": "Arrancar",
+      "stop": "Parar",
+      "update": "Actualizar",
+      "check": "Comprobar",
+      "delete": "Eliminar"
+    },
+    "confirm": {
+      "confirmDeleteTitle": "¿Eliminar la integración?",
+      "confirmDeleteDesc": "¿Eliminar la integración {{slug}}? Se detiene su pusher si está en marcha."
+    },
+    "form": {
+      "add": "Añadir integración",
+      "selectVendor": "Selecciona un proveedor",
+      "fieldSlug": "Slug",
+      "fieldSlugHint": "Se sugiere a partir del host",
+      "fieldSlugInvalid": "Usa minúsculas, números y guiones",
+      "fieldVendor": "Proveedor",
+      "fieldHost": "Host",
+      "fieldHostPlaceholder": "192.168.1.1",
+      "fieldUsername": "Usuario",
+      "fieldPassword": "Contraseña",
+      "fieldInterval": "Intervalo (segundos)",
+      "fieldIntervalInvalid": "El intervalo debe estar entre 10 y 86400 segundos",
+      "fieldArch": "Arquitectura",
+      "modeLocalHint": "Este pusher corre en el host de NetPulse.",
+      "modeSshHint": "En modo SSH el pusher se instala dentro del router.",
+      "submit": "Crear",
+      "creating": "Creando..."
+    },
+    "token": {
+      "tokenTitle": "Integración creada",
+      "tokenDesc": "Copia el token ahora. Solo se muestra una vez y no se volverá a mostrar.",
+      "copyToken": "Copiar token",
+      "copied": "Copiado",
+      "copyHint": "Guarda el token en un lugar seguro."
+    },
+    "meta": {
+      "version": "Versión",
+      "interval": "Intervalo",
+      "lastPush": "Último push"
+    },
+    "errors": {
+      "invalid_slug": "Slug inválido.",
+      "invalid_vendor": "Proveedor desconocido.",
+      "invalid_input": "Entrada inválida.",
+      "invalid_interval": "Intervalo inválido.",
+      "invalid_arch": "Arquitectura no soportada.",
+      "already_exists": "Ya existe una integración con ese slug.",
+      "release_fetch_failed": "No se pudo obtener la versión.",
+      "download_failed": "Falló la descarga.",
+      "start_failed": "No se pudo arrancar el pusher.",
+      "ssh_failed": "Falló la conexión SSH.",
+      "ssh_unavailable": "SSH no está disponible para este proveedor.",
+      "router_error": "El router devolvió un error.",
+      "not_found": "Integración no encontrada.",
+      "db_error": "Error de base de datos.",
+      "generic": "Algo salió mal."
+    }
   },
   "roaming": {
     "subtitle": "Estado de la itinerancia WiFi y la malla WiFi",

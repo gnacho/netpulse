@@ -45,6 +45,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/pathanalysis"
 	"github.com/gnacho/netpulse/server-go/internal/presence"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
+	"github.com/gnacho/netpulse/server-go/internal/rintegration"
 	"github.com/gnacho/netpulse/server-go/internal/security"
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
@@ -143,6 +144,9 @@ type Deps struct {
 	// monta, va FUERA de RequireAuth (auth Bearer propia por API token, nunca
 	// cookie) con rate limit y fail-closed sin TokenStore.
 	MCP *mcp.Server
+	// Integrations: supervisor de pushers externos (#1674). nil → sin
+	// arranque/parada de procesos en modo local (rutas responden 503).
+	Integrations *rintegration.Manager
 }
 
 type server struct {
@@ -231,6 +235,9 @@ type server struct {
 	// MCP: servidor MCP embebido (#1114). nil = sin endpoint /mcp.
 	mcp *mcp.Server
 
+	// Integrations: supervisor de pushers externos (#1674).
+	integrations *rintegration.Manager
+
 	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
 	collectorReader *collectorreader.Reader
 
@@ -297,6 +304,7 @@ func NewHandler(d Deps) http.Handler {
 		speedtest:       d.Speedtest,
 		alertEmitter:    d.AlertEmitter,
 		mqtt:            d.MQTT,
+		integrations:    d.Integrations,
 	}
 	if s.imageResolver == nil {
 		s.imageResolver = firmware.NewImageResolver()
@@ -361,6 +369,19 @@ func NewHandler(d Deps) http.Handler {
 	if d.Config != nil {
 		s.rtlConsole = newRtlConsoleCache(d.Config.RTLConsolePass, d.Config.RTLConsolePollSec)
 	}
+	// #1674: al morir un pusher local de forma inesperada, marcar el estado
+	// error y re-emitir la lista por SSE. Los paros intencionales no pasan por
+	// aquí (los gestiona el handler).
+	if s.integrations != nil && s.db != nil {
+		s.integrations.SetOnExit(func(slug string, exitErr error) {
+			if exitErr == nil {
+				return
+			}
+			_ = rintegration.NewStore(s.db.DB).SetState(slug, "error", exitErr.Error())
+			s.broadcastIntegrations()
+		})
+	}
+
 	mode := d.Adapter.Mode()
 
 	mux := http.NewServeMux()
@@ -602,6 +623,9 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Overrides manuales de topología (issue #142; solo admin) ---
 	s.registerTopologyOverrideRoutes(mux)
+
+	// --- Integraciones externas de routers (#1674) ---
+	s.registerIntegrationRoutes(mux)
 
 	// --- SSE ---
 	mux.HandleFunc("GET /api/stream", s.hub.HandleStream)

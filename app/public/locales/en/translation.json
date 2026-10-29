@@ -693,8 +693,91 @@
     "orchestration": "Orchestration",
     "channelPlan": "Channels",
     "firmwareUpgrades": "Firmware upgrades",
+    "integrations": "Integrations",
     "help": "Help",
     "rack": "Rack"
+  },
+  "integrations": {
+    "title": "Integrations",
+    "subtitle": "External router pushers",
+    "listTitle": "Configured integrations",
+    "loading": "Loading integrations...",
+    "emptyTitle": "No integrations yet",
+    "emptyDesc": "Add an external pusher for a router that NetPulse cannot reach directly.",
+    "fresh": "Fresh",
+    "never": "never",
+    "states": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "error": "Error",
+      "installing": "Installing"
+    },
+    "ago": {
+      "s": "{{count}}s ago",
+      "min": "{{count}} min ago",
+      "h": "{{count}}h ago",
+      "d_one": "{{count}} day ago",
+      "d_other": "{{count}} days ago"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "update": "Update",
+      "check": "Check",
+      "delete": "Delete"
+    },
+    "confirm": {
+      "confirmDeleteTitle": "Delete integration?",
+      "confirmDeleteDesc": "Remove the {{slug}} integration? Its pusher is stopped if it is running."
+    },
+    "form": {
+      "add": "Add integration",
+      "selectVendor": "Select a vendor",
+      "fieldSlug": "Slug",
+      "fieldSlugHint": "Suggested from the host",
+      "fieldSlugInvalid": "Use lowercase letters, numbers and dashes",
+      "fieldVendor": "Vendor",
+      "fieldHost": "Host",
+      "fieldHostPlaceholder": "192.168.1.1",
+      "fieldUsername": "Username",
+      "fieldPassword": "Password",
+      "fieldInterval": "Interval (seconds)",
+      "fieldIntervalInvalid": "Interval must be between 10 and 86400 seconds",
+      "fieldArch": "Architecture",
+      "modeLocalHint": "This pusher runs on the NetPulse host.",
+      "modeSshHint": "In SSH mode the pusher is installed inside the router.",
+      "submit": "Create",
+      "creating": "Creating..."
+    },
+    "token": {
+      "tokenTitle": "Integration created",
+      "tokenDesc": "Copy the token now. It is shown only once and will not be shown again.",
+      "copyToken": "Copy token",
+      "copied": "Copied",
+      "copyHint": "Copy the token to a safe place."
+    },
+    "meta": {
+      "version": "Version",
+      "interval": "Interval",
+      "lastPush": "Last push"
+    },
+    "errors": {
+      "invalid_slug": "Invalid slug.",
+      "invalid_vendor": "Unknown vendor.",
+      "invalid_input": "Invalid input.",
+      "invalid_interval": "Invalid interval.",
+      "invalid_arch": "Unsupported architecture.",
+      "already_exists": "An integration with that slug already exists.",
+      "release_fetch_failed": "Could not fetch the release.",
+      "download_failed": "Download failed.",
+      "start_failed": "Could not start the pusher.",
+      "ssh_failed": "SSH connection failed.",
+      "ssh_unavailable": "SSH is not available for this vendor.",
+      "router_error": "The router reported an error.",
+      "not_found": "Integration not found.",
+      "db_error": "Database error.",
+      "generic": "Something went wrong."
+    }
   },
   "roaming": {
     "subtitle": "Roaming and WiFi mesh status",

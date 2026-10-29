@@ -55,6 +55,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/push"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/reinstall"
+	"github.com/gnacho/netpulse/server-go/internal/rintegration"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
@@ -759,6 +760,10 @@ func run() error {
 		log.Printf("[netpulse] aviso: NETPULSE_MCP_ENABLED=1 pero no hay token store; MCP desactivado")
 	}
 
+	// Supervisor de pushers externos (#1674): procesos en memoria como usuario
+	// netpulse (sin systemd). La raíz de datos vive bajo DATA_DIR/integrations.
+	integrationsMgr := rintegration.NewManager(filepath.Join(cfg.DataDir, "integrations"))
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:           cfg,
 		DB:               dbHandle,
@@ -790,8 +795,9 @@ func run() error {
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
-		PollNow: p.PollNow,
-		Started: serverStarted,
+		PollNow:      p.PollNow,
+		Started:      serverStarted,
+		Integrations: integrationsMgr,
 	})
 
 	// Envolver el handler con GET /fingerprint (sin auth) si on-box.
@@ -909,6 +915,7 @@ func run() error {
 			rearmSup.Stop()
 		}
 		p.Stop()
+		integrationsMgr.StopAll()
 		upd.Stop()
 		fwScheduler.Stop()
 		if fwReleases != nil {

@@ -476,6 +476,30 @@ CREATE TABLE IF NOT EXISTS rack_cables (
 CREATE INDEX IF NOT EXISTS idx_rack_cables_from ON rack_cables(from_mount);
 CREATE INDEX IF NOT EXISTS idx_rack_cables_to ON rack_cables(to_mount);
 
+-- External router integrations (#1674): pushers de routers externos
+-- (MikroTik RouterOS, Asuswrt) gestionados desde la app. El slug es el id
+-- del router external asociado (push autenticado por Bearer token de agente,
+-- agent.token.<slug>). La contraseña nunca se persiste: vive en el fichero
+-- de entorno <data>/integrations/<slug>.env (0600).
+CREATE TABLE IF NOT EXISTS router_integrations (
+  slug TEXT PRIMARY KEY,
+  vendor TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  host TEXT NOT NULL,
+  username TEXT NOT NULL,
+  version TEXT NOT NULL DEFAULT '',
+  asset TEXT NOT NULL DEFAULT '',
+  arch TEXT NOT NULL,
+  interval_s INTEGER NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 0,
+  state TEXT NOT NULL DEFAULT 'pending',
+  last_error TEXT NOT NULL DEFAULT '',
+  last_start_ms INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_router_integrations_vendor ON router_integrations(vendor);
+
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
