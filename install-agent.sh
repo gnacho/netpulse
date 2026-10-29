@@ -178,6 +178,17 @@ ssh $SSH_IDENT_ARGS -o ConnectTimeout=8 -o BatchMode=yes "$SSH" true || {
     fatal 13 "sin SSH por clave a $SSH (el instalador es no interactivo: la contraseña no vale). Autoriza la clave pública en el router y repite: ssh-copy-id -i $PUB $SSH"
 }
 
+# Preflight del canal (#1654): el router tiene que alcanzar el MISMO $SERVER
+# que luego se escribe en el entorno del agente. Sin esto, un puerto cerrado o
+# un esquema equivocado (https cuando el router solo llega a http) se descubre
+# al final, con el agente ya instalado y sin poder conectar. Se comprueba sin
+# validar el certificado a propósito: de la identidad del servidor se encarga
+# el pinning SPKI (NETPULSE_SERVER_FP).
+info "comprobando que $HOST alcanza $SERVER"
+ssh $SSH_IDENT_ARGS "$SSH" "if command -v curl >/dev/null 2>&1; then curl -fsSk --connect-timeout 5 -m 10 -o /dev/null '$SERVER/api/health'; elif command -v wget >/dev/null 2>&1; then wget -q --no-check-certificate -T 10 -O /dev/null '$SERVER/api/health'; else exit 3; fi" || {
+    fatal 15 "el router no alcanza $SERVER/api/health. Comprueba que ese host y puerto son accesibles desde la red del router. Si el servidor tiene TLS activado la URL es https, y el router debe llegar a ese puerto. Para usar otra URL en los agentes, define NETPULSE_AGENT_URL en el servidor (por ejemplo la de la LAN)"
+}
+
 # ----------------------------------------------------- netgrip handoff --
 # Si el router ya corre NetGrip, su agente EMBEBIDO cubre el sondeo: no se
 # instala el standalone. Se le entrega la config (sin pisar la existente) y
@@ -358,8 +369,16 @@ info "copiando binario → $SSH:$BIN_DST"
 ssh $SSH_IDENT_ARGS "$SSH" "/etc/init.d/$INIT_NAME stop >/dev/null 2>&1 || true"
 # -O: protocolo SCP legacy — dropbear (OpenWrt) no tiene sftp-server y el
 # scp de OpenSSH ≥9 usa SFTP por defecto → "connection closed" sin esto.
-scp -Oq $SSH_IDENT_ARGS "$TMP/$BIN_NAME" "$SSH:$BIN_DST"
-ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $BIN_DST"
+# Copia atómica (#1654): se escribe un temporal EN EL MISMO directorio y se
+# renombra. Escribir directo sobre $BIN_DST deja un binario truncado si la
+# copia se corta, y un fallo del scp en el destino (overlay recién montado tras
+# un sysupgrade responde "file handle stale") se pierde entre el ruido de la
+# salida. Aquí cualquier fallo aborta con el código y el motivo a la vista.
+BIN_TMP="$BIN_DST.new"
+scp -Oq $SSH_IDENT_ARGS "$TMP/$BIN_NAME" "$SSH:$BIN_TMP" \
+    || fatal 35 "no pude copiar el binario a $BIN_TMP en el router (revisa espacio libre con 'df -h /' y que $BIN_DST sea escribible)"
+ssh $SSH_IDENT_ARGS "$SSH" "chmod 0755 $BIN_TMP && mv -f $BIN_TMP $BIN_DST" \
+    || { ssh $SSH_IDENT_ARGS "$SSH" "rm -f $BIN_TMP" || true; fatal 36 "copié $BIN_TMP pero no pude moverlo a $BIN_DST en el router"; }
 ok "binario en $BIN_DST"
 
 # Config (chmod 600: el token solo lo lee root)

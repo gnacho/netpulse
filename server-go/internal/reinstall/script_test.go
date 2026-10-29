@@ -503,3 +503,29 @@ func TestEnvScriptPreservesOnSysupgrade(t *testing.T) {
 		}
 	}
 }
+
+// #1654: el instalador comprueba que el router alcanza el server antes de
+// tocar nada, y copia el binario a un temporal en el mismo directorio para
+// renombrarlo después. Una copia directa deja binarios truncados si se corta
+// y el fallo del destino se pierde entre la salida del scp.
+func TestInstallScriptPreflightAndAtomicBinary(t *testing.T) {
+	b, err := os.ReadFile(filepath.Clean("../../../install-agent.sh"))
+	if err != nil {
+		t.Fatalf("leyendo install-agent.sh: %v", err)
+	}
+	script := string(b)
+	for _, want := range []string{
+		`'$SERVER/api/health'`,
+		"NETPULSE_AGENT_URL",
+		`BIN_TMP="$BIN_DST.new"`,
+		"mv -f $BIN_TMP $BIN_DST",
+		"fatal 36",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("install-agent.sh sin %q", want)
+		}
+	}
+	if strings.Contains(script, `scp -Oq $SSH_IDENT_ARGS "$TMP/$BIN_NAME" "$SSH:$BIN_DST"`) {
+		t.Error("install-agent.sh sigue copiando el binario directo al destino final")
+	}
+}
