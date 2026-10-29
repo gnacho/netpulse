@@ -724,7 +724,8 @@
       "stop": "Parar",
       "update": "Actualizar",
       "check": "Comprobar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "edit": "Editar"
     },
     "confirm": {
       "confirmDeleteTitle": "¿Eliminar la integración?",
@@ -777,6 +778,14 @@
       "not_found": "Integración no encontrada.",
       "db_error": "Error de base de datos.",
       "generic": "Algo salió mal."
+    },
+    "edit": {
+      "title": "Editar integración",
+      "fieldPassword": "Contraseña",
+      "fieldPasswordKeep": "En blanco conserva la actual",
+      "save": "Guardar y reiniciar",
+      "saving": "Guardando",
+      "restartHint": "Al guardar se reescribe el entorno del pusher y se reinicia, así que los valores nuevos entran en vigor al momento."
     }
   },
   "roaming": {

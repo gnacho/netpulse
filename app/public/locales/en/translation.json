@@ -724,7 +724,8 @@
       "stop": "Stop",
       "update": "Update",
       "check": "Check",
-      "delete": "Delete"
+      "delete": "Delete",
+      "edit": "Edit"
     },
     "confirm": {
       "confirmDeleteTitle": "Delete integration?",
@@ -777,6 +778,14 @@
       "not_found": "Integration not found.",
       "db_error": "Database error.",
       "generic": "Something went wrong."
+    },
+    "edit": {
+      "title": "Edit integration",
+      "fieldPassword": "Password",
+      "fieldPasswordKeep": "Leave blank to keep the current one",
+      "save": "Save and restart",
+      "saving": "Saving",
+      "restartHint": "Saving rewrites the pusher environment and restarts it, so the new values take effect at once."
     }
   },
   "roaming": {

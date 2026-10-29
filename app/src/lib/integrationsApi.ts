@@ -38,6 +38,14 @@ export interface CreateIntegrationInput {
   arch?: string
 }
 
+/** Editable fields of an existing integration. Omitted fields are left as they are. */
+export interface EditIntegrationInput {
+  host?: string
+  username?: string
+  password?: string
+  intervalS?: number
+}
+
 /** Error carrying the backend machine code plus a human-readable message. */
 export class ApiError extends Error {
   code?: string
@@ -103,6 +111,16 @@ export function updateIntegration(slug: string): Promise<{ integration: Integrat
   return req<{ integration: Integration }>(`/api/integrations/${encodeURIComponent(slug)}/update`, {
     method: 'POST',
   })
+}
+
+export function editIntegration(
+  slug: string,
+  input: EditIntegrationInput,
+): Promise<{ integration: Integration }> {
+  return req<{ integration: Integration }>(
+    `/api/integrations/${encodeURIComponent(slug)}`,
+    json('PUT', input),
+  )
 }
 
 export function checkIntegration(slug: string): Promise<{ integration: Integration; running: boolean }> {

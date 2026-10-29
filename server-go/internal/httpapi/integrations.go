@@ -56,6 +56,7 @@ func (s *server) registerIntegrationRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/integrations/{slug}/stop", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationStop)))
 	mux.Handle("POST /api/integrations/{slug}/check", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationCheck)))
 	mux.Handle("POST /api/integrations/{slug}/update", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationUpdate)))
+	mux.Handle("PUT /api/integrations/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationEdit)))
 	mux.Handle("DELETE /api/integrations/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationDelete)))
 }
 
@@ -472,6 +473,146 @@ func (s *server) handleIntegrationUpdate(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"integration": s.integrationItemOf(item)})
 }
 
+// handleIntegrationEdit actualiza los ajustes mutables de una integración sin
+// recrearla: host, usuario, contraseña e intervalo. El fichero de entorno se
+// lee, se cambian solo las claves afectadas y se reescribe, de modo que el
+// token y la contraseña omitida se conservan (nunca viven en la base de datos).
+func (s *server) handleIntegrationEdit(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	row, ok := s.getIntegrationRow(slug)
+	if !ok {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	vendor, ok := rintegration.LookupVendor(row.Vendor)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "invalid_vendor")
+		return
+	}
+
+	var body struct {
+		Host      *string `json:"host"`
+		Username  *string `json:"username"`
+		Password  *string `json:"password"`
+		IntervalS *int    `json:"intervalS"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "")
+		return
+	}
+
+	changed := false
+	if body.Host != nil {
+		h := strings.TrimSpace(*body.Host)
+		if h == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "host cannot be empty")
+			return
+		}
+		row.Host = h
+		changed = true
+	}
+	if body.Username != nil {
+		u := strings.TrimSpace(*body.Username)
+		if u == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "username cannot be empty")
+			return
+		}
+		row.Username = u
+		changed = true
+	}
+	if body.IntervalS != nil {
+		if *body.IntervalS < 10 || *body.IntervalS > 86400 {
+			writeError(w, http.StatusBadRequest, "invalid_interval")
+			return
+		}
+		row.IntervalS = *body.IntervalS
+		changed = true
+	}
+	password := ""
+	if body.Password != nil {
+		password = *body.Password
+		changed = true
+	}
+	if !changed {
+		writeError(w, http.StatusBadRequest, "invalid_input", "nothing to update")
+		return
+	}
+
+	prefix := strings.ToUpper(vendor.ID) + "_"
+	host := row.Host
+	if vendor.Mode == "ssh" {
+		host = "127.0.0.1"
+	}
+	store := s.integrationsStore()
+
+	if vendor.Mode == "local" {
+		if s.integrations == nil {
+			writeError(w, http.StatusServiceUnavailable, "unavailable", "integrations supervisor not configured")
+			return
+		}
+		env, err := s.integrations.Env(slug)
+		if err != nil {
+			_ = store.SetState(slug, "error", err.Error())
+			s.broadcastIntegrations()
+			writeError(w, http.StatusConflict, "env_unavailable", err.Error())
+			return
+		}
+		env[prefix+"HOST"] = host
+		env[prefix+"USER"] = row.Username
+		if password != "" {
+			env[prefix+"PASS"] = password
+		}
+		env["NETPULSE_INTERVAL"] = strconv.Itoa(row.IntervalS) + "s"
+		if err := s.integrations.WriteEnv(slug, env); err != nil {
+			_ = store.SetState(slug, "error", err.Error())
+			s.broadcastIntegrations()
+			writeError(w, http.StatusInternalServerError, "db_error", err.Error())
+			return
+		}
+		_ = s.integrations.Stop(slug)
+		binPath := filepath.Join(s.integrations.Dir(), slug, vendor.Binary)
+		if err := s.integrations.Start(slug, nil, binPath); err != nil && err != rintegration.ErrAlreadyRunning {
+			_ = store.SetState(slug, "error", err.Error())
+			s.broadcastIntegrations()
+			writeError(w, http.StatusBadGateway, "start_failed", err.Error())
+			return
+		}
+	} else {
+		if s.pool == nil {
+			writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
+			return
+		}
+		raw, err := s.pool.Run(row.Host, sshEnvReadScript(vendor), 30*time.Second)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+			return
+		}
+		env := rintegration.ParseEnv(raw)
+		env[prefix+"HOST"] = host
+		env[prefix+"USER"] = row.Username
+		if password != "" {
+			env[prefix+"PASS"] = password
+		}
+		env["NETPULSE_INTERVAL"] = strconv.Itoa(row.IntervalS) + "s"
+		if _, err := s.pool.Run(row.Host, sshEnvWriteScript(vendor, env), 60*time.Second); err != nil {
+			_ = store.SetState(slug, "error", err.Error())
+			s.broadcastIntegrations()
+			writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+			return
+		}
+	}
+
+	if err := store.Upsert(row); err != nil {
+		writeError(w, http.StatusInternalServerError, "db_error", err.Error())
+		return
+	}
+	_ = store.SetState(slug, "running", "")
+	_ = store.SetLastStart(slug, time.Now().UnixMilli())
+	s.broadcastIntegrations()
+	item, _ := s.getIntegrationRow(slug)
+	writeJSON(w, http.StatusOK, map[string]any{"integration": s.integrationItemOf(item)})
+}
+
 func (s *server) handleIntegrationDelete(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	row, ok := s.getIntegrationRow(slug)
@@ -590,6 +731,48 @@ INITEOF
 chmod 0755 "$INIT"
 "$INIT" enable
 "$INIT" restart
+`
+}
+
+// sshEnvReadScript prints the environment file of an integration running
+// inside the router, so the server can merge changes without ever storing the
+// token or the password.
+func sshEnvReadScript(v rintegration.Vendor) string {
+	return "cat /etc/" + v.Binary + ".env"
+}
+
+// sshEnvWriteScript replaces the environment file inside the router and
+// restarts the service. Values come already escaped by EscapeEnvValue and the
+// heredoc is quoted, so the shell does not expand anything.
+func sshEnvWriteScript(v rintegration.Vendor, env map[string]string) string {
+	init := "/etc/init.d/" + v.Binary
+	envFile := "/etc/" + v.Binary + ".env"
+
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var envBlock strings.Builder
+	for _, k := range keys {
+		envBlock.WriteString(k)
+		envBlock.WriteString("=")
+		envBlock.WriteString(rintegration.EscapeEnvValue(env[k]))
+		envBlock.WriteString("\n")
+	}
+
+	return `#!/bin/sh
+set -e
+INIT="` + init + `"
+ENV_FILE="` + envFile + `"
+cat > "$ENV_FILE.new" <<'ENVEOF'
+` + envBlock.String() + `ENVEOF
+chmod 600 "$ENV_FILE.new"
+mv -f "$ENV_FILE.new" "$ENV_FILE"
+if [ -x "$INIT" ]; then
+	"$INIT" stop >/dev/null 2>&1 || true
+	"$INIT" start >/dev/null 2>&1 || true
+fi
 `
 }
 

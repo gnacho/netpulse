@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   Loader2,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -42,6 +43,7 @@ import {
   checkIntegration,
   createIntegration,
   deleteIntegration,
+  editIntegration,
   fetchIntegrations,
   fetchVendors,
   startIntegration,
@@ -105,6 +107,14 @@ export default function Integrations() {
   const [token, setToken] = useState<string | null>(null)
   const [tokenCopied, setTokenCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<Integration | null>(null)
+  // Edición en linea: se rellena con los valores actuales salvo la contraseña,
+  // que en blanco significa "conservar la que ya tiene".
+  const [editing, setEditing] = useState<Integration | null>(null)
+  const [editHost, setEditHost] = useState('')
+  const [editUsername, setEditUsername] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editInterval, setEditInterval] = useState(30)
+  const [savingEdit, setSavingEdit] = useState(false)
   const [busy, setBusy] = useState<Record<string, string>>({})
 
   const load = useCallback(
@@ -218,6 +228,40 @@ export default function Integrations() {
   const doDelete = async (it: Integration) => {
     await runAction(it.slug, 'delete', () => deleteIntegration(it.slug))
     setConfirmDelete(null)
+  }
+
+  const startEdit = (it: Integration) => {
+    setEditing(it)
+    setEditHost(it.host)
+    setEditUsername(it.username)
+    setEditPassword('')
+    setEditInterval(it.intervalS)
+    setError('')
+  }
+
+  const editInvalid =
+    !editHost.trim() || !editUsername.trim() || !Number.isFinite(editInterval) || editInterval < 10 || editInterval > 86_400
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editing || editInvalid) return
+    setSavingEdit(true)
+    setError('')
+    try {
+      const body: { host: string; username: string; intervalS: number; password?: string } = {
+        host: editHost.trim(),
+        username: editUsername.trim(),
+        intervalS: editInterval,
+      }
+      if (editPassword) body.password = editPassword
+      await editIntegration(editing.slug, body)
+      setEditing(null)
+      await load(true)
+    } catch (err) {
+      setError(errMessage(err, t))
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   const copyToken = async () => {
@@ -517,6 +561,16 @@ export default function Integrations() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => startEdit(it)}
+                      disabled={isBusy}
+                      aria-label={t('integrations.actions.edit')}
+                      title={t('integrations.actions.edit')}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setConfirmDelete(it)}
                       disabled={isBusy}
                       aria-label={t('integrations.actions.delete')}
@@ -541,6 +595,79 @@ export default function Integrations() {
                     {t('integrations.meta.lastPush')}: {lastPushLabel(it.lastPushMs)}
                   </span>
                 </div>
+                {editing?.slug === it.slug && (
+                  <form onSubmit={(e) => void submitEdit(e)} className="mt-3 border-t border-border pt-3">
+                    <div className="text-label uppercase text-text-muted">{t('integrations.edit.title')}</div>
+                    <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldHost')}</span>
+                        <input
+                          type="text"
+                          value={editHost}
+                          onChange={(e) => setEditHost(e.target.value)}
+                          aria-label={t('integrations.form.fieldHost')}
+                          spellCheck={false}
+                          className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldUsername')}</span>
+                        <input
+                          type="text"
+                          value={editUsername}
+                          onChange={(e) => setEditUsername(e.target.value)}
+                          aria-label={t('integrations.form.fieldUsername')}
+                          autoComplete="off"
+                          className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-label uppercase text-text-muted">{t('integrations.edit.fieldPassword')}</span>
+                        <input
+                          type="password"
+                          value={editPassword}
+                          onChange={(e) => setEditPassword(e.target.value)}
+                          aria-label={t('integrations.edit.fieldPassword')}
+                          autoComplete="new-password"
+                          placeholder={t('integrations.edit.fieldPasswordKeep')}
+                          className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldInterval')}</span>
+                        <input
+                          type="number"
+                          min={10}
+                          max={86_400}
+                          value={editInterval}
+                          onChange={(e) => setEditInterval(Number(e.target.value))}
+                          aria-label={t('integrations.form.fieldInterval')}
+                          className={`mt-1 w-full rounded-lg border bg-canvas px-3 py-2 text-sm text-text-primary focus:outline-none ${
+                            editInvalid ? 'border-danger' : 'border-border focus:border-accent'
+                          }`}
+                        />
+                      </label>
+                    </div>
+                    <p className="mt-2 text-caption text-text-muted">{t('integrations.edit.restartHint')}</p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        type="submit"
+                        disabled={savingEdit || editInvalid}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-medium text-canvas transition-opacity hover:opacity-90 disabled:opacity-40"
+                      >
+                        {savingEdit && <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />}
+                        {savingEdit ? t('integrations.edit.saving') : t('integrations.edit.save')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditing(null)}
+                        className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             )
           })}

@@ -48,6 +48,21 @@ func (m *Manager) Fetch() *Fetcher { return m.fetch }
 // Dir returns the on-disk root for environments, logs and binaries.
 func (m *Manager) Dir() string { return m.dir }
 
+// Env returns the environment file of a slug as a map. The password and the
+// token live only in that file, so editing an integration reads it first and
+// rewrites it with the changed keys instead of rebuilding it from scratch.
+func (m *Manager) Env(slug string) (map[string]string, error) {
+	return readEnvFile(filepath.Join(m.dir, slug+".env"))
+}
+
+// WriteEnv replaces the environment file of a slug, keeping mode 0600.
+func (m *Manager) WriteEnv(slug string, env map[string]string) error {
+	if err := os.MkdirAll(m.dir, 0o755); err != nil {
+		return err
+	}
+	return writeEnvFile(filepath.Join(m.dir, slug+".env"), env)
+}
+
 // SetOnExit registers the callback invoked when a process exits unexpectedly
 // (a crash). Intentional stops do not fire it: the caller owns that state.
 func (m *Manager) SetOnExit(fn func(slug string, err error)) {
@@ -267,8 +282,15 @@ func readEnvFile(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return ParseEnv(string(data)), nil
+}
+
+// ParseEnv parses a KEY=value env file body into a map, unescaping the values
+// written by EscapeEnvValue. It is also used on the output of a remote read.
+func ParseEnv(body string) map[string]string {
 	out := map[string]string{}
-	for _, line := range strings.Split(string(data), "\n") {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimRight(line, "\r")
 		if line == "" {
 			continue
 		}
@@ -278,5 +300,5 @@ func readEnvFile(path string) (map[string]string, error) {
 		}
 		out[line[:i]] = UnescapeEnvValue(line[i+1:])
 	}
-	return out, nil
+	return out
 }
