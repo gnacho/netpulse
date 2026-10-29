@@ -640,16 +640,19 @@ export default function Alerts() {
   // #1662: una categoría en "Nada" tampoco aparece en el historial. En live ya
   // lo filtra el servidor, pero en demo el dataset es estático y sin esto la
   // lista y la campana se contradicen.
-  const alertFeed = useMemo(
+  const rawFeed = useMemo(
     () =>
-      (isDemo
-        ? buildAlertFeed(
-            alerts.filter((a) => !isHiddenByLevel(a, alertsConfig)),
-            wireguard,
-            (id) => routers.find((r) => r.id === id)?.modelShort,
-          )
-        : buildLiveFeed(alerts.filter((a) => !isHiddenByLevel(a, alertsConfig)))),
-    [alerts, wireguard, routers, isDemo, alertsConfig],
+      isDemo
+        ? buildAlertFeed(alerts, wireguard, (id) => routers.find((r) => r.id === id)?.modelShort)
+        : buildLiveFeed(alerts),
+    [alerts, wireguard, routers, isDemo],
+  )
+  // #1662: el filtro va sobre el feed ya construido. En demo buildAlertFeed
+  // incorpora su propio canon de eventos, así que filtrar la lista de entrada
+  // los dejaba pasar; en live el servidor ya filtra y esto es defensivo.
+  const alertFeed = useMemo(
+    () => rawFeed.filter((ev) => !isHiddenByLevel(ev, alertsConfig)),
+    [rawFeed, alertsConfig],
   )
   const [sev, setSev] = useState<SevFilter>('todas')
   const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())
