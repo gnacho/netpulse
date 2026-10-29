@@ -20,11 +20,15 @@ export const ALERT_CATEGORIES: readonly AlertCategory[] = [
 
 export const ALERT_CONFIG_LEVELS: readonly AlertConfigLevel[] = ['urgent', 'all', 'none']
 
-/** Defaults del SPEC §2 (mismo JSON que `alerts.config.v1` en el backend). */
+/**
+ * Defaults del SPEC §2. Deben coincidir con `DefaultConfig()` del backend
+ * (`server-go/internal/alerts/alerts.go`), que es la fuente de verdad: el test
+ * `TestFrontendDefaultsMatchBackend` falla si las dos copias se separan (#1672).
+ */
 export const DEFAULT_ALERTS_CONFIG: AlertsConfig = {
   router: 'urgent',
   internet: 'urgent',
-  clients: 'urgent',
+  clients: 'all',
   signal: 'none',
   vpn: 'none',
   system: 'all',
@@ -64,17 +68,6 @@ export function saveDemoAlertsConfig(cfg: AlertsConfig): void {
   } catch {
     /* sin localStorage: la config vive solo en estado */
   }
-}
-
-/**
- * ¿Pasa un evento el filtro de su categoría? (semántica §2: none descarta,
- * urgent solo deja los urgentes). Categoría desconocida → 'all' (no esconder).
- */
-export function passesAlertConfig(ev: Pick<AlertEvent, 'category' | 'urgent'>, cfg: AlertsConfig): boolean {
-  const level: AlertConfigLevel = cfg[ev.category] ?? 'all'
-  if (level === 'none') return false
-  if (level === 'urgent') return ev.urgent
-  return true
 }
 
 /**
