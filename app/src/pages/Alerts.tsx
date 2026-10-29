@@ -32,7 +32,7 @@ import type { LucideIcon } from 'lucide-react'
 import { alertRelTime, relTime } from '@/i18n'
 import { alertDescription, alertHint, alertTitle } from '@/lib/alerts-i18n'
 import type { AlertCategory, AlertConfigLevel, AlertSeverity } from '@/data/types'
-import { ALERT_CATEGORIES } from '@/data/alertConfig'
+import { ALERT_CATEGORIES, isHiddenByLevel } from '@/data/alertConfig'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
 import { RowAction } from '@/components/RowAction'
@@ -637,12 +637,19 @@ export default function Alerts() {
     approveImpostorBssid,
   } = useNetPulse()
   // Feed: demo = diseño enriquecido del mockup; live = SOLO alertas reales
+  // #1662: una categoría en "Nada" tampoco aparece en el historial. En live ya
+  // lo filtra el servidor, pero en demo el dataset es estático y sin esto la
+  // lista y la campana se contradicen.
   const alertFeed = useMemo(
     () =>
-      isDemo
-        ? buildAlertFeed(alerts, wireguard, (id) => routers.find((r) => r.id === id)?.modelShort)
-        : buildLiveFeed(alerts),
-    [alerts, wireguard, routers, isDemo],
+      (isDemo
+        ? buildAlertFeed(
+            alerts.filter((a) => !isHiddenByLevel(a, alertsConfig)),
+            wireguard,
+            (id) => routers.find((r) => r.id === id)?.modelShort,
+          )
+        : buildLiveFeed(alerts.filter((a) => !isHiddenByLevel(a, alertsConfig)))),
+    [alerts, wireguard, routers, isDemo, alertsConfig],
   )
   const [sev, setSev] = useState<SevFilter>('todas')
   const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())

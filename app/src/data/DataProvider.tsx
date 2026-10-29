@@ -320,7 +320,7 @@ function initialBundle(): NetPulseData {
       distributionNodes: mockDistributionNodes,
       topDevices: [...mockDevices].sort((a, b) => b.trafficMbps - a.trafficMbps).slice(0, 5),
       alerts: mockAlerts,
-      unreadAlerts: mockAlerts.filter((a) => !a.read).length,
+      unreadAlerts: countUnreadAlerts(mockAlerts, loadDemoAlertsConfig()),
       vm: VM_SUPPORTED,
     },
     i18n.language,
