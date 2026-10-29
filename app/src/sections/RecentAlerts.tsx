@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
@@ -6,13 +6,14 @@ import { RefreshCw, ShieldCheck } from 'lucide-react'
 import { AlertItem } from '@/components/AlertItem'
 import { SectionHeader } from '@/components/SectionHeader'
 import { useNetPulse } from '@/data/DataProvider'
+import { isHiddenByLevel } from '@/data/alertConfig'
 import { cn } from '@/lib/utils'
 
 /** ⑥ Alertas recientes (home.md §⑥) */
 export function RecentAlerts() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { alerts, unreadAlerts, dismissAlert } = useNetPulse()
+  const { alerts, unreadAlerts, alertsConfig, dismissAlert } = useNetPulse()
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [spinning, setSpinning] = useState(false)
   // Timer del spin del botón de recheck: en un ref para limpiarlo en unmount
@@ -21,7 +22,12 @@ export function RecentAlerts() {
   useEffect(() => () => {
     if (spinTimer.current !== null) window.clearTimeout(spinTimer.current)
   }, [])
-  const recent = alerts.slice(0, 4)
+  // #1662: una categoría en "Nada" tampoco asoma en esta tarjeta.
+  const feed = useMemo(
+    () => alerts.filter((a) => !isHiddenByLevel(a, alertsConfig)),
+    [alerts, alertsConfig],
+  )
+  const recent = feed.slice(0, 4)
   // #916: toggle "solo no leídas" para mantener la tarjeta limpia en
   // operación normal. Persistente en localStorage (preferencia de vista,
   // no de negocio).
@@ -43,7 +49,7 @@ export function RecentAlerts() {
       return next
     })
   }
-  const visible = (unreadOnly ? alerts.filter((a) => !a.read && !readIds.has(a.id)) : recent).slice(0, 4)
+  const visible = (unreadOnly ? feed.filter((a) => !a.read && !readIds.has(a.id)) : recent).slice(0, 4)
   // El badge muestra el total de no leídas (como la campana), no solo de las 4 visibles
   const unread = Math.max(0, unreadAlerts - readIds.size)
 
