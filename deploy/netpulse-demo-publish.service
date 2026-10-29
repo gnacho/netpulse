@@ -1,0 +1,10 @@
+[Unit]
+Description=NetPulse demo: publish the build of the latest stable release
+Documentation=https://github.com/gnacho/netpulse/blob/main/deploy/publish-demo.sh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/netpulse-demo/publish-demo.sh
+TimeoutStartSec=15min

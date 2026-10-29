@@ -177,3 +177,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AGENT_VERSION: ${{ steps.version.outputs.agent }}
+
+      # #1656: el demo online es una copia estatica de app/dist, y hasta ahora
+      # se publicaba a mano, asi que se quedaba atras sin que nada fallara.
+      # Se publica aqui el MISMO dist que va embebido en el binario; el host del
+      # demo lo recoge solo con deploy/publish-demo.sh (modelo pull, sin
+      # credenciales de ese host en CI) y compara el bundle servido.
+      - name: Publica el artefacto del demo (app/dist)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          tar czf "app-dist-${GITHUB_REF_NAME}.tar.gz" -C app/dist .
+          sha256sum "app-dist-${GITHUB_REF_NAME}.tar.gz" > app-dist.sha256
+          gh release upload "${GITHUB_REF_NAME}" "app-dist-${GITHUB_REF_NAME}.tar.gz" app-dist.sha256 --clobber

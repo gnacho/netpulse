@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep the NetPulse demo in step with the latest stable release
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
