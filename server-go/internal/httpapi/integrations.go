@@ -310,7 +310,7 @@ func (s *server) pusherEnv(v rintegration.Vendor, row rintegration.Row, password
 		"NETPULSE_SERVER":   serverURL,
 		"NETPULSE_TOKEN":    token,
 		"NETPULSE_SLUG":     row.Slug,
-		"NETPULSE_INTERVAL": strconv.Itoa(row.IntervalS),
+		"NETPULSE_INTERVAL": strconv.Itoa(row.IntervalS) + "s",
 	}
 }
 
