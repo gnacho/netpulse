@@ -145,6 +145,13 @@ a:hover { text-decoration: underline; }
 }
 html[dir="rtl"] #langSelect { margin-left: 0; margin-right: 0.5rem; }
 @media (max-width: 860px) { .nav-links { display: none; } }
+@media (max-width: 600px) {
+  .nav-inner { gap: 0.6rem; }
+  .nav-star { display: none; }
+  .nav-cta { padding: 0.35rem 0.65rem; font-size: 0.8125rem; }
+  #langSelect { margin-left: 0; padding: 0.3rem 0.35rem; font-size: 0.75rem; max-width: 4.2rem; }
+  html[dir="rtl"] #langSelect { margin-right: 0; }
+}
 
 /* ---------- hero ---------- */
 .hero { position: relative; min-height: 100vh; display: flex; align-items: center; padding: 6rem 0 4rem; overflow: hidden; }
@@ -392,16 +399,19 @@ html[dir="rtl"] .alert-item { transform: translateX(14px); }
 @media (max-width: 860px) { .install-grid { grid-template-columns: 1fr; } }
 /* v2.3 - /#install: tarjeta Recomendado a 100% con dos columnas internas (#1403) */
 .install-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem 2rem; margin-top: 1.75rem; }
+.install-cols > div { min-width: 0; }
 @media (max-width: 860px) { .install-cols { grid-template-columns: 1fr; } }
-.codecard { padding: 1.6rem; }
+.codecard { padding: 1.6rem; min-width: 0; }
 .codecard h3 { font-family: "Space Grotesk", sans-serif; font-size: 1.15rem; margin: 0 0 1.15rem; }
 .codebox {
   display: flex; align-items: center; gap: 0.85rem;
   background: rgb(var(--canvas)); border: 1px solid rgb(var(--border));
   border-radius: var(--radius); padding: 1rem 1.15rem; overflow-x: auto;
+  min-width: 0;
 }
-.codebox code { font-family: "JetBrains Mono", monospace; font-size: 0.85rem; color: rgb(var(--text-primary)); white-space: nowrap; }
+.codebox code { font-family: "JetBrains Mono", monospace; font-size: 0.85rem; color: rgb(var(--text-primary)); white-space: nowrap; min-width: 0; }
 .codebox .prompt { color: rgb(var(--text-muted)); user-select: none; }
+.codebox .agent-copy { position: sticky; right: 0; }
 .code-actions { display: flex; justify-content: flex-end; margin: 0.6rem 0 0.75rem; }
 .copybtn {
   flex-shrink: 0; border: 1px solid rgb(var(--border-strong)); background: rgb(var(--elevated));
@@ -687,7 +697,7 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
 .nav-links a.active { color: rgb(var(--accent)); }
 
 .features-detail { margin-top: 2rem; }
-.features-detail .feature { padding: 1.75rem; display: flex; flex-direction: column; }
+.features-detail .feature { padding: 1.75rem; display: flex; flex-direction: column; min-width: 0; }
 .features-detail .feature p { flex: 1; }
 
 .feature-list { margin: 1rem 0 0; padding: 0; list-style: none; display: grid; gap: 0.45rem; }
