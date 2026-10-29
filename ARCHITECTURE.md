@@ -148,8 +148,9 @@ del Resumen, ≠ username; columna `users.display_name` migrada como
 
 Eventos con `Category` (router|internet|clients|signal|vpn|system), `Urgent`
 y `Ts`. El motor aplica **config por categoría de 3 niveles** (`urgent` / `all`
-/ `none`, en `kv alerts.config.v1`) EN CREACIÓN: `none` descarta, `urgent` solo
-deja pasar los urgentes, `all` pasa todo. Dedup 5 min por
+/ `none`, en `kv alerts.config.v1`): `none` oculta la categoría por completo (no
+entra al feed, no cuenta en la campana ni se persiste, #1659); `urgent` registra
+todo y solo notifica los urgentes; `all` registra y notifica todo (#1413). Dedup 5 min por
 (categoría,título,router), cap 100. Read-state en servidor (`kv
 alerts.read.v1`, FIFO 200) — la campana usa `overview.unreadAlerts` (server
 truth). Fuentes live: router offline (2 fallos seguidos) y recuperado, WAN

@@ -64,16 +64,23 @@ func TestSetConfigPartialAndValidation(t *testing.T) {
 	}
 }
 
-// TestEmitFiltering cubre la semántica #1413: la config de categoría NO filtra
-// la ingesta (todo se guarda en el log y el feed); solo gobierna el Notifier
-// (none = nunca, urgent = solo Urgent, all = siempre).
+// TestEmitFiltering cubre la semántica de niveles: "none" oculta la categoría
+// por completo (#1659: no entra al feed, no cuenta en la campana, no se
+// persiste); "urgent" solo gobierna el Notifier (#1413) y "all" lo deja pasar
+// todo.
 func TestEmitFiltering(t *testing.T) {
 	e := New(nil, nil)
 	spy := &spyNotifier{}
 	e.SetNotifier(spy)
-	// none → se guarda pero NO notifica (signal por defecto)
-	if !e.Emit(ev("s1", CatSignal, true)) {
-		t.Fatal("signal:none debía guardar (la ingesta ya no se filtra)")
+	// none → no se guarda ni notifica (signal por defecto)
+	if e.Emit(ev("s1", CatSignal, true)) {
+		t.Fatal("signal:none no debía guardar el evento")
+	}
+	if got := len(e.List()); got != 0 {
+		t.Fatalf("signal:none no debía aparecer en el feed, hay %d", got)
+	}
+	if got := e.UnreadCount(); got != 0 {
+		t.Fatalf("signal:none no debía contar en la campana, hay %d", got)
 	}
 	if len(spy.got) != 0 {
 		t.Fatalf("signal:none no debía notificar, notificó %d", len(spy.got))
@@ -101,10 +108,11 @@ func TestEmitFiltering(t *testing.T) {
 	if len(spy.got) != 4 {
 		t.Fatalf("notificados: %d, esperaba 4 (todo salvo signal:none y el no-urgente de router)", len(spy.got))
 	}
-	if got := len(e.List()); got != 6 {
-		t.Fatalf("lista: %d, esperaba 6 (nada se descarta)", got)
+	// #1659: el evento de signal:none no está en el feed (5 de 6 emitidos).
+	if got := len(e.List()); got != 5 {
+		t.Fatalf("lista: %d, esperaba 5 (signal:none se descarta)", got)
 	}
-	// Cambio de nivel reconfigura SOLO la notificación
+	// Cambio de nivel a "all" hace visible y notificable la categoría
 	if err := e.SetConfig(map[string]string{"signal": "all"}); err != nil {
 		t.Fatal(err)
 	}
@@ -284,15 +292,17 @@ func TestNotifierSuppressedNeverNotifies(t *testing.T) {
 
 func TestSeedSkipsConfigButKeepsDedup(t *testing.T) {
 	e := New(nil, nil)
-	// Seed ignora el filtro (vpn:none) — historia del demo (SPEC §5)
+	// Seed ignora el filtro de nivel al insertar — historia del demo (SPEC §5)
 	if !e.Seed(ev("h1", CatVPN, false)) {
 		t.Fatal("Seed debía guardar pese a vpn:none")
 	}
 	if e.Seed(AlertEvent{ID: "h2", Category: CatVPN, Title: "t-h1", RouterID: "r1"}) {
 		t.Fatal("Seed debía respetar dedup")
 	}
+	// #1659: los fixtures sembrados quedan exentos del nivel "none" del demo,
+	// así que se sirven aunque vpn esté en "none".
 	if got := len(e.List()); got != 1 {
-		t.Fatalf("lista: %d", got)
+		t.Fatalf("el fixture sembrado debía servirse, hay %d", got)
 	}
 }
 

@@ -57,6 +57,7 @@ import {
 import i18n from '@/i18n'
 import {
   countUnreadAlerts,
+  isHiddenByLevel,
   loadDemoAlertsConfig,
   normalizeAlertsConfig,
   saveDemoAlertsConfig,
@@ -679,6 +680,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       es.addEventListener('alert', (ev) => {
         try {
           const alert = JSON.parse((ev as MessageEvent).data as string) as AlertEvent
+          // #1659: un nivel "none" oculta la categoría por completo. El
+          // servidor ya no la emite; esto cubre el modo demo y una config
+          // recién cambiada antes del siguiente snapshot.
+          if (isHiddenByLevel(alert, configRef.current)) return
           setBundle((prev) => {
             // #891: dedupe por ID — un alert con ID ya presente NO se vuelve
             // a anteponer (duplicaba filas y sumaba al badge). Se reemplaza

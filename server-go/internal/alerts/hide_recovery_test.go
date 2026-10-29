@@ -34,6 +34,10 @@ func TestHideRecoveryFiltersFeedAndUnread(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = d.Close() })
 	e := New(d, nil)
+	// #1659: signal arranca en "none" (oculta la categoría), este test la usa.
+	if err := e.SetConfig(map[string]string{CatSignal: LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
 
 	now := time.Now().Unix()
 	e.Emit(AlertEvent{ID: "w1", Category: CatSignal, Severity: "warn", Title: "Weak signal on dev-a", Ts: now})
@@ -129,6 +133,9 @@ func TestPurgeSupersededWeakClosures(t *testing.T) {
 	}
 
 	e2 := New(d, nil)
+	if err := e2.SetConfig(map[string]string{CatSignal: LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
 	got := map[string]bool{}
 	for _, ev := range e2.List() {
 		got[ev.ID] = true

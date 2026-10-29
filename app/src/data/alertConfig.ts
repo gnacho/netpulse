@@ -77,7 +77,16 @@ export function passesAlertConfig(ev: Pick<AlertEvent, 'category' | 'urgent'>, c
   return true
 }
 
-/** No leídas que pasan la config — el contador de la campana en demo. */
-export function countUnreadAlerts(alerts: Pick<AlertEvent, 'category' | 'urgent' | 'read'>[], cfg: AlertsConfig): number {
-  return alerts.filter((a) => !a.read && passesAlertConfig(a, cfg)).length
+/**
+ * Nivel "none" = la categoría no existe para el operador: el servidor no la
+ * registra ni la sirve (#1659). Es distinto de "urgent", que solo limita los
+ * avisos y deja el evento en el historial (#1413).
+ */
+export function isHiddenByLevel(ev: Pick<AlertEvent, 'category'>, cfg: AlertsConfig): boolean {
+  return (cfg[ev.category] ?? 'all') === 'none'
+}
+
+/** No leídas que el motor sirve — el contador de la campana. */
+export function countUnreadAlerts(alerts: Pick<AlertEvent, 'category' | 'read'>[], cfg: AlertsConfig): number {
+  return alerts.filter((a) => !a.read && !isHiddenByLevel(a, cfg)).length
 }

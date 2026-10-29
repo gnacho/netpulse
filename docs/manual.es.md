@@ -293,7 +293,7 @@ El mapa se construye con el bridge FDB (para clientes por cable), LLDP cuando es
 ### Qué muestra
 
 - **Resumen**: tres contadores (avisos sin leer, alertas de hoy, críticos) con un desglose por causa.
-- **Configuración de alertas**: por categoría, el nivel de notificación (Solo urgentes / Todo / Nada) y un gestor de reglas personalizadas. Todos los eventos se guardan siempre en el registro, con cualquier nivel; el nivel solo controla qué te notifica.
+- **Configuración de alertas**: por categoría, el nivel (Solo urgentes / Todo / Nada) y un gestor de reglas personalizadas. "Nada" oculta la categoría del registro y de la campana; "Solo urgentes" y "Todo" deciden solo qué notifica, y los eventos se registran siempre.
 - **Filtros**: por severidad, por tipo, por categoría y "Solo no leídas".
 - **Feed en línea de tiempo** agrupado por día, con severidad por color y contexto expandible (minigráfica con umbral, datos del peer WireGuard o del dispositivo afectado).
 
@@ -310,14 +310,14 @@ Las alertas las genera el servidor a partir de lo que ya monitoriza: temperatura
 
 ### Decisiones de diseño
 
-- La configuración es **por categoría y por nivel**, no alerta a alerta: el nivel es una política de notificación (Nada / Solo urgentes / Todo). Los eventos por debajo del nivel siguen registrándose en el log y el feed; para ocultarlos visualmente usa los filtros de categoría del feed.
+- La configuración es **por categoría y por nivel**, no alerta a alerta. **Nada** oculta la categoría: sus eventos no entran al registro, no cuentan en la campana y no notifican. **Solo urgentes** y **Todo** son política de notificación: todo se registra y el nivel decide qué avisa.
 - Puedes **silenciar** una alerta concreta 1 hora, 24 horas o para siempre.
 - El **feed usa scroll infinito simulado**: al llegar abajo se muestra el fin del historial.
 
 ### Procedimiento: configurar qué alertas quieres
 
 1. Abre **Alertas** y pulsa **Configuración**.
-2. Para cada categoría (Router, Internet, Clientes, Señal, VPN, Sistema) elige el nivel de notificación: **Solo urgentes**, **Todo** o **Nada**. Con cualquier nivel todos los eventos quedan en el registro y cuentan en la campana; el nivel solo decide cuál envía notificación.
+2. Para cada categoría (Router, Internet, Clientes, Señal, VPN, Sistema) elige el nivel: **Solo urgentes**, **Todo** o **Nada**. Con **Nada** la categoría desaparece del registro y de la campana; con las otras dos todo se registra y el nivel solo decide cuál envía notificación.
 3. Si necesitas reglas propias (umbrales a medida), usa el gestor de **reglas** al final del panel.
 4. Los cambios se guardan al instante (verás la confirmación).
 

@@ -99,6 +99,10 @@ type AlertEvent struct {
 	// condicion se resuelve (engine.Remove). Uso: caida de agente, cuya
 	// semantica es "viva por router", no un historico de incidentes.
 	Volatile bool `json:"-"`
+	// seeded: fixture del dataset demo (Seed). No lo somete el filtro de
+	// nivel "none" (#1659): la historia canónica del demo se sirve completa
+	// aunque su config deje la categoría en "none".
+	seeded bool
 }
 
 // ResolvedEvent (#1466): datos mínimos del evento que un cierre resolvió.
@@ -542,6 +546,15 @@ func (e *Engine) notificaLocked(ev AlertEvent) bool {
 	return true
 }
 
+// hiddenByLevelLocked: una categoría en nivel "none" no existe para el
+// operador. No entra al feed, no cuenta en la campana y no se persiste
+// (issue #1659). El nivel "urgent" sigue siendo solo política de
+// notificación (#1413): sus eventos se registran y solo silencian el aviso.
+// Los fixtures del demo (Seed) quedan exentos para servir el canon completo.
+func (e *Engine) hiddenByLevelLocked(ev AlertEvent) bool {
+	return !ev.seeded && e.cfg[ev.Category] == LevelNone
+}
+
 // insertaLocked inserta un evento nuevo al frente con dedup y cap.
 // Requiere e.mu ya tomado. Devuelve true si se guardó. skipDedup omite la
 // ventana de dedup de 5 min (issue #846: los incidentes con estado propio,
@@ -550,6 +563,11 @@ func (e *Engine) notificaLocked(ev AlertEvent) bool {
 func (e *Engine) insertaLocked(ev AlertEvent, now time.Time, skipDedup bool) bool {
 	key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
 	if e.isSilencedLocked(key) {
+		return false
+	}
+	// #1659: el nivel "none" oculta la categoría por completo (feed, campana
+	// y alert_log). Se descarta antes del dedup para no consumir la ventana.
+	if e.hiddenByLevelLocked(ev) {
 		return false
 	}
 	if !skipDedup {
@@ -621,8 +639,9 @@ func (e *Engine) persistLocked(ev AlertEvent) {
 }
 
 // Emit aplica el dedup de 5 min y el cap de 100; devuelve true si el evento
-// se guardó. TODO evento se guarda (issue #1413): el nivel none/urgent/all de
-// su categoría ya no filtra la ingesta, solo gobierna si dispara el Notifier.
+// se guardó. El nivel de la categoría gobierna qué se registra: "none" no
+// entra al feed ni se persiste (#1659), "urgent" sí se registra y solo
+// silencia el aviso (#1413).
 // El filtro por URGENCIA fino vive en cada canal (#874): cada transporte
 // decide si lleva solo urgentes (default) o todo.
 // Supresión topológica (#332): si el router tiene un padre offline en el
@@ -842,6 +861,8 @@ func (e *Engine) Seed(ev AlertEvent) bool {
 		ev.Time = "just now"
 	}
 	ev.Read = false
+	// #1659: fixture de demo, exento del filtro de nivel.
+	ev.seeded = true
 	e.list = append([]AlertEvent{ev}, e.list...)
 	if len(e.list) > MaxEvents {
 		e.list = e.list[:MaxEvents]
@@ -866,6 +887,11 @@ func (e *Engine) List() []AlertEvent {
 	hideOK := e.hideRecoveryLocked()
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
+			continue
+		}
+		// #1659: los eventos de una categoría en nivel "none" no se sirven,
+		// aunque estuvieran ya persistidos de antes del cambio de nivel.
+		if e.hiddenByLevelLocked(ev) {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
@@ -904,6 +930,9 @@ func (e *Engine) UnreadCount() int {
 	hideOK := e.hideRecoveryLocked()
 	for _, ev := range e.list {
 		if e.dismissed[ev.ID] {
+			continue
+		}
+		if e.hiddenByLevelLocked(ev) {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID

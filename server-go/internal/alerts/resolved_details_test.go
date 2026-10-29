@@ -10,6 +10,10 @@ import (
 
 func TestListAttachesResolvedDetails(t *testing.T) {
 	e := New(nil, nil)
+	// #1659: signal arranca en "none" (oculta la categoría), este test la usa.
+	if err := e.SetConfig(map[string]string{CatSignal: LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
 	clock := time.Unix(1_700_000_000, 0)
 	e.SetClock(func() time.Time { return clock })
 
@@ -66,6 +70,10 @@ func TestListAttachesResolvedDetails(t *testing.T) {
 // referencia desnuda con el ID.
 func TestListResolvedUnknownID(t *testing.T) {
 	e := New(nil, nil)
+	// #1659: signal arranca en "none" (oculta la categoría), este test la usa.
+	if err := e.SetConfig(map[string]string{CatSignal: LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
 	if !e.Emit(AlertEvent{
 		ID: "close-x", Category: CatSignal, Severity: "ok", Title: "cierre",
 		RouterID: "rt4", Resolves: []string{"alert-que-ya-no-esta"},
@@ -90,6 +98,9 @@ func TestListResolvedUnknownID(t *testing.T) {
 func TestResolvesSurviveRestart(t *testing.T) {
 	dir := t.TempDir()
 	e1 := newPersistTestEngine(t, dir, false)
+	if err := e1.SetConfig(map[string]string{CatSignal: LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
 	orig := AlertEvent{
 		ID: "alert-weak-x", Category: CatSignal, Severity: "warn",
 		Title: "Señal débil", Type: "wifi-weak", RouterID: "rt4",

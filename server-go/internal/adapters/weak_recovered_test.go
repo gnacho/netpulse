@@ -13,6 +13,11 @@ import (
 
 func TestEmitWeakRecoveredCollapsesPerDevice(t *testing.T) {
 	eng := alerts.New(nil, nil)
+	// #1659: signal arranca en "none" (la categoría no entra al feed), este
+	// test trabaja con cierres de señal.
+	if err := eng.SetConfig(map[string]string{alerts.CatSignal: alerts.LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
 	l := &Live{engine: eng}
 
 	sig := -58
