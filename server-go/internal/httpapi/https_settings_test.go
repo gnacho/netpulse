@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -18,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -30,6 +32,61 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/tlscert"
 	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 )
+
+// freePort reserves a port and releases it at once so the manager can bind it a
+// moment later. Something else on the machine can take it in between, which is
+// why every test that turns HTTPS on goes through enableHTTPS.
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserving a port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	return port
+}
+
+// enableHTTPS turns HTTPS on and moves to another port when the reserved one
+// was taken in between, instead of failing on a race the test cannot control
+// (issue #1669).
+func enableHTTPS(t *testing.T, mgr *tlsmode.Manager) {
+	t.Helper()
+	for attempt := 0; attempt < 10; attempt++ {
+		err := mgr.SetEnabled(true, "test")
+		if err == nil {
+			if !mgr.Enabled() {
+				t.Fatal("SetEnabled reported success but HTTPS stayed off")
+			}
+			return
+		}
+		if !errors.Is(err, syscall.EADDRINUSE) {
+			t.Fatalf("enabling HTTPS: %v", err)
+		}
+		if err := mgr.SetPort(freePort(t), "test"); err != nil {
+			t.Fatalf("moving the HTTPS port: %v", err)
+		}
+	}
+	t.Fatal("enabling HTTPS: ten ports in a row were taken")
+}
+
+// postEnableHTTPS turns HTTPS on through the API with the same retry, because
+// the handler binds the port too.
+func postEnableHTTPS(t *testing.T, ts *agentTestServer, mgr *tlsmode.Manager, body string) (int, map[string]any) {
+	t.Helper()
+	var st int
+	var out map[string]any
+	for attempt := 0; attempt < 10; attempt++ {
+		st, out = httpsCall(t, ts, "POST", "/api/settings/https", body, true)
+		if st != http.StatusInternalServerError {
+			return st, out
+		}
+		if err := mgr.SetPort(freePort(t), "test"); err != nil {
+			t.Fatalf("moving the HTTPS port: %v", err)
+		}
+	}
+	return st, out
+}
 
 func makeHTTPSTestServer(t *testing.T) (*agentTestServer, *tlsmode.Manager) {
 	t.Helper()
@@ -54,9 +111,7 @@ func makeHTTPSTestServer(t *testing.T) (*agentTestServer, *tlsmode.Manager) {
 	if err := auth.EnsureUsers(d, cfg); err != nil {
 		t.Fatal(err)
 	}
-	ln, _ := net.Listen("tcp", "127.0.0.1:0")
-	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	port := freePort(t)
 	mgr := tlsmode.New(tlsmode.Options{
 		DB: d, DataDir: dataDir, Port: port,
 		NewServer: func(addr string, h http.Handler) *http.Server { return &http.Server{Addr: addr, Handler: h} },
@@ -122,7 +177,7 @@ func TestEveryHTTPSChangeAsksForThePassword(t *testing.T) {
 	if mgr.Enabled() {
 		t.Fatal("HTTPS was turned on without the password")
 	}
-	st, body := httpsCall(t, ts, "POST", "/api/settings/https", `{"enabled":true,"password":"test123456"}`, true)
+	st, body := postEnableHTTPS(t, ts, mgr, `{"enabled":true,"password":"test123456"}`)
 	if st != http.StatusOK || !mgr.Enabled() {
 		t.Fatalf("enable: %d %v", st, body)
 	}
@@ -139,9 +194,7 @@ func TestTheRootIsServedToAnyone(t *testing.T) {
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("with HTTPS off: %d, want 404", res.StatusCode)
 	}
-	if err := mgr.SetEnabled(true, "test"); err != nil {
-		t.Fatal(err)
-	}
+	enableHTTPS(t, mgr)
 	res, err := http.Get(ts.URL + "/netpulse-ca.crt") // no session
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +212,7 @@ func TestTheRootIsServedToAnyone(t *testing.T) {
 
 func TestAStricterModeIsConfirmedOverHTTPSOnly(t *testing.T) {
 	ts, mgr := makeHTTPSTestServer(t)
-	_ = mgr.SetEnabled(true, "test")
+	enableHTTPS(t, mgr)
 	st, body := httpsCall(t, ts, "POST", "/api/settings/https", `{"mode":"migrate","password":"test123456"}`, false)
 	if st != http.StatusOK || body["pending"] != "migrate" || mgr.Mode() != tlsmode.Full {
 		t.Fatalf("request: %d %v, mode %s", st, body, mgr.Mode())
@@ -190,7 +243,7 @@ func TestAStricterModeIsConfirmedOverHTTPSOnly(t *testing.T) {
 // only an explicit force goes ahead.
 func TestRedirectWaitsForAgentsOnHTTP(t *testing.T) {
 	ts, mgr := makeHTTPSTestServer(t)
-	_ = mgr.SetEnabled(true, "test")
+	enableHTTPS(t, mgr)
 	_, token, _ := createAgentToken(t, ts, "test-router")
 	res := ingest(t, ts, token, "192.0.2.50", validPayloadFor("test-router"))
 	res.Body.Close()
@@ -215,9 +268,7 @@ func validPayloadFor(slug string) string {
 // meant to prove works - and applies the mode.
 func TestAModeIsConfirmedThroughTheRealHTTPSListener(t *testing.T) {
 	ts, mgr := makeHTTPSTestServer(t)
-	if err := mgr.SetEnabled(true, "test"); err != nil {
-		t.Fatal(err)
-	}
+	enableHTTPS(t, mgr)
 	code, _, err := mgr.RequestMode(tlsmode.Migrate, "test")
 	if err != nil {
 		t.Fatal(err)
@@ -252,7 +303,7 @@ func TestAModeIsConfirmedThroughTheRealHTTPSListener(t *testing.T) {
 // mode is refused outright.
 func TestTurningHTTPSOffWarnsAboutAgentsOnIt(t *testing.T) {
 	ts, mgr := makeHTTPSTestServer(t)
-	_ = mgr.SetEnabled(true, "test")
+	enableHTTPS(t, mgr)
 	_, token, _ := createAgentToken(t, ts, "test-router")
 	req, _ := http.NewRequest("POST", ts.URL+"/api/ingest/agent", strings.NewReader(validPayloadFor("test-router")))
 	res := ingestSecure(t, req, token)
@@ -300,7 +351,7 @@ func ingestSecure(t *testing.T, req *http.Request, token string) *http.Response 
 // accepted over HTTPS.
 func TestMigrateRefusesThePairingTokenOverPlainHTTP(t *testing.T) {
 	ts, mgr := makeHTTPSTestServer(t)
-	_ = mgr.SetEnabled(true, "test")
+	enableHTTPS(t, mgr)
 	code, _, _ := mgr.RequestMode(tlsmode.Migrate, "test")
 	_, _ = mgr.Confirm(code, true, "test")
 	var tok string
@@ -403,9 +454,7 @@ func TestTheInstallLineCarriesTheRoot(t *testing.T) {
 	if strings.Contains(before, "NPCA") || strings.Contains(before, "--server-fp") {
 		t.Fatalf("with HTTPS off the line changed: %s", before)
 	}
-	if err := mgr.SetEnabled(true, "test"); err != nil {
-		t.Fatal(err)
-	}
+	enableHTTPS(t, mgr)
 	_, _, line := createAgentToken(t, ts, "test-router-2")
 	wantServer := fmt.Sprintf("--server=https://192.168.50.2:%d", mgr.Status().Port)
 	// #1367: la CA sigue viajando en la línea, pero ya no como --cacert del
@@ -433,7 +482,7 @@ func TestTheInstallLineCarriesTheRoot(t *testing.T) {
 // length, and a null took the whole Settings page down.
 func TestTheAgentListIsNeverNull(t *testing.T) {
 	ts, mgr := makeHTTPSTestServer(t)
-	_ = mgr.SetEnabled(true, "test")
+	enableHTTPS(t, mgr)
 	req, _ := http.NewRequest("GET", ts.URL+"/api/settings/https", nil)
 	req.Header.Set("Cookie", "session="+ts.cookie)
 	res, err := http.DefaultClient.Do(req)
