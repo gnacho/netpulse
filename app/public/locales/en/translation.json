@@ -592,6 +592,14 @@
       "banner_one": "{{count}} connected device not identified",
       "banner_other": "{{count}} connected devices not identified",
       "bannerAction": "Identify"
+    },
+    "pin": {
+      "pin": "Pin filters",
+      "unpin": "Unpin filters",
+      "pinHint": "Use this filter set every time you open clients",
+      "unpinHint": "Stop restoring this filter set when opening clients",
+      "pinned": "Filters pinned as the default",
+      "unpinned": "Filters unpinned"
     }
   },
   "home": {

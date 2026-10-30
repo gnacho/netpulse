@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   List,
   Pencil,
+  Pin,
   Search,
   ShieldCheck,
   SignalLow,
@@ -82,12 +83,66 @@ type OnlineFilter = 'all' | 'online' | 'offline'
 // las OCULTAS; por defecto ninguna (tabla completa, como siempre).
 type DeviceColumn = 'type' | 'ip' | 'lease' | 'router' | 'band' | 'signal' | 'traffic' | 'firstSeen' | 'lastSeen'
 const DEVICE_COLUMNS: DeviceColumn[] = ['type', 'ip', 'lease', 'router', 'band', 'signal', 'traffic', 'firstSeen', 'lastSeen']
-type DevicesPrefs = { view: 'list' | 'grid'; sort: SortState; online: OnlineFilter; columns: DeviceColumn[] }
+// #1686: conjunto de filtros de la vista. Se guardan siempre, y solo se
+// restauran al abrir la seccion si el usuario ha fijado el pin. La busqueda
+// libre (q) no forma parte del conjunto.
+type PinnedFilters = {
+  routerIds: string[]
+  bands: BandValue[]
+  groups: FilterGroup[]
+  online: OnlineFilter
+  onlyWeak: boolean
+  minSignal: number | null
+  onlyUnprotected: boolean
+}
+type DevicesPrefs = {
+  view: 'list' | 'grid'
+  sort: SortState
+  online: OnlineFilter
+  columns: DeviceColumn[]
+  pinFilters: boolean
+  filters: PinnedFilters
+}
+const EMPTY_FILTERS: PinnedFilters = {
+  routerIds: [],
+  bands: [],
+  groups: [],
+  online: 'online',
+  onlyWeak: false,
+  minSignal: null,
+  onlyUnprotected: false,
+}
 
 const SORT_KEYS: SortKey[] = ['name', 'ip', 'router', 'band', 'lease', 'signal', 'type', 'traffic', 'firstSeen', 'lastSeen']
+const BAND_VALUES: BandValue[] = ['6 GHz', '5 GHz', '2.4 GHz', 'cable']
+
+function loadFilters(v: unknown): PinnedFilters {
+  if (!v || typeof v !== 'object') return EMPTY_FILTERS
+  const p = v as Partial<PinnedFilters>
+  const online: OnlineFilter = p.online === 'all' || p.online === 'offline' ? p.online : 'online'
+  const minSignal = typeof p.minSignal === 'number' && Number.isFinite(p.minSignal) ? p.minSignal : null
+  return {
+    routerIds: Array.isArray(p.routerIds) ? p.routerIds.filter((r): r is string => typeof r === 'string') : [],
+    bands: Array.isArray(p.bands)
+      ? p.bands.filter((b): b is BandValue => BAND_VALUES.includes(b as BandValue))
+      : [],
+    groups: Array.isArray(p.groups) ? p.groups.filter((g): g is FilterGroup => typeof g === 'string') : [],
+    online,
+    onlyWeak: p.onlyWeak === true,
+    minSignal,
+    onlyUnprotected: p.onlyUnprotected === true,
+  }
+}
 
 function loadDevicesPrefs(): DevicesPrefs {
-  const fallback: DevicesPrefs = { view: 'list', sort: null, online: 'online', columns: [] }
+  const fallback: DevicesPrefs = {
+    view: 'list',
+    sort: null,
+    online: 'online',
+    columns: [],
+    pinFilters: false,
+    filters: EMPTY_FILTERS,
+  }
   try {
     const raw = localStorage.getItem(DEVICES_PREFS_KEY)
     if (!raw) return fallback
@@ -101,7 +156,7 @@ function loadDevicesPrefs(): DevicesPrefs {
     const columns = Array.isArray(v.columns)
       ? v.columns.filter((c): c is DeviceColumn => DEVICE_COLUMNS.includes(c as DeviceColumn))
       : []
-    return { view, sort, online, columns }
+    return { view, sort, online, columns, pinFilters: v.pinFilters === true, filters: loadFilters(v.filters) }
   } catch {
     return fallback
   }
@@ -589,6 +644,9 @@ interface FilterBarProps {
   groupCounts: Record<FilterGroup, number>
   sort: SortState
   setSortKey: (key: SortKey | null) => void
+  /** #1686: el conjunto de filtros actual esta fijado como defecto. */
+  pinFilters: boolean
+  togglePinFilters: () => void
 }
 
 function FilterBar(p: FilterBarProps) {
@@ -731,8 +789,23 @@ function FilterBar(p: FilterBarProps) {
             </SelectContent>
           </Select>
         </div>
-        {/* Derecha: vista + caption */}
+        {/* Derecha: pin de filtros + vista + caption */}
         <div className="ml-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={p.togglePinFilters}
+            aria-pressed={p.pinFilters}
+            aria-label={t(p.pinFilters ? 'devices.pin.unpin' : 'devices.pin.pin')}
+            title={t(p.pinFilters ? 'devices.pin.unpinHint' : 'devices.pin.pinHint')}
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg border transition-colors duration-150',
+              p.pinFilters
+                ? 'border-accent/50 bg-accent-soft text-accent'
+                : 'border-border bg-elevated text-text-muted hover:bg-hover hover:text-text-primary',
+            )}
+          >
+            <Pin className={cn('h-3.5 w-3.5', p.pinFilters && 'fill-current')} strokeWidth={1.75} />
+          </button>
           <span className="hidden text-caption text-text-muted sm:inline">
             {t('devices.showing')} <CountUp value={p.shown} className="font-semibold text-text-secondary" /> {t('devices.showingOf', { total: deviceTotals.total })}
           </span>
@@ -1505,22 +1578,28 @@ export default function Devices() {
   // #989: flota y conexión son multi-selección acumulativa (varios routers o
   // bandas a la vez, OR dentro del filtro y AND entre filtros), con el mismo
   // patrón de desplegable con checkboxes que el filtro "Tipo".
-  const [routerIds, setRouterIds] = useState<string[]>([])
-  const [bands, setBands] = useState<BandValue[]>([])
-  const [groups, setGroups] = useState<FilterGroup[]>([])
-  const [online, setOnlineState] = useState<OnlineFilter>(() => loadDevicesPrefs().online)
+  // #1686: si el usuario ha fijado el pin de filtros, la vista arranca con el
+  // ultimo conjunto usado en lugar del defecto "todo". Con el pin suelto se
+  // arranca siempre limpio.
+  const initialPrefs = useMemo(() => loadDevicesPrefs(), [])
+  const initialFilters = initialPrefs.pinFilters ? initialPrefs.filters : EMPTY_FILTERS
+  const [pinFilters, setPinFilters] = useState(() => initialPrefs.pinFilters)
+  const [routerIds, setRouterIds] = useState<string[]>(() => [...initialFilters.routerIds])
+  const [bands, setBands] = useState<BandValue[]>(() => [...initialFilters.bands])
+  const [groups, setGroups] = useState<FilterGroup[]>(() => [...initialFilters.groups])
+  const [online, setOnlineState] = useState<OnlineFilter>(() => initialFilters.online)
   const setOnline = useCallback((v: OnlineFilter) => {
     setOnlineState(v)
   }, [])
-  const [onlyWeak, setOnlyWeak] = useState(false)
+  const [onlyWeak, setOnlyWeak] = useState(() => initialFilters.onlyWeak)
   // #1283: señal mínima de la tabla (oculta vecinos débiles); null = sin filtro.
-  const [minSignal, setMinSignal] = useState<number | null>(null)
+  const [minSignal, setMinSignal] = useState<number | null>(() => initialFilters.minSignal)
 
   // #1003: umbral de señal débil desde el ajuste global (como Roaming #906).
   const weakDbm = useWeakSignalDbm()
   // Filtro "sin proteger por AdGuard" (#959): se activa/desactiva desde la
   // stat card de AdGuard; se muestra como pill de filtro activo.
-  const [onlyUnprotected, setOnlyUnprotected] = useState(false)
+  const [onlyUnprotected, setOnlyUnprotected] = useState(() => initialFilters.onlyUnprotected)
   const toggleUnprotected = useCallback(() => setOnlyUnprotected((v) => !v), [])
 
   // Enlaces entrantes tipo /devices?q=<mac|ip|nombre> (p.ej. desde Puertos)
@@ -1617,11 +1696,19 @@ export default function Devices() {
     setSort(key === null ? null : { key, dir: 1 })
   }, [setSort])
 
-  // Persiste vista + orden + columnas en cada cambio (issues #778, #958).
-  // El write inicial reescribe el mismo valor cargado; es inofensivo.
+  // Persiste vista + orden + columnas + filtros en cada cambio (issues #778,
+  // #958, #1686). El write inicial reescribe el mismo valor cargado; es
+  // inofensivo.
   useEffect(() => {
-    saveDevicesPrefs({ view, sort, online, columns: hiddenColumns })
-  }, [view, sort, online, hiddenColumns])
+    saveDevicesPrefs({
+      view,
+      sort,
+      online,
+      columns: hiddenColumns,
+      pinFilters,
+      filters: { routerIds, bands, groups, online, onlyWeak, minSignal, onlyUnprotected },
+    })
+  }, [view, sort, online, hiddenColumns, pinFilters, routerIds, bands, groups, onlyWeak, minSignal, onlyUnprotected])
 
   const filtered = useMemo(() => {
     const out = allDevices.filter((d) => {
@@ -1754,8 +1841,19 @@ export default function Devices() {
     setBands([])
     setGroups([])
     setOnline('online')
+    setOnlyWeak(false)
+    setMinSignal(null)
     setOnlyUnprotected(false)
   }, [setRouterIds, setBands, setGroups, setOnline, setOnlyUnprotected])
+
+  // #1686: fijar o soltar el conjunto de filtros como defecto de la vista. Al
+  // fijarlo se guarda el conjunto actual; al soltarlo la proxima apertura
+  // vuelve a "todo".
+  const togglePinFilters = useCallback(() => {
+    const next = !pinFilters
+    setPinFilters(next)
+    showToast(t(next ? 'devices.pin.pinned' : 'devices.pin.unpinned'))
+  }, [pinFilters, showToast, t])
 
   const clearAll = useCallback(() => {
     clearFilters()
@@ -2010,6 +2108,8 @@ export default function Devices() {
         groupCounts={groupCounts}
         sort={sort}
         setSortKey={setSortKey}
+        pinFilters={pinFilters}
+        togglePinFilters={togglePinFilters}
       />
 
       {/* Pills de filtros activos */}

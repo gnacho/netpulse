@@ -592,6 +592,14 @@
       "banner_one": "{{count}} dispositivo conectado sin identificar",
       "banner_other": "{{count}} dispositivos conectados sin identificar",
       "bannerAction": "Identificar"
+    },
+    "pin": {
+      "pin": "Fijar filtros",
+      "unpin": "Soltar filtros",
+      "pinHint": "Usar este conjunto de filtros cada vez que abras clientes",
+      "unpinHint": "Dejar de restaurar este conjunto al abrir clientes",
+      "pinned": "Filtros fijados como defecto",
+      "unpinned": "Filtros sin fijar"
     }
   },
   "home": {
