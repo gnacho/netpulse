@@ -196,7 +196,8 @@ El detalle se alimenta del sondeo SSH de solo lectura y de los extras que devuel
 ### Qué muestra
 
 - **Franja de estadísticas**: online ahora, nuevos en los últimos 7 días, clientes con señal débil (< -70 dBm) y clientes protegidos por AdGuard.
-- **Barra de filtros**: por router, por banda (2.4 GHz / 5 GHz / cable), por tipo de dispositivo (multiselección) y un interruptor "Solo online".
+- **Barra de filtros**: por router, por banda (2.4 GHz / 5 GHz / cable), por tipo de dispositivo (multiselección), estado de conexión, señal débil, señal mínima (dBm) y clientes sin protección de AdGuard.
+- **Filtros fijados**: la chincheta de la barra guarda el conjunto de filtros actual como defecto, así que la vista se abre con esos filtros aplicados en lugar de mostrarlo todo. Se guarda en el navegador de cada equipo. La búsqueda libre no se fija, porque llega por enlace directo.
 - **Lista o cuadrícula** de clientes con tipo clasificado, nombre, fabricante, IP/MAC, tiempo restante de concesión DHCP, router al que están conectados, banda y señal.
 - Al expandir un cliente: MAC, concesión DHCP, primer visto, fabricante, hostname, tráfico 24 h, tráfico actual con minigráfica, estado AdGuard y acción de renombrar (cambiar icono/nombre local).
 

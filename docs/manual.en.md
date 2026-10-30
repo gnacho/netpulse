@@ -196,7 +196,8 @@ The detail is fed by the read-only SSH polling and by the extras the backend ret
 ### What it shows
 
 - **Stats strip**: online now, new in the last 7 days, clients with weak signal (< -70 dBm) and clients protected by AdGuard.
-- **Filter bar**: by router, by band (2.4 GHz / 5 GHz / cable), by device type (multi-select) and an "Only online" switch.
+- **Filter bar**: by router, by band (2.4 GHz / 5 GHz / cable), by device type (multi-select), connection state, weak signal, minimum signal (dBm) and clients not protected by AdGuard.
+- **Pinned filters**: the pin in the filter bar saves the current filter set as the default, so the view opens with those filters applied instead of showing everything. It is stored in the browser of each machine. The free-text search is not pinned, because it arrives through a direct link.
 - **List or grid** of clients with classified type, name, manufacturer, IP/MAC, remaining DHCP lease time, the router they are attached to, band and signal.
 - Expanding a client: MAC, DHCP lease, first seen, manufacturer, hostname, 24 h traffic, current traffic with a sparkline, AdGuard status and a rename action (change local icon/name).
 
