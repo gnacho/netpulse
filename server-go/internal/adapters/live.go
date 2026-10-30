@@ -3416,6 +3416,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		if d.Name == mac && d.IP != "" {
 			if host := l.rdns.Name(d.IP); host != "" {
 				d.Name = host
+				// The type above was guessed from the MAC, which says
+				// nothing. Guess it again now that there is a hostname.
+				d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
 			}
 		}
 		if randomMACs[mac] {

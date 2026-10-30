@@ -50,6 +50,11 @@ func TestBuildDevicesNamesFromReverseDNS(t *testing.T) {
 	if got := devs["5C:E2:8C:00:00:04"].Name; got != "switch-garage" {
 		t.Fatalf("static host: got %q, want switch-garage", got)
 	}
+	// The type is guessed again after the PTR name lands: "switch-garage"
+	// matches the switch rule, while a bare MAC can only be "desconocido".
+	if got := devs["5C:E2:8C:00:00:04"].Type; got != "switch" {
+		t.Fatalf("static host type: got %q, want switch", got)
+	}
 	if got := devs["AA:BB:CC:00:00:70"].Name; got != "laptop" {
 		t.Fatalf("leased host: got %q, want laptop", got)
 	}

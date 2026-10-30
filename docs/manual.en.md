@@ -204,6 +204,8 @@ The detail is fed by the read-only SSH polling and by the extras the backend ret
 
 Clients are discovered from three sources running on the monitored routers: (1) the DHCP lease table, (2) the bridge FDB for wired clients and (3) mDNS/Bonjour when `umdns` is installed. Type classification uses hostname patterns and manufacturer OUI. Discovery requires the agent to run on the router that sees the clients; without an agent on the gateway, the list stays empty.
 
+A host that nothing else names, typically a server, switch or access point with a static address that never takes a lease, falls back to the PTR record of its address as the last source. The PTR has to be forward-confirmed, the domain is dropped and only private, shared CGNAT and link-local addresses are queried, so a public address is never sent to an upstream resolver. The lookup runs in the background: the device shows its name on the next poll and never blocks it. `NETPULSE_RDNS=0` turns the fallback off. A host named this way is no longer reported as an unknown device, the same as a host named by mDNS.
+
 ### How to read it
 
 - The **signal** follows the usual scale: green above -55 dBm, cyan between -55 and -70, amber below -70 (considered weak).

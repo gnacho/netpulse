@@ -204,6 +204,8 @@ El detalle se alimenta del sondeo SSH de solo lectura y de los extras que devuel
 
 Los clientes se descubren desde tres fuentes que corren en los routers monitorizados: (1) la tabla de concesiones DHCP, (2) el bridge FDB para clientes por cable y (3) mDNS/Bonjour cuando `umdns` está instalado. La clasificación por tipo usa patrones de hostname y OUI del fabricante. El descubrimiento exige que el agente corra en el router que ve a los clientes; sin agente en el gateway, la lista estará vacía.
 
+Cuando nada más pone nombre a un equipo (típicamente un servidor, switch o punto de acceso con dirección fija que nunca pide concesión), se recurre como última fuente al registro PTR de su dirección. El PTR tiene que resolver de vuelta a la misma dirección, se descarta el dominio y solo se consultan direcciones privadas, CGNAT compartido y link-local, así que una dirección pública nunca se envía a un resolver externo. La consulta va en segundo plano: el equipo aparece con nombre en el siguiente sondeo y nunca lo bloquea. `NETPULSE_RDNS=0` desactiva el recurso. Un equipo nombrado así deja de contarse como dispositivo desconocido, igual que uno nombrado por mDNS.
+
 ### Cómo leerlo
 
 - La **señal** sigue la escala habitual: verde por encima de -55 dBm, cian entre -55 y -70, ámbar por debajo de -70 (se considera débil).

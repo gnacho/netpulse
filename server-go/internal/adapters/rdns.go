@@ -78,7 +78,14 @@ func (c *rdnsCache) Name(ip string) string {
 		return ""
 	}
 	addr, err := netip.ParseAddr(ip)
-	if err != nil || !rdnsEligible(addr) {
+	if err != nil {
+		return ""
+	}
+	// An IPv4-mapped IPv6 address (::ffff:172.16.16.4) has to be unmapped
+	// before it is used as a cache key and compared with the forward lookup,
+	// which returns plain IPv4 addresses.
+	addr = addr.Unmap()
+	if !rdnsEligible(addr) {
 		return ""
 	}
 	key := addr.String()
@@ -89,9 +96,16 @@ func (c *rdnsCache) Name(ip string) string {
 		return e.name
 	}
 	if !c.inflight[key] {
-		c.inflight[key] = true
-		c.wg.Add(1)
-		go c.resolve(addr)
+		// Take a worker slot before spawning, so a network full of unnamed
+		// hosts queues lookups for later polls instead of one goroutine per
+		// address waiting on the semaphore.
+		select {
+		case c.sem <- struct{}{}:
+			c.inflight[key] = true
+			c.wg.Add(1)
+			go c.resolve(addr)
+		default:
+		}
 	}
 	// A stale name is still better than a MAC while the refresh runs.
 	return e.name
@@ -99,7 +113,7 @@ func (c *rdnsCache) Name(ip string) string {
 
 func (c *rdnsCache) resolve(addr netip.Addr) {
 	defer c.wg.Done()
-	c.sem <- struct{}{}
+	// The worker slot was taken by Name before this goroutine started.
 	defer func() { <-c.sem }()
 	name := c.lookup(addr)
 	ttl := rdnsTTL

@@ -114,6 +114,56 @@ func TestRDNSName(t *testing.T) {
 	}
 }
 
+func TestRDNSIPv4MappedAddress(t *testing.T) {
+	f := &fakeRDNS{
+		ptr: map[string][]string{
+			"172.16.16.6": {"ap-hall.home.arpa."},
+		},
+		forward: map[string][]string{
+			"ap-hall.home.arpa": {"172.16.16.6"},
+		},
+	}
+	c := newTestRDNS(f, time.Now)
+	// A mapped address has to be unmapped before the forward comparison,
+	// otherwise LookupNetIP returns a plain IPv4 and the match never happens.
+	if got := resolved(c, "::ffff:172.16.16.6"); got != "ap-hall" {
+		t.Fatalf("mapped address: got %q, want ap-hall", got)
+	}
+	if n := f.count("172.16.16.6"); n != 1 {
+		t.Fatalf("lookup used %v, want the unmapped 172.16.16.6", f.calls)
+	}
+}
+
+func TestRDNSDoesNotQueueBeyondConcurrency(t *testing.T) {
+	f := &fakeRDNS{ptr: map[string][]string{}, forward: map[string][]string{}}
+	c := newTestRDNS(f, time.Now)
+	for i := 0; i < rdnsConcurrency; i++ {
+		c.sem <- struct{}{}
+	}
+	c.Name("172.16.16.61")
+	c.mu.Lock()
+	queued := len(c.inflight)
+	c.mu.Unlock()
+	if queued != 0 {
+		t.Fatalf("queued %d lookups while every worker was busy", queued)
+	}
+	for i := 0; i < rdnsConcurrency; i++ {
+		<-c.sem
+	}
+	// With a slot free the next poll queues it normally.
+	c.Name("172.16.16.61")
+	c.wg.Wait()
+	c.mu.Lock()
+	queued = len(c.inflight)
+	c.mu.Unlock()
+	if queued != 0 {
+		t.Fatalf("%d lookups still in flight after the worker finished", queued)
+	}
+	if _, ok := c.entries["172.16.16.61"]; !ok {
+		t.Fatal("lookup was never resolved once a slot was free")
+	}
+}
+
 func TestRDNSCachesAndExpires(t *testing.T) {
 	f := &fakeRDNS{
 		ptr:     map[string][]string{"172.16.16.4": {"switch-garage.home.arpa."}},
