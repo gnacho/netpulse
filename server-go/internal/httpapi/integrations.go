@@ -7,6 +7,7 @@ package httpapi
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -109,10 +110,18 @@ func (s *server) integrationItemOf(row rintegration.Row) integrationItem {
 	if lastPush > 0 && row.IntervalS > 0 {
 		fresh = time.Now().UnixMilli()-lastPush <= int64(row.IntervalS)*3*1000
 	}
+	// #1696: reconciliar al leer. Una fila en running cuyo último push es más
+	// viejo que 3 intervalos no puede ir de sana: la vista la reporta como
+	// "stale". Es solo vista (la fila no se toca): en cuanto el pusher vuelva
+	// a empujar, el propio cálculo la devuelve a "running".
+	state := row.State
+	if state == "running" && lastPush > 0 && row.IntervalS > 0 && !fresh {
+		state = "stale"
+	}
 	return integrationItem{
 		Slug: row.Slug, Vendor: row.Vendor, Mode: row.Mode, Host: row.Host,
 		Username: row.Username, Version: row.Version, Arch: row.Arch,
-		IntervalS: row.IntervalS, Enabled: row.Enabled, State: row.State,
+		IntervalS: row.IntervalS, Enabled: row.Enabled, State: state,
 		LastError: row.LastError, LastStartMs: row.LastStartMs,
 		LastPushMs: lastPush, Fresh: fresh,
 	}
@@ -137,6 +146,79 @@ func (s *server) broadcastIntegrations() {
 	if s.hub != nil {
 		s.hub.Broadcast("integrations", map[string]any{"integrations": s.integrationList()})
 	}
+}
+
+// watchIntegrations (#1696) registra el callback de salida inesperada de los
+// pushers locales (#1674) y reanuda al arrancar las integraciones habilitadas.
+// No-op sin supervisor o sin base de datos (demo). Los paros intencionales no
+// pasan por el callback: los gestiona el handler de stop.
+func (s *server) watchIntegrations() {
+	if s.integrations == nil || s.db == nil {
+		return
+	}
+	s.integrations.SetOnExit(func(slug string, exitErr error) {
+		// Un pusher es un daemon de larga vida: también la salida limpia
+		// (código 0) es inesperada y deja la fila en estado error con su
+		// motivo, igual que un arranque fallido.
+		reason := "pusher exited unexpectedly (exit code 0)"
+		if exitErr != nil {
+			reason = exitErr.Error()
+		}
+		_ = rintegration.NewStore(s.db.DB).SetState(slug, "error", reason)
+		s.broadcastIntegrations()
+	})
+	s.resumeIntegrations()
+}
+
+// resumeIntegrations (#1696) reanuda al arrancar cada integración habilitada.
+// En modo local arranca el pusher con el binario ya instalado y el fichero de
+// entorno 0600 ya existente (el token y la contraseña solo viven ahí); en
+// modo ssh el pusher corre dentro del router y no hay nada que arrancar en el
+// servidor, pero el estado guardado deja de decir running (no verificado
+// hasta el próximo check/start). Un fallo se loga y deja la fila en estado
+// error: nunca tira el arranque del servidor.
+func (s *server) resumeIntegrations() {
+	if s.integrations == nil || s.db == nil {
+		return
+	}
+	store := s.integrationsStore()
+	rows, err := store.List()
+	if err != nil {
+		log.Printf("[netpulse] aviso: integraciones: no se pudo leer la tabla al arrancar (%v)", err)
+		return
+	}
+	for _, row := range rows {
+		if !row.Enabled {
+			continue
+		}
+		if row.Mode != "local" {
+			// El proceso vive en el router: sin verificar tras el reinicio
+			// del servidor; check/start lo reconcilian.
+			if row.State == "running" {
+				_ = store.SetState(row.Slug, "unverified", "")
+			}
+			continue
+		}
+		if s.integrations.Running(row.Slug) {
+			continue
+		}
+		vendor, ok := rintegration.LookupVendor(row.Vendor)
+		if !ok {
+			_ = store.SetState(row.Slug, "error", "unknown vendor "+row.Vendor)
+			log.Printf("[netpulse] aviso: integración %s con vendor desconocido %q al arrancar", row.Slug, row.Vendor)
+			continue
+		}
+		binPath := filepath.Join(s.integrations.Dir(), row.Slug, vendor.Binary)
+		if err := s.integrations.Start(row.Slug, nil, binPath); err != nil {
+			_ = store.SetState(row.Slug, "error", err.Error())
+			log.Printf("[netpulse] aviso: integración %s no se reanudó al arrancar (%v)", row.Slug, err)
+			continue
+		}
+		_ = store.SetState(row.Slug, "running", "")
+		_ = store.SetLastStart(row.Slug, time.Now().UnixMilli())
+		log.Printf("[netpulse] integración %s reanudada al arrancar", row.Slug)
+	}
+	s.broadcastIntegrations()
 }
 
 func (s *server) handleIntegrationsList(w http.ResponseWriter, _ *http.Request) {
@@ -429,6 +511,16 @@ func (s *server) handleIntegrationCheck(w http.ResponseWriter, r *http.Request) 
 	} else if s.pool != nil {
 		_, err := s.pool.Run(row.Host, sshServiceScript(vendor, "check"), 30*time.Second)
 		running = err == nil
+	}
+	// #1696: un check verificado reconcilia el estado guardado: el unverified
+	// que deja un reinicio del servidor (o una fila desfasada) vuelve a
+	// running cuando el proceso está demostradamente vivo.
+	if running && row.State != "running" {
+		_ = s.integrationsStore().SetState(slug, "running", "")
+		s.broadcastIntegrations()
+		if fresh, ok := s.getIntegrationRow(slug); ok {
+			row = fresh
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"integration": s.integrationItemOf(row),

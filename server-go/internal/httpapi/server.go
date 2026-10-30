@@ -369,18 +369,10 @@ func NewHandler(d Deps) http.Handler {
 	if d.Config != nil {
 		s.rtlConsole = newRtlConsoleCache(d.Config.RTLConsolePass, d.Config.RTLConsolePollSec)
 	}
-	// #1674: al morir un pusher local de forma inesperada, marcar el estado
-	// error y re-emitir la lista por SSE. Los paros intencionales no pasan por
-	// aquí (los gestiona el handler).
-	if s.integrations != nil && s.db != nil {
-		s.integrations.SetOnExit(func(slug string, exitErr error) {
-			if exitErr == nil {
-				return
-			}
-			_ = rintegration.NewStore(s.db.DB).SetState(slug, "error", exitErr.Error())
-			s.broadcastIntegrations()
-		})
-	}
+	// #1696: callback de muerte inesperada de pushers locales (#1674) más
+	// reanudación al arrancar de las integraciones habilitadas. Los paros
+	// intencionales no pasan por aquí (los gestiona el handler).
+	s.watchIntegrations()
 
 	mode := d.Adapter.Mode()
 

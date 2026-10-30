@@ -718,7 +718,9 @@
       "running": "En ejecución",
       "stopped": "Detenido",
       "error": "Error",
-      "installing": "Instalando"
+      "installing": "Instalando",
+      "stale": "Desactualizado",
+      "unverified": "Sin verificar"
     },
     "ago": {
       "s": "hace {{count}} s",

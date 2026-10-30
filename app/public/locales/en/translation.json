@@ -718,7 +718,9 @@
       "running": "Running",
       "stopped": "Stopped",
       "error": "Error",
-      "installing": "Installing"
+      "installing": "Installing",
+      "stale": "Stale",
+      "unverified": "Unverified"
     },
     "ago": {
       "s": "{{count}}s ago",
