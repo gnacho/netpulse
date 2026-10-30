@@ -4,8 +4,8 @@ import "testing"
 
 func TestVendorsManifest(t *testing.T) {
 	vs := Vendors()
-	if len(vs) != 2 {
-		t.Fatalf("expected 2 vendors, got %d", len(vs))
+	if len(vs) != 3 {
+		t.Fatalf("expected 3 vendors, got %d", len(vs))
 	}
 
 	r, ok := LookupVendor("routeros")
@@ -34,6 +34,20 @@ func TestVendorsManifest(t *testing.T) {
 	}
 	if got := a.AssetName("1.0.0", "arm64"); got != "asuswrt_1.0.0_linux_arm64.tar.gz" {
 		t.Fatalf("asuswrt asset name = %q", got)
+	}
+
+	u, ok := LookupVendor("unifi")
+	if !ok {
+		t.Fatal("unifi vendor missing")
+	}
+	if u.Mode != "local" || u.TagPrefix != "unifi/v" || u.Binary != "unifi-pusher" {
+		t.Fatalf("unifi manifest mismatch: %+v", u)
+	}
+	if len(u.Arches) != 1 || u.Arches[0] != "amd64" {
+		t.Fatalf("unifi arches = %v, want [amd64]", u.Arches)
+	}
+	if got := u.AssetName("1.0.0", "amd64"); got != "unifi_1.0.0_linux_amd64.tar.gz" {
+		t.Fatalf("unifi asset name = %q", got)
 	}
 
 	if _, ok := LookupVendor("bbox"); ok {

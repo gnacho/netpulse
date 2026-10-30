@@ -49,6 +49,16 @@ var vendors = []Vendor{
 		Binary:      "asuswrt-pusher",
 		Description: "Asuswrt (Asuswrt-Merlin) external pusher",
 	},
+	{
+		ID:          "unifi",
+		Mode:        "local",
+		Repo:        "gnacho/netpulse-integrations",
+		TagPrefix:   "unifi/v",
+		AssetTmpl:   "unifi_{version}_linux_{arch}.tar.gz",
+		Arches:      []string{"amd64"},
+		Binary:      "unifi-pusher",
+		Description: "UniFi controller external pusher",
+	},
 }
 
 // Vendors returns the supported vendor manifest.
