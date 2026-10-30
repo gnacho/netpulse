@@ -61,6 +61,28 @@ A draft without that evidence can still be shared as an issue (dumps, API notes,
 
 If you touch `agent/`, bump `agent/VERSION` in the same pull request. The release gate fails when `agent/` changes without a version bump.
 
+## Releases
+
+A release is cut deliberately by a maintainer, never as a side effect of merging a pull
+request. Do not push a tag until the recap below exists and the maintainer has agreed to it.
+
+1. **Recap first.** List every open issue and every open pull request and say, in one line
+   each, what goes into this release and what waits for the next one. A change that is
+   already merged is not automatically in: the recap decides. Skip this and features that
+   were reported before the cut end up shipping one release late for no reason.
+2. **Check the public documentation** against what the release contains: `README.md`,
+   `README.es.md`, `docs/manual.en.md`, `docs/manual.es.md` and `CHANGELOG.md`.
+3. **Choose the version honestly.** Patch for fixes, minor for features, major for breaking
+   changes. Round milestone numbers (`x.Y.0` with a round `Y`) are reserved for announced
+   releases with the README, the landing page, the manuals and the memory up to date. They
+   are never spent on a routine cut.
+4. **Run the gate.** `AGENT_VERSION=<version> make check`. If `agent/` changed, bump
+   `agent/VERSION` in the same release.
+5. **Publish.** Commit `chore(release): <version>`, create an annotated tag, push `main` and
+   the tag. Wait for the release workflow and verify the assets and their checksums.
+6. **Verify what people actually get.** Deploy and confirm the health endpoint reports the
+   new version, then check that the demo, the landing page and any generated assets follow.
+
 ## Security
 
 Do not open a public issue for a vulnerability. Use GitHub private vulnerability reporting instead (see [SECURITY.md](SECURITY.md)).
