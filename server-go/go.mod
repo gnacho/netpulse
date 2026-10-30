@@ -7,7 +7,7 @@ toolchain go1.26.10
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/gnacho/netpulse/agent v0.0.0
-	github.com/gonzalop/mq v0.10.0
+	github.com/gonzalop/mq v0.10.1-0.20261027034719-713e3da2a1f3
 	github.com/gosnmp/gosnmp v1.47.0
 	github.com/m-lab/ndt7-client-go v0.10.1
 	github.com/mark3labs/mcp-go v1.4.0
