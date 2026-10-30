@@ -328,6 +328,17 @@ func (s *server) pusherEnv(v rintegration.Vendor, row rintegration.Row, password
 	return env
 }
 
+// healPusherPin merges the current server pin into a pusher environment,
+// healing files written before the pin requirement and refreshing the pin
+// after a certificate reissue. It is a no-op when the server URL needs no
+// pin (plain HTTP).
+func healPusherPin(env map[string]string, serverURL string) map[string]string {
+	for k, v := range pusherPinEnv(serverURL) {
+		env[k] = v
+	}
+	return env
+}
+
 func (s *server) runSSHInstall(v rintegration.Vendor, row rintegration.Row, env map[string]string, assetURL, sha256 string) error {
 	_, err := s.pool.Run(row.Host, sshInstallScript(v, env, assetURL, sha256), 300*time.Second)
 	return err
@@ -457,6 +468,12 @@ func (s *server) handleIntegrationUpdate(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusBadGateway, "download_failed", err.Error())
 			return
 		}
+		// Heal environments created before the pin requirement: the
+		// refreshed binary refuses to start without it. Best effort, on
+		// error the old file is reused and the start below reports it.
+		if env, err := s.integrations.Env(slug); err == nil {
+			_ = s.integrations.WriteEnv(slug, healPusherPin(env, s.agentBaseURL(r)))
+		}
 		if err := s.integrations.Start(slug, nil, filepath.Join(installDir, vendor.Binary)); err != nil {
 			_ = store.SetState(slug, "error", err.Error())
 			s.broadcastIntegrations()
@@ -576,6 +593,7 @@ func (s *server) handleIntegrationEdit(w http.ResponseWriter, r *http.Request) {
 			env[prefix+"PASS"] = password
 		}
 		env["NETPULSE_INTERVAL"] = strconv.Itoa(row.IntervalS) + "s"
+		healPusherPin(env, s.agentBaseURL(r))
 		if err := s.integrations.WriteEnv(slug, env); err != nil {
 			_ = store.SetState(slug, "error", err.Error())
 			s.broadcastIntegrations()
@@ -607,6 +625,7 @@ func (s *server) handleIntegrationEdit(w http.ResponseWriter, r *http.Request) {
 			env[prefix+"PASS"] = password
 		}
 		env["NETPULSE_INTERVAL"] = strconv.Itoa(row.IntervalS) + "s"
+		healPusherPin(env, s.agentBaseURL(r))
 		if _, err := s.pool.Run(row.Host, sshEnvWriteScript(vendor, env), 60*time.Second); err != nil {
 			_ = store.SetState(slug, "error", err.Error())
 			s.broadcastIntegrations()
