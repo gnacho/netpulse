@@ -198,7 +198,7 @@ primer arranque por descubrimiento LAN (barrido TCP :22 con fingerprinting
 ubus/GL-UI).
 
 **3. Autoriza la clave SSH.** El servidor generó su propio par de claves en
-el primer arranque. Copia la clave pública desde **Ajustes → Red** y, en cada
+el primer arranque. Copia la clave pública desde **Ajustes → Flota** y, en cada
 router que quieras monitorizar, añádela:
 
 ```sh
@@ -218,8 +218,9 @@ de abajo). Asuswrt/Merlin utiliza el pusher externo descrito en esa sección.
 pantalla de inicio / Instalar app) y activa Web Push en Ajustes: las alertas
 llegan al móvil aunque la pestaña esté cerrada.
 
-¿Prefieres verla primero en tu propio hardware? `DEMO_MODE=1 ./netpulse`
+¿Prefieres verla primero en tu propio hardware? `DEMO_MODE=1 AUTH_PASS=elige-una ./netpulse`
 levanta la misma app con una red de muestra de 67 dispositivos, sin routers.
+`AUTH_PASS` es obligatoria también en modo demo: protege la sesión web.
 
 <details>
 <summary><strong>Otras vías de instalación</strong></summary>

@@ -6,13 +6,16 @@ package sshkey
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -37,18 +40,35 @@ func KnownHostsPath(keyPath string) string {
 	return filepath.Join(filepath.Dir(keyPath), "known_hosts")
 }
 
-// EnsureKeypair garantiza que existe el par de claves en keyPath
-// (ssh-keygen -t ed25519 -N ” -C netpulse); best-effort en permisos.
+// EnsureKeypair garantiza que existe un par de claves USABLE en keyPath
+// (par ed25519 en formato OpenSSH). Best-effort en permisos.
 // Si no existe y hay un backup previo (<keyPath>.bak.<epoch>), lo restaura
 // en lugar de generar un par nuevo (defensa contra perdida accidental de
 // .ssh/ durante updates, issue #425).
+// Si existe pero crypto/ssh no puede leerlo (p. ej. la escribio el
+// ssh-keygen de Dropbear que trae OpenWrt 21.02: formato propio, issue
+// #1701), se respalda y se regenera en proceso: la clave rota nunca pudo
+// firmar nada, asi que no hay emparejamientos funcionales que invalidar.
 func EnsureKeypair(keyPath string) error {
 	if keyExists(keyPath) {
-		return nil
+		if privateParses(keyPath) {
+			return nil
+		}
+		log.Printf("[netpulse] sshkey: la clave en %s no es legible por crypto/ssh (formato externo, tipicamente Dropbear de OpenWrt 21.02); se respalda como .bak.<epoch> y se regenera en proceso (#1701)", keyPath)
+		bak := fmt.Sprintf("%s.bak.%d", keyPath, time.Now().Unix())
+		if err := os.Rename(keyPath, bak); err != nil {
+			return err
+		}
+		if _, err := os.Stat(keyPath + ".pub"); err == nil {
+			_ = os.Rename(keyPath+".pub", bak+".pub")
+		}
+		return generateKeypair(keyPath)
 	}
 	// Intentar restaurar desde backup antes de generar clave nueva.
 	if restored, _ := restoreLatestBackup(keyPath); restored {
-		return nil
+		if privateParses(keyPath) {
+			return nil
+		}
 	}
 	return generateKeypair(keyPath)
 }
@@ -135,22 +155,20 @@ type PublicKey struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
-var fpRe = regexp.MustCompile(`^\d+\s+(\S+)`)
-
-// GetPublicKey lee la clave pública y su fingerprint (ssh-keygen -lf, 2º
-// campo). Devuelve (nil, nil) si no se puede leer (→ 500 no_key).
+// GetPublicKey lee la clave pública y calcula su fingerprint EN PROCESO
+// (SHA-256, el mismo formato que ssh-keygen -lf de OpenSSH moderno). Sin
+// ssh-keygen: el de Dropbear en OpenWrt 21.02 no soporta -lf y dejaba el
+// fingerprint vacío en la UI de pairing (#1701). Devuelve (nil, nil) si no
+// se puede leer (→ 500 no_key).
 func GetPublicKey(keyPath string) *PublicKey {
 	data, err := os.ReadFile(keyPath + ".pub")
 	if err != nil {
 		return nil
 	}
 	pub := strings.TrimSpace(string(data))
-	out, err := exec.Command("ssh-keygen", "-lf", keyPath+".pub").Output()
 	fp := ""
-	if err == nil {
-		if m := fpRe.FindStringSubmatch(strings.TrimSpace(string(out))); m != nil {
-			fp = m[1]
-		}
+	if key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(pub)); err == nil {
+		fp = ssh.FingerprintSHA256(key)
 	}
 	return &PublicKey{PublicKey: pub, Fingerprint: fp}
 }
@@ -183,17 +201,49 @@ func RotateKeypair(keyPath string) (*PublicKey, error) {
 	return key, nil
 }
 
+// generateKeypair crea el par de claves EN PROCESO (crypto/ed25519 +
+// x/crypto/ssh), sin ejecutar ssh-keygen. El ssh-keygen disponible en
+// OpenWrt es el de Dropbear y en 21.02 escribe un formato que crypto/ssh
+// no puede leer: el servidor "tenia" clave pero el pool SSH fallaba y el
+// arranque caia en dataset demo sin aviso claro (#1701).
 func generateKeypair(keyPath string) error {
 	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
 		return err
 	}
-	cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", keyPath, "-N", "", "-C", "netpulse", "-q")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return &ExecError{What: "ssh-keygen", Err: err, Out: string(out)}
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	block, err := ssh.MarshalPrivateKey(priv, "netpulse")
+	if err != nil {
+		return err
+	}
+	privPEM := pem.EncodeToMemory(block)
+	sshPub, err := ssh.NewPublicKey(priv.Public())
+	if err != nil {
+		return err
+	}
+	pubLine := strings.TrimSuffix(string(ssh.MarshalAuthorizedKey(sshPub)), "\n") + " netpulse\n"
+	if err := os.WriteFile(keyPath, privPEM, 0o600); err != nil {
+		return err
+	}
+	if err := os.WriteFile(keyPath+".pub", []byte(pubLine), 0o644); err != nil {
+		return err
 	}
 	_ = os.Chmod(filepath.Dir(keyPath), 0o700)
 	_ = os.Chmod(keyPath, 0o600)
 	return nil
+}
+
+// privateParses comprueba que crypto/ssh puede leer la clave privada en
+// keyPath (el mismo parser que usa el pool SSH para sondear).
+func privateParses(keyPath string) bool {
+	data, err := os.ReadFile(keyPath)
+	if err != nil {
+		return false
+	}
+	_, err = ssh.ParseRawPrivateKey(data)
+	return err == nil
 }
 
 // khEntry es una línea de known_hosts desesquematizada: host(s) y host key.

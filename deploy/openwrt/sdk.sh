@@ -58,3 +58,38 @@ download_verified_sdk() {
 
   printf '%s\n' "$work_dir/${name%.tar.zst}"
 }
+
+# verify_ipk_modes <ipk> <path>=<octal-mode>... checks that the packaged files
+# carry the expected permission bits inside data.tar.gz (#1701: ipkg-build
+# does not fix permissions, and a non-executable /etc/init.d script breaks
+# enable/start on the router). Uses ar + tar, both present on CI hosts.
+verify_ipk_modes() {
+  local ipk="$1"
+  shift
+  local spec path want got line
+  if [ ! -f "$ipk" ]; then
+    echo "ERROR: verify_ipk_modes: ipk not found: $ipk" >&2
+    exit 1
+  fi
+  echo "  Verifying packaged file modes in $(basename "$ipk")..."
+  for spec in "$@"; do
+    path="${spec%%=*}"
+    want="${spec##*=}"
+    got="$(ar p "$ipk" data.tar.gz | tar -tvzf - 2>/dev/null \
+      | awk -v p="$path" '$NF ~ ("(^|/)" p "$") {print $1; exit}')"
+    if [ -z "$got" ]; then
+      echo "ERROR: $path not found inside the ipk" >&2
+      exit 1
+    fi
+    case "$want" in
+      755) line="rwxr-xr-x" ;;
+      644) line="rw-r--r--" ;;
+      *) echo "ERROR: verify_ipk_modes: unsupported mode $want" >&2; exit 1 ;;
+    esac
+    if [ "$got" != "-$line" ]; then
+      echo "ERROR: $path has mode $got, want -$line ($want)" >&2
+      exit 1
+    fi
+    echo "    $path: $got OK"
+  done
+}

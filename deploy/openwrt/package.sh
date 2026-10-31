@@ -70,9 +70,12 @@ PKG_DIR="$WORK_DIR/netpulse-agent-pkg"
 mkdir -p "$PKG_DIR/CONTROL" "$PKG_DIR/usr/sbin" "$PKG_DIR/etc/init.d" "$PKG_DIR/etc/config" "$PKG_DIR/etc/uci-defaults"
 
 cp "$WORK_DIR/netpulse-agent" "$PKG_DIR/usr/sbin/netpulse-agent"
-cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.init" "$PKG_DIR/etc/init.d/netpulse-agent"
+# Init script and uci-defaults MUST be 0755 (#1701): ipkg-build does not fix
+# permissions, and a 0644 init script cannot be started or enabled on the
+# router.
+install -m 0755 "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.init" "$PKG_DIR/etc/init.d/netpulse-agent"
 cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.config" "$PKG_DIR/etc/config/netpulse-agent"
-cp "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.defaults" "$PKG_DIR/etc/uci-defaults/90-netpulse-agent"
+install -m 0755 "$REPO_ROOT/deploy/openwrt/netpulse-agent/files/netpulse-agent.defaults" "$PKG_DIR/etc/uci-defaults/90-netpulse-agent"
 
 # CONTROL files
 cat > "$PKG_DIR/CONTROL/control" << CTRL
@@ -120,6 +123,10 @@ if [ "$FORMAT" = "ipk" ]; then
   echo "  Building .ipk..."
   "$SDK_DIR/scripts/ipkg-build" "$PKG_DIR" "$OUT_DIR"
   echo "  IPK: $(ls "$OUT_DIR"/netpulse-agent_*.ipk)"
+  verify_ipk_modes "$OUT_DIR"/netpulse-agent_*.ipk \
+    "usr/sbin/netpulse-agent=755" \
+    "etc/init.d/netpulse-agent=755" \
+    "etc/uci-defaults/90-netpulse-agent=755"
 
 elif [ "$FORMAT" = "apk" ]; then
   echo "  Building .apk via SDK..."

@@ -190,7 +190,7 @@ password and the gateway is already there: NetPulse finds it on first boot
 via LAN discovery (a TCP :22 sweep with ubus/GL-UI fingerprinting).
 
 **3. Authorize the SSH key.** The server generated its own keypair on first
-boot. Copy the public key from **Settings → Network** and, on each router you
+boot. Copy the public key from **Settings → Fleet** and, on each router you
 want to monitor, append it:
 
 ```sh
@@ -210,8 +210,9 @@ uses the external pusher described there.
 screen / Install app) and enable Web Push in Settings: alerts reach your
 phone even with the tab closed.
 
-Prefer to see it on your own hardware first? `DEMO_MODE=1 ./netpulse` runs
-the same app with a 67-device sample network, no routers needed.
+Prefer to see it on your own hardware first? `DEMO_MODE=1 AUTH_PASS=choose-one ./netpulse` runs
+the same app with a 67-device sample network, no routers needed. `AUTH_PASS`
+is required even in demo mode: it protects the web session.
 
 <details>
 <summary><strong>Other install paths</strong></summary>
