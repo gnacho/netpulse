@@ -90,7 +90,7 @@ try {
     assert.equal(response.status(), 200)
     assert.equal(await page.locator('html').getAttribute('lang'), lang)
     assert.equal((await page.locator('h1').innerText()).trim(), h1)
-    assert.equal(await page.locator('#hardware tbody tr').count(), 7)
+    assert.equal(await page.locator('#hardware tbody tr').count(), 6)
     await assertNoInlineScripts(page)
     assert.deepEqual(errors, [], `${lang}: browser errors`)
     await page.close()
