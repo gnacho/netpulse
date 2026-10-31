@@ -1098,6 +1098,9 @@ function detectLang() {
             return q;
     }
     catch { /* sin location */ }
+    const firstSegment = location.pathname.split('/').filter(Boolean)[0];
+    if (firstSegment && I18N[firstSegment])
+        return firstSegment;
     try {
         const saved = localStorage.getItem(LANG_KEY);
         if (saved && I18N[saved])
@@ -5319,7 +5322,14 @@ function buildLangSelect() {
         sel.appendChild(o);
     });
     sel.value = CURRENT;
-    sel.addEventListener('change', () => applyLang(sel.value));
+    const prerenderSlug = document.documentElement.dataset.prerenderSlug;
+    sel.addEventListener('change', () => {
+        if (prerenderSlug !== undefined) {
+            location.assign(`/${sel.value}/${prerenderSlug}`);
+            return;
+        }
+        applyLang(sel.value);
+    });
 }
 document.addEventListener('DOMContentLoaded', () => {
     buildLangSelect();
