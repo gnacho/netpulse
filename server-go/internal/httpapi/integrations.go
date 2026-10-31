@@ -767,23 +767,42 @@ func (s *server) handleIntegrationDelete(w http.ResponseWriter, r *http.Request)
 // Scripts POSIX de instalación/gestión por SSH (modo ssh, p. ej. asuswrt)
 // ---------------------------------------------------------------------------
 
-func sshInstallScript(v rintegration.Vendor, env map[string]string, assetURL, sha256 string) string {
-	bin := "/usr/sbin/" + v.Binary
-	init := "/etc/init.d/" + v.Binary
-	envFile := "/etc/" + v.Binary + ".env"
-
+// envFileBody renders the sorted KEY=value body of an env file, with values
+// escaped by EscapeEnvValue for a lossless round-trip through ParseEnv.
+func envFileBody(env map[string]string) string {
 	keys := make([]string, 0, len(env))
 	for k := range env {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	var envBlock strings.Builder
+	var b strings.Builder
 	for _, k := range keys {
-		envBlock.WriteString(k)
-		envBlock.WriteString("=")
-		envBlock.WriteString(rintegration.EscapeEnvValue(env[k]))
-		envBlock.WriteString("\n")
+		b.WriteString(k)
+		b.WriteString("=")
+		b.WriteString(rintegration.EscapeEnvValue(env[k]))
+		b.WriteString("\n")
 	}
+	return b.String()
+}
+
+// sshInstallScript genera el instalador on-router de un vendor en modo ssh.
+// Ramifica por el sistema de init del vendor (#1681): procd (layout OpenWrt,
+// salida intacta) o merlin (/jffs + bloque gestionado en services-start).
+func sshInstallScript(v rintegration.Vendor, env map[string]string, assetURL, sha256 string) string {
+	if v.InitSystem() == "merlin" {
+		return sshMerlinInstallScript(v, env, assetURL, sha256)
+	}
+	return sshProcdInstallScript(v, env, assetURL, sha256)
+}
+
+// sshProcdInstallScript instala el pusher en un vendor OpenWrt: binario en
+// /usr/sbin, init procd en /etc/init.d y env en /etc.
+func sshProcdInstallScript(v rintegration.Vendor, env map[string]string, assetURL, sha256 string) string {
+	bin := "/usr/sbin/" + v.Binary
+	init := "/etc/init.d/" + v.Binary
+	envFile := "/etc/" + v.Binary + ".env"
+
+	envBlock := envFileBody(env)
 
 	return `#!/bin/sh
 set -e
@@ -829,7 +848,7 @@ rm -rf /tmp/` + v.Binary + `.extract /tmp/` + v.Binary + `.tar.gz
 # fichero existente (la contraseña y el token solo viven ahí).
 if [ ! -f "$ENV_FILE" ]; then
 cat > "$ENV_FILE" <<'ENVEOF'
-` + envBlock.String() + `ENVEOF
+` + envBlock + `ENVEOF
 chmod 600 "$ENV_FILE"
 fi
 
@@ -858,10 +877,165 @@ chmod 0755 "$INIT"
 `
 }
 
+// sshMerlinInstallScript instala el pusher en un vendor Asuswrt-Merlin
+// (#1681): sin procd, todo bajo /jffs/netpulse (binario, env, script de
+// control con pidfile y log) y un bloque gestionado en
+// /jffs/scripts/services-start para el arranque al boot. Re-ejecutarlo es
+// idempotente: el env solo se escribe si falta y el bloque solo se añade una
+// vez; el resto del hook no se toca.
+func sshMerlinInstallScript(v rintegration.Vendor, env map[string]string, assetURL, sha256 string) string {
+	dir := "/jffs/netpulse"
+	bin := dir + "/" + v.Binary
+	ctrl := bin + ".sh"
+	envFile := bin + ".env"
+	pidFile := bin + ".pid"
+	logFile := bin + ".log"
+	blockStart := "# >>> netpulse " + v.Binary + " >>>"
+	blockEnd := "# <<< netpulse " + v.Binary + " <<<"
+
+	return `#!/bin/sh
+set -e
+BIN="` + bin + `"
+CTRL="` + ctrl + `"
+ENV_FILE="` + envFile + `"
+PID_FILE="` + pidFile + `"
+LOG_FILE="` + logFile + `"
+HOOK="/jffs/scripts/services-start"
+SERVER="` + env["NETPULSE_SERVER"] + `"
+ASSET_URL="` + assetURL + `"
+SHA256="` + sha256 + `"
+
+# Preflight: el router debe alcanzar el server.
+if command -v curl >/dev/null 2>&1; then
+	curl -fsSL -m 10 "$SERVER/api/health" >/dev/null 2>&1 || { echo "preflight: cannot reach $SERVER/api/health"; exit 10; }
+else
+	wget -q -T 10 -O /dev/null "$SERVER/api/health" || { echo "preflight: cannot reach $SERVER/api/health"; exit 10; }
+fi
+
+# Parar el pusher previo (el proceso vivo mantiene el binario abierto).
+[ -x "$CTRL" ] && "$CTRL" stop >/dev/null 2>&1 || true
+
+# Descargar el asset desde la URL ya verificada en el server.
+if command -v curl >/dev/null 2>&1; then
+	curl -fsSL -m 600 -o /tmp/` + v.Binary + `.tar.gz "$ASSET_URL"
+else
+	wget -q -T 60 -O /tmp/` + v.Binary + `.tar.gz "$ASSET_URL"
+fi
+
+# Verificar sha256 antes de instalar.
+GOT=$(sha256sum /tmp/` + v.Binary + `.tar.gz | awk '{print $1}')
+[ "$GOT" = "$SHA256" ] || { echo "sha256 mismatch (want $SHA256, got $GOT)"; exit 21; }
+
+# Extraer y mover de forma atómica (.new -> rename).
+mkdir -p /tmp/` + v.Binary + `.extract
+tar -xzf /tmp/` + v.Binary + `.tar.gz -C /tmp/` + v.Binary + `.extract
+SRC=$(find /tmp/` + v.Binary + `.extract -type f -name "` + v.Binary + `" | head -n1)
+[ -n "$SRC" ] || { echo "binary not found in archive"; exit 22; }
+mkdir -p "$DIR"
+cp "$SRC" "$BIN.new"
+chmod 0755 "$BIN.new"
+mv -f "$BIN.new" "$BIN"
+rm -rf /tmp/` + v.Binary + `.extract /tmp/` + v.Binary + `.tar.gz
+
+# Env (chmod 600): solo se escribe si aún no existe; los updates preservan
+# el fichero (la contraseña y el token solo viven ahí).
+if [ ! -f "$ENV_FILE" ]; then
+cat > "$ENV_FILE" <<'ENVEOF'
+` + envFileBody(env) + `ENVEOF
+chmod 600 "$ENV_FILE"
+fi
+
+# Script de control con pidfile (start|stop|restart|check). El env guarda
+# los valores escapados (salto de línea = \n): printf %b los desescapa igual
+# que ParseEnv en el server antes de exportarlos al pusher.
+cat > "$CTRL" <<'CTRLEOF'
+#!/bin/sh
+# NetPulse pusher control script (Asuswrt-Merlin).
+BIN="` + bin + `"
+PID_FILE="` + pidFile + `"
+ENV_FILE="` + envFile + `"
+LOG_FILE="` + logFile + `"
+running() {
+	[ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+}
+case "$1" in
+start)
+	[ -x "$BIN" ] || { echo "netpulse: missing $BIN"; exit 1; }
+	if running; then
+		exit 0
+	fi
+	rm -f "$PID_FILE"
+	[ -f "$ENV_FILE" ] || { echo "netpulse: missing $ENV_FILE"; exit 1; }
+	while IFS= read -r line || [ -n "$line" ]; do
+		case "$line" in ""|\#*) continue ;; esac
+		k=${line%%=*}
+		val=${line#*=}
+		val=$(printf '%b' "$val")
+		export "$k=$val"
+	done < "$ENV_FILE"
+	nohup "$BIN" >> "$LOG_FILE" 2>&1 &
+	echo $! > "$PID_FILE"
+	;;
+stop)
+	if [ -f "$PID_FILE" ]; then
+		RUN_PID=$(cat "$PID_FILE")
+		kill "$RUN_PID" 2>/dev/null || true
+		n=0
+		while kill -0 "$RUN_PID" 2>/dev/null && [ "$n" -lt 10 ]; do
+			sleep 1
+			n=$((n+1))
+		done
+		if kill -0 "$RUN_PID" 2>/dev/null; then
+			kill -9 "$RUN_PID" 2>/dev/null || true
+		fi
+		rm -f "$PID_FILE"
+	fi
+	;;
+restart)
+	"$0" stop
+	"$0" start
+	;;
+check)
+	if running; then
+		exit 0
+	fi
+	exit 1
+	;;
+*)
+	echo "usage: $0 {start|stop|restart|check}"
+	exit 2
+	;;
+esac
+CTRLEOF
+chmod 0755 "$CTRL"
+
+# Arranque al boot: bloque gestionado en services-start, delimitado por
+# marcadores únicos para poder quitarlo sin tocar el resto del fichero.
+mkdir -p /jffs/scripts
+if [ ! -f "$HOOK" ]; then
+	printf '#!/bin/sh\n' > "$HOOK"
+fi
+chmod 0755 "$HOOK"
+if ! grep -qF '` + blockStart + `' "$HOOK" 2>/dev/null; then
+	cat >> "$HOOK" <<'BLOKEOF'
+
+` + blockStart + `
+` + ctrl + ` start
+` + blockEnd + `
+BLOKEOF
+fi
+
+"$CTRL" start
+`
+}
+
 // sshEnvReadScript prints the environment file of an integration running
 // inside the router, so the server can merge changes without ever storing the
-// token or the password.
+// token or the password. Merlin vendors keep the env under /jffs/netpulse.
 func sshEnvReadScript(v rintegration.Vendor) string {
+	if v.InitSystem() == "merlin" {
+		return "cat /jffs/netpulse/" + v.Binary + ".env"
+	}
 	return "cat /etc/" + v.Binary + ".env"
 }
 
@@ -869,28 +1043,32 @@ func sshEnvReadScript(v rintegration.Vendor) string {
 // restarts the service. Values come already escaped by EscapeEnvValue and the
 // heredoc is quoted, so the shell does not expand anything.
 func sshEnvWriteScript(v rintegration.Vendor, env map[string]string) string {
+	envBlock := envFileBody(env)
+	if v.InitSystem() == "merlin" {
+		envFile := "/jffs/netpulse/" + v.Binary + ".env"
+		ctrl := "/jffs/netpulse/" + v.Binary + ".sh"
+		return `#!/bin/sh
+set -e
+ENV_FILE="` + envFile + `"
+CTRL="` + ctrl + `"
+cat > "$ENV_FILE.new" <<'ENVEOF'
+` + envBlock + `ENVEOF
+chmod 600 "$ENV_FILE.new"
+mv -f "$ENV_FILE.new" "$ENV_FILE"
+if [ -x "$CTRL" ]; then
+	"$CTRL" restart >/dev/null 2>&1 || true
+fi
+`
+	}
 	init := "/etc/init.d/" + v.Binary
 	envFile := "/etc/" + v.Binary + ".env"
-
-	keys := make([]string, 0, len(env))
-	for k := range env {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var envBlock strings.Builder
-	for _, k := range keys {
-		envBlock.WriteString(k)
-		envBlock.WriteString("=")
-		envBlock.WriteString(rintegration.EscapeEnvValue(env[k]))
-		envBlock.WriteString("\n")
-	}
 
 	return `#!/bin/sh
 set -e
 INIT="` + init + `"
 ENV_FILE="` + envFile + `"
 cat > "$ENV_FILE.new" <<'ENVEOF'
-` + envBlock.String() + `ENVEOF
+` + envBlock + `ENVEOF
 chmod 600 "$ENV_FILE.new"
 mv -f "$ENV_FILE.new" "$ENV_FILE"
 if [ -x "$INIT" ]; then
@@ -901,6 +1079,23 @@ fi
 }
 
 func sshServiceScript(v rintegration.Vendor, action string) string {
+	if v.InitSystem() == "merlin" {
+		// Merlin no tiene procd: las acciones van al script de control
+		// con pidfile. check sigue siendo pgrep para no cambiar el camino
+		// de salud del handler.
+		ctrl := "/jffs/netpulse/" + v.Binary + ".sh"
+		switch action {
+		case "start":
+			return "test -x " + ctrl + " && " + ctrl + " start || true"
+		case "stop":
+			return "test -x " + ctrl + " && " + ctrl + " stop || true"
+		case "restart":
+			return "test -x " + ctrl + " && " + ctrl + " restart || true"
+		case "check":
+			return "pgrep -f " + v.Binary + " >/dev/null 2>&1"
+		}
+		return "true"
+	}
 	init := "/etc/init.d/" + v.Binary
 	switch action {
 	case "start":
@@ -916,6 +1111,9 @@ func sshServiceScript(v rintegration.Vendor, action string) string {
 }
 
 func sshUninstallScript(v rintegration.Vendor) string {
+	if v.InitSystem() == "merlin" {
+		return sshMerlinUninstallScript(v)
+	}
 	init := "/etc/init.d/" + v.Binary
 	bin := "/usr/sbin/" + v.Binary
 	envFile := "/etc/" + v.Binary + ".env"
@@ -923,4 +1121,21 @@ func sshUninstallScript(v rintegration.Vendor) string {
 		"test -x %s && %s stop || true; test -x %s && %s disable || true; rm -f %s %s %s",
 		init, init, init, init, init, bin, envFile,
 	)
+}
+
+// sshMerlinUninstallScript para el pusher con su script de control, quita el
+// bloque gestionado de services-start (el resto del hook queda intacto) y
+// borra /jffs/netpulse entero.
+func sshMerlinUninstallScript(v rintegration.Vendor) string {
+	ctrl := "/jffs/netpulse/" + v.Binary + ".sh"
+	blockStart := "# >>> netpulse " + v.Binary + " >>>"
+	blockEnd := "# <<< netpulse " + v.Binary + " <<<"
+	return `CTRL="` + ctrl + `"
+HOOK="/jffs/scripts/services-start"
+[ -x "$CTRL" ] && "$CTRL" stop >/dev/null 2>&1 || true
+if [ -f "$HOOK" ]; then
+	sed -i '/` + blockStart + `/,/` + blockEnd + `/d' "$HOOK" 2>/dev/null || true
+fi
+rm -rf /jffs/netpulse
+`
 }

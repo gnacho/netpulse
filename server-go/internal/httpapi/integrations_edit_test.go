@@ -7,11 +7,14 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/rintegration"
 )
 
+// procdVendor returns a synthetic ssh vendor with empty Init, which means the
+// procd layout: the tests below pin that output unchanged.
+func procdVendor() rintegration.Vendor {
+	return rintegration.Vendor{ID: "openwrt", Mode: "ssh", Binary: "test-pusher"}
+}
+
 func TestSSHEnvWriteScriptRewritesFileAndRestarts(t *testing.T) {
-	v, ok := rintegration.LookupVendor("asuswrt")
-	if !ok {
-		t.Fatal("asuswrt vendor missing")
-	}
+	v := procdVendor()
 	env := map[string]string{
 		"ASUSWRT_HOST":      "127.0.0.1",
 		"ASUSWRT_USER":      "admin",
@@ -39,7 +42,7 @@ func TestSSHEnvWriteScriptRewritesFileAndRestarts(t *testing.T) {
 }
 
 func TestSSHEnvReadScriptTargetsEnvFile(t *testing.T) {
-	v, _ := rintegration.LookupVendor("asuswrt")
+	v := procdVendor()
 	if got := sshEnvReadScript(v); got != "cat /etc/"+v.Binary+".env" {
 		t.Fatalf("read script = %q", got)
 	}

@@ -15,7 +15,18 @@ type Vendor struct {
 	AssetTmpl   string // asset name template with {version} and {arch}
 	Arches      []string
 	Binary      string // binary name inside the tarball
+	Init        string // on-router init system for Mode "ssh": "procd" (default when empty) | "merlin" (#1681)
 	Description string
+}
+
+// InitSystem returns the on-router layout used by the ssh install scripts:
+// "merlin" (/jffs plus a services-start hook) or "procd" (OpenWrt init.d).
+// An empty Init means procd, the layout vendors shipped with before #1681.
+func (v Vendor) InitSystem() string {
+	if v.Init == "merlin" {
+		return "merlin"
+	}
+	return "procd"
 }
 
 // AssetName renders the asset name for a resolved version and architecture.
@@ -47,6 +58,7 @@ var vendors = []Vendor{
 		AssetTmpl:   "asuswrt_{version}_linux_{arch}.tar.gz",
 		Arches:      []string{"arm64"},
 		Binary:      "asuswrt-pusher",
+		Init:        "merlin",
 		Description: "Asuswrt (Asuswrt-Merlin) external pusher",
 	},
 	{

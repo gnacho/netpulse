@@ -29,6 +29,13 @@ func TestVendorsManifest(t *testing.T) {
 	if a.Mode != "ssh" || a.TagPrefix != "asuswrt/v" || a.Binary != "asuswrt-pusher" {
 		t.Fatalf("asuswrt manifest mismatch: %+v", a)
 	}
+	if a.InitSystem() != "merlin" {
+		t.Fatalf("asuswrt init system = %q, want merlin", a.InitSystem())
+	}
+	r2, _ := LookupVendor("routeros")
+	if r2.InitSystem() != "procd" {
+		t.Fatalf("routeros init system = %q, want procd (empty Init default)", r2.InitSystem())
+	}
 	if len(a.Arches) != 1 || a.Arches[0] != "arm64" {
 		t.Fatalf("asuswrt arches = %v, want [arm64]", a.Arches)
 	}
