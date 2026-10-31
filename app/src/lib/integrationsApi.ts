@@ -15,6 +15,8 @@ export interface Integration {
   enabled: boolean
   state: string
   lastError: string
+  /** Código estable del motivo offline (#1718): vacío si empuja o está pausada. */
+  offlineReason?: string
   lastStartMs: number
   lastPushMs: number
   fresh: boolean

@@ -25,20 +25,24 @@ import (
 
 // integrationItem es la vista HTTP de una integración (nunca la contraseña).
 type integrationItem struct {
-	Slug        string `json:"slug"`
-	Vendor      string `json:"vendor"`
-	Mode        string `json:"mode"`
-	Host        string `json:"host"`
-	Username    string `json:"username"`
-	Version     string `json:"version"`
-	Arch        string `json:"arch"`
-	IntervalS   int    `json:"intervalS"`
-	Enabled     bool   `json:"enabled"`
-	State       string `json:"state"`
-	LastError   string `json:"lastError"`
-	LastStartMs int64  `json:"lastStartMs"`
-	LastPushMs  int64  `json:"lastPushMs"`
-	Fresh       bool   `json:"fresh"`
+	Slug      string `json:"slug"`
+	Vendor    string `json:"vendor"`
+	Mode      string `json:"mode"`
+	Host      string `json:"host"`
+	Username  string `json:"username"`
+	Version   string `json:"version"`
+	Arch      string `json:"arch"`
+	IntervalS int    `json:"intervalS"`
+	Enabled   bool   `json:"enabled"`
+	State     string `json:"state"`
+	LastError string `json:"lastError"`
+	// OfflineReason (#1718): código estable del motivo por el que la unidad
+	// no está empujando (mismos códigos que la tarjeta y el detalle desde
+	// #1714). Vacío si está empujando, pausada o sin señal clara.
+	OfflineReason string `json:"offlineReason,omitempty"`
+	LastStartMs   int64  `json:"lastStartMs"`
+	LastPushMs    int64  `json:"lastPushMs"`
+	Fresh         bool   `json:"fresh"`
 }
 
 // vendorView es la vista HTTP del manifiesto de un vendor.
@@ -161,7 +165,35 @@ func (s *server) integrationItemOf(row rintegration.Row) integrationItem {
 		IntervalS: row.IntervalS, Enabled: row.Enabled, State: state,
 		LastError: row.LastError, LastStartMs: row.LastStartMs,
 		LastPushMs: lastPush, Fresh: fresh,
+		OfflineReason: s.integrationOfflineReason(row, fresh),
 	}
+}
+
+// integrationOfflineReason (#1718) clasifica por qué una integración no está
+// empujando, con los mismos códigos y la misma precedencia que StatusReasons
+// en el paquete rintegration (que alimenta la tarjeta y el detalle): parada
+// explícita, último error de instalación, o el log del pusher para fallos de
+// poll. Pausada o fresca no tienen motivo.
+func (s *server) integrationOfflineReason(row rintegration.Row, fresh bool) string {
+	if !row.Enabled {
+		return ""
+	}
+	if row.State == "stopped" {
+		return rintegration.ReasonStopped
+	}
+	if fresh {
+		return ""
+	}
+	code := ""
+	if row.State == "error" && row.LastError != "" {
+		code = rintegration.ClassifyPollError(row.LastError)
+	}
+	if (code == "" || code == rintegration.ReasonError) && s.integrations != nil {
+		if msg := s.integrations.LastPollError(row.Slug); msg != "" {
+			code = rintegration.ClassifyPollError(msg)
+		}
+	}
+	return code
 }
 
 func (s *server) integrationList() []integrationItem {

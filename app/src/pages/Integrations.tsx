@@ -638,6 +638,17 @@ export default function Integrations() {
                     {t('integrations.meta.lastPush')}: {agoLabel(it.lastPushMs)}
                   </span>
                 </div>
+                {/* #1718: motivo offline clasificado (mismos códigos que la
+                    tarjeta y el detalle). El tooltip lleva el error crudo del
+                    pusher para quien quiera el detalle técnico. */}
+                {it.offlineReason && (
+                  <div
+                    title={it.lastError || undefined}
+                    className="mt-1.5 text-caption text-danger"
+                  >
+                    {t(`routers.statusReason.${it.offlineReason}`, { defaultValue: it.offlineReason })}
+                  </div>
+                )}
                 {editing?.slug === it.slug && (
                   <form onSubmit={(e) => void submitEdit(e)} className="mt-3 border-t border-border pt-3">
                     <div className="text-label uppercase text-text-muted">{t('integrations.edit.title')}</div>
