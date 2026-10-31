@@ -74,6 +74,61 @@ func TestLoadOnboxCeroEquivaleAHoy(t *testing.T) {
 	}
 }
 
+// --- Motor SQLite (#1700) ---
+
+// TestLoadDBPragmasDefaults (#1700): sin variables, TODO despliegue va en
+// WAL+NORMAL (DBRollbackJournal=false) y temp_store=memory.
+func TestLoadDBPragmasDefaults(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.DBRollbackJournal {
+		t.Fatal("DBRollbackJournal debe ser false por defecto (WAL para todos los despliegues)")
+	}
+	if cfg.DBTempStore != "memory" {
+		t.Fatalf("DBTempStore = %q, want memory", cfg.DBTempStore)
+	}
+}
+
+// TestLoadDBRollbackJournalEnum (#1700): solo '0'|'1'.
+func TestLoadDBRollbackJournalEnum(t *testing.T) {
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_DB_ROLLBACK_JOURNAL": "1"}, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.DBRollbackJournal {
+		t.Fatal("NETPULSE_DB_ROLLBACK_JOURNAL=1 debe activar DBRollbackJournal")
+	}
+	_, err = Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_DB_ROLLBACK_JOURNAL": "yes"}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_DB_ROLLBACK_JOURNAL") {
+		t.Fatalf("valor no booleano debe fallar señalando la variable: %v", err)
+	}
+}
+
+// TestLoadDBTempStoreEnum (#1700): 'memory'|'file'|'default', case
+// insensitive; otro valor rechaza la variable.
+func TestLoadDBTempStoreEnum(t *testing.T) {
+	cases := map[string]string{"": "memory", "memory": "memory", "FILE": "file", "default": "default"}
+	for in, want := range cases {
+		env := map[string]string{"AUTH_PASS": "segura-y-larga"}
+		if in != "" {
+			env["NETPULSE_DB_TEMP_STORE"] = in
+		}
+		cfg, err := Load(env, t.TempDir())
+		if err != nil {
+			t.Fatalf("Load(%q): %v", in, err)
+		}
+		if cfg.DBTempStore != want {
+			t.Fatalf("NETPULSE_DB_TEMP_STORE=%q → %q, want %q", in, cfg.DBTempStore, want)
+		}
+	}
+	_, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "NETPULSE_DB_TEMP_STORE": "ram"}, t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "NETPULSE_DB_TEMP_STORE") {
+		t.Fatalf("valor inválido debe fallar señalando la variable: %v", err)
+	}
+}
+
 // --- TLS adicional (#696) ---
 
 func TestLoadTLSDefaultOff(t *testing.T) {

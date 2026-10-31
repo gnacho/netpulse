@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -509,8 +510,9 @@ type DB struct {
 	stop  chan struct{}
 	wg    sync.WaitGroup
 	close sync.Once
-	// rollbackJournal: journal DELETE en vez de WAL (modo on-box, Fase 9 R6).
-	// Los wal_checkpoint de mantenimiento se omiten en este modo.
+	// rollbackJournal: escape hatch (#1700) para journal DELETE (comportamiento
+	// on-box previo). Los wal_checkpoint de mantenimiento se omiten en este
+	// modo; en WAL (el default de todos los despliegues) sí corren.
 	rollbackJournal bool
 	// PortSeries: per-port time series store (issue #302).
 	PortSeries *portseries.Store
@@ -527,16 +529,33 @@ type OpenOption func(*openOptions)
 
 type openOptions struct {
 	rollbackJournal bool
+	// tempStore: 'memory'|'file'|'default' (#1700). Vacío = memory.
+	tempStore string
 }
 
-// WithRollbackJournal (Fase 9 R6, modo on-box): `journal_mode=DELETE` +
-// `synchronous=FULL` en vez de WAL+NORMAL, y sin wal_checkpoint en los jobs.
-// Motivo: en la flash de un router el fichero -wal y sus checkpoints son
-// churn de escritura evitable; y en rollback-journal, NORMAL deja una
-// ventana de corrupción ante un corte de luz (frecuente en un router) que
-// WAL+NORMAL no tiene — de ahí FULL (docs de PRAGMA synchronous).
+// WithRollbackJournal: `journal_mode=DELETE` + `synchronous=FULL` en vez de
+// WAL+NORMAL. Histórico modo on-box (Fase 9 R6): se pensaba que el fichero
+// -wal y sus checkpoints eran el churn caro, pero las medidas de la issue
+// #1700 demostraron lo contrario (45 GB/día en DELETE+FULL frente a 13.7 en
+// WAL con la misma flota: cada transacción reescribía páginas + journal y
+// ext4 duplicaba todo con su propio journal). Desde #1700 TODOS los
+// despliegues van en WAL+NORMAL por defecto y esta opción es solo el escape
+// hatch para restaurar el modo anterior (NETPULSE_DB_ROLLBACK_JOURNAL=1).
+// Los wal_checkpoint de mantenimiento se omiten en este modo.
 func WithRollbackJournal() OpenOption {
 	return func(o *openOptions) { o.rollbackJournal = true }
+}
+
+// WithTempStore fija PRAGMA temp_store: 'memory'|'file'|'default' (#1700).
+// Por defecto TODOS los despliegues van en 'memory': las agregaciones
+// (GROUP BY/ORDER BY sobre expresiones, p. ej. buckets de métricas y
+// channel plan) hacen spill a ficheros temporales etilqs_*; el reporte
+// midió ~9 GB/día de escrituras en esos temporales con una BD de ~100 MB.
+// El coste en RAM de guardarlos (unos MB por query) es trivial frente a ese
+// volumen, y crítico en un USB (on-box). 'file'/'default' quedan para
+// diagnosticar con el comportamiento clásico.
+func WithTempStore(mode string) OpenOption {
+	return func(o *openOptions) { o.tempStore = strings.ToLower(mode) }
 }
 
 // Open abre (o crea) DATA_DIR/netpulse.db, ejecuta la migración Node→Go si la
@@ -576,13 +595,25 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		"PRAGMA foreign_keys = ON",
 	}
 	if o.rollbackJournal {
-		// Una DB previa en WAL se convierte sola: con una única conexión el
-		// cambio de journal_mode hace checkpoint y elimina el -wal.
+		// Escape hatch (#1700, antes modo on-box): una DB previa en WAL se
+		// convierte sola: con una única conexión el cambio de journal_mode
+		// hace checkpoint y elimina el -wal.
 		pragmas = []string{
 			"PRAGMA journal_mode = DELETE",
 			"PRAGMA synchronous = FULL",
 			"PRAGMA foreign_keys = ON",
 		}
+	}
+	// PRAGMA temp_store (#1700): con MaxOpenConns(1) la única conexión
+	// compartida hereda el pragma para todas las queries (si el pool la
+	// recrea tras un error, SQLite vuelve al default; caso marginal).
+	switch o.tempStore {
+	case "", "memory":
+		pragmas = append(pragmas, "PRAGMA temp_store = MEMORY")
+	case "file":
+		pragmas = append(pragmas, "PRAGMA temp_store = FILE")
+	case "default":
+		// sin pragma: comportamiento SQLite por defecto (fichero)
 	}
 	for _, p := range pragmas {
 		if _, err := sqldb.Exec(p); err != nil {
@@ -590,6 +621,14 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 			return nil, fmt.Errorf("pragma %q: %w", p, err)
 		}
 	}
+	// Log del modo efectivo (#1700): lo que manda es lo que SQLite aceptó
+	// (p. ej. un filesystem sin soporte WAL dejaría DELETE); una línea al
+	// arrancar evita diagnosticar a ciegas el volumen de escrituras.
+	var jMode any
+	var tMode any
+	_ = sqldb.QueryRow("PRAGMA journal_mode").Scan(&jMode)
+	_ = sqldb.QueryRow("PRAGMA temp_store").Scan(&tMode)
+	log.Printf("[netpulse] db: journal_mode=%v temp_store=%v", jMode, tMode)
 	if _, err := sqldb.Exec(schemaSQL); err != nil {
 		sqldb.Close()
 		return nil, fmt.Errorf("schema: %w", err)

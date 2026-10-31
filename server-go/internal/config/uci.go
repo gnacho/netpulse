@@ -55,6 +55,8 @@ var uciEnvMap = []struct{ uci, env string }{
 	{"agent_max_ts_drift_s", "AGENT_MAX_TS_DRIFT_S"},
 	{"auto_rearm", "NETPULSE_AUTO_REARM"},
 	{"agent_ttl_s", "NETPULSE_AGENT_TTL_S"},
+	{"db_rollback_journal", "NETPULSE_DB_ROLLBACK_JOURNAL"},
+	{"db_temp_store", "NETPULSE_DB_TEMP_STORE"},
 	{"mqtt_enabled", "NETPULSE_MQTT_ENABLED"},
 	{"mqtt_host", "NETPULSE_MQTT_HOST"},
 	{"mqtt_port", "NETPULSE_MQTT_PORT"},

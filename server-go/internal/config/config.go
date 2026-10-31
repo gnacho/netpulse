@@ -131,6 +131,15 @@ type Config struct {
 	// PollIntervalSec (NETPULSE_POLL_INTERVAL): cadencia del sondeo SSH del
 	// poller en segundos. Default 30 (antes 5 s hardcoded, #715). Entero > 0.
 	PollIntervalSec int
+	// DBRollbackJournal (NETPULSE_DB_ROLLBACK_JOURNAL=1): fuerza el motor de
+	// journal DELETE+FULL del on-box previo a #1700. El default para TODOS
+	// los despliegues es WAL+NORMAL (el DELETE+FULL triplicaba las
+	// escrituras medidas en flash/USB).
+	DBRollbackJournal bool
+	// DBTempStore (NETPULSE_DB_TEMP_STORE): 'memory'|'file'|'default'.
+	// Default 'memory' (#1700): las agregaciones dejan de hacer spill a
+	// ficheros temporales etilqs_* (~9 GB/día medidos en el reporte).
+	DBTempStore string
 }
 
 // LoadDotEnv parsea un .env: KEY=VALUE por línea, '#' comentarios (línea
@@ -246,6 +255,37 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 			onbox = true
 		default:
 			errs.issues = append(errs.issues, issue{"NETPULSE_ONBOX", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
+	// NETPULSE_DB_ROLLBACK_JOURNAL: '0'|'1', opcional (#1700). 1 restaura el
+	// journal DELETE+FULL del on-box previo a #1700; el default para todos
+	// los despliegues es WAL+NORMAL (ver internal/db).
+	rollbackJournal := false
+	if v, ok := env["NETPULSE_DB_ROLLBACK_JOURNAL"]; ok && v != "" {
+		switch v {
+		case "0":
+		case "1":
+			rollbackJournal = true
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_DB_ROLLBACK_JOURNAL", "Invalid enum value. Expected '0' | '1'"})
+		}
+	}
+
+	// NETPULSE_DB_TEMP_STORE: 'memory'|'file'|'default' (#1700). Default
+	// 'memory' en todos los despliegues: los spills de temp b-tree a fichero
+	// eran la mayor fuente de escrituras medida. 'file'/'default' quedan
+	// para diagnosticar con el comportamiento clásico.
+	dbTempStore := "memory"
+	if v, ok := env["NETPULSE_DB_TEMP_STORE"]; ok && v != "" {
+		switch strings.ToLower(v) {
+		case "memory":
+		case "file":
+			dbTempStore = "file"
+		case "default":
+			dbTempStore = "default"
+		default:
+			errs.issues = append(errs.issues, issue{"NETPULSE_DB_TEMP_STORE", "Invalid enum value. Expected 'memory' | 'file' | 'default'"})
 		}
 	}
 
@@ -743,6 +783,8 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		RTLConsolePass:             rtlPass,
 		RTLConsolePollSec:          rtlPollSec,
 		PollIntervalSec:            pollIntervalSec,
+		DBRollbackJournal:          rollbackJournal,
+		DBTempStore:                dbTempStore,
 		TLSEnabled:                 tlsEnabled,
 		TLSPort:                    tlsPort,
 		TLSPortSet:                 tlsPortSet,

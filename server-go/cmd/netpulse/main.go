@@ -170,11 +170,21 @@ func run() error {
 	// Auditoría de seguridad #1: la IP confiable (XFF) solo si TRUST_PROXY.
 	auth.SetTrustProxy(cfg.TrustProxy)
 
-	// Fase 9 (R6): on-box la DB va en journal DELETE (sin -wal en flash).
+	// Fase 9 (R6) REVISADO por #1700: TODOS los despliegues (on-box
+	// incluido) usan el mismo motor SQLite WAL + synchronous=NORMAL +
+	// temp_store=MEMORY. El DELETE+FULL de la Fase 9 R6 escribía ~3,3x más
+	// en flash/USB (45 GB/día medidos con la misma flota que en WAL da
+	// 13,7 GB/día): cada transacción reescribía páginas + journal y el
+	// journal de ext4 duplicaba cada byte. WAL no se corrompe con un corte
+	// de luz, solo pierde los commits aún no sincronizados (docs de
+	// PRAGMA synchronous: "NORMAL is a good choice for most applications
+	// running in WAL mode"). NETPULSE_DB_ROLLBACK_JOURNAL=1 restaura el
+	// modo anterior.
 	var dbOpts []db.OpenOption
-	if cfg.Onbox {
+	if cfg.DBRollbackJournal {
 		dbOpts = append(dbOpts, db.WithRollbackJournal())
 	}
+	dbOpts = append(dbOpts, db.WithTempStore(cfg.DBTempStore))
 	dbHandle, err := db.Open(cfg.DataDir, dbOpts...)
 	if err != nil {
 		return err
