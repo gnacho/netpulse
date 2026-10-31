@@ -123,13 +123,13 @@
               <td data-i18n="integrationsPage.hwAsusLimits">Acceso SSH y espacio persistente en /jffs</td>
             </tr>
             <tr>
-              <th scope="row">Bouygues BBox</th>
-              <td data-i18n="integrationsPage.hwBboxSource">Poller externo de la API local</td>
-              <td data-i18n="integrationsPage.hwBboxData">Sistema, WAN, hosts y tasas de puertos</td>
-              <td data-i18n="integrationsPage.hwBboxLimits">Acceso a la API local y equipo para el supervisor</td>
+              <th scope="row" data-i18n="integrationsPage.hwOtherName">Otras integraciones</th>
+              <td data-i18n="integrationsPage.hwOtherSource">Poller de la API de la BBox y beacon RTLPlayground</td>
+              <td data-i18n="integrationsPage.hwOtherData">BBox: sistema, WAN, hosts y tasas de puertos. RTL: estado de puertos, tasas y FDB</td>
+              <td data-i18n="integrationsPage.hwOtherLimits">BBox: API local y equipo para el supervisor. RTL: avanzado, sustituir firmware con copia de recuperación</td>
             </tr>
             <tr>
-              <th scope="row" data-i18n="integrationsPage.hwUnifiName">UniFi self-hosted</th>
+              <th scope="row" data-i18n="integrationsPage.hwUnifiName">UniFi</th>
               <td data-i18n="integrationsPage.hwUnifiSource">Poller externo del controlador</td>
               <td data-i18n="integrationsPage.hwUnifiData">Gateways, switches, APs y clientes de un site</td>
               <td data-i18n="integrationsPage.hwUnifiLimits">Sin nube ui.com, CPU ni temperatura</td>
@@ -139,12 +139,6 @@
               <td data-i18n="integrationsPage.hwSnmpSource">SNMP desde NetPulse</td>
               <td data-i18n="integrationsPage.hwSnmpData">Puertos, velocidades y vecinos LLDP-MIB</td>
               <td data-i18n="integrationsPage.hwSnmpLimits">La MIB disponible depende del dispositivo</td>
-            </tr>
-            <tr>
-              <th scope="row">RTL8372 / RTL8373</th>
-              <td data-i18n="integrationsPage.hwRtlSource">Beacon en firmware RTLPlayground</td>
-              <td data-i18n="integrationsPage.hwRtlData">Estado de puertos, tasas y FDB</td>
-              <td data-i18n="integrationsPage.hwRtlLimits">Avanzado: sustituir firmware y poder recuperar el flash</td>
             </tr>
           </tbody>
         </table>
@@ -189,7 +183,7 @@
           </ul>
         </div>
         <div class="card feature reveal">
-          <h3 data-i18n="integrationsPage.unifiTitle">UniFi self-hosted</h3>
+          <h3 data-i18n="integrationsPage.unifiTitle">UniFi</h3>
           <p data-i18n="integrationsPage.unifiP">Lee gateways, switches, puntos de acceso y clientes de un site en tu controlador.</p>
           <ul class="feature-list">
             <li data-i18n="integrationsPage.unifiL1">Consolas UniFi OS y controladores standalone alojados por ti</li>
