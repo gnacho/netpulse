@@ -21,7 +21,7 @@ func TestPasswordChangeWithOnboxEnvStillSucceeds(t *testing.T) {
 	}
 
 	// Ruta admin: crear usuario y cambiar SU contraseña.
-	req, _ := http.NewRequest("POST", ts.URL+"/api/users", strings.NewReader(`{"username":"ux1701","password":"secreto123456"}`))
+	req, _ := http.NewRequest("POST", ts.URL+"/api/users", strings.NewReader(`{"username":"ux1701","password":"secreto12345"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", "session="+cookie)
 	res, err := http.DefaultClient.Do(req)
@@ -38,7 +38,7 @@ func TestPasswordChangeWithOnboxEnvStillSucceeds(t *testing.T) {
 	}
 	userID, _ := user["id"].(float64)
 	targetURL := ts.URL + "/api/users/" + strconv.FormatFloat(userID, 'f', -1, 64) + "/password"
-	putBody := `{"password":"nueva-1701-ok"}`
+	putBody := `{"password":"otraclave123"}`
 	req, _ = http.NewRequest("PUT", targetURL, strings.NewReader(putBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", "session="+cookie)
@@ -52,7 +52,7 @@ func TestPasswordChangeWithOnboxEnvStillSucceeds(t *testing.T) {
 	}
 
 	// Ruta propia: PUT /api/auth/password.
-	req, _ = http.NewRequest("PUT", ts.URL+"/api/auth/password", strings.NewReader(`{"current":"test123456","password":"propia-1701-ok"}`))
+	req, _ = http.NewRequest("PUT", ts.URL+"/api/auth/password", strings.NewReader(`{"current":"test123456","password":"propia1701ok"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Cookie", "session="+cookie)
 	res3, err := http.DefaultClient.Do(req)
