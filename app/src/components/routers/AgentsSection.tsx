@@ -32,9 +32,15 @@ import { cn, copyToClipboard } from '@/lib/utils'
  *   - Rearmar (canal rearm existente): preferente cuando el proceso vive pero
  *     no reporta (heartbeat stale) - NO reinstala en seco.
  *   - Reinstalar (POST /api/agents/{slug}/reinstall, #246): despliega el
- *     agente vía SSH desde el server, con estados de progreso.
+ *     agente vía SSH desde el server y ROTA el token, con estados de progreso.
  *   - Copiar comando de instalación: one-liner manual como fallback para
- *     routers sin SSH.
+ *     routers sin SSH (también rota el token).
+ * #1702: las acciones de recuperación (rearmar/reinstalar/copiar comando)
+ * se ofrecen TAMBIÉN con el agente inactivo (sin pulso): un 401 eterno tras
+ * un reinicio o una mudanza del servidor se arregla rotando el token sin
+ * retirar el agente ni borrar su historial. Solo Retirar sigue siendo
+ * exclusivo del estado sin pulso (y Actualizar/Desinstalar, que necesitan
+ * el agente vivo para tener sentido).
  */
 
 function isOpenWrtType(t: string | undefined): boolean {
@@ -204,7 +210,9 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
       className={cn(
         'border-b border-border/60 last:border-0',
         // #1382: agente sin pulso (equipo apagado o quitado de la red):
-        // toda la fila en acento rojo; la única acción ofrecida es Retirar.
+        // toda la fila en acento rojo. Desde #1702 la fila también ofrece
+        // las acciones de recuperación (rearmar/reinstalar/copiar comando)
+        // para arreglar un token rechazado sin borrar el historial.
         isStale && 'bg-danger/5',
       )}
     >
@@ -278,9 +286,11 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
       </td>
       <td className="py-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* #1382: con el agente SIN pulso la única acción operable es
-              Retirar (abajo): actualizar/rearmar/reinstalar/desinstalar
-              necesitan un equipo vivo en la red. */}
+          {/* Agente con pulso: acciones completas. Con el agente SIN pulso
+              (#1702) las acciones de recuperación siguen disponibles abajo
+              (rearmar/reinstalar/copiar comando arreglan un token rechazado
+              sin borrar el historial); solo se ocultan Actualizar y
+              Desinstalar, que necesitan el agente vivo para tener sentido. */}
           {!isStale && (
           <>
           {/* Actualizar: self-update del agente con progreso en vivo (#243).
@@ -293,17 +303,12 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
           <AgentBackupButton agent={agent} routerId={agent?.routerId} className="h-8" />
           {isNetgrip ? (
             // #363: NetGrip fresco se auto-actualiza desde su panel; el hint
-            // lo explica. (El rearm por SSH de un NetGrip caído de #569 quedó
-            // absorbido por la regla #1382: sin pulso -> solo Retirar.)
+            // lo explica.
             <span className="text-caption text-text-muted">
               {t('routers.agents.netgripHint')}
             </span>
           ) : (
             <>
-          {/* Rearm: canal preferente para heartbeat stale (proceso vivo).
-              Solo agentes NATIVOS OpenWrt: los externos (switch por beacon)
-              no tienen SSH - solo alertan (#291). */}
-          {agent && agent.kind !== 'external' && agent.kind !== 'netgrip' && <AgentRearmButton agent={agent} />}
           {/* #443: Reinstalar vía SSH desde el server; siempre visible para
               admins en agentes nativos OpenWrt (la acción se mudó aquí desde
               la tarjeta Info del detalle). */}
@@ -332,7 +337,7 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
                     : t(isMissing ? 'routers.agents.install' : 'routers.agents.reinstall')}
             </button>
           )}
-          {/* #624: Desinstalar vía SSH desde el server — libera espacio en
+          {/* #624: Desinstalar vía SSH desde el server - libera espacio en
               routers con poco room (p. ej. UniFi 6 Lite) donde el reinstall
               no cabe; hay que quitarlo antes de reinstalar. */}
           {canUninstall && (
@@ -387,6 +392,71 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
             </button>
           )}
             </>
+          )}
+          </>
+          )}
+          {/* #1702: agente inactivo (sin pulso): las acciones de recuperación
+              junto a Retirar. Rearmar reinicia el servicio por SSH (primer
+              intento, heartbeat stale); Reinstalar rota el token y redespliega
+              (arregla el 401 de un token invalidado por un reinicio o una
+              mudanza del servidor); Copiar comando es el fallback manual
+              cuando el server no llega por SSH. NetGrip: solo Rearmar (el
+              backend reinicia su servicio y rechaza reinstall/manual con
+              netgrip_managed, y rotar el token sin aplicarlo lo dejaría en
+              401 eterno). Externos: nada (sin SSH, solo Retirar). */}
+          {isStale && agent && agent.kind !== 'external' && (
+          <>
+          <AgentRearmButton agent={agent} />
+          {!isNetgrip && canReinstall && (
+            <button
+              type="button"
+              onClick={() => void reinstall()}
+              disabled={reinstallState === 'busy'}
+              title={t('routers.agents.reinstallTip')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
+                reinstallState === 'done'
+                  ? 'border-ok/40 bg-ok/10 text-ok'
+                  : reinstallState === 'fail'
+                    ? 'border-danger/40 bg-danger/10 text-danger'
+                    : 'border-border text-text-secondary hover:border-accent/40 hover:text-accent',
+              )}
+            >
+              <RotateCcw className={cn('h-3.5 w-3.5', reinstallState === 'busy' && 'animate-spin')} strokeWidth={1.75} />
+              {reinstallState === 'busy'
+                ? t('routers.agents.reinstalling')
+                : reinstallState === 'done'
+                  ? t('routers.agents.reinstalled')
+                  : reinstallState === 'fail'
+                    ? t('routers.agents.reinstallRetry')
+                    : t('routers.agents.reinstall')}
+            </button>
+          )}
+          {!isNetgrip && canRecover && (
+            <button
+              type="button"
+              onClick={() => void copyCmd()}
+              disabled={copyState === 'busy'}
+              title={t('routers.agents.copyCmdTip')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-caption font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50',
+                copyState === 'done' && 'border-ok/40 bg-ok/10 text-ok',
+                copyState === 'fail' && 'border-danger/40 bg-danger/10 text-danger',
+              )}
+            >
+              {copyState === 'busy' ? (
+                <Clipboard className="h-3.5 w-3.5 animate-pulse" strokeWidth={1.75} />
+              ) : copyState === 'done' ? (
+                <Check className="h-3.5 w-3.5" strokeWidth={1.75} />
+              ) : (
+                <Clipboard className="h-3.5 w-3.5" strokeWidth={1.75} />
+              )}
+              {copyState === 'done'
+                ? t('routers.agents.copied')
+                : copyState === 'fail'
+                  ? t('routers.agents.cmdFail')
+                  : t('routers.agents.copyCmd')}
+            </button>
           )}
           </>
           )}

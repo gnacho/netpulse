@@ -92,7 +92,9 @@ export function AgentRearmButton({ agent, className }: AgentRearmButtonProps) {
       type="button"
       onClick={onClick}
       disabled={state === 'busy'}
-      title={netgrip ? t('routers.agent.netgripRestartTip') : t('routers.agent.staleTip')}
+      // #1702: tooltip propio de la acción (qué reinicia y cuándo no basta):
+      // antes reutilizaba el del estado caído, que no explica el botón.
+      title={netgrip ? t('routers.agent.netgripRestartTip') : t('routers.agent.rearmTip')}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50',
         state === 'ok' ? 'bg-ok text-canvas'

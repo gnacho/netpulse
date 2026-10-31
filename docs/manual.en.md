@@ -106,7 +106,7 @@ Routers are onboarded under **Settings > Devices** (see the onboarding procedure
 
 - The **colored dot** per router: green = online, amber = warned (for example high temperature), red = down.
 - The **card** summarizes the key metrics; the warning icon appears when temperature exceeds the threshold.
-- In the **agents section**, "Agent down" means the agent was registered but stopped reporting (usually fixed by reinstalling from the router detail).
+- In the **agents section**, "Agent down" means the agent was registered but stopped reporting. It may be a stopped process or a rejected token (for example after moving the server): rearm first and, if it still does not push, reinstall (see the recovery procedure below).
 - "No system metrics" means that device is monitored by SNMP or beacon and does not report CPU/RAM/temperature.
 
 ### Design decisions
@@ -133,6 +133,17 @@ Routers are onboarded under **Settings > Devices** (see the onboarding procedure
 5. The agent shows as connected within seconds.
 
 For routers the server cannot reach over SSH, use the **pairing token** (Settings > Agent adoption) with `install-agent.sh --pairing-token`.
+
+### Procedure: recover a down agent (rearm or reinstall)
+
+An agent in the "Agent down" state stopped pushing. The agents section on **Devices** (the red row) offers the recovery actions to admins, in this order:
+
+1. **Rearm**: restarts the agent service on the router over SSH and waits for its first push (up to 30s). It is the quick path when the process hung or stopped, and it touches neither the config nor the token. If it cannot restart it, the row itself shows the reason (no SSH, cooldown, unknown router).
+2. **Reinstall**: redeploys the agent (binary, config and service) over SSH and **rotates its token**. It is the right action when the server rejects pushes with HTTP 401, which typically happens after a router reboot or when moving or restoring the server's database: the token stored on the agent no longer exists on the server. The agent's identity and its history are preserved.
+3. **Copy command**: generates a manual install one-liner with a fresh token for routers the server cannot reach over SSH. Paste it on the router itself.
+4. **Remove**: only when retiring the device. Revokes the token and forgets the agent state.
+
+The **Rearm** button also appears next to the "Agent down" badge in the router detail header. Both actions require the admin role and rearming has a 60 second cooldown per agent. If pushes still return 401 after rearming and reinstalling, check that `NETPULSE_SERVER` and the token in the router's `/etc/netpulse-agent.env` point to the current server.
 
 ### Procedure: upgrade all agents
 
