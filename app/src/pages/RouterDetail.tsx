@@ -215,6 +215,30 @@ export default function RouterDetail() {
         </motion.div>
       )}
 
+      {/* #1703: motivo de caída de una unidad empujada por una integración
+          (RouterOS y resto de vendors). El detalle es donde el admin acaba
+          cuando la tarjeta le manda aquí: el motivo completo con el error
+          crudo del pusher en el tooltip. Las unidades con pusher nunca
+          llegan "unreachable" (eso exige sondeo SSH). */}
+      {router.status === 'offline' && router.statusReason && (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: 'easeOut', delay: 0.35 }}
+          className="lg:col-span-12"
+        >
+          <div role="alert" className="flex items-start gap-3 rounded-2xl border border-danger/50 bg-danger/10 px-5 py-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-danger" strokeWidth={1.75} />
+            <div className="min-w-0 flex-1" title={router.statusReasonMsg || undefined}>
+              <div className="text-sm font-semibold text-danger">{t('routerDetail.statusReasonTitle')}</div>
+              <p className="mt-0.5 text-sm text-text-secondary">
+                {t(`routers.statusReason.${router.statusReason}`, { defaultValue: router.statusReason })}
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* #1369: lldpd escuchando solo en el bridge (br-lan) → 0 vecinos LLDP
           silencioso en nss-dp/DSA. El agente lo detecta y avisa aquí. */}
       {router.lldpHint === 'lldpd-bridge-only' && (

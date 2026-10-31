@@ -1142,7 +1142,8 @@
       "peersConnected": "Peers conectados",
       "serverActive": "Servidor activo",
       "transfer30d": "Transferencia 30 d"
-    }
+    },
+    "statusReasonTitle": "Por qué está caída esta unidad"
   },
   "routers": {
     "agent": {
@@ -1309,7 +1310,14 @@
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s",
     "noVitals": "Sin métricas de sistema",
-    "noVitalsTip": "Monitorizado por SNMP o beacon: este equipo no reporta CPU, RAM ni temperatura"
+    "noVitalsTip": "Monitorizado por SNMP o beacon: este equipo no reporta CPU, RAM ni temperatura",
+    "statusReason": {
+      "pusher_auth_failed": "Autenticación rechazada: el equipo no acepta las credenciales guardadas (usuario o contraseña incorrectos).",
+      "pusher_api_not_found": "El endpoint de la API no existe: el firmware es demasiado viejo para el API REST (RouterOS necesita 7 o superior).",
+      "pusher_conn_refused": "Conexión rechazada: el equipo no responde en el servicio o puerto de la API (revisa www/www-ssl o api, y el firewall).",
+      "pusher_stopped": "El pusher de la integración está parado: arráncalo desde Ajustes > Integraciones.",
+      "pusher_error": "El pusher de la integración registró un error; revisa su detalle en Ajustes > Integraciones."
+    }
   },
   "reports": {
     "availability": "Disponibilidad por router",

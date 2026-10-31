@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ChevronRight, Cpu, MemoryStick, Router as RouterIcon, Thermometer, Users } from 'lucide-react'
+import { ChevronRight, Cpu, MemoryStick, Router as RouterIcon, Thermometer, TriangleAlert, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -103,6 +103,21 @@ export function RouterCard({ router, index = 0, className }: RouterCardProps) {
           )}
           <MiniMetric icon={Users} value={String(router.clients)} label={t('common.clients')} />
         </div>
+
+        {/* #1703: motivo de caída de una unidad empujada por una integración
+            (RouterOS y resto de vendors): credenciales rechazadas, endpoint
+            ausente (firmware viejo), conexión rechazada o pusher parado. El
+            texto crudo del último error va en el tooltip. Las unidades con
+            pusher nunca llegan "unreachable" (eso exige sondeo SSH). */}
+        {offline && router.statusReason && (
+          <p
+            className="mt-3 flex items-center gap-1.5 text-caption font-medium text-danger"
+            title={router.statusReasonMsg || undefined}
+          >
+            <TriangleAlert className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+            {t(`routers.statusReason.${router.statusReason}`, { defaultValue: router.statusReason })}
+          </p>
+        )}
 
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-border pt-3">
           <Sparkline data={router.sparkline} width={100} height={28} color={STATUS_COLORS[router.status] === '#34D399' ? '#22D3EE' : STATUS_COLORS[router.status]} />

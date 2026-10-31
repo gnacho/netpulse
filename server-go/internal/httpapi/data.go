@@ -16,6 +16,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
+	"github.com/gnacho/netpulse/server-go/internal/rintegration"
 	"github.com/gnacho/netpulse/server-go/internal/roamcfg"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
@@ -123,8 +124,18 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	out.Alerts = engine.List()
 	out.UnreadAlerts = engine.UnreadCount()
 	out.ServerUptimeSec = int64(time.Since(s.started).Seconds())
-	EnrichOverview(s.db.DB, s.speedtest, &out)
+	EnrichOverview(s.db.DB, s.speedtest, &out, s.pusherStatusReasons())
 	writeJSON(w, http.StatusOK, &out)
+}
+
+// pusherStatusReasons (#1703): motivo de caída por slug de integración, para
+// que la tarjeta de la unidad muestre POR QUÉ está offline. nil sin base de
+// datos o sin supervisor de pushers (demo).
+func (s *server) pusherStatusReasons() map[string]string {
+	if s.db == nil || s.integrations == nil {
+		return nil
+	}
+	return rintegration.StatusReasons(s.db.DB, s.integrations)
 }
 
 // EnrichOverview inyecta los campos que viven en el kv del server (menú de
@@ -133,7 +144,9 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 // snapshot SSE: sin la segunda, el evento pisaría la copia enriquecida del
 // HTTP y los campos desaparecerían de la UI al primer snapshot (bug
 // preexistente de #151 que el speedtest hizo evidente).
-func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Overview) {
+// pusherReasons (#1703) es el mapa slug->motivo de las integraciones que no
+// están empujando; solo se aplica a unidades caídas.
+func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Overview, pusherReasons map[string]string) {
 	// Menú de orquestación: opt-in por admin (#121). Se expone aquí (no en
 	// el adapter) porque el kv vive en el server, no en el poller.
 	out.Orchestration = kvGetBool(handle, orchestrationKey)
@@ -163,6 +176,21 @@ func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Ov
 			out.WAN.SpeedtestUpMbps = &up
 			out.WAN.SpeedtestTs = &ts
 			out.WAN.SpeedtestServer = last.ServerName
+		}
+	}
+	// #1703: motivo de caída de las unidades empujadas por integraciones
+	// (RouterOS y resto de vendors). Solo con la unidad caída: una unidad
+	// online no tiene nada que explicar, y "unreachable" por SSH lleva sus
+	// propios avisos (accessMissing/hostKeyChanged).
+	if len(pusherReasons) > 0 {
+		for i := range out.Routers {
+			r := &out.Routers[i]
+			if r.Status != "offline" && r.Status != "unreachable" {
+				continue
+			}
+			if code, ok := pusherReasons[r.ID]; ok {
+				r.StatusReason = code
+			}
 		}
 	}
 }

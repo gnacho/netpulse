@@ -195,6 +195,15 @@ type Router struct {
 	// (issue #603). Se rechaza la conexión (posible MITM) hasta que el admin
 	// confirme el re-onboard explícito tras verificar fuera de banda.
 	HostKeyChanged bool `json:"hostKeyChanged,omitempty"`
+	// StatusReason (#1703): código estable del motivo de caída de una unidad
+	// empujada por una integración (p. ej. RouterOS): credenciales rechazadas,
+	// endpoint ausente (firmware viejo), conexión rechazada o pusher parado.
+	// Lo inyecta EnrichOverview desde la tabla router_integrations y el log
+	// del pusher; la UI lo traduce y solo lo pinta con la unidad caída.
+	StatusReason string `json:"statusReason,omitempty"`
+	// StatusReasonMsg (#1703): texto crudo del último error registrado del
+	// pusher, para el tooltip junto al motivo traducido.
+	StatusReasonMsg string `json:"statusReasonMsg,omitempty"`
 	// VitalsAvailable: false cuando la fuente de datos del router no puede
 	// reportar métricas de sistema (#441): switches sondeados por SNMP (#309)
 	// o pushers externos por beacon/scraper (#291). En ese caso CPU/RAM/Temp

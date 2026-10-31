@@ -107,6 +107,7 @@ Los routers se dan de alta en **Ajustes > Dispositivos** (ver el procedimiento d
 - El **punto de color** de cada router: verde = online, ámbar = con aviso (por ejemplo temperatura alta), rojo = caído.
 - La **tarjeta** resume las métricas clave; el icono de aviso aparece cuando la temperatura supera el umbral.
 - En la **sección de agentes**, "Agente caído" significa que el agente estaba registrado pero dejó de reportar. Puede ser un proceso parado o un token rechazado (por ejemplo tras mover el servidor): rearma primero y, si sigue sin empujar, reinstala (ver el procedimiento de recuperación más abajo).
+- Una unidad empujada por una **integración** (RouterOS y resto de vendors) que aparece "Offline" muestra también el motivo en su tarjeta: autenticación rechazada, endpoint de la API inexistente (firmware viejo, el REST llega en RouterOS 7), conexión rechazada o pusher parado. Los requisitos de RouterOS están en la documentación de integraciones externas.
 - "Sin métricas de sistema" indica que ese dispositivo se monitoriza por SNMP o por beacon y no reporta CPU/RAM/temperatura.
 
 ### Decisiones de diseño

@@ -123,6 +123,13 @@ Contract rules:
 
 The working RouterOS implementation in [`netpulse-integrations/routeros`](https://github.com/gnacho/netpulse-integrations/tree/main/routeros) shows configuration, token use, signing and pushing. RouterOS is supported only through this integration: the server has no RouterOS adapter or credentials. It is also a reference for the transport, not a template that requires copying the whole native agent.
 
+RouterOS requirements for the integration:
+
+- **RouterOS 7 or newer.** The REST API arrived in RouterOS 7.1, and the `www` service serves it from 7.9; on older versions only the binary API path works. On RouterOS 6 with only the web service enabled the unit shows offline.
+- **The `www-ssl` (preferred) or `www` service enabled** (`IP > Services`). The pusher prefers the binary API (`api`, port 8728) when it is reachable and falls back to REST on the web service, so the `api` and `api-ssl` services are not required: web-only is a supported setup with reduced coverage (system identity and resource only).
+- **Account policies `api`, `rest-api` and `read`** (`System > Users`): the REST API logs the user in through the API, so the group needs both policies plus read access. The built-in read-only groups already carry them.
+- When the unit goes offline, the router card and the router detail show the reason the pusher last logged: authentication rejected (wrong credentials), API endpoint not found (firmware too old for REST), connection refused (service or firewall) or pusher stopped. The raw error is on the tooltip.
+
 Asuswrt/Merlin follows the same external contract through [`netpulse-integrations/asuswrt`](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt). It reuses the portable probes from `agent/probe`, but not the native command, backup or upgrade runtime. Existing `asuswrt` router rows migrate to `external` with their agent tokens preserved.
 
 ## Preserve the meaning of the data

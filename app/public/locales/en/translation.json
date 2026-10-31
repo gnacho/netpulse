@@ -1142,7 +1142,8 @@
       "peersConnected": "Connected peers",
       "serverActive": "Server active",
       "transfer30d": "Transfer 30 d"
-    }
+    },
+    "statusReasonTitle": "Why this unit is down"
   },
   "routers": {
     "agent": {
@@ -1309,7 +1310,14 @@
     },
     "upgradeUpdatedDetail": "Updated · {{count}} steps · {{secs}} s",
     "noVitals": "No system metrics",
-    "noVitalsTip": "Monitored through SNMP or a beacon: this unit does not report CPU, RAM or temperature"
+    "noVitalsTip": "Monitored through SNMP or a beacon: this unit does not report CPU, RAM or temperature",
+    "statusReason": {
+      "pusher_auth_failed": "Authentication rejected: the device does not accept the stored credentials (wrong user or password).",
+      "pusher_api_not_found": "The API endpoint does not exist: the firmware is too old for the REST API (RouterOS 7 or newer required).",
+      "pusher_conn_refused": "Connection refused: the device is not answering on the API service or port (check www/www-ssl or api, and the firewall).",
+      "pusher_stopped": "The integration pusher is stopped: start it from Settings > Integrations.",
+      "pusher_error": "The integration pusher logged an error; check its details in Settings > Integrations."
+    }
   },
   "reports": {
     "availability": "Availability per router",

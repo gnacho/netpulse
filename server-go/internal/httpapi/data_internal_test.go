@@ -20,7 +20,7 @@ func TestEnrichOverviewPlanFromContract(t *testing.T) {
 		t.Fatalf("set up: %v", err)
 	}
 	out := &adapters.Overview{WAN: adapters.WAN{Plan: "—"}}
-	EnrichOverview(db, nil, out)
+	EnrichOverview(db, nil, out, nil)
 	if out.WAN.Plan != "600/100 Mbps" {
 		t.Fatalf("plan = %q, esperado %q", out.WAN.Plan, "600/100 Mbps")
 	}
@@ -35,7 +35,7 @@ func TestEnrichOverviewPlanKeepsDecimals(t *testing.T) {
 	_ = kvSetFloat(db, wanSpeedDownKey, 94.9)
 	_ = kvSetFloat(db, wanSpeedUpKey, 9.4)
 	out := &adapters.Overview{WAN: adapters.WAN{Plan: "—"}}
-	EnrichOverview(db, nil, out)
+	EnrichOverview(db, nil, out, nil)
 	if out.WAN.Plan != "94.9/9.4 Mbps" {
 		t.Fatalf("plan = %q, esperado %q", out.WAN.Plan, "94.9/9.4 Mbps")
 	}
@@ -48,7 +48,7 @@ func TestEnrichOverviewPlanNotClobbered(t *testing.T) {
 	_ = kvSetFloat(db, wanSpeedDownKey, 600)
 	_ = kvSetFloat(db, wanSpeedUpKey, 100)
 	out := &adapters.Overview{WAN: adapters.WAN{Plan: "600/600 Mbps"}}
-	EnrichOverview(db, nil, out)
+	EnrichOverview(db, nil, out, nil)
 	if out.WAN.Plan != "600/600 Mbps" {
 		t.Fatalf("plan = %q, no debe pisarse con el contrato", out.WAN.Plan)
 	}
@@ -59,7 +59,7 @@ func TestEnrichOverviewPlanNotClobbered(t *testing.T) {
 func TestEnrichOverviewPlanSinContrato(t *testing.T) {
 	db := newTestKV(t)
 	out := &adapters.Overview{WAN: adapters.WAN{Plan: "—"}}
-	EnrichOverview(db, nil, out)
+	EnrichOverview(db, nil, out, nil)
 	if out.WAN.Plan != "—" {
 		t.Fatalf("plan = %q, esperado sin cambios", out.WAN.Plan)
 	}

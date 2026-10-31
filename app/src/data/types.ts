@@ -48,6 +48,14 @@ export interface Router {
    */
   hostKeyChanged?: boolean
   /**
+   * #1703: motivo de caída de una unidad empujada por una integración
+   * (p. ej. RouterOS): código estable que la UI traduce a texto. Solo llega
+   * con la unidad offline/unreachable y con integración detrás.
+   */
+  statusReason?: string
+  /** #1703: último error crudo del pusher, para el tooltip del motivo. */
+  statusReasonMsg?: string
+  /**
    * #441: false cuando la fuente del router no puede reportar métricas de
    * sistema (switch SNMP o pusher beacon/scraper). En ese caso cpu/ram/temp
    * llegan a null y la UI no los pinta. Ausente = disponibles.

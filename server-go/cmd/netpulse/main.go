@@ -652,6 +652,11 @@ func run() error {
 	// alertas de "velocidad por debajo del plan" se emiten por el MISMO
 	// motor del adapter (la lista de eventos es por instancia). Solo en
 	// live: en demo no hay red real que medir y las rutas quedan en 503.
+	// Supervisor de pushers externos (#1674): procesos en memoria como usuario
+	// netpulse (sin systemd). La raíz de datos vive bajo DATA_DIR/integrations.
+	// Se crea antes del SetEnrich (#1703) para que el snapshot SSE lleve el
+	// motivo de caída de las integraciones igual que /api/overview.
+	integrationsMgr := rintegration.NewManager(filepath.Join(cfg.DataDir, "integrations"))
 	var stScheduler *speedtest.Scheduler
 	if !cfg.DemoMode {
 		stStore, err := speedtest.NewStore(dbHandle.DB)
@@ -667,9 +672,10 @@ func run() error {
 		})
 		// El snapshot SSE debe llevar las mismas inyecciones kv que
 		// /api/overview (contratado #151, speedtest #511): sin esto el
-		// primer evento pisaría los campos en la UI.
+		// primer evento pisaría los campos en la UI. #1703: también el
+		// motivo de caída de las unidades empujadas por integraciones.
 		p.SetEnrich(func(ov *adapters.Overview) {
-			httpapi.EnrichOverview(dbHandle.DB, stScheduler, ov)
+			httpapi.EnrichOverview(dbHandle.DB, stScheduler, ov, rintegration.StatusReasons(dbHandle.DB, integrationsMgr))
 			// #887: el snapshot SSE también lleva el uptime para la gracia
 			// post-arranque en el frontend.
 			ov.ServerUptimeSec = int64(time.Since(serverStarted).Seconds())
@@ -759,10 +765,6 @@ func run() error {
 	} else if cfg.MCPEnabled {
 		log.Printf("[netpulse] aviso: NETPULSE_MCP_ENABLED=1 pero no hay token store; MCP desactivado")
 	}
-
-	// Supervisor de pushers externos (#1674): procesos en memoria como usuario
-	// netpulse (sin systemd). La raíz de datos vive bajo DATA_DIR/integrations.
-	integrationsMgr := rintegration.NewManager(filepath.Join(cfg.DataDir, "integrations"))
 
 	// Catálogo de vendors por descubrimiento (#1697): fetch de vendors.json
 	// del repo de integraciones con TTL y caché en kv, semilla embebida como
