@@ -631,6 +631,9 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
 /* ---------- comparativa ---------- */
 .compare-wrap { margin-top: 2.5rem; overflow-x: auto; padding: 0.5rem !important; }
 .compare-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.compare-table caption { caption-side: top; padding: 0 1.1rem 0.85rem; color: rgb(var(--text-muted)); text-align: start; font-size: 0.85rem; }
+.compare-table tbody th { border-bottom: 1px solid rgb(var(--border)); color: rgb(var(--text-primary)); font-weight: 500; vertical-align: top; }
+.compare-table tbody tr:last-child th { border-bottom: none; }
 .compare-table tbody tr.lose td:first-child { color: rgb(var(--text-secondary)); font-weight: 400; }
 .compare-table th, .compare-table td { padding: 0.85rem 1.1rem; text-align: start; font-size: 0.92rem; }
 .compare-table thead th {
@@ -641,7 +644,7 @@ html[dir="rtl"] .honest { border-left: none; border-right: 3px solid rgb(var(--w
 }
 .compare-table thead th:first-child { text-align: start; }
 .compare-table thead th.np { color: rgb(var(--accent)); }
-.compare-table tbody td { border-bottom: 1px solid rgb(var(--border)); color: rgb(var(--text-secondary)); }
+.compare-table tbody td { border-bottom: 1px solid rgb(var(--border)); color: rgb(var(--text-secondary)); vertical-align: top; }
 .compare-table tbody tr:last-child td { border-bottom: none; }
 .compare-table tbody td:first-child { color: rgb(var(--text-primary)); font-weight: 500; }
 .compare-table td.ck, .compare-table td.no, .compare-table td.pt { text-align: center; font-weight: 700; font-size: 1.05rem; }

@@ -116,6 +116,7 @@ de la plataforma:
 | UniFi (controladora self-hosted) | Pusher `unifi-pusher` externo en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/unifi) | Solo lectura, un sitio: gateways, switches y APs con bocas y uplinks, clientes con banda y señal, uptime del gateway. La app lo despliega desde Integraciones |
 | Otras familias de router | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Ver la [guía de integraciones externas](docs/external-integrations.md) |
 | Switches gestionados | SNMP | Estado de bocas, velocidades y vecinos LLDP-MIB |
+| Switches Realtek (RTL8372/8373) | Beacon embebido en el [fork de RTLPlayground](https://github.com/gnacho/RTLPlayground) | Estado de bocas, tasas en bytes y FDB por UDP. Instalación avanzada de firmware, ver la [guía del beacon para switches Realtek](docs/AGENTE-RTL-SWITCH.md) |
 
 Las integraciones de fabricante viven fuera del servidor a propósito. Un router
 OpenWrt no lleva código de RouterOS, Bbox ni de ninguna otra plataforma, y cada
