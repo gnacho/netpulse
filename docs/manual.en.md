@@ -108,7 +108,7 @@ Routers are onboarded under **Settings > Devices** (see the onboarding procedure
 - The **card** summarizes the key metrics; the warning icon appears when temperature exceeds the threshold.
 - In the **agents section**, "Agent down" means the agent was registered but stopped reporting. It may be a stopped process or a rejected token (for example after moving the server): rearm first and, if it still does not push, reinstall (see the recovery procedure below).
 - A unit pushed by an **integration** (RouterOS and other vendors) that shows "Offline" also shows the reason on its card: authentication rejected, missing API endpoint (old firmware, REST arrived in RouterOS 7), connection refused or pusher stopped. The RouterOS requirements live in the external integrations doc.
-- "No system metrics" means that device is monitored by SNMP or beacon and does not report CPU/RAM/temperature.
+- "No system metrics" means that device is monitored by SNMP or beacon and does not report CPU/RAM/temperature. The [Realtek switch beacon guide](RTL-SWITCH-BEACON.md) covers that firmware source and its limits.
 
 ### Design decisions
 

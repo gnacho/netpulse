@@ -180,7 +180,10 @@ sondas del tier rápido (package `probe` compartido con server-go vía
 `replace ../agent`), stateless, push con backoff y buffer RAM acotado; procd +
 `install-agent.sh`. Diseño completo y hoja de ruta en `docs/AGENTE-OPENWRT.md`.
 Guía para integraciones externas con binarios Go separados:
-`docs/external-integrations.md`.
+`docs/external-integrations.md`. Los switches RTL8372/8373 con RTLPlayground
+usan otra vía: el beacon embebido envía estado, contadores y FDB al listener UDP
+`NETPULSE_BEACON_LISTEN`. Onboarding y límites en `docs/AGENTE-RTL-SWITCH.md` y
+`docs/RTL-SWITCH-BEACON.md`.
 
 Jobs de mantenimiento (cada hora): borrado de filas > 7 días, sesiones
 expiradas y `PRAGMA wal_checkpoint(TRUNCATE)`. Migración Node→Go automática

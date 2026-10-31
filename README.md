@@ -115,6 +115,7 @@ the platform:
 | UniFi (self-hosted controller) | External `unifi-pusher` in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/unifi) | Read-only, one site: gateways, switches and APs with ports and uplinks, clients with band and signal, gateway uptime. Deployed from the Integrations section |
 | External router families | Separate Go pusher in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | See the [external integrations guide](docs/external-integrations.md) |
 | Managed switches | SNMP | Port states, speeds and LLDP-MIB neighbours |
+| Realtek switches (RTL8372/8373) | Embedded beacon in the [RTLPlayground fork](https://github.com/gnacho/RTLPlayground) | Port state, byte rates and FDB over UDP. Advanced firmware setup, see the [Realtek switch beacon guide](docs/RTL-SWITCH-BEACON.md) |
 
 Vendor integrations live outside the server on purpose. An OpenWrt router never
 carries code for RouterOS, Bbox or another platform, and each integration can be

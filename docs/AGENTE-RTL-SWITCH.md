@@ -1,120 +1,102 @@
-# Agente beacon en switches RTL8372/8373 (`beacon` embebido)
+# Beacon en switches Realtek
 
-> Estado: **en producción en un equipo** (2026-08-27): keepLink KP-9000-9XHML-X
-> flasheado con [RTLPlayground](https://github.com/logicog/RTLPlayground) + parche
-> beacon, empujando estado cada 30 s y FDB cada 300 s al listener UDP de #291.
-> El switch pasa a ser un agente más (`kind: external`), sin SSH, sin SNMP y sin
-> máquina intermedia que lo scrapear.
+[English version](RTL-SWITCH-BEACON.md)
 
-## Por qué este agente
+NetPulse puede recibir estado de bocas, contadores y la tabla de reenvío MAC directamente desde un switch Realtek compatible que ejecute RTLPlayground. El switch envía datagramas UDP a NetPulse, sin agente Linux ni scraper intermedio.
 
-Estos switches (2.5G web-managed de ~40-60 €) llevan un RTL8372/RTL8373 con MCU
-8051: **no hay SO**, no correrán nunca un agente Go ni OpenWrt. El firmware
-libre RTLPlayground los convierte en switches gestionables de verdad (VLANs,
-LAG, mirror, rate-limit, telemetría SFP) y su código C es lo bastante pequeño
-para añadirle un beacon UDP a medida: el switch **empuja** su propio estado.
+Esta vía exige una instalación avanzada de firmware. El beacon de NetPulse se mantiene en el [fork gnacho/RTLPlayground](https://github.com/gnacho/RTLPlayground), no en el RTLPlayground original. Instalarlo sustituye el firmware del switch.
 
-| | Scraper HTTP (fallback) | Beacon embebido |
-|---|---|---|
-| Requiere máquina intermedia | sí (cron/timer con curl) | no |
-| Frescura | cada 5 min | **cada 30 s** |
-| Datos | FDB + up/down de puertos | + contadores TX/RX y velocidad por puerto |
-| Token | en un script del servidor | en la flash del switch (un solo consumidor) |
+## Qué recibe NetPulse
 
-## Hardware soportado
+Con un build reciente del beacon, NetPulse puede mostrar:
 
-La lista oficial vive en
-[RTLPlayground: supported devices](https://github.com/logicog/RTLPlayground/blob/main/doc/supported_devices.md)
-(Ampcom, Davuaz, FOXNEO, Hisource, Horaco, keepLink, LIANGUO, Mokerlink,
-Ruiying, Sodola, Steamemo, TrendNet, Xikestore, Ztyuav...). Requisitos:
+- Estado y velocidad negociada de cada boca cada 30 segundos.
+- Contadores acumulados de tramas y bytes, con tasas calculadas por el servidor.
+- Errores por boca cuando el firmware incluye los campos `ie` y `oe`.
+- Tabla de reenvío MAC cada 300 segundos.
+- Versión de firmware, MAC de gestión y uptime cuando el build los incluye.
 
-- SoC **RTL8372/RTL8373** (familia 2.5G; los RTL838x/839x de 1G van por
-  OpenWrt y no necesitan esta guía).
-- Versión **web-managed** (la "unmanaged" no tiene interfaz a la que flashear
-  por red; requeriría clip SOIC-8).
-- Idealmente un modelo ya probado en la lista; si no, identificar la revisión
-  de PCB (serigrafía) y crear una `MACHINE_*` en `machine.c`.
+El beacon no aporta CPU, RAM ni temperatura del switch. Tampoco transporta una tabla de vecinos LLDP. La emisión LLDP y el tratamiento RMA son funciones de configuración del switch documentadas en la guía del firmware.
 
-## Flasheo (vía web, sin abrir la caja)
+Hoy un dispositivo alimentado por beacon no puede usar SNMP como segunda fuente en NetPulse. El SNMP opcional del firmware puede utilizarse de forma independiente, pero no añade otra fuente al mismo dispositivo de NetPulse.
 
-1. **Compilar la imagen** con el parche beacon:
-   ```sh
-   git clone https://github.com/gnacho/RTLPlayground -b netpulse-beacon
-   cd RTLPlayground
-   # config.txt: ip/gw/netmask del switch (se incrusta en la imagen)
-   make MACHINE=<TU_MAQUINA>          # p.ej. KP_9000_9XHML_X_V3_1
-   cd installer && make               # imagen de upgrade para web OEM
-   ```
-   Requiere `sdcc` >= 4.5, `gcc`, `xxd`, `json-c`. El resultado es
-   `installer/output/rtlplayground_oem_upgrade.bin`.
+## Requisitos
 
-2. **Subirla desde la web del firmware OEM**: pestaña de actualización de
-   firmware, seleccionar el `.bin`, subir y esperar el reinicio (~2 min).
-   Tras el arranque: IP la de `config.txt`, contraseña web `1234`.
+- Un switch web-managed RTL8372 o RTL8373 soportado y su perfil `MACHINE` exacto. Consulta la [lista de dispositivos soportados](https://github.com/logicog/RTLPlayground/blob/main/doc/supported_devices.md).
+- Un método para respaldar y restaurar la flash original. RTLPlayground recomienda una pinza SOIC para recuperación. Una actualización fallida puede impedir que el switch arranque.
+- Conectividad de red desde el switch hasta el listener UDP de NetPulse.
+- Un slug de agente único. El slug se compila en el firmware y debe coincidir con el agente registrado en NetPulse.
 
-3. **Configurar** (consola de comandos de la web, sección System):
-   ```
-   passwd <tu-contraseña>
-   port N name <etiqueta>        # opcional, etiquetas de puertos
-   beacon <ip-del-server-netpulse> <token>
-   ```
-   El token se genera al adoptar el agente en NetPulse (ver abajo). El comando
-   `beacon` persiste en flash y auto-arranca en cada boot.
+Sigue la [guía de firmware y beacon](https://github.com/gnacho/RTLPlayground/blob/netpulse/beacon-octets/doc/beacon.md) para el build reproducible, la instalación del firmware, la configuración de bocas y la referencia del datagrama. La guía usa un tag fijo y distingue los campos añadidos en commits posteriores.
 
-⚠️ **NO guardar la configuración con el botón "Save Settings to Flash"** en la
-base v0.1-alpha de RTLPlayground: el path de guardado (`POST /config`) ha
-matado el firmware en un equipo real y sigue bajo investigación (upstream). Los
-comandos `beacon`/`passwd`/`port name` persisten por sí mismos; el resto de
-cambios viven en RAM hasta reinicio (aceptable en esta clase de equipo).
+## 1. Activa el listener UDP
 
-## Lado NetPulse
+Define la dirección del listener en el entorno del servidor NetPulse y reinicia el servidor mediante tu proceso habitual de despliegue:
 
-1. Listener activo: `NETPULSE_BEACON_LISTEN=:5140` en el env del server.
-2. Adoptar el agente en la UI/API (`POST /api/agents {slug}`) → token.
-3. El ingest valida `sha256(token)` contra la kv, aplica rate-limit por IP y
-   detecta saltos de `seq` (pérdida/reorden/replay).
-4. El server reinyecta las labels del último push del scraper si el datagrama
-   no las lleva (el beacon viaja mínimo a propósito).
-
-## Contrato del datagrama (spec v1)
-
-Un datagrama UDP por evento, JSON de una línea, sin timestamp (el server
-estampa a la llegada; el 8051 no tiene RTC):
-
-```json
-{"v":1,"seq":4271,"slug":"switch16","token":"<token>",
- "ports":[{"n":1,"l":3,"tx":12345,"rx":678}, ...todos los puertos...]}
+```sh
+NETPULSE_BEACON_LISTEN=:5140
 ```
 
-- Estado **cada 30 s**: `l` = código de link (0 down, 1 10M, 2 100M, 3 1G,
-  4 500M, 5 10G, 6 2.5G, 7 5G), `tx`/`rx` = contadores acumulados de tramas
-  good (uint32 decimal).
-- FDB **cada 300 s** (experimental): `"fdb":{"AABBCCDDEEFF":"3", ...}` con MAC
-  en uppercase sin separadores y **puerto 1-based** (mismo convenio que el
-  scraper HTTP). ~26 B por entrada; tope del buffer a ~1800 B.
-- `seq` es un contador compartido por ambos tipos con wrap uint16; **seq=1
-  tras un salto = firma de reboot del switch** (útil como evento).
+Un valor vacío desactiva el listener. Permite UDP 5140 entrante desde el switch en cualquier firewall intermedio.
 
-## Gotchas operativos
+## 2. Registra el agente
 
-- **Web de 1 conexión**: el httpd del firmware sirve una petición HTTP a la
-  vez (uIP + 8051). No martillear en paralelo; el beacon UDP no se ve afectado.
-- **MAC de fábrica**: la definición de máquina debe llevar
-  `mac_flash_offset = 0x1FC000`; sin él el firmware genera una MAC LAA del
-  chip-UUID (funcional y estable, pero no la de la pegatina). Diagnóstico y
-  restauración: comandos `flashdump 1FC000` y `setmac <mac>` del parche.
-- **Si el firmware cuelga** (alpha): power-cycle físico. La config persiste;
-  tras el arranque hay ventana amplia para reflashear por web si hiciera falta.
-- El upload por curl a `/upload` devuelve conexión cerrada (`000`): es normal,
-  el server corta al empezar a escribir flash y el proceso sigue.
-- **STP**: la base lo incluye (`stp on`) pero la topología recomendada es árbol
-  (un solo uplink). Sin STP, ningún camino redundante.
+Crea un router de tipo externo en NetPulse y después genera su token de agente mediante la API de administración:
 
-## Diagnóstico rápido
+```text
+POST /api/agents
+Content-Type: application/json
 
-| Síntoma | Causa probable | Check |
-|---|---|---|
-| Agente no `fresh` | beacon sin configurar / token rotado | `beacon` en la consola web; journal del listener |
-| `seq 1 tras N` en el log | reboot del switch | correlacionar hora; investigar corte de alimentación |
-| Web no carga | navegador con 6-8 conexiones vs server de 1 | recargar; cerrar pestañas duplicadas |
-| MAC distinta a la de la pegatina | `mac_flash_offset` sin definir | `flashdump 1FC000`, fix en `machine.c` |
+{"slug":"edge-switch"}
+```
+
+El endpoint requiere una sesión de administrador y devuelve el token. Crear o rotar un token invalida el anterior.
+
+Usa el mismo identificador `edge-switch` en los dos literales de slug compilados en `beacon.c` antes de construir el firmware. No reutilices el slug de otro switch.
+
+## 3. Configura el switch
+
+Desde la consola de comandos de RTLPlayground, define la dirección de NetPulse y el token del agente:
+
+```text
+beacon 192.0.2.10 <agent-token>
+```
+
+Sustituye `192.0.2.10` por la dirección del servidor NetPulse. Este comando inicia el envío periódico de estado y FDB. Admite dos argumentos porque el slug ya está compilado en el firmware.
+
+Comandos útiles:
+
+```text
+beacon                 # muestra el estado
+beacon fdb             # muestra si el envío FDB está activo
+beacon fdb off         # desactiva FDB en runtime
+beacon fdb on          # activa FDB en runtime
+beacon off             # detiene el beacon
+```
+
+Para anunciar el switch por LLDP sin reenviar tramas LLDP reservadas a otras bocas, la guía del firmware documenta además:
+
+```text
+lldp on
+rma 0e drop
+```
+
+Guarda la configuración de arranque con el mecanismo normal de RTLPlayground. Las ramas actuales del beacon incluyen los arreglos de guardado en flash. La guía del firmware las distingue de los builds alpha antiguos.
+
+## Seguridad
+
+El beacon v1 envía el token en claro y no firma los datagramas UDP. Úsalo solo en una LAN o red de gestión de confianza. No expongas UDP 5140 a redes no confiables ni a internet.
+
+NetPulse valida el hash del token, limita peticiones por IP de origen y registra cambios de secuencia sospechosos. Estos controles no cifran el tráfico.
+
+## Verificación y diagnóstico
+
+1. Comprueba con `beacon` que el switch tiene la dirección esperada de NetPulse.
+2. Confirma que el slug compilado coincide con el agente registrado y que el token no ha sido rotado.
+3. Comprueba que UDP 5140 alcanza el listener de NetPulse.
+4. Busca mensajes `[netpulse:beacon]` en el log del servidor. Ahí se registran datagramas malformados, tokens inválidos y anomalías de secuencia.
+5. Espera el siguiente datagrama de estado de 30 segundos. Las actualizaciones FDB llegan cada 300 segundos cuando están activas.
+
+El datagrama FDB tiene un presupuesto de tamaño fijo. Que falte una MAC en una actualización no demuestra que el cliente haya desaparecido.
+
+El servidor web de RTLPlayground atiende una conexión cada vez. Evita peticiones paralelas contra su consola. Esto no afecta al envío UDP del beacon.

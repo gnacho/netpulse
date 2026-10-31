@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title data-i18n="integrationsPage.metaTitle">NetPulse con MikroTik RouterOS y Asuswrt</title>
-  <meta name="description" content="NetPulse monitoriza MikroTik RouterOS y Asuswrt mediante agentes externos que empujan instantáneas firmadas. Misma app, mismos datos, otro fabricante." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
+  <title data-i18n="integrationsPage.metaTitle">Routers y switches compatibles con NetPulse</title>
+  <meta name="description" content="Conecta OpenWrt, MikroTik, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
   <meta name="theme-color" content="#070B12" />
   <link rel="canonical" href="https://netpulse.cloudless.club/integrations" />
   <link rel="alternate" hreflang="es" href="https://netpulse.cloudless.club/integrations" />
@@ -20,8 +20,8 @@
   <link rel="alternate" hreflang="x-default" href="https://netpulse.cloudless.club/integrations" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="NetPulse" />
-  <meta property="og:title" content="NetPulse con MikroTik RouterOS y Asuswrt" data-i18n-attr="content" data-i18n="integrationsPage.metaTitle" />
-  <meta property="og:description" content="MikroTik RouterOS y Asuswrt dentro de NetPulse: agentes externos, ingest firmado y solo lectura." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
+  <meta property="og:title" content="Routers y switches compatibles con NetPulse" data-i18n-attr="content" data-i18n="integrationsPage.metaTitle" />
+  <meta property="og:description" content="Conecta OpenWrt, MikroTik, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
   <meta property="og:url" content="https://netpulse.cloudless.club/integrations" />
   <meta property="og:image" content="https://netpulse.cloudless.club/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -29,12 +29,12 @@
   <meta property="og:locale" content="es_ES" />
   <meta property="og:locale:alternate" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="NetPulse con MikroTik RouterOS y Asuswrt" data-i18n-attr="content" data-i18n="integrationsPage.metaTitle" />
-  <meta name="twitter:description" content="MikroTik RouterOS y Asuswrt dentro de NetPulse: agentes externos, ingest firmado y solo lectura." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
+  <meta name="twitter:title" content="Routers y switches compatibles con NetPulse" data-i18n-attr="content" data-i18n="integrationsPage.metaTitle" />
+  <meta name="twitter:description" content="Conecta OpenWrt, MikroTik, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
   <meta name="twitter:image" content="https://netpulse.cloudless.club/og.png" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' y1='78' x2='90' y2='20' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='73' cy='60' r='6' fill='url(%23g)'/%3E%3Cpath d='M62.4 49.4 A15 15 0 0 1 83.6 49.4' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M55.3 39.7 A25 25 0 0 1 90.7 39.7' stroke='url(%23g)' stroke-width='5' stroke-linecap='round' opacity='0.6'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="fonts/fonts.css" />
-  <link rel="stylesheet" href="styles.css?v=20261029b" />
+  <link rel="stylesheet" href="styles.css?v=20261031a" />
 <script data-goatcounter="https://stats.netpulse.cloudless.club/count" async src="https://stats.netpulse.cloudless.club/count.js" integrity="sha384-2UjvVpptg4JlEVgJI2PdscrjOjPcil/4F1ZvIMJ81CShQnEDSlPI+l4PfogvTLYi" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -74,57 +74,168 @@
   <header class="hero mesh-bg" style="min-height:70vh;padding:7rem 0 4rem;">
     <div class="hero-halo" aria-hidden="true"></div>
     <div class="container">
-      <span class="eyebrow" data-i18n="integrationsPage.eyebrow">Integraciones</span>
-      <h1 class="font-display text-balance" data-i18n="integrationsPage.title">MikroTik y Asus, dentro de NetPulse</h1>
-      <p class="hero-sub" data-i18n="integrationsPage.sub">NetPulse habla con OpenWrt de forma nativa y con MikroTik RouterOS y Asuswrt a través de agentes externos que empujan el mismo contrato firmado. La misma app, los mismos paneles, otro fabricante.</p>
+      <span class="eyebrow" data-i18n="integrationsPage.eyebrow">Routers, switches y controladores</span>
+      <h1 class="font-display text-balance" data-i18n="integrationsPage.title">Tus equipos de red, en una sola vista</h1>
+      <p class="hero-sub" data-i18n="integrationsPage.sub">NetPulse recibe datos mediante su agente nativo, SNMP, agentes externos o un beacon integrado en el firmware del switch. La vía depende del software que pueda ejecutar cada equipo.</p>
       <div class="hero-actions">
-        <a class="btn-primary" href="https://github.com/gnacho/netpulse-integrations" target="_blank" rel="noopener">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-          <span data-i18n="integrationsPage.ctaRepo">Ver el repositorio</span>
-        </a>
-        <a class="btn-ghost" href="/#install">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span data-i18n="integrationsPage.ctaInstall">Instalar NetPulse</span>
-        </a>
+        <a class="btn-primary" href="#hardware"><span data-i18n="integrationsPage.ctaHardware">Comprobar mi hardware</span></a>
+        <a class="btn-ghost" href="/#install"><span data-i18n="integrationsPage.ctaInstall">Instalar NetPulse</span></a>
       </div>
     </div>
   </header>
 
-  <!-- ============ ROUTERS ============ -->
-  <section class="block" id="routers" style="padding-top:2rem;">
+  <!-- ============ HARDWARE ============ -->
+  <section class="block" id="hardware" style="padding-top:2rem;">
     <div class="container">
       <div class="reveal">
-        <span class="eyebrow" data-i18n="integrationsPage.routersEyebrow">Qué hay hoy</span>
-        <h2 class="font-display text-balance" data-i18n="integrationsPage.routersTitle">Dos fabricantes, el mismo panel</h2>
-        <p class="lead" data-i18n="integrationsPage.routersLead">Cada integración es un proceso pequeño que corre donde tú decidas, lee el router y empuja la instantánea a NetPulse. No hace falta instalar nada en el router de MikroTik ni de Asus.</p>
+        <span class="eyebrow" data-i18n="integrationsPage.hardwareEyebrow">Compatibilidad</span>
+        <h2 class="font-display text-balance" id="hardwareTitle" data-i18n="integrationsPage.hardwareTitle">Cómo conecta cada plataforma</h2>
+        <p class="lead" data-i18n="integrationsPage.hardwareLead">Estas son las familias soportadas y lo que puedes esperar de cada fuente. La cobertura concreta depende del modelo y de su firmware.</p>
+      </div>
+      <div class="compare-wrap reveal" role="region" aria-labelledby="hardwareTitle" tabindex="0">
+        <table class="compare-table">
+          <caption data-i18n="integrationsPage.hardwareCaption">Fuentes de datos, cobertura y requisitos por plataforma</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="integrationsPage.colPlatform">Plataforma</th>
+              <th scope="col" data-i18n="integrationsPage.colSource">Origen del dato</th>
+              <th scope="col" data-i18n="integrationsPage.colData">Datos disponibles</th>
+              <th scope="col" data-i18n="integrationsPage.colLimits">Requisitos y límites</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row" data-i18n="integrationsPage.hwOpenwrtName">OpenWrt y GL.iNet</th>
+              <td data-i18n="integrationsPage.hwOpenwrtSource">Agente nativo en el router</td>
+              <td data-i18n="integrationsPage.hwOpenwrtData">Sistema, WiFi, clientes y puertos</td>
+              <td data-i18n="integrationsPage.hwOpenwrtLimits">Instalación desde NetPulse en versiones soportadas</td>
+            </tr>
+            <tr>
+              <th scope="row">MikroTik RouterOS 7+</th>
+              <td data-i18n="integrationsPage.hwMikrotikSource">Pusher Go externo</td>
+              <td data-i18n="integrationsPage.hwMikrotikData">Hosts, puntos de acceso y puertos</td>
+              <td data-i18n="integrationsPage.hwMikrotikLimits">Usuario de solo lectura y equipo para el supervisor</td>
+            </tr>
+            <tr>
+              <th scope="row">Asuswrt / Asuswrt-Merlin</th>
+              <td data-i18n="integrationsPage.hwAsusSource">Sondas y supervisor en el router</td>
+              <td data-i18n="integrationsPage.hwAsusData">Sistema, WiFi, clientes y puertos</td>
+              <td data-i18n="integrationsPage.hwAsusLimits">Acceso SSH y espacio persistente en /jffs</td>
+            </tr>
+            <tr>
+              <th scope="row">Bouygues BBox</th>
+              <td data-i18n="integrationsPage.hwBboxSource">Poller externo de la API local</td>
+              <td data-i18n="integrationsPage.hwBboxData">Sistema, WAN, hosts y tasas de puertos</td>
+              <td data-i18n="integrationsPage.hwBboxLimits">Acceso a la API local y equipo para el supervisor</td>
+            </tr>
+            <tr>
+              <th scope="row" data-i18n="integrationsPage.hwUnifiName">UniFi self-hosted</th>
+              <td data-i18n="integrationsPage.hwUnifiSource">Poller externo del controlador</td>
+              <td data-i18n="integrationsPage.hwUnifiData">Gateways, switches, APs y clientes de un site</td>
+              <td data-i18n="integrationsPage.hwUnifiLimits">Sin nube ui.com, CPU ni temperatura</td>
+            </tr>
+            <tr>
+              <th scope="row" data-i18n="integrationsPage.hwSnmpName">Switches gestionados</th>
+              <td data-i18n="integrationsPage.hwSnmpSource">SNMP desde NetPulse</td>
+              <td data-i18n="integrationsPage.hwSnmpData">Puertos, velocidades y vecinos LLDP-MIB</td>
+              <td data-i18n="integrationsPage.hwSnmpLimits">La MIB disponible depende del dispositivo</td>
+            </tr>
+            <tr>
+              <th scope="row">RTL8372 / RTL8373</th>
+              <td data-i18n="integrationsPage.hwRtlSource">Beacon en firmware RTLPlayground</td>
+              <td data-i18n="integrationsPage.hwRtlData">Estado de puertos, tasas y FDB</td>
+              <td data-i18n="integrationsPage.hwRtlLimits">Avanzado: sustituir firmware y poder recuperar el flash</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ROUTERS ============ -->
+  <section class="block" id="routers" style="padding-top:1rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow">netpulse-integrations</span>
+        <h2 class="font-display text-balance" data-i18n="integrationsPage.routersTitle">Agentes externos</h2>
+        <p class="lead" data-i18n="integrationsPage.routersLead">Cuatro integraciones consultan routers o controladores y envían los datos a NetPulse por HTTPS. El supervisor y las instrucciones viven en un repositorio separado.</p>
       </div>
 
       <div class="features features-detail">
         <div class="card feature reveal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="18" x2="6.01" y2="18"/><line x1="10" y1="18" x2="10.01" y2="18"/><path d="M6 14V8a6 6 0 0 1 12 0v6"/></svg>
-          <h3 data-i18n="integrationsPage.mkTitle">MikroTik RouterOS 7+</h3>
-          <p data-i18n="integrationsPage.mkP">RouterBOARD, CCR, CRS, hAP y Chateau. El pusher entra por la API binaria en el puerto 8728 y usa REST como reserva cuando la binaria está desactivada.</p>
+          <h3>MikroTik RouterOS 7+</h3>
+          <p data-i18n="integrationsPage.mkP">Consulta RouterOS y envía hosts, puntos de acceso y puertos.</p>
           <ul class="feature-list">
-            <li data-i18n="integrationsPage.mkL1">WAN y LAN, direcciones, DNS y estado de los enlaces</li>
-            <li data-i18n="integrationsPage.mkL2">WiFi y clientes por banda, CPU, memoria y temperatura</li>
-            <li data-i18n="integrationsPage.mkL3">Identidad del router y versión de RouterOS</li>
+            <li data-i18n="integrationsPage.mkL1">Usuario de solo lectura y un equipo para el supervisor</li>
+            <li data-i18n="integrationsPage.mkL2">API binaria en el puerto 8728, con REST como reserva</li>
+            <li data-i18n="integrationsPage.mkL3">WiFi Wave2 anuncia la interfaz wifi, no capsman</li>
           </ul>
         </div>
-
         <div class="card feature reveal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--info))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
           <h3 data-i18n="integrationsPage.asusTitle">Asuswrt y Asuswrt-Merlin</h3>
-          <p data-i18n="integrationsPage.asusP">Reutiliza las sondas portables del agente de NetPulse (iw, iwinfo y, en los modelos Broadcom, wl) para leer lo que el firmware no publica por API.</p>
+          <p data-i18n="integrationsPage.asusP">El pusher corre en el router y reutiliza las sondas portables de NetPulse. Puede residir en /jffs.</p>
           <ul class="feature-list">
-            <li data-i18n="integrationsPage.asusL1">Clientes por banda, radios, canales y utilización</li>
-            <li data-i18n="integrationsPage.asusL2">Puertos Ethernet con su estado operativo real</li>
-            <li data-i18n="integrationsPage.asusL3">Modelos Broadcom: tier wl cuando nl80211 no lista estaciones</li>
+            <li data-i18n="integrationsPage.asusL1">Acceso SSH y espacio persistente en /jffs</li>
+            <li data-i18n="integrationsPage.asusL2">Clientes, radios, canales y puertos Ethernet</li>
+            <li data-i18n="integrationsPage.asusL3">La cobertura depende del firmware y de las herramientas instaladas</li>
+          </ul>
+        </div>
+        <div class="card feature reveal">
+          <h3>Bouygues BBox</h3>
+          <p data-i18n="integrationsPage.bboxP">Consulta la API local de la BBox y envía sistema, WAN, hosts activos y tasas de puertos.</p>
+          <ul class="feature-list">
+            <li data-i18n="integrationsPage.bboxL1">Un equipo que ejecute el supervisor</li>
+            <li data-i18n="integrationsPage.bboxL2">Acceso a la API local de la BBox y a NetPulse por HTTPS</li>
+          </ul>
+        </div>
+        <div class="card feature reveal">
+          <h3 data-i18n="integrationsPage.unifiTitle">UniFi self-hosted</h3>
+          <p data-i18n="integrationsPage.unifiP">Lee gateways, switches, puntos de acceso y clientes de un site en tu controlador.</p>
+          <ul class="feature-list">
+            <li data-i18n="integrationsPage.unifiL1">Consolas UniFi OS y controladores standalone alojados por ti</li>
+            <li data-i18n="integrationsPage.unifiL2">Usuario de solo lectura en el controlador</li>
+            <li data-i18n="integrationsPage.unifiL3">Sin cuentas cloud de ui.com, CPU ni temperatura</li>
           </ul>
         </div>
       </div>
+      <div class="hero-actions" style="margin-top:1.5rem;">
+        <a class="btn-ghost" href="https://github.com/gnacho/netpulse-integrations" target="_blank" rel="noopener"><span data-i18n="integrationsPage.ctaRepo">Ver agentes, requisitos e instrucciones</span></a>
+      </div>
+    </div>
+  </section>
 
+  <!-- ============ RTL BEACON ============ -->
+  <section class="block" id="rtl" style="padding-top:1rem;">
+    <div class="container">
+      <div class="reveal">
+        <span class="eyebrow" data-i18n="integrationsPage.rtlEyebrow">Firmware avanzado</span>
+        <h2 class="font-display text-balance" data-i18n="integrationsPage.rtlTitle">Un beacon dentro del switch</h2>
+        <p class="lead" data-i18n="integrationsPage.rtlLead">Los switches Realtek web-managed no ejecutan el agente Go. El fork de RTLPlayground añade un beacon que envía datos directamente al listener de NetPulse.</p>
+      </div>
+      <div class="features features-detail">
+        <div class="card feature reveal">
+          <h3 data-i18n="integrationsPage.rtlDataTitle">Qué recibe NetPulse</h3>
+          <ul class="feature-list">
+            <li data-i18n="integrationsPage.rtlData1">Estado y velocidad de los enlaces cada 30 segundos</li>
+            <li data-i18n="integrationsPage.rtlData2">Tasas de tráfico calculadas a partir de los octetos de cada puerto</li>
+            <li data-i18n="integrationsPage.rtlData3">Tabla FDB cada cinco minutos para localizar clientes por MAC</li>
+          </ul>
+        </div>
+        <div class="card feature reveal">
+          <h3 data-i18n="integrationsPage.rtlReqTitle">Qué exige</h3>
+          <ul class="feature-list">
+            <li data-i18n="integrationsPage.rtlReq1">Un modelo incluido en la lista de dispositivos de RTLPlayground</li>
+            <li data-i18n="integrationsPage.rtlReq2">Compilar el fork para tu máquina y definir el identificador del switch</li>
+            <li data-i18n="integrationsPage.rtlReq3">Sustituir el firmware y disponer de copia y recuperación del flash</li>
+          </ul>
+        </div>
+      </div>
       <div class="card honest reveal" style="padding:1.5rem 1.75rem;margin-top:1.5rem;">
-        <p style="margin:0;" data-i18n="integrationsPage.routersNote">La tercera integración, un BBox de un ISP francés, está en revisión en el mismo repositorio. Si tu router no está en la lista, el README explica qué hace falta para añadirlo.</p>
+        <p style="margin:0;" data-i18n="integrationsPage.rtlTransport">El beacon usa UDP con un token en claro dentro de una LAN de confianza. No usa el transporte HTTPS firmado de los agentes externos.</p>
+      </div>
+      <div class="hero-actions" style="margin-top:1.5rem;">
+        <a class="btn-primary" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noopener"><span data-i18n="integrationsPage.rtlGuide">Abrir la guía de NetPulse</span></a>
+        <a class="btn-ghost" href="https://github.com/gnacho/RTLPlayground/tree/netpulse/beacon-octets" target="_blank" rel="noopener"><span data-i18n="integrationsPage.rtlFork">Ver el firmware del fork</span></a>
       </div>
     </div>
   </section>
@@ -133,26 +244,22 @@
   <section class="block" id="why" style="padding-top:1rem;">
     <div class="container">
       <div class="reveal">
-        <span class="eyebrow" data-i18n="integrationsPage.whyEyebrow">Por qué fuera del núcleo</span>
-        <h2 class="font-display text-balance" data-i18n="integrationsPage.whyTitle">Cada fabricante, su ritmo</h2>
-        <p class="lead" data-i18n="integrationsPage.whyLead">NetPulse es un binario Go con la app embebida. Meter dentro el cliente de cada fabricante lo ataría a sus versiones de firmware y a sus credenciales. El núcleo mantiene el contrato y las sondas portables, y cada integración vive en su propio repositorio.</p>
+        <span class="eyebrow" data-i18n="integrationsPage.whyEyebrow">Solo agentes externos</span>
+        <h2 class="font-display text-balance" data-i18n="integrationsPage.whyTitle">Por qué van en otro repositorio</h2>
+        <p class="lead" data-i18n="integrationsPage.whyLead">RouterOS, Asus, BBox y UniFi comparten un repositorio separado. NetPulse mantiene el contrato de ingest y cada integración sigue el ritmo de su fabricante.</p>
       </div>
-
       <div class="features features-detail">
         <div class="card feature reveal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           <h3 data-i18n="integrationsPage.why1t">Ciclos de vida separados</h3>
-          <p data-i18n="integrationsPage.why1p">Una integración se publica con su propia etiqueta y su propio CHANGELOG. Un cambio en RouterOS no obliga a sacar una versión del servidor.</p>
+          <p data-i18n="integrationsPage.why1p">Una integración publica correcciones con su propia etiqueta, sin esperar a una versión del servidor.</p>
         </div>
         <div class="card feature reveal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--ok))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <h3 data-i18n="integrationsPage.why2t">Credenciales aisladas</h3>
-          <p data-i18n="integrationsPage.why2p">La contraseña del router se queda en el fichero de configuración de la integración. NetPulse solo conoce el token del router, igual que con cualquier agente.</p>
+          <p data-i18n="integrationsPage.why2p">La contraseña del router o controlador se queda en la configuración de la integración. NetPulse recibe el token del agente.</p>
         </div>
         <div class="card feature reveal">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--warn))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11.5 14.5 16 10"/></svg>
-          <h3 data-i18n="integrationsPage.why3t">Solo lectura, de verdad</h3>
-          <p data-i18n="integrationsPage.why3p">Estas integraciones leen y empujan. No reinician, no reservan direcciones y no cambian configuración desde el panel.</p>
+          <h3 data-i18n="integrationsPage.why3t">Solo lectura</h3>
+          <p data-i18n="integrationsPage.why3p">Estas integraciones consultan y envían datos. No cambian la configuración del equipo desde NetPulse.</p>
         </div>
       </div>
     </div>
@@ -162,17 +269,16 @@
   <section class="block" id="how" style="padding-top:1rem;">
     <div class="container">
       <div class="reveal">
-        <span class="eyebrow" data-i18n="integrationsPage.howEyebrow">Cómo llega el dato</span>
-        <h2 class="font-display text-balance" data-i18n="integrationsPage.howTitle">El mismo contrato, otra fuente</h2>
-        <p class="lead" data-i18n="integrationsPage.howLead">El agente externo firma cada instantánea con HMAC-SHA256 en la cabecera X-Agent-Signature y la envía al ingest de NetPulse con su token. El router aparece como external, con su propio beacon y su propio intervalo.</p>
+        <span class="eyebrow" data-i18n="integrationsPage.howEyebrow">Transporte de agentes externos</span>
+        <h2 class="font-display text-balance" data-i18n="integrationsPage.howTitle">Un contrato firmado</h2>
+        <p class="lead" data-i18n="integrationsPage.howLead">El agente firma cada instantánea con HMAC-SHA256 en la cabecera X-Agent-Signature y la envía al ingest de NetPulse con su token. El equipo aparece como external.</p>
       </div>
-
       <div class="install-grid" style="margin-top:2rem;">
         <div>
           <ul class="req-list">
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="integrationsPage.req1">Un NetPulse accesible desde donde corras la integración</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="integrationsPage.req2">Un token de router creado en la app, como el de cualquier agente</span></li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="integrationsPage.req3">Un usuario de solo lectura en el router, con su contraseña</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="integrationsPage.req1">Un NetPulse accesible por HTTPS desde donde corra el agente</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="integrationsPage.req2">Un token de router creado en la app</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span data-i18n="integrationsPage.req3">Un usuario de solo lectura en el router o controlador</span></li>
           </ul>
         </div>
         <div class="codecard">
@@ -182,7 +288,7 @@
 cd netpulse-integrations
 go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
           </div>
-          <p class="caption text-muted" style="margin-top:0.9rem;" data-i18n="integrationsPage.codeNote">El repositorio publica también binarios estáticos por etiqueta, para amd64 y arm64, con su SHA-256. La unidad de systemd de ejemplo va incluida en deploy/.</p>
+          <p class="caption text-muted" style="margin-top:0.9rem;" data-i18n="integrationsPage.codeNote">El repositorio publica binarios estáticos para amd64 y arm64 con SHA-256. Incluye una unidad de systemd de ejemplo.</p>
         </div>
       </div>
     </div>
@@ -192,12 +298,13 @@ go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
   <section class="block" id="limits" style="padding-top:1rem;">
     <div class="container" style="max-width:56rem;">
       <div class="card honest reveal" style="padding:2rem 2.25rem;">
-        <h3 class="font-display" style="margin:0;font-size:1.25rem;color:rgb(var(--accent));" data-i18n="integrationsPage.limitsTitle">Lo que hay que saber</h3>
+        <h3 class="font-display" style="margin:0;font-size:1.25rem;color:rgb(var(--accent));" data-i18n="integrationsPage.limitsTitle">Límites que conviene conocer</h3>
         <ul class="honest-list">
-          <li data-i18n="integrationsPage.lim1">Fuera de OpenWrt y GL.iNet hay dos fabricantes soportados: MikroTik y Asus. No hay fecha para el resto.</li>
-          <li data-i18n="integrationsPage.lim2">Los datos que un firmware no expone no se inventan: si un campo no tiene origen, la integración lo omite y lo documenta.</li>
-          <li data-i18n="integrationsPage.lim3">La integración corre fuera del router de MikroTik y de Asus, en una máquina de tu red. Si esa máquina se apaga, el router se queda sin datos.</li>
-          <li data-i18n="integrationsPage.lim4">No hay escritura: reiniciar el router o cambiar su configuración desde NetPulse no está soportado con estos fabricantes.</li>
+          <li data-i18n="integrationsPage.lim1">Los agentes externos no configuran routers ni controladores.</li>
+          <li data-i18n="integrationsPage.lim2">El agente nativo sigue siendo la vía recomendada para OpenWrt y GL.iNet.</li>
+          <li data-i18n="integrationsPage.lim3">El beacon no informa de CPU, RAM o temperatura, y no envía la tabla LLDP.</li>
+          <li data-i18n="integrationsPage.lim4">Un switch alimentado por beacon no puede añadir SNMP como segunda fuente en NetPulse.</li>
+          <li data-i18n="integrationsPage.lim5">El beacon del fork no forma parte de RTLPlayground upstream.</li>
         </ul>
       </div>
     </div>
@@ -207,11 +314,11 @@ go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
   <section class="block" style="padding-top:0.5rem;">
     <div class="container" style="max-width:56rem;">
       <div class="card free-card reveal" style="text-align:center;">
-        <h3 class="font-display" data-i18n="integrationsPage.ctaTitle">Mira si tu router está</h3>
-        <p data-i18n="integrationsPage.ctaText">El repositorio de integraciones es independiente y abierto, con un README por fabricante, sus límites explicados y lo que hace falta para añadir uno nuevo.</p>
+        <h3 class="font-display" data-i18n="integrationsPage.ctaTitle">Empieza por tu equipo</h3>
+        <p data-i18n="integrationsPage.ctaText">Instala NetPulse y sigue la guía correspondiente a tu plataforma.</p>
         <div class="hero-actions" style="justify-content:center;">
-          <a class="btn-primary" href="https://github.com/gnacho/netpulse-integrations" target="_blank" rel="noopener"><span data-i18n="integrationsPage.ctaRepo">Ver el repositorio</span></a>
-          <a class="btn-ghost" href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener"><span data-i18n="nav.github">GitHub</span></a>
+          <a class="btn-primary" href="/#install"><span data-i18n="integrationsPage.ctaInstall">Instalar NetPulse</span></a>
+          <a class="btn-ghost" href="#hardware"><span data-i18n="integrationsPage.ctaHardware">Comprobar mi hardware</span></a>
         </div>
       </div>
     </div>
@@ -239,7 +346,6 @@ go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
           <a href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" data-i18n="footer.releases">Releases</a>
           <a href="https://github.com/gnacho/netpulse/blob/main/docs/ROADMAP.md" target="_blank" rel="noopener" data-i18n="footer.roadmap">Roadmap</a>
           <a href="https://github.com/gnacho/netpulse/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">Licencia</a>
-          <a href="/integrations" data-i18n="integrationsPage.navActive">Integraciones</a>
         </div>
         <div class="foot-col">
           <h4 data-i18n="footer.community">Comunidad</h4>
@@ -276,7 +382,7 @@ go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
     </div>
   </div>
 
-  <script src="i18n.js?v=20261029a"></script>
+  <script src="i18n.js?v=20261031a"></script>
   <script src="app.js?v=20261019a"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9" integrity="sha384-FeSgFWhRpNmUWqmtRLZpDSRTuxgovbVqlyM0OaJpq2IanhF2u3xjYziXsyXR9Kg/" crossorigin="anonymous"></script>
 </body>

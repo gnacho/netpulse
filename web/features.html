@@ -260,19 +260,19 @@
           <summary>
             <svg viewBox="0 0 24 24" fill="none" stroke="rgb(var(--accent))" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V4m6 3V4M9 20v-3m6 3v-3M7 9H4m3 6H4m16-6h-3m3 6h-3"/><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
             <div class="feature-head">
-              <h3 data-i18n="featuresPage.integrationsTitle">Integraciones externas de routers</h3>
-              <p class="feature-tag" data-i18n="featuresPage.integrationsTag">Compatibilidad con más fabricantes sin cargar todo en el servidor.</p>
+              <h3 data-i18n="featuresPage.integrationsTitle">Fuentes de datos e integraciones</h3>
+              <p class="feature-tag" data-i18n="featuresPage.integrationsTag">OpenWrt, routers externos y switches en el mismo panel.</p>
             </div>
             <span class="feature-status available" data-i18n="featuresPage.statusAvailable">Disponible</span>
           </summary>
           <div class="feature-body">
-            <p data-i18n="featuresPage.integrationsP">RouterOS y Asuswrt/Merlin envían datos firmados a través de la misma API de ingesta. Sus pushers viven en netpulse-integrations, fuera del servidor y del agente nativo de OpenWrt. Cada integración tiene sus propios tests, releases y responsable de hardware.</p>
+            <p data-i18n="featuresPage.integrationsP">NetPulse recibe datos de su agente nativo, de agentes externos para RouterOS, Asus, BBox y UniFi, de switches SNMP y del beacon RTLPlayground. Cada fuente usa el transporte que admite el equipo.</p>
             <ul class="feature-list">
-              <li data-i18n="featuresPage.integrationsL1">RouterOS: sistema, puertos, DHCP, ARP, FDB, temperatura, firmware y WAN.</li>
-              <li data-i18n="featuresPage.integrationsL2">Asuswrt/Merlin: pusher ARM64 en el router que reutiliza /proc, iw y lldpd.</li>
-              <li data-i18n="featuresPage.integrationsL3">Se registran como externos y comparten el historial, la topología, las alertas y la interfaz.</li>
+              <li data-i18n="featuresPage.integrationsL1">RouterOS, Asuswrt/Merlin, BBox y UniFi: agentes de solo lectura con ingest HTTPS firmado.</li>
+              <li data-i18n="featuresPage.integrationsL2">Switches gestionados: SNMP para puertos, velocidades y vecinos LLDP-MIB.</li>
+              <li data-i18n="featuresPage.integrationsL3">RTL8372/8373: firmware con beacon para estado de puertos, tasas y FDB.</li>
             </ul>
-            <a class="chip-link" href="https://github.com/gnacho/netpulse-integrations" target="_blank" rel="noopener" data-i18n="featuresPage.integrationsLink">Ver netpulse-integrations</a>
+            <a class="chip-link" href="/integrations" data-i18n="featuresPage.integrationsLink">Explorar fuentes y hardware</a>
           </div>
         </details>
 
@@ -681,7 +681,7 @@
     </div>
   </div>
 
-  <script src="i18n.js?v=20261029a"></script>
+  <script src="i18n.js?v=20261031a"></script>
   <script src="app.js?v=20261019a"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9" integrity="sha384-FeSgFWhRpNmUWqmtRLZpDSRTuxgovbVqlyM0OaJpq2IanhF2u3xjYziXsyXR9Kg/" crossorigin="anonymous"></script>
 </body>
