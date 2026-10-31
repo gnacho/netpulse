@@ -760,6 +760,11 @@
       "submit": "Create",
       "creating": "Creating..."
     },
+    "catalog": {
+      "refresh": "Refresh catalog",
+      "refreshing": "Refreshing...",
+      "updated": "Catalog updated {{time}}"
+    },
     "token": {
       "tokenTitle": "Integration created",
       "tokenDesc": "Copy the token now. It is shown only once and will not be shown again.",
@@ -787,6 +792,7 @@
       "router_error": "The router reported an error.",
       "not_found": "Integration not found.",
       "db_error": "Database error.",
+      "refresh_failed": "Could not refresh the catalog.",
       "generic": "Something went wrong."
     },
     "edit": {

@@ -760,6 +760,11 @@
       "submit": "Crear",
       "creating": "Creando..."
     },
+    "catalog": {
+      "refresh": "Refrescar catálogo",
+      "refreshing": "Refrescando...",
+      "updated": "Catálogo actualizado {{time}}"
+    },
     "token": {
       "tokenTitle": "Integración creada",
       "tokenDesc": "Copia el token ahora. Solo se muestra una vez y no se volverá a mostrar.",
@@ -787,6 +792,7 @@
       "router_error": "El router devolvió un error.",
       "not_found": "Integración no encontrada.",
       "db_error": "Error de base de datos.",
+      "refresh_failed": "No se pudo refrescar el catálogo.",
       "generic": "Algo salió mal."
     },
     "edit": {

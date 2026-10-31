@@ -46,6 +46,7 @@ import {
   editIntegration,
   fetchIntegrations,
   fetchVendors,
+  refreshVendors,
   startIntegration,
   stopIntegration,
   updateIntegration,
@@ -87,6 +88,8 @@ export default function Integrations() {
   const isAdmin = auth?.role === 'admin'
 
   const [vendors, setVendors] = useState<Vendor[]>([])
+  const [lastRefreshedMs, setLastRefreshedMs] = useState(0)
+  const [catalogRefreshing, setCatalogRefreshing] = useState(false)
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -124,6 +127,7 @@ export default function Integrations() {
       try {
         const [v, ints] = await Promise.all([fetchVendors(), fetchIntegrations()])
         setVendors(v.vendors)
+        setLastRefreshedMs(v.lastRefreshedAt ?? 0)
         setIntegrations(ints.integrations)
         setError('')
       } catch (err) {
@@ -264,6 +268,22 @@ export default function Integrations() {
     }
   }
 
+  /** Forces the vendor catalog discovery (#1697) and swaps in the response. */
+  const refreshCatalog = async () => {
+    if (catalogRefreshing) return
+    setCatalogRefreshing(true)
+    setError('')
+    try {
+      const v = await refreshVendors()
+      setVendors(v.vendors)
+      setLastRefreshedMs(v.lastRefreshedAt ?? 0)
+    } catch (err) {
+      setError(errMessage(err, t))
+    } finally {
+      setCatalogRefreshing(false)
+    }
+  }
+
   const copyToken = async () => {
     if (!token) return
     const ok = await copyToClipboard(token)
@@ -271,8 +291,8 @@ export default function Integrations() {
     window.setTimeout(() => setTokenCopied(false), 1500)
   }
 
-  /** "hace X min" (unidades i18n) o fecha corta para pushes muy antiguos. */
-  const lastPushLabel = (ms: number): string => {
+  /** "hace X min" (unidades i18n) o fecha corta para eventos muy antiguos. */
+  const agoLabel = (ms: number): string => {
     if (!ms || !Number.isFinite(ms) || ms <= 0) return t('integrations.never')
     const age = Date.now() - ms
     if (age < 0) return t('integrations.never')
@@ -351,7 +371,22 @@ export default function Integrations() {
               {slugInvalid && <span className="mt-1 block text-xs text-danger">{t('integrations.form.fieldSlugInvalid')}</span>}
             </label>
             <label className="block">
-              <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldVendor')}</span>
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldVendor')}</span>
+                {!isDemo && (
+                  <button
+                    type="button"
+                    onClick={() => void refreshCatalog()}
+                    disabled={catalogRefreshing}
+                    aria-label={t('integrations.catalog.refresh')}
+                    title={t('integrations.catalog.refresh')}
+                    className="inline-flex h-6 items-center gap-1 rounded-md border border-border px-1.5 text-caption font-medium text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn('h-3 w-3', catalogRefreshing && 'animate-spin')} strokeWidth={1.75} />
+                    {catalogRefreshing ? t('integrations.catalog.refreshing') : t('integrations.catalog.refresh')}
+                  </button>
+                )}
+              </span>
               <select
                 value={vendorId}
                 onChange={(e) => onVendorChange(e.target.value)}
@@ -365,6 +400,11 @@ export default function Integrations() {
                   </option>
                 ))}
               </select>
+              {!isDemo && lastRefreshedMs > 0 && (
+                <span className="mt-1 block text-caption text-text-muted">
+                  {t('integrations.catalog.updated', { time: agoLabel(lastRefreshedMs) })}
+                </span>
+              )}
             </label>
             <label className="block">
               <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldHost')}</span>
@@ -592,7 +632,7 @@ export default function Integrations() {
                     {t('integrations.meta.interval')}: {it.intervalS} s
                   </span>
                   <span>
-                    {t('integrations.meta.lastPush')}: {lastPushLabel(it.lastPushMs)}
+                    {t('integrations.meta.lastPush')}: {agoLabel(it.lastPushMs)}
                   </span>
                 </div>
                 {editing?.slug === it.slug && (

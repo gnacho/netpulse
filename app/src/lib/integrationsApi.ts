@@ -28,6 +28,13 @@ export interface Vendor {
   description: string
 }
 
+/** Catalog served by GET /api/integrations/vendors (#1697). */
+export interface VendorsResponse {
+  vendors: Vendor[]
+  /** Unix ms of the last successful fetch, 0 when only the seed was served. */
+  lastRefreshedAt?: number
+}
+
 export interface CreateIntegrationInput {
   slug: string
   vendor: string
@@ -81,8 +88,13 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 })
 
-export function fetchVendors(): Promise<{ vendors: Vendor[] }> {
-  return req<{ vendors: Vendor[] }>('/api/integrations/vendors')
+export function fetchVendors(): Promise<VendorsResponse> {
+  return req<VendorsResponse>('/api/integrations/vendors')
+}
+
+/** Forces the vendor catalog discovery (admin). Returns the refreshed catalog. */
+export function refreshVendors(): Promise<VendorsResponse> {
+  return req<VendorsResponse>('/api/integrations/vendors/refresh', { method: 'POST' })
 }
 
 export function fetchIntegrations(): Promise<{ integrations: Integration[] }> {
