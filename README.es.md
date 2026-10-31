@@ -111,8 +111,9 @@ de la plataforma:
 | Plataforma | Cómo corre el agente | Notas |
 |---|---|---|
 | OpenWrt (incl. GL.iNet) | Paquete nativo `netpulse-agent` (`.ipk`/`.apk`) | procd, config UCI, `luci-app-netpulse`, instalación y upgrade desde la app |
-| Asuswrt / Asuswrt-Merlin | `asuswrt-pusher` externo en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt) | Binario estático en `/jffs`, con `/proc`, `iw` y `lldpd`. Instalación y actualización manuales |
-| RouterOS | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Sistema, puertos, DHCP, ARP, FDB, temperatura, firmware y tráfico WAN |
+| MikroTik (RouterOS) | Pusher `routeros-pusher` externo en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/routeros) | Solo lectura por la API binaria (fallback REST): sistema, puertos, DHCP, ARP, FDB, temperatura, firmware y tráfico WAN. La app lo despliega desde la sección Integraciones |
+| Asuswrt / Asuswrt-Merlin | Pusher `asuswrt-pusher` externo en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt) | Binario estático bajo `/jffs/netpulse` (layout Merlin), con `/proc`, `iw` y `lldpd`. La app lo despliega por SSH desde Integraciones, con clave o contraseña |
+| UniFi (controladora self-hosted) | Pusher `unifi-pusher` externo en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/unifi) | Solo lectura, un sitio: gateways, switches y APs con bocas y uplinks, clientes con banda y señal, uptime del gateway. La app lo despliega desde Integraciones |
 | Otras familias de router | Pusher Go separado en [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | Ver la [guía de integraciones externas](docs/external-integrations.md) |
 | Switches gestionados | SNMP | Estado de bocas, velocidades y vecinos LLDP-MIB |
 
@@ -176,9 +177,10 @@ anterior se puede tocar en la **[demo en vivo](https://demo.netpulse.cloudless.c
 ## Empieza en unos cinco minutos
 
 Necesitas una caja Linux con systemd (x86_64, arm64 o armv7; un LXC o VM
-pequeña sobra) y routers OpenWrt/GL.iNet en tu LAN. Asuswrt/Merlin se soporta
-mediante una integración externa, y cualquier cosa con SSH o SNMP se añade a
-mano (mira la sección plegada de más abajo).
+pequeña sobra) y routers OpenWrt/GL.iNet en tu LAN. MikroTik, Asuswrt/Merlin
+y las controladoras UniFi se soportan mediante integraciones gestionadas desde
+la app, y cualquier cosa con SSH o SNMP se añade a mano (mira la sección
+plegada de más abajo).
 
 **1. Instala el servidor** en la caja:
 
@@ -212,7 +214,8 @@ el agente, empuja el binario correcto para la arquitectura del router,
 escribe la config y arranca el servicio; aparece como conectado en segundos.
 Los routers a los que el servidor no llega por SSH usan el token de
 emparejamiento (**Ajustes → Adopción de agentes**, mira la sección plegada
-de abajo). Asuswrt/Merlin utiliza el pusher externo descrito en esa sección.
+de abajo). Asuswrt/Merlin, MikroTik y las controladoras UniFi utilizan los
+pushers de fabricante de la sección Integraciones.
 
 **5. Llévatela contigo.** Instala la PWA desde el navegador (Añadir a
 pantalla de inicio / Instalar app) y activa Web Push en Ajustes: las alertas
