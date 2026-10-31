@@ -62,9 +62,12 @@ PKG_DIR="$WORK_DIR/netpulse-pkg"
 mkdir -p "$PKG_DIR/CONTROL" "$PKG_DIR/usr/sbin" "$PKG_DIR/etc/init.d" "$PKG_DIR/etc/config" "$PKG_DIR/etc/uci-defaults"
 
 cp "$WORK_DIR/netpulse" "$PKG_DIR/usr/sbin/netpulse"
-cp "$REPO_ROOT/deploy/openwrt/netpulse-server/files/netpulse-server.init" "$PKG_DIR/etc/init.d/netpulse"
+# Init script and uci-defaults MUST be 0755 (#1701): ipkg-build does not fix
+# permissions, and a 0644 init script fails with "Permission denied" during
+# uci-defaults on GL.iNet/OpenWrt 21.02, so the service never gets enabled.
+install -m 0755 "$REPO_ROOT/deploy/openwrt/netpulse-server/files/netpulse-server.init" "$PKG_DIR/etc/init.d/netpulse"
 cp "$REPO_ROOT/deploy/openwrt/netpulse-server/files/netpulse-server.config" "$PKG_DIR/etc/config/netpulse"
-cp "$REPO_ROOT/deploy/openwrt/netpulse-server/files/netpulse-server.defaults" "$PKG_DIR/etc/uci-defaults/95-netpulse-server"
+install -m 0755 "$REPO_ROOT/deploy/openwrt/netpulse-server/files/netpulse-server.defaults" "$PKG_DIR/etc/uci-defaults/95-netpulse-server"
 
 cat > "$PKG_DIR/CONTROL/control" << CTRL
 Package: netpulse
@@ -108,6 +111,10 @@ if [ "$FORMAT" = "ipk" ]; then
   echo "  Building .ipk..."
   "$SDK_DIR/scripts/ipkg-build" "$PKG_DIR" "$OUT_DIR"
   echo "  IPK: $(ls "$OUT_DIR"/netpulse_*.ipk 2>/dev/null || echo 'NOT FOUND')"
+  verify_ipk_modes "$OUT_DIR"/netpulse_*.ipk \
+    "usr/sbin/netpulse=755" \
+    "etc/init.d/netpulse=755" \
+    "etc/uci-defaults/95-netpulse-server=755"
 
 elif [ "$FORMAT" = "apk" ]; then
   echo "  Building .apk via SDK..."

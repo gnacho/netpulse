@@ -12,17 +12,35 @@ package httpapi
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
 var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+
+// clearUCIBootstrapPassword (#1701): tras un cambio de contraseña correcto,
+// la contraseña inicial generada en el bootstrap on-box deja de ser útil
+// (el hash vive en la DB) y no debe seguir en texto plano en
+// /etc/config/netpulse. Best-effort y solo en on-box: sin uci (CT/Docker)
+// no hace nada; si el borrado falla se queda registrada en el log pero el
+// cambio de contraseña ya se aplicó.
+func clearUCIBootstrapPassword() {
+	if os.Getenv("NETPULSE_ONBOX") != "1" {
+		return
+	}
+	if err := config.ClearUCIAuthPass(); err != nil {
+		log.Printf("[netpulse] aviso: no se pudo borrar auth_pass de UCI tras el cambio de contraseña: %v", err)
+	}
+}
 
 // parseUserID replica Number(:id): no numérico → NaN → no encontrado (404).
 func parseUserID(s string) (float64, bool) {
@@ -257,6 +275,7 @@ func (s *server) handleMyPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = s.db.Exec("UPDATE users SET pass_hash = ? WHERE id = ?", newHash, me.ID)
+	clearUCIBootstrapPassword()
 	if current := auth.SessionIDFromRequest(s.db, s.secret, r); current != "" {
 		_, _ = s.db.Exec("DELETE FROM sessions WHERE user_id = ? AND id <> ?", me.ID, current)
 	} else {
@@ -294,6 +313,7 @@ func (s *server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = s.db.Exec("UPDATE users SET pass_hash = ? WHERE id = ?", hash, target.ID)
+	clearUCIBootstrapPassword()
 	auth.DestroyUserSessions(s.db, target.ID) // fuerza re-login
 	w.WriteHeader(http.StatusNoContent)
 }

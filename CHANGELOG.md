@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - Inactive agents in the fleet table now offer Rearm, Reinstall and the copyable install command next to Remove, so a rejected token (HTTP 401 after a reboot or a server move) can be fixed without removing the agent or losing its history. NetGrip rows offer Rearm only and external pushers keep Remove only.
 - The card and the detail of a unit pushed by an integration (RouterOS and other vendors) show why it is offline: authentication rejected, missing API endpoint (old firmware, REST needs RouterOS 7+), connection refused or pusher stopped, with the raw pusher error on the tooltip.
+- The on-box server init script now refuses to start when its data dir is not a real mount (default overlay paths excluded), so an unmounted USB stick can no longer leave a fresh SQLite database on flash. It also moves to `START=99` to let USB mounts settle first.
 
 ### Changed
 
@@ -19,6 +20,13 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Fixed
 
 - The greeting line on the Overview ("N important alerts") now counts the same alerts as the bell and the Alerts page (unread, level-filtered), instead of the health score breakdown. A health penalty without a visible alert, such as a down VPN peer with the vpn category set to "Nada", used to leave a phantom counter that could not be cleared from anywhere (#1707).
+- OpenWrt 21.02 on-box package (GL.iNet GL-MT6000 report): the `.ipk` now installs `/etc/init.d/netpulse`, the agent init and the uci-defaults scripts as executable (`0755`), and the packaging scripts verify the modes inside the built `.ipk`.
+- OpenWrt 21.02 on-box package: the procd init now uses ONE `procd_set_param env` call with all variables (in 21.02 each extra call overwrote the previous one, so `NETPULSE_ONBOX` and `DATA_DIR` never reached the process), and `stdout`/`stderr` are set as boolean params so server logs show up in `logread`.
+- Gateway autodetection no longer picks the ISP-side (public or CGNAT) address on an on-box server: when the default route's via is not a private LAN address, the gateway is the router itself and its LAN IP is taken from the private subnet route. Dedicated LAN servers keep the previous behavior.
+- The server generates its SSH keypair in-process (crypto/ed25519 + x/crypto/ssh) instead of calling `ssh-keygen`: on OpenWrt 21.02 the available keygen is Dropbear's and writes a format crypto/ssh cannot parse, which silently degraded the server to the demo dataset. An existing unparseable key is backed up and regenerated, and the public key fingerprint is computed in-process.
+- The default on-box port is now 3100 instead of 3000, which collides with the AdGuard Home UI shipped by GL.iNet firmware. Existing installs keep their configured port.
+- The initial bootstrap password is removed from UCI after a password change, so the generated plaintext no longer stays in `/etc/config/netpulse` forever.
+- README: `DEMO_MODE=1` requires `AUTH_PASS` even in demo mode, and the settings section holding the SSH public key is called Fleet (formerly documented as Network).
 
 ## [2.49.4] - 2026-10-30
 

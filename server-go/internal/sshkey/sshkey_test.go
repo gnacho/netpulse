@@ -1,13 +1,16 @@
 package sshkey
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"golang.org/x/crypto/ssh"
@@ -77,6 +80,117 @@ func TestRestoreLatestBackupIgnoresIncomplete(t *testing.T) {
 	}
 	if _, err := os.Stat(keyPath + ".pub"); err != nil {
 		t.Fatalf("no se generó el par nuevo: %v", err)
+	}
+}
+
+// TestGeneratedKeyIsOpenSSHFormatInProcess (#1701): la clave se genera en
+// proceso (sin ssh-keygen) en formato OpenSSH, que es el mismo formato que
+// el pool SSH puede leer. En OpenWrt 21.02 el ssh-keygen disponible es el
+// de Dropbear y escribe un formato que crypto/ssh rechaza.
+func TestGeneratedKeyIsOpenSSHFormatInProcess(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "id_ed25519")
+
+	if err := EnsureKeypair(keyPath); err != nil {
+		t.Fatalf("EnsureKeypair falló: %v", err)
+	}
+	privPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatalf("read private key: %v", err)
+	}
+	block, _ := pem.Decode(privPEM)
+	if block == nil {
+		t.Fatal("la clave privada no es PEM")
+	}
+	if block.Type != "OPENSSH PRIVATE KEY" {
+		t.Fatalf("tipo PEM = %q, want OPENSSH PRIVATE KEY", block.Type)
+	}
+	if !privateParses(keyPath) {
+		t.Fatal("crypto/ssh no puede leer la clave generada en proceso")
+	}
+	pubRaw, err := os.ReadFile(keyPath + ".pub")
+	if err != nil {
+		t.Fatalf("read pub: %v", err)
+	}
+	if !strings.Contains(string(pubRaw), "netpulse") {
+		t.Fatalf("la clave pública debería llevar el comentario netpulse: %s", pubRaw)
+	}
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		t.Fatalf("stat private: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("permisos de la clave privada = %v, want 0600", info.Mode().Perm())
+	}
+}
+
+// TestEnsureKeypairRegeneratesUnparseableKey (#1701): una clave existente en
+// formato ilegible (como la que dejó el ssh-keygen de Dropbear en el
+// GL-MT6000 del reportero: 83 bytes sin PEM) se respalda y se regenera en
+// proceso en lugar de quedarse para siempre rota.
+func TestEnsureKeypairRegeneratesUnparseableKey(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "id_ed25519")
+
+	// 83 bytes arbitrarios, no-PEM: patrón del reporte (Dropbear 21.02).
+	broken := bytes.Repeat([]byte{0xde, 0xad}, 41)
+	broken = append(broken, 0xbe)
+	if err := os.WriteFile(keyPath, broken, 0o600); err != nil {
+		t.Fatalf("write broken key: %v", err)
+	}
+	if err := os.WriteFile(keyPath+".pub", []byte("ssh-ed25519 AAAAtesting dropbear\n"), 0o644); err != nil {
+		t.Fatalf("write broken pub: %v", err)
+	}
+
+	if err := EnsureKeypair(keyPath); err != nil {
+		t.Fatalf("EnsureKeypair con clave rota falló: %v", err)
+	}
+	if !privateParses(keyPath) {
+		t.Fatal("la clave no se regeneró en formato legible")
+	}
+	// El par roto queda respaldado como .bak.<epoch> (la .pub como .bak.<epoch>.pub).
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("readdir: %v", err)
+	}
+	baks := 0
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, filepath.Base(keyPath)+".bak.") && !strings.HasSuffix(name, ".pub") {
+			baks++
+		}
+	}
+	if baks != 1 {
+		t.Fatalf("se esperaba 1 backup de la clave rota, hay %d", baks)
+	}
+	pubRaw, err := os.ReadFile(keyPath + ".pub")
+	if err != nil {
+		t.Fatalf("read regenerated pub: %v", err)
+	}
+	if strings.Contains(string(pubRaw), "dropbear") {
+		t.Fatalf("la clave pública rota no fue reemplazada: %s", pubRaw)
+	}
+}
+
+// TestGetPublicKeyFingerprintInProcess (#1701): el fingerprint se calcula en
+// proceso (SHA-256, formato OpenSSH moderno) sin depender de ssh-keygen, que
+// en OpenWrt 21.02 (Dropbear) no soporta -lf y dejaba el campo vacío.
+func TestGetPublicKeyFingerprintInProcess(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "id_ed25519")
+
+	if err := EnsureKeypair(keyPath); err != nil {
+		t.Fatalf("EnsureKeypair falló: %v", err)
+	}
+	key := GetPublicKey(keyPath)
+	if key == nil {
+		t.Fatal("GetPublicKey devolvió nil")
+	}
+	if key.Fingerprint == "" {
+		t.Fatal("fingerprint vacío: sigue dependiendo de ssh-keygen -lf")
+	}
+	if !strings.HasPrefix(key.Fingerprint, "SHA256:") {
+		t.Fatalf("fingerprint = %q, want prefijo SHA256:", key.Fingerprint)
 	}
 }
 

@@ -12,3 +12,6 @@ c4cd4538a3187d7fa8e0b0fe2bdd5d95aafe245c:server-go/internal/httpapi/migrate_e2e_
 4f148778c2f94962f8a9f50f8942e6eb974d9ed2:server-go/internal/orchestr/dawn_test.go:generic-api-key:36
 4f148778c2f94962f8a9f50f8942e6eb974d9ed2:server-go/internal/orchestr/dawn_test.go:generic-api-key:135
 4f148778c2f94962f8a9f50f8942e6eb974d9ed2:server-go/internal/orchestr/dawn_test.go:generic-api-key:192
+
+# Test fixture password (not a real secret): 12 chars like the rest of the login fixtures
+0fd67095b177b06a25bb95f9d1fdfb059b6e5068:server-go/internal/httpapi/users_uci_password_test.go:generic-api-key:24

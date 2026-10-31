@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"net"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -389,19 +390,73 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 // Autodetección de la puerta de enlace
 // ---------------------------------------------------------------------------
 
-var defaultViaRe = regexp.MustCompile(`default via (\d+\.\d+\.\d+\.\d+)`)
+var (
+	routeViaRe    = regexp.MustCompile(`via (\d+\.\d+\.\d+\.\d+)`)
+	routeSubnetRe = regexp.MustCompile(`^(\d+\.\d+\.\d+\.\d+)/\d+`)
+	routeSrcRe    = regexp.MustCompile(`src (\d+\.\d+\.\d+\.\d+)`)
+)
 
-// DetectGatewayIP devuelve la IP de la puerta de enlace por defecto del
+// DetectGatewayIP devuelve la IP de la puerta de enlace LAN por defecto del
 // servidor ("" si no se sabe).
+//
+// Dos escenarios (#1701):
+//   - Servidor dedicado en la LAN: la ruta por defecto sale por una via
+//     privada (RFC1918) y esa es la gateway.
+//   - Servidor on-box (el propio router): la via por defecto es pública o
+//     CGNAT (la del ISP), que NO es la gateway LAN; la gateway es el propio
+//     router y se toma la IP fuente de la primera ruta de subred privada.
+//     Con via pública/CGNAT y sin subred privada, devuelve "" (antes
+//     devolvía la dirección del ISP y generaba "Gateway offline" falso).
 func DetectGatewayIP() string {
-	out, err := exec.Command("ip", "route", "show", "default").Output()
+	out, err := exec.Command("ip", "-4", "route", "show").Output()
 	if err != nil {
 		return ""
 	}
-	if m := defaultViaRe.FindSubmatch(out); m != nil {
-		return string(m[1])
+	return gatewayIPFromRoutes(out)
+}
+
+// gatewayIPFromRoutes elige la gateway a partir de la salida de
+// `ip -4 route show`. Es pura para poder probarla sin `ip`.
+func gatewayIPFromRoutes(out []byte) string {
+	var viaFallback string
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if fields[0] == "default" {
+			if m := routeViaRe.FindStringSubmatch(line); m != nil {
+				ip := net.ParseIP(m[1])
+				if ip != nil && ip.IsPrivate() {
+					return m[1]
+				}
+				if viaFallback == "" {
+					viaFallback = m[1]
+				}
+			}
+			continue
+		}
 	}
-	return ""
+	// Ninguna via privada: on-box o sin via (pppoe). La gateway LAN es el
+	// propio router: src de la primera ruta de subred privada.
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || fields[0] == "default" {
+			continue
+		}
+		if !routeSubnetRe.MatchString(fields[0]) {
+			continue
+		}
+		m := routeSrcRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		ip := net.ParseIP(m[1])
+		if ip != nil && ip.IsPrivate() {
+			return m[1]
+		}
+	}
+	return viaFallback
 }
 
 var glinetModelRe = regexp.MustCompile(`(?i)GL[.-]?iNet|GL-[A-Z]`)

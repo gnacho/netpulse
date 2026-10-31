@@ -187,6 +187,29 @@ func uciRun(ctx context.Context, args ...string) error {
 	return nil
 }
 
+// ClearUCIAuthPass borra netpulse.server.auth_pass de UCI si existe (#1701).
+// Se llama cuando un usuario cambia su contraseña desde la UI: la contraseña
+// inicial del bootstrap R4 ya no aporta nada (el hash vive en la DB) y no
+// debe seguir en texto plano en /etc/config/netpulse. Si el admin borra su
+// cuenta de datos (sysupgrade), el bootstrap genera una nueva y la muestra
+// por logread. Fail-soft como el resto del puente UCI: sin `uci` (CT/Docker)
+// devuelve error y el caller decide (log y seguir).
+func ClearUCIAuthPass() error {
+	if _, err := exec.LookPath("uci"); err != nil {
+		return fmt.Errorf("uci no disponible: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), uciExecTimeout)
+	defer cancel()
+	// Idempotente: si la opción no existe, no hay nada que hacer.
+	if err := exec.CommandContext(ctx, "uci", "-q", "get", "netpulse.server.auth_pass").Run(); err != nil {
+		return nil
+	}
+	if err := uciRun(ctx, "delete", "netpulse.server.auth_pass"); err != nil {
+		return err
+	}
+	return uciRun(ctx, "commit", "netpulse")
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap R4 — contraseña inicial del admin on-box
 // ---------------------------------------------------------------------------

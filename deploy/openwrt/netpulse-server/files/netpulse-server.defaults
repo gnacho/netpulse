@@ -7,7 +7,9 @@
 # Crear la sección server si no existe
 if ! uci -q get netpulse.server >/dev/null 2>&1; then
 	uci -q set netpulse.server=server
-	uci -q set netpulse.server.port=3000
+	# 3100 en vez de 3000: la UI de AdGuard Home del firmware GL.iNet ya
+	# escucha en 3000 (#1701).
+	uci -q set netpulse.server.port=3100
 	uci -q set netpulse.server.data_dir=/usr/local/netpulse-data
 	uci -q set netpulse.server.auth_user=admin
 	uci -q commit netpulse
