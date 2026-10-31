@@ -106,7 +106,7 @@ Los routers se dan de alta en **Ajustes > Dispositivos** (ver el procedimiento d
 
 - El **punto de color** de cada router: verde = online, ámbar = con aviso (por ejemplo temperatura alta), rojo = caído.
 - La **tarjeta** resume las métricas clave; el icono de aviso aparece cuando la temperatura supera el umbral.
-- En la **sección de agentes**, "Agente caído" significa que el agente estaba registrado pero dejó de reportar (suele resolverse reinstalando desde el detalle del router).
+- En la **sección de agentes**, "Agente caído" significa que el agente estaba registrado pero dejó de reportar. Puede ser un proceso parado o un token rechazado (por ejemplo tras mover el servidor): rearma primero y, si sigue sin empujar, reinstala (ver el procedimiento de recuperación más abajo).
 - "Sin métricas de sistema" indica que ese dispositivo se monitoriza por SNMP o por beacon y no reporta CPU/RAM/temperatura.
 
 ### Decisiones de diseño
@@ -133,6 +133,17 @@ Los routers se dan de alta en **Ajustes > Dispositivos** (ver el procedimiento d
 5. El agente aparece como conectado en unos segundos.
 
 Para routers a los que el servidor no puede acceder por SSH, usa el **token de emparejamiento** (Ajustes > Adopción de agentes) con `install-agent.sh --pairing-token`.
+
+### Procedimiento: recuperar un agente caído (rearmar o reinstalar)
+
+Un agente en estado "Agente caído" dejó de empujar. La sección de agentes de **Dispositivos** (la fila en rojo) ofrece las acciones de recuperación a los administradores, en este orden:
+
+1. **Rearmar**: reinicia el servicio del agente en el router vía SSH y espera su primer push (hasta 30 s). Es la vía rápida cuando el proceso se quedó colgado o parado, y no toca la configuración ni el token. Si no puede reiniciarlo, la propia fila muestra el motivo (sin SSH, enfriamiento, router desconocido).
+2. **Reinstalar**: redespliega el agente (binario, config y servicio) vía SSH y **rota su token**. Es la acción correcta cuando el servidor rechaza los pushes con HTTP 401, algo típico tras un reinicio del router o al mover o restaurar la base del servidor: el token que guarda el agente dejó de existir en el servidor. La identidad del agente y su historial se conservan.
+3. **Copiar comando**: genera un one-liner de instalación manual con un token nuevo para routers a los que el servidor no llega por SSH. Pégalo en el propio router.
+4. **Retirar**: solo al dar de baja el equipo. Revoca el token y olvida el estado del agente.
+
+El botón **Rearmar** aparece también junto a la insignia "Agente caído" en la cabecera del detalle del router. Ambas acciones exigen rol de administrador y el rearme tiene un enfriamiento de 60 segundos por agente. Si tras rearmar y reinstalar los pushes siguen en 401, revisa que `NETPULSE_SERVER` y el token del `/etc/netpulse-agent.env` del router apunten al servidor actual.
 
 ### Procedimiento: actualizar todos los agentes
 

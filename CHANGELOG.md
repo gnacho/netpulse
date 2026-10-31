@@ -7,6 +7,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- Inactive agents in the fleet table now offer Rearm, Reinstall and the copyable install command next to Remove, so a rejected token (HTTP 401 after a reboot or a server move) can be fixed without removing the agent or losing its history. NetGrip rows offer Rearm only and external pushers keep Remove only.
+
+### Changed
+
+- The manual documents the agent recovery flow (Rearm restarts the agent service, Reinstall rotates a rejected token) and the agent tooltips and banners point to the agents section on Devices, which hosts the reinstall action, instead of the router detail page.
+
 ## [2.49.4] - 2026-10-30
 
 ### Added
