@@ -15,6 +15,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - The manual documents the agent recovery flow (Rearm restarts the agent service, Reinstall rotates a rejected token) and the agent tooltips and banners point to the agents section on Devices, which hosts the reinstall action, instead of the router detail page.
 
+### Fixed
+
+- The greeting line on the Overview ("N important alerts") now counts the same alerts as the bell and the Alerts page (unread, level-filtered), instead of the health score breakdown. A health penalty without a visible alert, such as a down VPN peer with the vpn category set to "Nada", used to leave a phantom counter that could not be cleared from anywhere (#1707).
+
 ## [2.49.4] - 2026-10-30
 
 ### Added

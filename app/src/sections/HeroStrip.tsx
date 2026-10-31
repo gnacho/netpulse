@@ -58,7 +58,7 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const { refreshKey } = useDashboard()
-  const { deviceTotals, health: healthScore, wan } = useNetPulse()
+  const { deviceTotals, health: healthScore, wan, unreadAlerts } = useNetPulse()
   const auth = useAuth()
   // SPEC-65 D65-5: saluda con displayName || username. En demo (sin backend)
   // el nombre vive en localStorage ('netpulse-displayname').
@@ -80,8 +80,12 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
   const greeting = t(greetingKey()) + (name ? t('home.greetingName', { name }) : '')
   const words = greeting.split(' ')
 
-  const alerts = healthScore.breakdown?.length ?? 0
-  const statusLine = alerts > 0 ? t('home.importantAlerts', { count: alerts }) : t('home.noImportantAlerts')
+  // #1707: la línea de estado cuenta lo mismo que la campana y la lista de
+  // alertas (unreadAlerts: server truth con los filtros de nivel y de
+  // recuperación). Contar el breakdown del health score decía "N important
+  // alerts" sin ninguna alerta que quitar: una penalización de salud (peer
+  // VPN caído, temperatura...) no es una alerta del feed.
+  const statusLine = unreadAlerts > 0 ? t('home.importantAlerts', { count: unreadAlerts }) : t('home.noImportantAlerts')
 
   // Fragmento compartido de subscores (#334): mini-barras WAN/Wi-Fi/Infra/
   // Servicios. En compact van debajo de latencia/clientes, a todo el ancho.
@@ -147,7 +151,7 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.25, duration: 0.4 }}
               >
-                {alerts > 0 ? (
+                {unreadAlerts > 0 ? (
                   <>
                     <AlertTriangle className="h-4 w-4 shrink-0 text-warn" strokeWidth={1.75} />
                     {statusLine}
@@ -240,7 +244,7 @@ export function HeroStrip({ compact = false }: { compact?: boolean }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25, duration: 0.4 }}
           >
-            {alerts > 0 ? (
+            {unreadAlerts > 0 ? (
               <>
                 <AlertTriangle className="h-4 w-4 text-warn" strokeWidth={1.75} />
                 {statusLine}
