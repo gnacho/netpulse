@@ -897,11 +897,30 @@ BIN="/usr/sbin/` + v.Binary + `"
 ENV_FILE="/etc/` + v.Binary + `.env"
 start_service() {
 	[ -x "$BIN" ] || return 1
+	[ -r "$ENV_FILE" ] || { echo "netpulse: missing or unreadable env file $ENV_FILE" >&2; return 1; }
+	# Cargar el fichero de entorno y pasarlo entero al proceso en UNA sola
+	# llamada env (#1709): cada llamada adicional pisaria a la anterior y al
+	# proceso solo le llegaria la ultima variable (OpenWrt 21.02, #1701).
+	# Los valores van escapados (salto de linea = \n): printf %b los
+	# desescapa igual que ParseEnv en el server y que el control script de
+	# Merlin (#1705), sin pasar por . "$ENV_FILE" ni /etc/profile.
+	set --
+	while IFS= read -r line || [ -n "$line" ]; do
+		case "$line" in ""|\#*) continue ;; esac
+		k=${line%%=*}
+		val=${line#*=}
+		val=$(printf '%b' "$val")
+		set -- "$@" "$k=$val"
+	done < "$ENV_FILE"
 	procd_open_instance ` + v.Binary + `
+	procd_set_param env "$@"
 	procd_set_param command "$BIN"
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1
 	procd_set_param stderr 1
+	# Vigila el fichero: un cambio sigue reiniciando el servicio y el
+	# arranque vuelve a leer el env, asi que el proceso recoge los valores
+	# nuevos.
 	procd_set_param file "$ENV_FILE"
 	procd_close_instance
 }

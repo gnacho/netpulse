@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- Integrations in ssh mode on procd vendors (#1709): the generated init now loads the router environment file into the pusher process with a single `procd_set_param env` call (extra calls overwrite each other, so only the last variable survived), refuses to start when the environment file is missing or unreadable, and keeps the file watcher so an env change still restarts the service with the new values. Before, a procd vendor started its pusher with no `NETPULSE_*` or vendor variables at all.
 - Heavy write volume on-box (#1700): the on-box server now runs SQLite in WAL mode with `synchronous=NORMAL` and `temp_store=MEMORY`, the same engine as every other deployment. The previous on-box choice (rollback journal DELETE + synchronous FULL, Fase 9 R6) rewrote pages and journal on every transaction and tripled the measured write volume (45 GB/day on a USB stick with a 107 MB database, versus 13.7 GB/day in WAL with the same fleet). WAL with `synchronous=NORMAL` cannot corrupt on a power cut; only the commits not yet synced are rolled back. The hourly checkpoint and nightly jobs now run for on-box installs too, so the `-wal` file stays bounded.
 - SQLite aggregation spills (the `etilqs_*` temp files) no longer hit disk by default. The report measured two ~3.16 MB temp files per 60 s window, about 9.1 GB/day and two thirds of the server's process writes with a ~100 MB database; with `temp_store=MEMORY` the same aggregation happens in RAM (a few MB per query).
 
