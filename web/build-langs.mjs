@@ -6,7 +6,7 @@
 // ruta del idioma elegido en vez de recargar con ?hl=.
 //
 // Uso (desde web/):  npm install && npm run build:langs
-// Salida:            web/langs/<lang>/{index,features,home-assistant}.html
+// Salida:            web/langs/<lang>/{index,features,home-assistant,integrations}/index.html
 // Deploy:            subir web/langs/* a la raíz del docroot (/<lang>/...).
 import { chromium } from 'playwright'
 import { mkdir, writeFile, readFile } from 'node:fs/promises'
@@ -106,23 +106,9 @@ async function main() {
       html = fixLinks(html, lang)
       html = html.replace(`/${lang}/features#`, `/${lang}/features/#`)
       html = fixAssets(html)
-      // La página prerenderizada fija su idioma: detectLang() respeta la clave
-      // localStorage antes que navigator, sin tocar el runtime.
-      html = html.replace(
-        '<script src="/i18n.js',
-        `<script>try{localStorage.setItem('netpulse-web-lang','${lang}')}catch{}</` + `script>\n  <script src="/i18n.js`,
-      )
-      // El selector de idioma navega a la ruta limpia del idioma elegido.
-      const slugEsc = page.slug
-      html = html.replace(
-        '</body>',
-        `<script>
-document.getElementById('langSelect')?.addEventListener('change',(e)=>{
-  const v=e.target.value; if(v) location.href='/'+v+'/${slugEsc}'
-})
-</script>
-</body>`,
-      )
+      // El runtime detecta el idioma en la ruta y usa este slug para navegar
+      // entre prerenders. Sin scripts inline, compatibles con la CSP de producción.
+      html = html.replace('<html ', `<html data-prerender-slug="${page.slug}" `)
       const outDir = path.join(OUT, lang, page.outDir)
       await mkdir(outDir, { recursive: true })
       await writeFile(path.join(outDir, 'index.html'), html)
