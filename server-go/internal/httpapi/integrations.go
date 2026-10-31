@@ -7,6 +7,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rintegration"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
@@ -365,6 +367,17 @@ func (s *server) handleIntegrationsCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// #1708: en modo ssh la misma contraseña del formulario es la credencial
+	// SSH del alta y de las acciones posteriores: se guarda en el fichero
+	// compañero (0600) antes de conectar, nunca en la base de datos.
+	if vendor.Mode == "ssh" && s.integrations != nil {
+		if err := s.integrations.WriteSSHPassword(body.Slug, body.Password); err != nil {
+			_ = store.Delete(body.Slug)
+			writeError(w, http.StatusInternalServerError, "ssh_password_write", err.Error())
+			return
+		}
+	}
+
 	// Router external cuyo id es el slug (push autenticado por token de
 	// agente, agent.token.<slug>).
 	router, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
@@ -382,6 +395,9 @@ func (s *server) handleIntegrationsCreate(w http.ResponseWriter, r *http.Request
 			_ = s.integrations.Stop(body.Slug)
 			_ = s.integrations.Cleanup(body.Slug)
 		}
+		if vendor.Mode == "ssh" && s.integrations != nil {
+			_ = s.integrations.RemoveSSHPassword(body.Slug)
+		}
 		_ = routerstore.RemoveRouter(s.db.DB, body.Slug)
 		s.syncRouters()
 		_ = store.Delete(body.Slug)
@@ -396,7 +412,7 @@ func (s *server) handleIntegrationsCreate(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		rollback()
-		writeError(w, http.StatusBadGateway, "start_failed", err.Error())
+		writeError(w, http.StatusBadGateway, sshErrorOr(err, "start_failed"), err.Error())
 		return
 	}
 
@@ -457,8 +473,64 @@ func healPusherPin(env map[string]string, serverURL string) map[string]string {
 }
 
 func (s *server) runSSHInstall(v rintegration.Vendor, row rintegration.Row, env map[string]string, assetURL, sha256 string) error {
-	_, err := s.pool.Run(row.Host, sshInstallScript(v, env, assetURL, sha256), 300*time.Second)
+	_, err := s.runIntegrationSSH(row, sshInstallScript(v, env, assetURL, sha256), 300*time.Second)
 	return err
+}
+
+// sshPasswordSetter es la capacidad opcional del pool SSH de conectar por
+// contraseña (#1708). adapters.SSHPool la implementa; los fakes de tests que
+// solo implementan Run no, y en ese caso el pool queda como esté.
+type sshPasswordSetter interface {
+	SetPassword(host, user, password string)
+}
+
+// applyIntegrationSSHAuth aplica al pool la credencial SSH de la
+// integración (#1708): si existe el fichero compañero <slug>.sshpass la
+// conexión va por contraseña con el usuario de la fila (gana sobre la llave
+// del servidor); si no, la credencial se limpia y el dial usa la llave como
+// siempre. Un fichero ilegible cae a llave con aviso en el log.
+func (s *server) applyIntegrationSSHAuth(row rintegration.Row) {
+	if s.pool == nil || s.integrations == nil {
+		return
+	}
+	setter, ok := s.pool.(sshPasswordSetter)
+	if !ok {
+		return
+	}
+	pass, err := s.integrations.ReadSSHPassword(row.Slug)
+	if err != nil {
+		log.Printf("[netpulse] aviso: integración %s: no se pudo leer el fichero de contraseña SSH (%v); conecto con llave", row.Slug, err)
+		pass = ""
+	}
+	setter.SetPassword(row.Host, row.Username, pass)
+}
+
+// runIntegrationSSH ejecuta un comando en el router de la integración
+// aplicando antes la credencial SSH del fichero compañero (#1708).
+func (s *server) runIntegrationSSH(row rintegration.Row, cmd string, timeout time.Duration) (string, error) {
+	s.applyIntegrationSSHAuth(row)
+	return s.pool.Run(row.Host, cmd, timeout)
+}
+
+// sshErrorCode clasifica un error SSH para la API (#1708): el rechazo de
+// autenticación es su propio código (ssh_auth_failed) frente al fallo
+// genérico de conexión (ssh_failed), de modo que la UI puede pedir revisar
+// la contraseña.
+func sshErrorCode(err error) string {
+	var ae *adapters.SSHAuthError
+	if errors.As(err, &ae) {
+		return "ssh_auth_failed"
+	}
+	return "ssh_failed"
+}
+
+// sshErrorOr devuelve ssh_auth_failed cuando err es un rechazo de
+// autenticación SSH y fallback para cualquier otro error.
+func sshErrorOr(err error, fallback string) string {
+	if sshErrorCode(err) == "ssh_auth_failed" {
+		return "ssh_auth_failed"
+	}
+	return fallback
 }
 
 func (s *server) handleIntegrationStart(w http.ResponseWriter, r *http.Request) {
@@ -491,8 +563,8 @@ func (s *server) handleIntegrationStart(w http.ResponseWriter, r *http.Request) 
 			writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
 			return
 		}
-		if _, err := s.pool.Run(row.Host, sshServiceScript(vendor, "restart"), 60*time.Second); err != nil {
-			writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+		if _, err := s.runIntegrationSSH(row, sshServiceScript(vendor, "restart"), 60*time.Second); err != nil {
+			writeError(w, http.StatusBadGateway, sshErrorOr(err, "ssh_failed"), err.Error())
 			return
 		}
 	}
@@ -520,7 +592,7 @@ func (s *server) handleIntegrationStop(w http.ResponseWriter, r *http.Request) {
 			_ = s.integrations.Stop(slug) // ErrNotRunning es no-op aquí
 		}
 	} else if s.pool != nil {
-		_, _ = s.pool.Run(row.Host, sshServiceScript(vendor, "stop"), 60*time.Second)
+		_, _ = s.runIntegrationSSH(row, sshServiceScript(vendor, "stop"), 60*time.Second)
 	}
 	_ = s.integrationsStore().SetState(slug, "stopped", "")
 	s.broadcastIntegrations()
@@ -544,7 +616,7 @@ func (s *server) handleIntegrationCheck(w http.ResponseWriter, r *http.Request) 
 	if vendor.Mode == "local" {
 		running = s.integrations != nil && s.integrations.Running(slug)
 	} else if s.pool != nil {
-		_, err := s.pool.Run(row.Host, sshServiceScript(vendor, "check"), 30*time.Second)
+		_, err := s.runIntegrationSSH(row, sshServiceScript(vendor, "check"), 30*time.Second)
 		running = err == nil
 	}
 	// #1696: un check verificado reconcilia el estado guardado: el unverified
@@ -618,7 +690,7 @@ func (s *server) handleIntegrationUpdate(w http.ResponseWriter, r *http.Request)
 		}
 		env := s.pusherEnv(vendor, row, "", s.agentBaseURL(r), "")
 		if err := s.runSSHInstall(vendor, row, env, res.URL, res.SHA256); err != nil {
-			writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+			writeError(w, http.StatusBadGateway, sshErrorOr(err, "ssh_failed"), err.Error())
 			return
 		}
 	}
@@ -740,9 +812,19 @@ func (s *server) handleIntegrationEdit(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")
 			return
 		}
-		raw, err := s.pool.Run(row.Host, sshEnvReadScript(vendor), 30*time.Second)
+		// #1708: la contraseña nueva del formulario es también la credencial
+		// SSH: guardarla en el fichero compañero ANTES de conectar, porque si
+		// el usuario ya cambió la contraseña en el router, la conexión de
+		// este mismo guardado necesita la nueva.
+		if password != "" && s.integrations != nil {
+			if err := s.integrations.WriteSSHPassword(slug, password); err != nil {
+				writeError(w, http.StatusInternalServerError, "ssh_password_write", err.Error())
+				return
+			}
+		}
+		raw, err := s.runIntegrationSSH(row, sshEnvReadScript(vendor), 30*time.Second)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+			writeError(w, http.StatusBadGateway, sshErrorOr(err, "ssh_failed"), err.Error())
 			return
 		}
 		env := rintegration.ParseEnv(raw)
@@ -753,10 +835,10 @@ func (s *server) handleIntegrationEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		env["NETPULSE_INTERVAL"] = strconv.Itoa(row.IntervalS) + "s"
 		healPusherPin(env, s.agentBaseURL(r))
-		if _, err := s.pool.Run(row.Host, sshEnvWriteScript(vendor, env), 60*time.Second); err != nil {
+		if _, err := s.runIntegrationSSH(row, sshEnvWriteScript(vendor, env), 60*time.Second); err != nil {
 			_ = store.SetState(slug, "error", err.Error())
 			s.broadcastIntegrations()
-			writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+			writeError(w, http.StatusBadGateway, sshErrorOr(err, "ssh_failed"), err.Error())
 			return
 		}
 	}
@@ -786,7 +868,16 @@ func (s *server) handleIntegrationDelete(w http.ResponseWriter, r *http.Request)
 			_ = s.integrations.Cleanup(slug)
 		}
 	} else if s.pool != nil {
-		_, _ = s.pool.Run(row.Host, sshUninstallScript(vendor), 60*time.Second)
+		_, _ = s.runIntegrationSSH(row, sshUninstallScript(vendor), 60*time.Second)
+	}
+	// #1708: la contraseña SSH del fichero compañero muere con la
+	// integración y el pool pierde la credencial (la conexión cacheada se
+	// tira y el siguiente dial vuelve a la llave).
+	if s.integrations != nil {
+		_ = s.integrations.RemoveSSHPassword(slug)
+	}
+	if setter, ok := s.pool.(sshPasswordSetter); ok {
+		setter.SetPassword(row.Host, "", "")
 	}
 	_ = s.integrationsStore().Delete(slug)
 	_ = routerstore.RemoveRouter(s.db.DB, slug)

@@ -752,6 +752,7 @@
       "fieldHostPlaceholder": "192.168.1.1",
       "fieldUsername": "Usuario",
       "fieldPassword": "Contraseña",
+      "fieldPasswordSshHint": "La contraseña inicia sesión SSH en el router para instalar el pusher y para las acciones posteriores. La llave autorizada sigue siendo lo preferente: usa este campo cuando el router solo acepte contraseña, como un Asuswrt de fábrica.",
       "fieldInterval": "Intervalo (segundos)",
       "fieldIntervalInvalid": "El intervalo debe estar entre 10 y 86400 segundos",
       "fieldArch": "Arquitectura",
@@ -788,6 +789,7 @@
       "download_failed": "Falló la descarga.",
       "start_failed": "No se pudo arrancar el pusher.",
       "ssh_failed": "Falló la conexión SSH.",
+      "ssh_auth_failed": "Autenticación SSH rechazada: revisa el usuario y la contraseña del router.",
       "ssh_unavailable": "SSH no está disponible para este proveedor.",
       "router_error": "El router devolvió un error.",
       "not_found": "Integración no encontrada.",
@@ -799,6 +801,7 @@
       "title": "Editar integración",
       "fieldPassword": "Contraseña",
       "fieldPasswordKeep": "En blanco conserva la actual",
+      "fieldPasswordSshHint": "También actualiza la contraseña SSH que el servidor usa para conectar al router. En blanco conserva ambas.",
       "save": "Guardar y reiniciar",
       "saving": "Guardando",
       "restartHint": "Al guardar se reescribe el entorno del pusher y se reinicia, así que los valores nuevos entran en vigor al momento."

@@ -63,6 +63,46 @@ func (m *Manager) WriteEnv(slug string, env map[string]string) error {
 	return writeEnvFile(filepath.Join(m.dir, slug+".env"), env)
 }
 
+// SSHPasswordPath returns the companion SSH password file of a slug
+// (<dir>/<slug>.sshpass, #1708). Same discipline as the env file: 0600,
+// owned by the service user, never in the database and never in an API
+// response.
+func (m *Manager) SSHPasswordPath(slug string) string {
+	return filepath.Join(m.dir, slug+".sshpass")
+}
+
+// ReadSSHPassword returns the SSH password stored for slug, or "" when the
+// companion file does not exist (the server key stays the auth method). A
+// trailing newline (hand-written files) is tolerated.
+func (m *Manager) ReadSSHPassword(slug string) (string, error) {
+	data, err := os.ReadFile(m.SSHPasswordPath(slug))
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(data), "\n"), nil
+}
+
+// WriteSSHPassword stores the SSH password of slug in the companion file
+// with mode 0600.
+func (m *Manager) WriteSSHPassword(slug, password string) error {
+	if err := os.MkdirAll(m.dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(m.SSHPasswordPath(slug), []byte(password), 0o600)
+}
+
+// RemoveSSHPassword deletes the companion SSH password file. Removing a
+// missing file is a no-op.
+func (m *Manager) RemoveSSHPassword(slug string) error {
+	if err := os.Remove(m.SSHPasswordPath(slug)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // SetOnExit registers the callback invoked when a process exits unexpectedly
 // (a crash). Intentional stops do not fire it: the caller owns that state.
 func (m *Manager) SetOnExit(fn func(slug string, err error)) {

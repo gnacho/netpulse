@@ -177,7 +177,7 @@ export default function Integrations() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submitting) return
-    if (!vendorId || !host.trim() || !SLUG_RE.test(slug.trim()) || intervalInvalid) return
+    if (!vendorId || !host.trim() || !SLUG_RE.test(slug.trim()) || intervalInvalid || password === '') return
     setSubmitting(true)
     setError('')
     try {
@@ -438,6 +438,9 @@ export default function Integrations() {
                 autoComplete="new-password"
                 className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
               />
+              {selectedVendor && selectedVendor.mode === 'ssh' && (
+                <span className="mt-1 block text-xs text-text-muted">{t('integrations.form.fieldPasswordSshHint')}</span>
+              )}
             </label>
             <label className="block">
               <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldInterval')}</span>
@@ -672,6 +675,9 @@ export default function Integrations() {
                           placeholder={t('integrations.edit.fieldPasswordKeep')}
                           className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                         />
+                        {editing && editing.mode === 'ssh' && (
+                          <span className="mt-1 block text-xs text-text-muted">{t('integrations.edit.fieldPasswordSshHint')}</span>
+                        )}
                       </label>
                       <label className="block">
                         <span className="text-label uppercase text-text-muted">{t('integrations.form.fieldInterval')}</span>

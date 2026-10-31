@@ -259,6 +259,14 @@ The pusher uses the portable probes for system data, wireless, DHCP, bridge
 FDB, ARP and LLDP. Features that require `ubus` or GL.iNet services remain
 absent, and the native agent upgrade and reinstall actions are not available.
 
+From the Integrations section the app can also install the pusher for you
+over SSH. An authorized server key is still the preferred path; when the
+router only accepts passwords, like the dropbear of a stock Asuswrt, set the
+password in the form and the server signs in with it. The password is stored
+in a 0600 companion file next to the integration environment file, never in
+the database, and a wrong password reports `ssh_auth_failed` instead of a
+generic SSH failure.
+
 **Latency sidecar.** Optional long-term TCP latency probes per router:
 
 ```bash

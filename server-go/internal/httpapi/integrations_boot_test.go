@@ -37,8 +37,10 @@ func makeIntegrationsTestServerSeeded(t *testing.T, seed func(d *db.DB, mgr *rin
 
 // makeIntegrationsTestServerFull es la variante con catálogo de vendors
 // inyectable (#1697): catFn construye el VendorCatalog con la base ya abierta
-// (nil → fallback de NewHandler: semilla embebida sin red).
-func makeIntegrationsTestServerFull(t *testing.T, seed func(d *db.DB, mgr *rintegration.Manager), catFn func(d *db.DB) *rintegration.Catalog) (*testServer, *rintegration.Manager) {
+// (nil → fallback de NewHandler: semilla embebida sin red). El parámetro
+// variadic pool permite inyectar un SSHRunner fake (#1708): sin él el
+// servidor no tiene pool, igual que el resto de harnesses de la app.
+func makeIntegrationsTestServerFull(t *testing.T, seed func(d *db.DB, mgr *rintegration.Manager), catFn func(d *db.DB) *rintegration.Catalog, pool ...httpapi.SSHRunner) (*testServer, *rintegration.Manager) {
 	t.Helper()
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
@@ -77,7 +79,7 @@ func makeIntegrationsTestServerFull(t *testing.T, seed func(d *db.DB, mgr *rinte
 	if catFn != nil {
 		cat = catFn(d)
 	}
-	handler := httpapi.NewHandler(httpapi.Deps{
+	deps := httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(), Hub: hub, Secret: secret,
 		Started:       time.Now(),
 		TokenStore:    apitoken.NewStore(d, secret),
@@ -87,7 +89,11 @@ func makeIntegrationsTestServerFull(t *testing.T, seed func(d *db.DB, mgr *rinte
 		ChannelPlan:   channelplan.NewStore(d.DB),
 		Integrations:  mgr,
 		VendorCatalog: cat,
-	})
+	}
+	if len(pool) > 0 {
+		deps.Pool = pool[0]
+	}
+	handler := httpapi.NewHandler(deps)
 	srv := httptest.NewServer(handler)
 	ts := &testServer{Server: srv, db: d, secret: secret}
 	t.Cleanup(func() {

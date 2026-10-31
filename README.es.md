@@ -268,6 +268,14 @@ El pusher usa las sondas portables para sistema, WiFi, DHCP, FDB del bridge,
 ARP y LLDP. Lo que necesita `ubus` o servicios de GL.iNet sigue ausente, y las
 acciones de upgrade y reinstall del agente nativo no están disponibles.
 
+Desde la sección Integraciones la app también puede instalar el pusher por
+SSH. La llave del servidor autorizada sigue siendo lo preferente: cuando el
+router solo acepta contraseña, como el dropbear de un Asuswrt de fábrica,
+indica la contraseña en el formulario y el servidor conecta con ella. La
+contraseña se guarda en un fichero compañero 0600 junto al de entorno de la
+integración, nunca en la base de datos, y una contraseña equivocada se
+reporta como `ssh_auth_failed` en vez de un fallo genérico de SSH.
+
 **Sidecar de latencia.** Sondeos TCP de latencia por router a largo plazo,
 opcionales:
 

@@ -50,10 +50,20 @@ type SSHPool struct {
 
 	mu     sync.Mutex
 	conns  map[string]*sshConn
+	creds  map[string]sshCred
 	closed bool
 
 	dialTCP     func(network, addr string, config *ssh.ClientConfig) (*ssh.Client, error)
 	closeClient func(*ssh.Client) error
+}
+
+// sshCred es la credencial de contraseña registrada para un host
+// (#1708): las integraciones ssh con fichero compañero <slug>.sshpass
+// conectan por contraseña mientras la credencial esté registrada; el resto
+// de destinos siguen con la llave del servidor.
+type sshCred struct {
+	user     string
+	password string
 }
 
 func (p *SSHPool) closeSSHClient(c *ssh.Client) error {
@@ -88,8 +98,43 @@ func NewSSHPool(keyPath string) (*SSHPool, error) {
 		signer:  signer,
 		khPath:  sshkey.KnownHostsPath(keyPath),
 		conns:   map[string]*sshConn{},
+		creds:   map[string]sshCred{},
 		dialTCP: ssh.Dial,
 	}, nil
+}
+
+// SetPassword registra (o borra, con password vacía) la credencial de
+// contraseña de un host (#1708). Mientras haya credencial, el dial de ese
+// host autentica por contraseña con el usuario dado y la llave del servidor
+// queda aparcada. Un cambio de credencial tira la conexión cacheada y el
+// backoff del host: la siguiente llamada reconecta con el valor nuevo, sin
+// esperar el enfriamiento de un fallo ya resuelto.
+func (p *SSHPool) SetPassword(host, user, password string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	old, had := p.creds[host]
+	if password == "" {
+		if !had {
+			return
+		}
+		delete(p.creds, host)
+	} else {
+		if had && old.user == user && old.password == password {
+			return
+		}
+		if p.creds == nil {
+			p.creds = map[string]sshCred{}
+		}
+		p.creds[host] = sshCred{user: user, password: password}
+	}
+	if e := p.conns[host]; e != nil {
+		if e.client != nil {
+			_ = p.closeSSHClient(e.client)
+			e.client = nil
+		}
+		e.failures = 0
+		e.notUntil = time.Time{}
+	}
 }
 
 // hostKeyCallback implementa accept-new sobre el known_hosts propio.
@@ -146,6 +191,28 @@ type HostKeyChangedError struct {
 
 func (e *HostKeyChangedError) Error() string {
 	return "ssh host key changed for " + e.Host + " (" + e.OldFP + " -> " + e.NewFP + "); re-onboard required"
+}
+
+// SSHAuthError: el host rechazó la autenticación SSH (contraseña o llave
+// rechazadas por el servidor). Va con código de error propio en la API
+// (ssh_auth_failed, #1708) para que la UI pida revisar la contraseña en vez
+// de un fallo genérico de conexión.
+type SSHAuthError struct {
+	Host string
+	Err  error
+}
+
+func (e *SSHAuthError) Error() string {
+	return "ssh " + e.Host + ": authentication rejected: " + e.Err.Error()
+}
+
+func (e *SSHAuthError) Unwrap() error { return e.Err }
+
+// isSSHAuthError reconoce el rechazo de autenticación del handshake. La
+// librería no exporta un tipo para esto y el texto es estable en x/crypto
+// ("ssh: unable to authenticate, attempted methods ...").
+func isSSHAuthError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "ssh: unable to authenticate")
 }
 
 // RemoveHostKey elimina las entradas known_hosts de un host (confirmación de
@@ -236,11 +303,22 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		p.mu.Unlock()
 		return nil, err
 	}
+	// Credencial registrada para este host (#1708): contraseña con el
+	// usuario de la integración en vez de la llave del servidor. Se lee bajo
+	// lock para no competir con SetPassword.
+	p.mu.Lock()
+	cred, hasCred := p.creds[host]
+	p.mu.Unlock()
+
 	cfg := &ssh.ClientConfig{
 		User:            "root",
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(p.signer)},
 		HostKeyCallback: cb,
 		Timeout:         sshDialTimeout,
+	}
+	if hasCred {
+		cfg.User = cred.user
+		cfg.Auth = []ssh.AuthMethod{ssh.Password(cred.password)}
 	}
 	client, err := p.dialTCP("tcp", addrOf(host), cfg)
 
@@ -255,6 +333,9 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		}
 		entry.notUntil = time.Now().Add(backoff)
 		p.mu.Unlock()
+		if isSSHAuthError(err) {
+			return nil, &SSHAuthError{Host: host, Err: err}
+		}
 		return nil, fmt.Errorf("ssh %s: %w", host, err)
 	}
 	if p.closed {

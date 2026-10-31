@@ -9,6 +9,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- Integrations in ssh mode accept password authentication (#1708): when the optional companion file `<data-dir>/integrations/<slug>.sshpass` (0600, same discipline as the environment file) exists, the server signs in to the router with the integration username and password; without it the server key stays the default and preferred path. The create and edit forms reuse the same password field for it (empty on edit keeps the current one), the password never reaches the database or any API response, deleting the integration removes the file, and an authentication rejection reports its own `ssh_auth_failed` code instead of the generic `ssh_failed`. Stock Asuswrt (dropbear with password auth only) now works with no manual key setup.
+
+### Fixed
+
 - `NETPULSE_DB_ROLLBACK_JOURNAL=1` restores the previous on-box SQLite journal engine (DELETE + synchronous FULL) after the #1700 default change; `NETPULSE_DB_TEMP_STORE` (`memory` | `file` | `default`) controls where SQLite aggregation spills go, and is also settable on-box via the new `db_rollback_journal` / `db_temp_store` UCI options.
 
 ### Fixed
