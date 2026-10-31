@@ -606,6 +606,12 @@ export interface AgentInfo {
   panelPort?: number
   fresh: boolean
   /**
+   * Unix SEGUNDOS del último push rechazado por autenticación (401, #1717).
+   * Ausente/0 = sin rechazos pendientes: el primer push válido lo limpia, así
+   * que el badge desaparece solo al recuperar el token (Rearm/Reinstall).
+   */
+  rejectedAt?: number
+  /**
    * true si el agente reporta una versión distinta de la del binario embebido
    * (Fase 6.3, issue #243): hay upgrade disponible vía POST /api/agents/{slug}/upgrade.
    */

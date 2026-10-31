@@ -49,6 +49,11 @@ const (
 	ingestRateWindow = time.Minute
 	// agentTokenKeyPrefix: kv agent.token.<slug> = sha256 hex del token.
 	agentTokenKeyPrefix = "agent.token."
+	// agentRejectKeyPrefix: kv agent.reject_ts.<slug> = unix del último push
+	// rechazado por autenticación (#1717). Se limpia con el primer push
+	// válido, de modo que el badge de la tabla de agentes desaparece solo
+	// cuando el agente vuelve a autenticarse (tras Rearm/Reinstall).
+	agentRejectKeyPrefix = "agent.reject_ts."
 	// maxTsDrift: ventana de frescura del `ts` del agente (anti-replay,
 	// auditoría de seguridad #2). Payloads con ts fuera de |±maxTsDrift|
 	// respecto al reloj del servidor se rechazan con 401 (evita reinyectar
@@ -117,6 +122,21 @@ func (l *ipRateLimit) allow(ip string) (bool, int) {
 // ---------------------------------------------------------------------------
 
 func agentTokenKey(slug string) string { return agentTokenKeyPrefix + slug }
+
+func agentRejectKey(slug string) string { return agentRejectKeyPrefix + slug }
+
+// recordAgentReject deja constancia (best-effort) de un push rechazado por
+// autenticación (#1717): la tabla de agentes lo muestra como badge hasta que
+// un push válido lo limpia.
+func (s *server) recordAgentReject(slug string) {
+	if s.db == nil {
+		return
+	}
+	_, _ = s.db.Exec(
+		`INSERT INTO kv (key, value) VALUES (?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+		agentRejectKey(slug), strconv.FormatInt(time.Now().Unix(), 10))
+}
 
 // hashAgentToken: sha256 hex del token (lo único que se persiste).
 func hashAgentToken(token string) string {
@@ -231,12 +251,17 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	// 401: Bearer inválido para ese slug
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !s.checkAgentToken(p.Router, token) {
+		// #1717: anota el rechazo para el badge de la tabla de agentes.
+		s.recordAgentReject(p.Router)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	// 401: HMAC-SHA256 del payload no coincide (R4: firma obligatoria)
 	sig := r.Header.Get("X-Agent-Signature")
 	if err := checkHMAC(token, body, sig); err != nil {
+		// #1717: la firma va ligada al token, así que un fallo de firma es
+		// también un token que no sirve (mismo badge).
+		s.recordAgentReject(p.Router)
 		writeError(w, http.StatusUnauthorized, "invalid_signature", err.Error())
 		return
 	}
@@ -556,6 +581,11 @@ type agentListItem struct {
 	// Kind: "native" (agente netpulse-agent) o "external" (pusher externo
 	// tipo scraper de switch gestionado, #285/#288). Default "native".
 	Kind string `json:"kind"`
+	// RejectedAt: unix del último push rechazado por autenticación (401,
+	// #1717). 0/ausente = sin rechazos pendientes; el primer push válido lo
+	// limpia, así que el badge de la UI desaparece solo al recuperar el token
+	// (Rearm/Reinstall).
+	RejectedAt int64 `json:"rejectedAt,omitempty"`
 	// Interval: cadencia de push declarada en segundos (solo externos, #288).
 	Interval int `json:"interval,omitempty"`
 	// PanelPort: the port the router's own panel answers on, as the agent
@@ -634,6 +664,21 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 	if s.db != nil {
+		// #1717: rechazos precargados en su propia consulta y ANTES de abrir
+		// el cursor de tokens (con SetMaxOpenConns(1) dos rows abiertos a la
+		// vez hacen deadlock, misma razón del preload de routers de arriba).
+		rejects := map[string]int64{}
+		if rrows, rerr := s.db.Query("SELECT key, value FROM kv WHERE key LIKE ?", agentRejectKeyPrefix+"%"); rerr == nil {
+			for rrows.Next() {
+				var k, v string
+				if rrows.Scan(&k, &v) == nil {
+					if sec, perr := strconv.ParseInt(v, 10, 64); perr == nil {
+						rejects[strings.TrimPrefix(k, agentRejectKeyPrefix)] = sec
+					}
+				}
+			}
+			rrows.Close()
+		}
 		rows, err := s.db.Query("SELECT key FROM kv WHERE key LIKE ? ORDER BY key", agentTokenKeyPrefix+"%")
 		if err == nil {
 			defer rows.Close()
@@ -665,6 +710,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 					}
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
+				item.RejectedAt = rejects[slug]
 				if payload != nil {
 					item.PanelPort = payload.PanelPort
 				}
@@ -780,6 +826,8 @@ func (s *server) handleAgentsDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
+	// #1717: el badge de rechazos no debe sobrevivir al agente.
+	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(slug))
 	if s.agents != nil {
 		s.agents.Forget(slug)
 	}
@@ -1230,6 +1278,8 @@ func (s *server) acceptAgentPush(p *probe.Payload) bool {
 			key, strconv.FormatInt(p.Ts, 10)); err != nil {
 			log.Printf("[netpulse] no se pudo persistir el ultimo push de %s: %v", p.Router, err)
 		}
+		// #1717: el primer push válido limpia el badge de rechazos.
+		_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(p.Router))
 	}
 	return true
 }

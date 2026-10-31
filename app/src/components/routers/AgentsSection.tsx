@@ -232,22 +232,35 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
         </div>
       </td>
       <td className="py-3 pr-3">
-        {agent ? (
-          <span
-            title={agent.fresh ? t('routers.agent.freshTip', { version: agent.version }) : t('routers.agent.staleTip')}
-            className="inline-flex items-center gap-1.5 text-caption font-semibold"
-          >
-            <span className={cn('h-1.5 w-1.5 rounded-full', agent.fresh ? 'bg-ok' : 'bg-danger')} aria-hidden="true" />
-            <span className={agent.fresh ? 'text-ok' : 'text-danger'}>
-              {agent.fresh ? t('routers.agents.active') : t('routers.agents.inactive')}
+        <div className="flex flex-wrap items-center gap-2">
+          {agent ? (
+            <span
+              title={agent.fresh ? t('routers.agent.freshTip', { version: agent.version }) : t('routers.agent.staleTip')}
+              className="inline-flex items-center gap-1.5 text-caption font-semibold"
+            >
+              <span className={cn('h-1.5 w-1.5 rounded-full', agent.fresh ? 'bg-ok' : 'bg-danger')} aria-hidden="true" />
+              <span className={agent.fresh ? 'text-ok' : 'text-danger'}>
+                {agent.fresh ? t('routers.agents.active') : t('routers.agents.inactive')}
+              </span>
             </span>
-          </span>
-        ) : (
-          <span title={t('routers.agent.notInstalledTip')} className="inline-flex items-center gap-1.5 text-caption font-semibold text-danger">
-            <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
-            {t('routers.agents.notInstalled')}
-          </span>
-        )}
+          ) : (
+            <span title={t('routers.agent.notInstalledTip')} className="inline-flex items-center gap-1.5 text-caption font-semibold text-danger">
+              <span className="h-1.5 w-1.5 rounded-full bg-danger" aria-hidden="true" />
+              {t('routers.agents.notInstalled')}
+            </span>
+          )}
+          {/* #1717: el servidor está rechazando sus pushes con 401 (token
+              viejo tras un reinicio o un cambio de servidor). El primer push
+              válido lo limpia, así que desaparece solo al Rearmar/Reinstalar. */}
+          {agent?.rejectedAt ? (
+            <span
+              title={t('routers.agents.rejectedTip')}
+              className="inline-flex items-center rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
+            >
+              {t('routers.agents.rejectedBadge')}
+            </span>
+          ) : null}
+        </div>
       </td>
       <td className="py-3 pr-3">
         {agent ? (
