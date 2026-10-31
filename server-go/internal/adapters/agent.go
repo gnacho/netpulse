@@ -681,10 +681,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 			l.mu.Unlock()
 		}
 		if sd.CPU != nil {
-			out.cpu = *sd.CPU
+			out.cpu, out.hasCpu = *sd.CPU, true
 		}
 		if sd.Temp != nil {
-			out.temp = *sd.Temp
+			out.temp, out.hasTemp = *sd.Temp, true
 		}
 		out.net = &NetDevBps{RxBps: sd.RxBps, TxBps: sd.TxBps}
 		out.latencyMs = sd.LatencyMs
@@ -700,10 +700,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		// duplicar tráfico con muestras viejas).
 		sd := cached.system
 		if sd.CPU != nil {
-			out.cpu = *sd.CPU
+			out.cpu, out.hasCpu = *sd.CPU, true
 		}
 		if sd.Temp != nil {
-			out.temp = *sd.Temp
+			out.temp, out.hasTemp = *sd.Temp, true
 		}
 		if sd.SysInfo != nil {
 			sysInfo = sd.SysInfo
@@ -712,6 +712,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	mem := sysInfo.Memory
 	if mem.Total > 0 {
 		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used)
+		// La memoria del payload es una lectura confirmada (los pushers de
+		// RouterOS/AsusWRT la derivan de free/memory), no un hueco que haya
+		// que pintar a cero.
+		out.hasRam = true
 	}
 	out.sysInfo = sysInfo
 	out.ram = ramPct

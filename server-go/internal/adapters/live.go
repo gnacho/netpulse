@@ -105,7 +105,11 @@ type routerPolled struct {
 	// hasCpu: mismo contrato que hasTemp para la CPU de los switches SNMP
 	// (tabla de procesos Netgear FastPath): sin bandera, el null de #441
 	// pisaría la lectura real.
-	hasCpu   bool
+	hasCpu bool
+	// hasRam: mismo contrato para la RAM. Solo una fuente que declara memoria
+	// (Mem.Total>0 en el payload del agente/pusher) la pone; un SNMP sin
+	// lectura de memoria sigue sirviendo nil.
+	hasRam   bool
 	sysDescr string
 	// sysName (#1256): hostname que el usuario define en el equipo; para
 	// SNMP alimenta el Name visible de la unidad en flota.
@@ -1544,8 +1548,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	for _, h := range history {
 		sparkline = append(sparkline, h.down)
 	}
-	// #441: SNMP y pushers externos no pueden reportar CPU/RAM/temp. Se marca
-	// el router y las vitals van a null (la UI no pinta ceros falsos).
+	// #441: SNMP y pushers externos no siempre pueden reportar CPU/RAM/temp.
+	// Se marca el router y las vitals van a null (la UI no pinta ceros falsos);
+	// las lecturas que la fuente sí confirma (hasCpu/hasRam/hasTemp) se conservan.
 	noVitals := p.cfg.SnmpEnabled || p.agentKind == "external"
 	r := Router{
 		ID: p.cfg.ID, Name: name, Model: model, ModelShort: model,
@@ -1558,7 +1563,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if noVitals {
 		r.CPU, r.RAM, r.Temp = nil, nil, nil
 		v := resolvePartialVitals(p)
-		r.CPU, r.Temp = v.cpu, v.temp
+		r.CPU, r.RAM, r.Temp = v.cpu, v.ram, v.temp
 		r.VitalsAvailable = bptr(v.available)
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
@@ -4562,12 +4567,16 @@ func (l *Live) GetMetricsRows(context.Context) []MetricsRow {
 			LatencyMs: p.latencyMs,
 		}
 		// #441/#1568: sin lecturas no se persisten ceros falsos, pero una
-		// fuente SNMP/external con CPU o temperatura confirmada sí las conserva.
+		// fuente SNMP/external con CPU, memoria o temperatura confirmada sí
+		// las conserva.
 		if p.cfg.SnmpEnabled || p.agentKind == "external" {
 			v := resolvePartialVitals(p)
 			row.CPU, row.RAM, row.Temp = nil, nil, nil
 			if v.cpu != nil {
 				row.CPU = fptr(float64(*v.cpu))
+			}
+			if v.ram != nil {
+				row.RAM = fptr(float64(*v.ram))
 			}
 			if v.temp != nil {
 				row.Temp = fptr(float64(*v.temp))
