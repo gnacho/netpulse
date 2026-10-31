@@ -764,6 +764,11 @@ func run() error {
 	// netpulse (sin systemd). La raíz de datos vive bajo DATA_DIR/integrations.
 	integrationsMgr := rintegration.NewManager(filepath.Join(cfg.DataDir, "integrations"))
 
+	// Catálogo de vendors por descubrimiento (#1697): fetch de vendors.json
+	// del repo de integraciones con TTL y caché en kv, semilla embebida como
+	// respaldo offline.
+	vendorCatalog := rintegration.NewCatalog(dbHandle.DB)
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:           cfg,
 		DB:               dbHandle,
@@ -795,9 +800,10 @@ func run() error {
 		LastOverview: func() *adapters.Overview {
 			return p.LastOverview()
 		},
-		PollNow:      p.PollNow,
-		Started:      serverStarted,
-		Integrations: integrationsMgr,
+		PollNow:       p.PollNow,
+		Started:       serverStarted,
+		Integrations:  integrationsMgr,
+		VendorCatalog: vendorCatalog,
 	})
 
 	// Envolver el handler con GET /fingerprint (sin auth) si on-box.

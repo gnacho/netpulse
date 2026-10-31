@@ -11,11 +11,7 @@ import (
 // one with Init "merlin" (#1681).
 func merlinVendor(t *testing.T) rintegration.Vendor {
 	t.Helper()
-	v, ok := rintegration.LookupVendor("asuswrt")
-	if !ok {
-		t.Fatal("asuswrt vendor missing")
-	}
-	return v
+	return seedVendor(t, "asuswrt")
 }
 
 func merlinTestEnv() map[string]string {

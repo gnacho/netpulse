@@ -6,6 +6,7 @@
 package httpapi
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -51,6 +52,7 @@ type vendorView struct {
 // exigen rol admin salvo el GET de vendors (solo sesión).
 func (s *server) registerIntegrationRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/integrations/vendors", s.handleIntegrationsVendors)
+	mux.Handle("POST /api/integrations/vendors/refresh", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationsVendorsRefresh)))
 	mux.Handle("GET /api/integrations", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationsList)))
 	mux.Handle("POST /api/integrations", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationsCreate)))
 	mux.Handle("POST /api/integrations/{slug}/start", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationStart)))
@@ -61,8 +63,41 @@ func (s *server) registerIntegrationRoutes(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/integrations/{slug}", auth.RequireAdmin(http.HandlerFunc(s.handleIntegrationDelete)))
 }
 
-func (s *server) handleIntegrationsVendors(w http.ResponseWriter, _ *http.Request) {
-	vs := rintegration.Vendors()
+// vendorCatalogRefreshTimeout acota el fetch forzado del endpoint admin.
+const vendorCatalogRefreshTimeout = 15 * time.Second
+
+func (s *server) handleIntegrationsVendors(w http.ResponseWriter, r *http.Request) {
+	vs := s.vendorCatalog.Vendors(r.Context())
+	writeJSON(w, http.StatusOK, map[string]any{
+		"vendors":         vendorViews(vs),
+		"lastRefreshedAt": s.vendorCatalog.LastRefreshedAtMs(),
+	})
+}
+
+// handleIntegrationsVendorsRefresh fuerza el descubrimiento del catálogo
+// (#1697): fetch inmediato, caché actualizada y catálogo devuelto en la
+// misma respuesta para que la UI no encadene un segundo GET. Un fallo de
+// fetch o de validación deja el catálogo anterior en su sitio (502).
+func (s *server) handleIntegrationsVendorsRefresh(w http.ResponseWriter, r *http.Request) {
+	if s.db == nil || s.vendorCatalog == nil {
+		writeError(w, http.StatusServiceUnavailable, "unavailable", "vendor catalog is not available without a database")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), vendorCatalogRefreshTimeout)
+	defer cancel()
+	if err := s.vendorCatalog.Refresh(ctx); err != nil {
+		writeError(w, http.StatusBadGateway, "refresh_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"vendors":         vendorViews(s.vendorCatalog.Current()),
+		"lastRefreshedAt": s.vendorCatalog.LastRefreshedAtMs(),
+	})
+}
+
+// vendorViews es la vista HTTP del catálogo: mismos campos que servía el
+// manifiesto estático para no romper el contrato con la UI.
+func vendorViews(vs []rintegration.Vendor) []vendorView {
 	out := make([]vendorView, 0, len(vs))
 	for _, v := range vs {
 		out = append(out, vendorView{
@@ -70,7 +105,7 @@ func (s *server) handleIntegrationsVendors(w http.ResponseWriter, _ *http.Reques
 			TagPrefix: v.TagPrefix, Description: v.Description,
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"vendors": out})
+	return out
 }
 
 func (s *server) integrationsStore() *rintegration.Store {
@@ -202,7 +237,7 @@ func (s *server) resumeIntegrations() {
 		if s.integrations.Running(row.Slug) {
 			continue
 		}
-		vendor, ok := rintegration.LookupVendor(row.Vendor)
+		vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 		if !ok {
 			_ = store.SetState(row.Slug, "error", "unknown vendor "+row.Vendor)
 			log.Printf("[netpulse] aviso: integración %s con vendor desconocido %q al arrancar", row.Slug, row.Vendor)
@@ -249,7 +284,7 @@ func (s *server) handleIntegrationsCreate(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "invalid_slug", "slug must match ^[a-z0-9][a-z0-9-]{0,63}$")
 		return
 	}
-	vendor, ok := rintegration.LookupVendor(body.Vendor)
+	vendor, ok := s.vendorCatalog.Lookup(body.Vendor)
 	if !ok {
 		writeError(w, http.StatusBadRequest, "invalid_vendor", "unknown vendor")
 		return
@@ -433,7 +468,7 @@ func (s *server) handleIntegrationStart(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	vendor, ok := rintegration.LookupVendor(row.Vendor)
+	vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "invalid_vendor")
 		return
@@ -475,7 +510,7 @@ func (s *server) handleIntegrationStop(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	vendor, ok := rintegration.LookupVendor(row.Vendor)
+	vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "invalid_vendor")
 		return
@@ -500,7 +535,7 @@ func (s *server) handleIntegrationCheck(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	vendor, ok := rintegration.LookupVendor(row.Vendor)
+	vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "invalid_vendor")
 		return
@@ -535,7 +570,7 @@ func (s *server) handleIntegrationUpdate(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	vendor, ok := rintegration.LookupVendor(row.Vendor)
+	vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "invalid_vendor")
 		return
@@ -606,7 +641,7 @@ func (s *server) handleIntegrationEdit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	vendor, ok := rintegration.LookupVendor(row.Vendor)
+	vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "invalid_vendor")
 		return
@@ -744,7 +779,7 @@ func (s *server) handleIntegrationDelete(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	vendor, _ := rintegration.LookupVendor(row.Vendor)
+	vendor, _ := s.vendorCatalog.Lookup(row.Vendor)
 	if vendor.Mode == "local" {
 		if s.integrations != nil {
 			_ = s.integrations.Stop(slug)

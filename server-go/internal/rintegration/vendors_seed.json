@@ -1,0 +1,40 @@
+{
+  "vendors": [
+    {
+      "id": "asuswrt",
+      "mode": "ssh",
+      "arches": ["arm64"],
+      "tagPrefix": "asuswrt/v",
+      "binary": "asuswrt-pusher",
+      "target": "asuswrt/cmd/asuswrt-pusher",
+      "description": "Read-only Asuswrt/Merlin pusher that runs the portable NetPulse probes on the router itself"
+    },
+    {
+      "id": "bbox",
+      "mode": "local",
+      "arches": ["amd64", "arm64"],
+      "tagPrefix": "bbox/v",
+      "binary": "netpulse-integrations",
+      "target": "cmd/integrations-supervisor",
+      "description": "Read-only Bouygues Bbox poller shipped inside the shared integrations supervisor binary"
+    },
+    {
+      "id": "routeros",
+      "mode": "local",
+      "arches": ["amd64"],
+      "tagPrefix": "routeros/v",
+      "binary": "routeros-pusher",
+      "target": "routeros/cmd/routeros-pusher",
+      "description": "Read-only MikroTik RouterOS pusher over the binary API (REST fallback) for any host that reaches the router"
+    },
+    {
+      "id": "unifi",
+      "mode": "local",
+      "arches": ["amd64"],
+      "tagPrefix": "unifi/v",
+      "binary": "unifi-pusher",
+      "target": "unifi/cmd/unifi-pusher",
+      "description": "Read-only UniFi controller pusher covering gateways, switches and APs of one site"
+    }
+  ]
+}

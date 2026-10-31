@@ -32,6 +32,13 @@ import (
 // de construir el handler: las filas de router_integrations deben existir al
 // "arrancar" para que el resume del boot las vea.
 func makeIntegrationsTestServerSeeded(t *testing.T, seed func(d *db.DB, mgr *rintegration.Manager)) (*testServer, *rintegration.Manager) {
+	return makeIntegrationsTestServerFull(t, seed, nil)
+}
+
+// makeIntegrationsTestServerFull es la variante con catálogo de vendors
+// inyectable (#1697): catFn construye el VendorCatalog con la base ya abierta
+// (nil → fallback de NewHandler: semilla embebida sin red).
+func makeIntegrationsTestServerFull(t *testing.T, seed func(d *db.DB, mgr *rintegration.Manager), catFn func(d *db.DB) *rintegration.Catalog) (*testServer, *rintegration.Manager) {
 	t.Helper()
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
@@ -66,15 +73,20 @@ func makeIntegrationsTestServerSeeded(t *testing.T, seed func(d *db.DB, mgr *rin
 	if seed != nil {
 		seed(d, mgr)
 	}
+	var cat *rintegration.Catalog
+	if catFn != nil {
+		cat = catFn(d)
+	}
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config: cfg, DB: d, Adapter: adapters.NewDemo(), Hub: hub, Secret: secret,
-		Started:      time.Now(),
-		TokenStore:   apitoken.NewStore(d, secret),
-		ConfigBackup: configBackup,
-		Orchestr:     orchestr.New(d),
-		Agents:       adapters.NewAgentRegistry(0),
-		ChannelPlan:  channelplan.NewStore(d.DB),
-		Integrations: mgr,
+		Started:       time.Now(),
+		TokenStore:    apitoken.NewStore(d, secret),
+		ConfigBackup:  configBackup,
+		Orchestr:      orchestr.New(d),
+		Agents:        adapters.NewAgentRegistry(0),
+		ChannelPlan:   channelplan.NewStore(d.DB),
+		Integrations:  mgr,
+		VendorCatalog: cat,
 	})
 	srv := httptest.NewServer(handler)
 	ts := &testServer{Server: srv, db: d, secret: secret}
@@ -162,10 +174,7 @@ func waitIntegrationState(t *testing.T, store *rintegration.Store, slug, state s
 // tiene binario queda en error sin tirar el arranque; la deshabilitada no se
 // toca; la de modo ssh deja de decir running (no verificada desde aquí).
 func TestIntegrationsResumeOnBoot(t *testing.T) {
-	v, ok := rintegration.LookupVendor("routeros")
-	if !ok {
-		t.Fatal("vendor routeros missing")
-	}
+	v := seedVendor(t, "routeros")
 	ts, mgr := makeIntegrationsTestServerSeeded(t, func(d *db.DB, mgr *rintegration.Manager) {
 		store := rintegration.NewStore(d.DB)
 		installFakePusher(t, mgr, "lab", v.Binary, "sleep 30")
@@ -234,10 +243,7 @@ func TestIntegrationsDeadChildFlipsToError(t *testing.T) {
 		{"killed", `kill -9 $$`, "signal: killed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			v, ok := rintegration.LookupVendor("routeros")
-			if !ok {
-				t.Fatal("vendor routeros missing")
-			}
+			v := seedVendor(t, "routeros")
 			slug := "dead-" + tc.name
 			ts, mgr := makeIntegrationsTestServer(t)
 			store := rintegration.NewStore(ts.db.DB)
@@ -266,10 +272,7 @@ func TestIntegrationsDeadChildFlipsToError(t *testing.T) {
 // TestIntegrationsIntentionalStopDoesNotError: parar por API es un paro
 // intencional: la fila queda stopped y el callback de muerte no la marca error.
 func TestIntegrationsIntentionalStopDoesNotError(t *testing.T) {
-	v, ok := rintegration.LookupVendor("routeros")
-	if !ok {
-		t.Fatal("vendor routeros missing")
-	}
+	v := seedVendor(t, "routeros")
 	ts, mgr := makeIntegrationsTestServer(t)
 	store := rintegration.NewStore(ts.db.DB)
 	bin := installFakePusher(t, mgr, "manual", v.Binary, "sleep 30")
@@ -305,10 +308,7 @@ func TestIntegrationsIntentionalStopDoesNotError(t *testing.T) {
 // reinicio del servidor) y la devuelve a running; sin proceso, la fila no se
 // toca (el error sigue siendo error).
 func TestIntegrationsCheckReconcilesState(t *testing.T) {
-	v, ok := rintegration.LookupVendor("routeros")
-	if !ok {
-		t.Fatal("vendor routeros missing")
-	}
+	v := seedVendor(t, "routeros")
 	ts, mgr := makeIntegrationsTestServer(t)
 	store := rintegration.NewStore(ts.db.DB)
 	bin := installFakePusher(t, mgr, "verify", v.Binary, "sleep 30")

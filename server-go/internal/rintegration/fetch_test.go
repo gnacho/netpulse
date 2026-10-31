@@ -107,7 +107,7 @@ func TestResolveLatestSkipsPrereleaseAndWrongPrefix(t *testing.T) {
 
 	f := NewFetcher()
 	f.APIBase = srv.URL
-	v, _ := LookupVendor("routeros")
+	v := seedVendor(t, "routeros")
 	res, err := f.ResolveLatest(v, "amd64")
 	if err != nil {
 		t.Fatalf("ResolveLatest: %v", err)
@@ -141,7 +141,7 @@ func TestResolveLatestAsuswrt(t *testing.T) {
 
 	f := NewFetcher()
 	f.APIBase = srv.URL
-	v, _ := LookupVendor("asuswrt")
+	v := seedVendor(t, "asuswrt")
 	res, err := f.ResolveLatest(v, "arm64")
 	if err != nil {
 		t.Fatalf("ResolveLatest: %v", err)

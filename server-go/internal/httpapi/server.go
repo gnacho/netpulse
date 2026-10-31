@@ -147,6 +147,10 @@ type Deps struct {
 	// Integrations: supervisor de pushers externos (#1674). nil → sin
 	// arranque/parada de procesos en modo local (rutas responden 503).
 	Integrations *rintegration.Manager
+	// VendorCatalog: descubrimiento del catálogo de vendors (#1697). nil →
+	// catálogo de semilla embebida sin red ni persistencia (demo y tests
+	// que no ejercitan el descubrimiento).
+	VendorCatalog *rintegration.Catalog
 }
 
 type server struct {
@@ -238,6 +242,10 @@ type server struct {
 	// Integrations: supervisor de pushers externos (#1674).
 	integrations *rintegration.Manager
 
+	// VendorCatalog: descubrimiento del catálogo de vendors (#1697). Sin
+	// fetch ni kv si nadie aporta uno (demo): sirve la semilla embebida.
+	vendorCatalog *rintegration.Catalog
+
 	// CollectorReader: lector read-only de metrics.db del sidecar (#328).
 	collectorReader *collectorreader.Reader
 
@@ -305,6 +313,10 @@ func NewHandler(d Deps) http.Handler {
 		alertEmitter:    d.AlertEmitter,
 		mqtt:            d.MQTT,
 		integrations:    d.Integrations,
+		vendorCatalog:   d.VendorCatalog,
+	}
+	if s.vendorCatalog == nil {
+		s.vendorCatalog = rintegration.NewCatalog(nil)
 	}
 	if s.imageResolver == nil {
 		s.imageResolver = firmware.NewImageResolver()

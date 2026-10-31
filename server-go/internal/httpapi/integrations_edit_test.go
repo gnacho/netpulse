@@ -50,7 +50,7 @@ func TestSSHEnvReadScriptTargetsEnvFile(t *testing.T) {
 
 func TestPusherEnvIntervalMatchesEditFormat(t *testing.T) {
 	s := &server{}
-	v, _ := rintegration.LookupVendor("routeros")
+	v := seedVendor(t, "routeros")
 	env := s.pusherEnv(v, rintegration.Row{Slug: "chr-lab", Host: "10.0.0.1", Username: "u", IntervalS: 60}, "pw", "https://np", "tok")
 	if env["NETPULSE_INTERVAL"] != "60s" {
 		t.Fatalf("interval = %q, want 60s", env["NETPULSE_INTERVAL"])
