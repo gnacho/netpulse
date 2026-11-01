@@ -530,7 +530,7 @@ export default function FirmwareUpgrades() {
   // imagen en el router SIN flashear, para revisar antes de instalar.
   // #1769: acepta la lista de paquetes a excluir (owut -r), la misma que el
   // upgrade one-shot; sin ella ASU rechaza routers con paquetes de terceros.
-  const runOwutDownload = async (id: string, missing: string[] = []) => {
+  const runOwutDownload = async (id: string, missing: string[] = [], targetOverride?: string) => {
     const e = edits[id]
     setOwutDlBusy((prev) => ({ ...prev, [id]: true }))
     setOwutDlOk((prev) => ({ ...prev, [id]: false }))
@@ -541,7 +541,7 @@ export default function FirmwareUpgrades() {
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetVersion: e?.targetVersion ?? '', removePackages }),
+        body: JSON.stringify({ targetVersion: targetOverride || e?.targetVersion || '', removePackages }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
@@ -725,7 +725,6 @@ export default function FirmwareUpgrades() {
           const m = item.method || 'auto'
           const uploaded = uploadInfo[item.routerId]
           const hasUploadedImage = (item.targetUrl ?? '').includes('/api/firmware-image/') || !!uploaded
-          const majorWarn = majorJumpJS(detectedCurrent, targetSel)
           // Opciones del desplegable (#761): la instalada + superiores (si
           // las hubiera) + el target ya guardado (downgrade explícito previo).
           const currentVer = item.detectedVersion || ''
@@ -754,6 +753,14 @@ export default function FirmwareUpgrades() {
           ) {
             opts.push(owut.versionTo)
           }
+          // #1779: objetivo por defecto = última versión disponible, para no
+          // flashear a ciegas la versión instalada por olvidar el desplegable.
+          const latestOpt =
+            owut?.versionTo && owut.versionTo !== currentVer
+              ? owut.versionTo
+              : ((versions?.versions ?? []).filter((v) => v.newer).map((v) => v.version).pop() ?? '')
+          const effTarget = targetSel || latestOpt
+          const majorWarn = majorJumpJS(detectedCurrent, effTarget)
           // #761: exito reciente (owut done < 10 min sin cerrar): fiesta.
           const justDone =
             item.upgrade &&
@@ -941,7 +948,7 @@ export default function FirmwareUpgrades() {
                 <label className="flex flex-col gap-1">
                   <span className="text-caption text-text-muted">{t('firmwareUpgrades.targetVersion')} *</span>
                   <select
-                    value={targetSel}
+                    value={effTarget}
                     onChange={(ev) => updateEdit(item.routerId, { targetVersion: ev.target.value })}
                     disabled={!isAdmin || active || versionsBusy[item.routerId]}
                     className="h-[38px] rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary disabled:opacity-60"
@@ -978,7 +985,7 @@ export default function FirmwareUpgrades() {
               {!vendorFw && majorWarn && (
                 <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
-                  <span>{t('firmwareUpgrades.majorWarn', { from: detectedCurrent, to: targetSel })}</span>
+                  <span>{t('firmwareUpgrades.majorWarn', { from: detectedCurrent, to: effTarget })}</span>
                 </div>
               )}
 
@@ -1250,7 +1257,7 @@ export default function FirmwareUpgrades() {
                                 if (missing.length && !(removePkgs[item.routerId] ?? '').trim()) {
                                   setRemovePkgs((prev) => ({ ...prev, [item.routerId]: missing.join(' ') }))
                                 }
-                                void runOwutDownload(item.routerId, missing)
+                                void runOwutDownload(item.routerId, missing, effTarget)
                               }}
                               disabled={owutDlBusy[item.routerId] || !!active}
                               title={t('firmwareUpgrades.tipOwutDownload')}
@@ -1303,7 +1310,7 @@ export default function FirmwareUpgrades() {
                           setConfirmId(item.routerId)
                         }
                       }}
-                      disabled={active || busy[item.routerId] === 'upgrade' || scheduled || (!targetSel && !(m === 'upload' && hasUploadedImage))}
+                      disabled={active || busy[item.routerId] === 'upgrade' || scheduled || (!effTarget && !(m === 'upload' && hasUploadedImage))}
                       title={owutAvail && (m === 'auto' || m === 'owut') ? t('firmwareUpgrades.tipUpgradeOwut') : undefined}
                       className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
                     >
