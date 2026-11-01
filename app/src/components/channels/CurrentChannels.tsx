@@ -30,10 +30,33 @@ interface SurveyRouter {
   name: string
   available: boolean
   radios: SurveyRadio[]
+  /** #1742: por qué esta unidad no trae survey (código cerrado del contrato). */
+  reason?: string
 }
 interface SurveyOverview {
   available: boolean
   routers: SurveyRouter[]
+}
+
+// surveyReasonKey (#1742): el servidor manda un código cerrado en `reason`
+// (adapters.SurveyReason*) y aquí se traduce. Un código desconocido cae al
+// texto genérico para que una versión nueva del servidor no deje la tarjeta
+// vacía.
+function surveyReasonKey(reason?: string): string | null {
+  switch (reason) {
+    case 'agent_no_survey':
+      return 'roaming.survey.reason.agentNoSurvey'
+    case 'no_survey_data':
+      return 'roaming.survey.reason.noSurveyData'
+    case 'ssh_unreachable':
+      return 'roaming.survey.reason.sshUnreachable'
+    case 'no_wifi':
+      return 'roaming.survey.reason.noWifi'
+    case 'snmp_only':
+      return 'roaming.survey.reason.snmpOnly'
+    default:
+      return null
+  }
 }
 
 // Neighbor scan del channel-plan (#538): red visible en un canal.
@@ -95,7 +118,7 @@ function ChannelAnalysisChart({ bandName, channels, scans }: { bandName: string;
   const dBmMax = -20
   const dBmMin = -92
   if (channels.length === 0 || scans.length === 0) {
-    return <div className="text-caption text-text-muted">{t('roaming.survey.empty')}</div>
+    return <div className="text-caption text-text-muted">{t('roaming.survey.noScans')}</div>
   }
   const innerW = W - padL - padR
   const slot = innerW / channels.length
@@ -211,6 +234,11 @@ export function CurrentChannels({
   const activeBand = band === '5 GHz' ? '5 GHz' : '2.4 GHz'
   const channels = bandChannels(activeBand)
   const router = (overview?.routers ?? []).find((r) => r.routerId === routerId)
+  // #1742: motivo por unidad. Sin código conocido se usa el texto genérico.
+  const reasonText = (reason?: string) => {
+    const key = surveyReasonKey(reason)
+    return key ? t(key) : t('roaming.survey.unitNoSurvey')
+  }
 
   if (loading && !overview) {
     return (
@@ -233,13 +261,25 @@ export function CurrentChannels({
       </div>
     )
   }
-  // #1308: estados vacíos distinguibles. El mensaje genérico de "revisa iw"
-  // solo aplica cuando NADIE devuelve survey; si la unidad no participa (sin
-  // WiFi, SNMP, o sin agente con survey) se dice eso y se listan las que sí.
+  // #1308: estados vacíos distinguibles. El mensaje genérico solo aplica
+  // cuando NADIE devuelve survey. #1742: en vez de un hint que manda ejecutar
+  // `iw survey dump` (imposible en los AP Broadcom/dhd, donde el agente va por
+  // `wl`), se lista el motivo real de cada unidad que no aporta.
   if (!overview || !overview.available) {
+    const silent = (overview?.routers ?? []).map((r) => ({
+      id: r.routerId,
+      text: `${r.name}: ${reasonText(r.reason)}`,
+    }))
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.survey.empty')}
+        <p>{t('roaming.survey.empty')}</p>
+        {silent.length > 0 && (
+          <ul className="mt-3 space-y-1 text-left">
+            {silent.map((row) => (
+              <li key={row.id}>{row.text}</li>
+            ))}
+          </ul>
+        )}
       </div>
     )
   }
@@ -257,7 +297,7 @@ export function CurrentChannels({
   if (!router.available) {
     return (
       <div className="rounded-2xl border border-border bg-surface p-8 text-center text-caption text-text-muted">
-        {t('roaming.survey.unitNoSurvey')}
+        {reasonText(router.reason)}
       </div>
     )
   }

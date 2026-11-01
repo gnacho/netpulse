@@ -648,7 +648,9 @@ func (s *server) handleDot11r(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, dot11r)
 }
 
-// handleSurvey: 503 {error:'unavailable'} si ningún router responde.
+// handleSurvey: 200 con la lista de unidades y el motivo de las que no
+// aportan (#1742). Antes era 503 cuando nadie respondía y la UI no podía
+// explicar por qué.
 func (s *server) handleSurvey(w http.ResponseWriter, r *http.Request) {
 	survey, err := s.adapter.GetSurvey(r.Context())
 	if err != nil {
@@ -656,7 +658,7 @@ func (s *server) handleSurvey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if survey == nil {
-		writeError(w, http.StatusServiceUnavailable, "unavailable")
+		writeJSON(w, http.StatusOK, &adapters.SurveyOverview{Routers: []adapters.SurveyRouter{}})
 		return
 	}
 	writeJSON(w, http.StatusOK, survey)

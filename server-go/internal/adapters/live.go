@@ -5421,17 +5421,24 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 				r.Available = true
 				r.Radios = radios
 				any = true
+			} else {
+				// #1742: el agente solo empuja iw survey dump si el driver lo
+				// expone. En Broadcom/dhd no existe y la unidad queda sin datos
+				// sin que se pueda distinguir de "no lo intentó".
+				r.Reason = SurveyReasonAgentNoSurvey
 			}
 			out.Routers = append(out.Routers, r)
 			continue
 		}
 		if cfg.SnmpEnabled {
+			r.Reason = SurveyReasonSnmpOnly
 			out.Routers = append(out.Routers, r)
 			continue
 		}
 		// Lista de interfaces wifi (wlanX).
 		devsOut, err := l.pool.Run(cfg.SSHAddr(), "iw dev 2>/dev/null | awk '/Interface/ {print $2}'", 0)
 		if err != nil {
+			r.Reason = SurveyReasonSSHUnreachable
 			out.Routers = append(out.Routers, r)
 			continue
 		}
@@ -5447,11 +5454,10 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 			}
 		}
 		if len(devs) == 0 {
+			r.Reason = SurveyReasonNoWifi
 			out.Routers = append(out.Routers, r)
 			continue
 		}
-		r.Available = true
-		any = true
 		for _, dev := range devs {
 			surveyOut, err := l.pool.Run(cfg.SSHAddr(), "iw dev "+dev+" survey dump 2>/dev/null", 0)
 			if err != nil {
@@ -5474,12 +5480,20 @@ func (l *Live) GetSurvey(ctx context.Context) (*SurveyOverview, error) {
 			}
 			r.Radios = append(r.Radios, SurveyRadio{Device: dev, Band: band, Channels: channels})
 		}
+		// #1742: SSH respondió pero ningún radio devolvió canales (iw survey
+		// dump vacío). Se dice, en vez de listar la unidad como participante
+		// sin datos.
+		if len(r.Radios) > 0 {
+			r.Available = true
+			any = true
+		} else {
+			r.Reason = SurveyReasonNoSurveyData
+		}
 		out.Routers = append(out.Routers, r)
 	}
-	if !any {
-		return nil, nil
-	}
-	out.Available = true
+	// #1742: se devuelve SIEMPRE la lista, con el motivo de cada unidad que no
+	// aporta. El handler ya no responde 503: la UI explica el caso concreto.
+	out.Available = any
 	return &out, nil
 }
 

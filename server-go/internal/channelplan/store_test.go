@@ -631,3 +631,93 @@ func TestRecommendConservador(t *testing.T) {
 		t.Errorf("(c) empate técnico: se espera mantener 6: %+v", recs[0])
 	}
 }
+
+// TestRecommend6GHzUsaBloquesDeSuBanda (#1742): sin tabla propia el motor caía
+// en candidateChannels y sugería canales de 2.4 GHz (1, 5, 9...) que nadie
+// había medido.
+func TestRecommend6GHzUsaBloquesDeSuBanda(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	// Vecina fuerte en el 37 (6135 MHz), medida en 6 GHz.
+	if err := st.SaveScan("rt1", time.Now().Unix(), []probe.ScanResult{
+		{BSSID: "00:11:22:33:44:55", SSID: "vecino", Channel: 37, Freq: 6135, Signal: -50},
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	radios := []probe.Radio{
+		{Name: "6 GHz", Channel: 37, WidthMhz: 20},
+		{Name: "6 GHz", Channel: 37, WidthMhz: 80},
+	}
+	recs, err := st.Recommend("rt1", radios, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if len(recs) != 2 {
+		t.Fatalf("esperaba 2 recomendaciones, got %d", len(recs))
+	}
+
+	// (a) 20 MHz: todos los bloques son canales de 6 GHz y solo los PSC se
+	// sugieren.
+	for _, s := range recs[0].Scores {
+		if s.Channel < 1 || s.Channel > 233 || (s.Channel-1)%4 != 0 {
+			t.Fatalf("canal %d no es un canal de 6 GHz", s.Channel)
+		}
+		if s.Recommendable && (s.Channel-5)%16 != 0 {
+			t.Errorf("a 20 MHz solo se sugieren PSC, canal %d no lo es", s.Channel)
+		}
+	}
+	if recs[0].Recommended == 37 || recs[0].Recommended == 0 {
+		t.Errorf("el 37 está ocupado, se esperaba otro PSC medido: %+v", recs[0])
+	}
+	if recs[0].Recommended == 1 {
+		t.Errorf("el 1 no es un canal de 6 GHz: %+v", recs[0])
+	}
+
+	// (b) 80 MHz: bloques de cuatro canales que caben en la banda.
+	for _, s := range recs[1].Scores {
+		if (s.Channel-1)%16 != 0 || s.Channel+12 > 233 {
+			t.Fatalf("bloque de 80 MHz inválido: %d", s.Channel)
+		}
+	}
+}
+
+// TestRecommendCanalFueraDeBandaNoSugiere (#1742): el fallback wl de Broadcom
+// reporta índices hardware (323, 195) en vez del canal. Sin canal comparable
+// no se sugiere nada: 0 es "sin datos", no "mantén".
+func TestRecommendCanalFueraDeBandaNoSugiere(t *testing.T) {
+	d, err := db.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("db: %v", err)
+	}
+	defer d.Close()
+
+	st := channelplan.NewStore(d.DB)
+	if err := st.SaveScan("rt1", time.Now().Unix(), []probe.ScanResult{
+		{BSSID: "00:11:22:33:44:55", SSID: "vecino", Channel: 37, Freq: 6135, Signal: -50},
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	radios := []probe.Radio{
+		{Name: "6 GHz", Channel: 323, WidthMhz: 20},
+		{Name: "6 GHz", Channel: 195, WidthMhz: 20},
+	}
+	recs, err := st.Recommend("rt1", radios, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	for _, r := range recs {
+		if r.Recommended != 0 {
+			t.Errorf("canal %d no mapeable: no se debe sugerir nada, got %d", r.Channel, r.Recommended)
+		}
+		if len(r.Scores) == 0 {
+			t.Errorf("la tira de 6 GHz debe puntuarse igualmente: %+v", r)
+		}
+	}
+}

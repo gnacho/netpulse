@@ -874,7 +874,7 @@
     },
     "survey": {
       "title": "Canales actuales",
-      "empty": "Ningún router devolvió datos de survey. Verifica que el comando `iw dev wlanX survey dump` funciona en tus routers.",
+      "empty": "Ninguna unidad devolvió datos de survey. Abajo tienes el motivo de cada una.",
       "unreachable": "Router no accesible por SSH o sin interfaces wifi.",
       "colChannel": "Canal",
       "colFreq": "MHz",
@@ -893,7 +893,14 @@
       "noScans": "Este router no envía escaneos de canales. Si corre NetGrip no escanea; usa un router con el agente NetPulse o revisa que esté activo.",
       "ownLabel": "Red propia",
       "notParticipating": "Esta unidad no aporta datos de survey. Las que sí: {{units}}",
-      "unitNoSurvey": "Esta unidad no tiene radios WiFi o no devolvió survey (SNMP/solo cable)."
+      "unitNoSurvey": "Esta unidad no aporta datos de survey.",
+      "reason": {
+        "agentNoSurvey": "El agente NetPulse no puede leer el survey con el driver de esta unidad.",
+        "noSurveyData": "El survey se ejecutó pero no devolvió canales.",
+        "sshUnreachable": "La unidad no es accesible por SSH.",
+        "noWifi": "La unidad no tiene interfaces wifi.",
+        "snmpOnly": "La unidad solo se monitoriza por SNMP, que no lleva survey."
+      }
     },
     "events": {
       "title": "Eventos de itinerancia",

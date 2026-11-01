@@ -96,28 +96,35 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 			}
 		}
 
-		recommendations, err := s.channelPlan.Recommend(slug, radios, 24*time.Hour)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "channel_plan_error")
-			return
-		}
-		scans, err := s.channelPlan.RecentScans(slug, 24*time.Hour)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "channel_plan_error")
-			return
-		}
+		// #1742: lo que se puntúa y lo que se enseña tienen que salir de la
+		// misma ventana. Antes se recomendaba con 24 h fijas y, si no había
+		// scans, solo la lista se ampliaba a 30 días: la vista mostraba filas
+		// con todos los vecinos a 0 porque el análisis nunca las había visto.
 		// #1214: flotas con NETPULSE_SCAN_INTERVAL=0 no escanean nunca por
 		// intervalo - con la ventana fija de 24h la vista moría en cuanto el
 		// último scan cumplía un día (solo quedaba el bloque propio
 		// sintético y un espectro vacío). Misma filosofía que #1080 con los
 		// radios: mejor el último dato conocido, aunque sea antiguo, que
 		// fingir que no hay nada; el "Escanear ahora" lo renueva al momento.
+		window := 24 * time.Hour
+		scans, err := s.channelPlan.RecentScans(slug, window)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "channel_plan_error")
+			return
+		}
 		if len(scans) == 0 {
-			scans, err = s.channelPlan.RecentScans(slug, 30*24*time.Hour)
+			window = 30 * 24 * time.Hour
+			scans, err = s.channelPlan.RecentScans(slug, window)
 			if err != nil {
 				writeError(w, http.StatusInternalServerError, "channel_plan_error")
 				return
 			}
+		}
+
+		recommendations, err := s.channelPlan.Recommend(slug, radios, window)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "channel_plan_error")
+			return
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
