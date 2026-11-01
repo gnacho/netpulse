@@ -145,6 +145,9 @@ export default function FirmwareUpgrades() {
   // #1414: pasos owut por pasos (download) y subida de imagen local.
   const [owutDlBusy, setOwutDlBusy] = useState<Record<string, boolean>>({})
   const [owutDlOutput, setOwutDlOutput] = useState<Record<string, string>>({})
+  // #1769: la imagen solo puede flashearse tras un download exitoso de esta
+  // sesión (el server además pre-comprueba /tmp/firmware.bin por SSH).
+  const [owutDlOk, setOwutDlOk] = useState<Record<string, boolean>>({})
   const [uploadBusy, setUploadBusy] = useState<Record<string, boolean>>({})
   const [uploadInfo, setUploadInfo] = useState<Record<string, { name: string; size: number; checksum: string }>>({})
   // #1414: SHA256 de referencia introducido por el admin para contrastarlo
@@ -308,6 +311,11 @@ export default function FirmwareUpgrades() {
   }, [anyActive])
 
   const updateEdit = (id: string, patch: Partial<FirmwareItem>) => {
+    if (patch.targetVersion !== undefined) {
+      // #1769: la imagen descargada corresponde al target con el que se
+      // generó; al cambiar el target hay que volver a descargar.
+      setOwutDlOk((prev) => ({ ...prev, [id]: false }))
+    }
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }))
   }
 
@@ -518,19 +526,25 @@ export default function FirmwareUpgrades() {
 
   // #1414: paso intermedio del flujo owut por pasos: construye y descarga la
   // imagen en el router SIN flashear, para revisar antes de instalar.
-  const runOwutDownload = async (id: string) => {
+  // #1769: acepta la lista de paquetes a excluir (owut -r), la misma que el
+  // upgrade one-shot; sin ella ASU rechaza routers con paquetes de terceros.
+  const runOwutDownload = async (id: string, missing: string[] = []) => {
     const e = edits[id]
     setOwutDlBusy((prev) => ({ ...prev, [id]: true }))
+    setOwutDlOk((prev) => ({ ...prev, [id]: false }))
     setError('')
     try {
+      const stored = (removePkgs[id] ?? '').trim()
+      const removePackages = stored ? stored.split(/[\s,]+/).filter(Boolean) : missing
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetVersion: e?.targetVersion ?? '' }),
+        body: JSON.stringify({ targetVersion: e?.targetVersion ?? '', removePackages }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
       setOwutDlOutput((prev) => ({ ...prev, [id]: String(body.output ?? '') }))
+      setOwutDlOk((prev) => ({ ...prev, [id]: true }))
     } catch (err) {
       setError(String(err))
     } finally {
@@ -1216,7 +1230,15 @@ export default function FirmwareUpgrades() {
                           <>
                             <button
                               type="button"
-                              onClick={() => void runOwutDownload(item.routerId)}
+                              onClick={() => {
+                                // #1769: mismos paquetes a excluir que el
+                                // one-shot, prerrellenados desde el check.
+                                const missing = owut?.missingPkgs ?? []
+                                if (missing.length && !(removePkgs[item.routerId] ?? '').trim()) {
+                                  setRemovePkgs((prev) => ({ ...prev, [item.routerId]: missing.join(' ') }))
+                                }
+                                void runOwutDownload(item.routerId, missing)
+                              }}
                               disabled={owutDlBusy[item.routerId] || !!active}
                               title={t('firmwareUpgrades.tipOwutDownload')}
                               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
@@ -1227,8 +1249,12 @@ export default function FirmwareUpgrades() {
                             <button
                               type="button"
                               onClick={() => void runOwutInstallImage(item.routerId)}
-                              disabled={!!active || busy[item.routerId] === 'upgrade' || scheduled}
-                              title={t('firmwareUpgrades.tipOwutInstallImage')}
+                              disabled={!!active || busy[item.routerId] === 'upgrade' || scheduled || !owutDlOk[item.routerId]}
+                              title={
+                                owutDlOk[item.routerId]
+                                  ? t('firmwareUpgrades.tipOwutInstallImage')
+                                  : t('firmwareUpgrades.tipOwutInstallNeedsDownload')
+                              }
                               className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
                             >
                               <Rocket className="h-4 w-4" strokeWidth={1.75} />

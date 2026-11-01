@@ -2539,6 +2539,7 @@
     "tipInstallOwut": "Installs the owut package (attended sysupgrade) on the unit via SSH",
     "tipOwutDownload": "Builds and downloads the image on the unit with owut, without flashing, to review it before installing",
     "tipOwutInstallImage": "Installs the image downloaded in the previous step on the unit",
+    "tipOwutInstallNeedsDownload": "Download the image first: Install image flashes the file produced by Download image",
     "tipUpgradeOwut": "Flashes the target version now with owut (keeping current packages)",
     "tipSchedule": "Schedule the upgrade for later or recurring",
     "tipSave": "Saves model and target for the classic flow (URL/image)",
