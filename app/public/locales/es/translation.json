@@ -2460,6 +2460,7 @@
     "notDetected": "Sin detectar",
     "installedTag": "instalada",
     "latestTag": "última",
+    "asuLatestTag": "última (ASU)",
     "majorWarn": "Salto de versión mayor ({{from}} → {{to}}): revisa los cambios de la rama antes de actualizar",
     "advanced": "Avanzado (URL y checksum)",
     "owutConfirmTitle": "Actualizar con owut (ASU)",

@@ -57,6 +57,8 @@ interface OwutStatus {
   checkRan: boolean
   upgradeAvailable: boolean
   buildable: boolean
+  /** Destino real que ASU construiría según el check (#1773). */
+  versionTo?: string
   missingPkgs?: string[]
   rawOutput?: string
   error?: string
@@ -742,6 +744,16 @@ export default function FirmwareUpgrades() {
             .forEach((v) => {
               if (!opts.includes(v.version)) opts.push(v.version)
             })
+          // #1773: el Version-to del check es la fuente fiable del siguiente
+          // destino (la lista de `owut versions` suele ir antigua).
+          if (
+            owut?.versionTo &&
+            owut.versionTo !== currentVer &&
+            versionRe.test(owut.versionTo) &&
+            !opts.includes(owut.versionTo)
+          ) {
+            opts.push(owut.versionTo)
+          }
           // #761: exito reciente (owut done < 10 min sin cerrar): fiesta.
           const justDone =
             item.upgrade &&
@@ -941,6 +953,7 @@ export default function FirmwareUpgrades() {
                         v,
                         v === currentVer ? t('firmwareUpgrades.installedTag') : '',
                         info?.latest ? t('firmwareUpgrades.latestTag') : '',
+                        owut?.versionTo === v ? t('firmwareUpgrades.asuLatestTag') : '',
                       ]
                         .filter(Boolean)
                         .join(' · ')

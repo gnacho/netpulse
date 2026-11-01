@@ -2460,6 +2460,7 @@
     "notDetected": "Not detected",
     "installedTag": "installed",
     "latestTag": "latest",
+    "asuLatestTag": "latest (ASU)",
     "majorWarn": "Major version jump ({{from}} → {{to}}): review the release notes before upgrading",
     "advanced": "Advanced (URL and checksum)",
     "owutConfirmTitle": "Upgrade with owut (ASU)",
