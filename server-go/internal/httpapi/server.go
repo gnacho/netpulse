@@ -523,6 +523,10 @@ func NewHandler(d Deps) http.Handler {
 	// Auth por token de agente (Bearer), igual que la ingesta — el one-liner de
 	// instalación incluye el token y se ejecuta en el router, sin sesión admin.
 	mux.HandleFunc("GET /api/agents/{slug}/binary", s.handleAgentBinary)
+	// #1751: el instalador también se sirve desde el servidor, atado a su
+	// versión. Público: el script no lleva secretos y el one-liner le pasa el
+	// host y el token como argumentos.
+	mux.HandleFunc("GET /api/agents/install-agent.sh", s.handleAgentInstallScript)
 	// Fase 6.3 (issue #243): el agente reporta el resultado del self-upgrade.
 	// Auth por token de agente (Bearer), igual que binary/apply-result.
 	mux.HandleFunc("POST /api/agents/{slug}/upgrade-result", s.handleAgentUpgradeResult)

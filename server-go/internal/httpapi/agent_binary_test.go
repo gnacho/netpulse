@@ -96,8 +96,15 @@ func TestAgentBinaryUnknownArch(t *testing.T) {
 func TestInstallLineDelegatesBinaryToInstaller(t *testing.T) {
 	ts := makeAgentTestServer(t)
 	_, _, install := createAgentToken(t, ts, "rt1")
-	if strings.Contains(install, "/api/agents/") {
+	if strings.Contains(install, "/binary") {
 		t.Fatalf("el one-liner no debe descargar el binario: %s", install)
+	}
+	// #1751: el instalador se sirve desde el propio servidor, no de GitHub.
+	if !strings.Contains(install, "/api/agents/install-agent.sh") {
+		t.Fatalf("el one-liner debe bajar el instalador del server: %s", install)
+	}
+	if strings.Contains(install, "raw.githubusercontent.com") {
+		t.Fatalf("el one-liner no debe depender de GitHub: %s", install)
 	}
 	if !strings.Contains(install, "install-agent.sh") {
 		t.Fatalf("el one-liner debe invocar install-agent.sh: %s", install)

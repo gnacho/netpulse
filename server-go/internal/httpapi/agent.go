@@ -13,6 +13,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
+	"github.com/gnacho/netpulse/server-go/internal/agentinstall"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/reinstall"
@@ -507,6 +509,19 @@ func (s *server) agentBaseURL(r *http.Request) string {
 	return scheme + "://" + r.Host
 }
 
+// handleAgentInstallScript sirve el instalador desde el propio servidor
+// (#1751). Es público: el script no lleva secretos, el host y el token viajan
+// en los argumentos del one-liner. Antes se bajaba de
+// raw.githubusercontent.com, así que instalar o reinstalar fallaba sin salida
+// a internet (o con el rate limit de GitHub) y el script no estaba atado a la
+// versión del servidor: un cambio en main llegaba a todas las instalaciones al
+// instante, incluido uno roto.
+func (s *server) handleAgentInstallScript(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="install-agent.sh"`)
+	http.ServeContent(w, r, "install-agent.sh", time.Time{}, bytes.NewReader(agentinstall.Script()))
+}
+
 // agentInstallLine: one-liner de instalación vía SSH desde esta máquina.
 // El host del router se resuelve de la tabla routers si el slug existe.
 // Fase 6.2: el binario lo sirve el propio servidor, eliminando la
@@ -514,6 +529,10 @@ func (s *server) agentBaseURL(r *http.Request) string {
 // (sin arch no puede acertar en MIPS); install-agent.sh detecta la
 // arquitectura del router por SSH y descarga del server con ?arch= (verdad
 // del router, no del servidor), con GitHub como fallback.
+// #1751: el instalador también lo sirve el servidor, atado a su versión. Antes
+// se bajaba de raw.githubusercontent.com, así que instalar o reinstalar
+// dependía de la salida a internet del servidor (o del rate limit de GitHub) y
+// un cambio en main llegaba a todas las instalaciones al instante.
 func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	host := "<ip-del-router>"
 	if s.db != nil {
@@ -537,23 +556,27 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 	// session - so the download of the binary from the server, token
 	// included, is verified too (install-agent.sh lo usa vía --ca-file).
 	caArg, fpArg, caFileArg := "", "", ""
+	// #1751: el mismo CA verifica la descarga del instalador desde el server.
+	curlCACert := ""
 	if tr := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, server); tr.ServerURL != "" {
 		server = tr.ServerURL
 		pemEsc := strings.ReplaceAll(strings.TrimSpace(string(tr.CAPEM)), "\n", `\n`)
 		caArg = fmt.Sprintf("NPCA=$(mktemp) && printf '%%b' '%s\\n' > \"$NPCA\" && ", pemEsc)
 		caFileArg = ` --ca-file="$NPCA"`
+		curlCACert = ` --cacert "$NPCA"`
 		fpArg = " --server-fp=" + tr.ServerFP
 	} else if tr.ServerFP != "" {
 		fpArg = " --server-fp=" + tr.ServerFP
 	}
+	scriptURL := strings.TrimRight(server, "/") + "/api/agents/install-agent.sh"
 	// #1577: descarga a fichero y ejecuta SOLO si curl terminó bien. Con
 	// `curl | sh` el código de salida de curl se perdía: una descarga
 	// truncada (proxy, corte de red) llegaba al shell como script
 	// incompleto y moría con un "Syntax error: Unterminated quoted string"
 	// en una línea sin relación con la causa.
 	return fmt.Sprintf(
-		"%scurl -fsSL --retry 3 -o /tmp/netpulse-install-agent.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install-agent.sh && sh /tmp/netpulse-install-agent.sh --host=%s --server=%s --slug=%s --token=%s%s%s%s",
-		caArg, host, server, slug, token, caFileArg, fpArg, sshKeyArg)
+		"%scurl -fsSL --retry 3%s -o /tmp/netpulse-install-agent.sh %s && sh /tmp/netpulse-install-agent.sh --host=%s --server=%s --slug=%s --token=%s%s%s%s",
+		caArg, curlCACert, scriptURL, host, server, slug, token, caFileArg, fpArg, sshKeyArg)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.
