@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { useTranslation } from 'react-i18next'
-import { fmtUptime } from '@/i18n'
+import { fmtUptime, osBadge } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { fmtRate } from '@/components/routers/PortSeriesChart'
 import { HealthRing } from '@/components/HealthRing'
@@ -92,7 +92,8 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
   const inStartupGrace = (serverUptimeSec ?? Number.MAX_SAFE_INTEGER) < STARTUP_GRACE_SEC
   const extras = isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS
   const warn = router.status === 'warn'
-  const isOpenWrt = !router.type || router.type === 'glinet' || router.type === 'openwrt'
+  const osLabel = osBadge(router.type)
+  const isOpenWrt = osLabel !== ''
   const agentDown = isOpenWrt && agent !== undefined && !agent.fresh
   const agentMissing = isOpenWrt && agent === undefined && router.agentOnly
   const reduce = useReducedMotion()
@@ -193,7 +194,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                   ? (router.model || 'Switch')
                   : isPrimary
                     ? router.model
-                    : `OpenWrt · ${router.modelShort}`}
+                    : osLabel
+                      ? `${osLabel} · ${router.modelShort}`
+                      : router.modelShort}
               </div>
               {isPrimary && router.type !== 'managed-switch' && (
                 <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2 py-0.5">

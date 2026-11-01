@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { Router as RouterIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { roleLabel } from '@/i18n'
+import { osBadge, roleLabel } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { HealthRing } from '@/components/HealthRing'
@@ -19,6 +19,7 @@ export function RouterDetailHeader({ router }: { router: Router }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const isGateway = router.roleBadge === 'Principal'
+  const osLabel = osBadge(router.type)
   const agent = useAgentFor(router.id)
   // #1136: el chip AdGuard solo tiene sentido con AdGuard configurado; sin
   // host era un adorno fijo en la cabecera del gateway.
@@ -78,7 +79,9 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                 ? (router.model || 'Switch')
                 : isGateway
                   ? router.model
-                  : `OpenWrt · ${router.modelShort}`}
+                  : osLabel
+                    ? `${osLabel} · ${router.modelShort}`
+                    : router.modelShort}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {pills.map((p, i) => (
