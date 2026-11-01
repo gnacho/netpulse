@@ -25,10 +25,14 @@ interface PortSeriesResponse {
   resolution: string
 }
 
-type Range = '24h' | '7d' | '30d'
-export type TrafficUnit = 'bps' | 'fps'
+type Range = '24h' | '7d' | '30d' | '12m'
+export type TrafficUnit = 'bps' | 'fps' | 'bytes'
 
-const RANGES: Range[] = ['24h', '7d', '30d']
+const RANGES: Range[] = ['24h', '7d', '30d', '12m']
+
+/** Días válidos de inicio de ciclo (1-28: existe en todos los meses). */
+const CYCLE_DAYS = Array.from({ length: 28 }, (_, i) => i + 1)
+const CYCLE_DAY_KEY = 'netpulse.cycleDay'
 
 // #1035: con más de 4 bocas la fila de botones desborda la tarjeta; con 8 o
 // más además ofrecemos el filtro All/Active/Inactive para acotar el dropdown.
@@ -47,11 +51,20 @@ function rangeToSeconds(range: Range): number {
     case '24h': return 24 * 3600
     case '7d': return 7 * 24 * 3600
     case '30d': return 30 * 24 * 3600
+    case '12m': return 400 * 24 * 3600 // #1762: retención diaria de 365 días, pedimos margen
   }
 }
 
 /** Formatea una tasa: bps → bps/kbps/Mbps/Gbps; fps → fps/kfps. */
 export function fmtRate(unit: TrafficUnit, v: number): string {
+  if (unit === 'bytes') {
+    // #1762: totales por ciclo, no tasas.
+    if (v >= 1e12) return `${(v / 1e12).toFixed(2)} TB`
+    if (v >= 1e9) return `${(v / 1e9).toFixed(1)} GB`
+    if (v >= 1e6) return `${(v / 1e6).toFixed(1)} MB`
+    if (v >= 1e3) return `${Math.round(v / 1e3)} kB`
+    return `${Math.round(v)} B`
+  }
   if (unit === 'bps') {
     if (v >= 1e9) return `${(v / 1e9).toFixed(1)} Gbps`
     if (v >= 1e6) return `${(v / 1e6).toFixed(1)} Mbps`
@@ -70,6 +83,16 @@ function fmtTime(iso: string, range: Range): string {
   if (range === '7d')
     return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   return d.toLocaleDateString([], { day: 'numeric', month: 'short' })
+}
+
+/** #1762: inicio del ciclo que contiene la fecha d (UTC: las filas diarias del
+ *  servidor son fechas UTC). Con cycleDay=1 son meses naturales. */
+function cycleStartOf(d: Date, cycleDay: number): Date {
+  const y = d.getUTCFullYear()
+  const m = d.getUTCMonth()
+  return d.getUTCDate() >= cycleDay
+    ? new Date(Date.UTC(y, m, cycleDay))
+    : new Date(Date.UTC(y, m - 1, cycleDay))
 }
 
 interface ChartPoint {
@@ -122,8 +145,11 @@ function PortTooltip({
 }
 
 /**
- * Historial de tráfico del router (issue #302, #654): tarjeta propia del
- * detalle a todo el ancho, con selector de puerto y de rango. NO va embebida
+ * Historial de tráfico del router (issues #302, #654, #1762): tarjeta propia del
+ * detalle a todo el ancho, con selector de puerto y de rango. El rango 12m agrega
+ * las filas diarias del servidor en ciclos que empiezan el día elegido (ciclo de
+ * facturación, caso 5G de #1757): totales en bytes, o media de fps por ciclo para
+ * fuentes sin contadores de bytes. NO va embebida
  * en la tarjeta de Puertos Ethernet: cada puerto tiene su propia serie.
  */
 export function PortSeriesChart({
@@ -144,6 +170,15 @@ export function PortSeriesChart({
   const [portFilter, setPortFilter] = useState<PortFilter>('all')
   const [data, setData] = useState<PortPoint[]>([])
   const [loading, setLoading] = useState(false)
+  // #1762: día de inicio del ciclo de facturación, recordado por navegador.
+  const [cycleDay, setCycleDayState] = useState<number>(() => {
+    const v = Number(localStorage.getItem(CYCLE_DAY_KEY))
+    return v >= 1 && v <= 28 ? v : 1
+  })
+  const setCycleDay = (d: number) => {
+    setCycleDayState(d)
+    localStorage.setItem(CYCLE_DAY_KEY, String(d))
+  }
 
   // Puerto por defecto: el primero con link; si no hay ninguno up, el primero
   // de la lista (permite ver el histórico de una boca caída).
@@ -181,7 +216,9 @@ export function PortSeriesChart({
     try {
       const now = Math.floor(Date.now() / 1000)
       const from = now - rangeToSeconds(range)
-      const res = await fetch(`/api/routers/${encodeURIComponent(routerId)}/ports/${encodeURIComponent(portId)}/series?from=${from}&to=${now}`)
+      // #1762: explícito aunque el default ya saldría daily, por si cambia Resolution().
+      const extra = range === '12m' ? '&resolution=daily' : ''
+      const res = await fetch(`/api/routers/${encodeURIComponent(routerId)}/ports/${encodeURIComponent(portId)}/series?from=${from}&to=${now}${extra}`)
       if (res.ok) {
         const json: PortSeriesResponse = await res.json()
         setData(json.points ?? [])
@@ -204,17 +241,54 @@ export function PortSeriesChart({
   // trae tramas, fps (beacons, #641); el prop queda como fallback para
   // series vacías. Así un caller que clasifique mal no puede dejar el
   // gráfico plano a cero teniendo contadores de bytes.
-  const effUnit: TrafficUnit = useMemo(
-    () =>
-      data.some((p) => p.rxBps > 0 || p.txBps > 0)
-        ? 'bps'
-        : data.some((p) => p.rxFps > 0 || p.txFps > 0)
-          ? 'fps'
-          : unit,
-    [data, unit],
-  )
+  const effUnit: TrafficUnit = useMemo(() => {
+    if (range === '12m') {
+      // #1762: totales por ciclo en bytes; sin contadores de bytes, media de
+      // fps por ciclo (el fps diario del servidor es la media del día).
+      if (data.some((p) => p.rxBytes > 0 || p.txBytes > 0)) return 'bytes'
+      if (data.some((p) => p.rxFps > 0 || p.txFps > 0)) return 'fps'
+      return unit
+    }
+    return data.some((p) => p.rxBps > 0 || p.txBps > 0)
+      ? 'bps'
+      : data.some((p) => p.rxFps > 0 || p.txFps > 0)
+        ? 'fps'
+        : unit
+  }, [data, unit, range])
 
   const chartData = useMemo(() => {
+    if (range === '12m') {
+      const useBytes = effUnit === 'bytes'
+      const cycles = new Map<number, { rx: number; tx: number; n: number }>()
+      let prev: PortPoint | null = null
+      for (const p of data) {
+        const d = new Date(p.ts)
+        if (Number.isNaN(d.getTime())) continue
+        const key = cycleStartOf(d, cycleDay).getTime()
+        const c = cycles.get(key) ?? { rx: 0, tx: 0, n: 0 }
+        if (useBytes) {
+          // Delta diaria de contadores: si el contador bajó (reset del equipo),
+          // ese día no suma, igual que hace deriveBps en el servidor.
+          if (prev) {
+            c.rx += Math.max(0, p.rxBytes - prev.rxBytes)
+            c.tx += Math.max(0, p.txBytes - prev.txBytes)
+          }
+        } else {
+          c.rx += p.rxFps
+          c.tx += p.txFps
+          c.n += 1
+        }
+        cycles.set(key, c)
+        prev = p
+      }
+      return [...cycles.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([k, c]) => ({
+          t: new Date(k).toLocaleDateString([], { day: 'numeric', month: 'short' }),
+          rx: useBytes || c.n === 0 ? c.rx : c.rx / c.n,
+          tx: useBytes || c.n === 0 ? c.tx : c.tx / c.n,
+        }))
+    }
     const pts = data
       .map((p) => ({
         t: fmtTime(p.ts, range),
@@ -223,7 +297,7 @@ export function PortSeriesChart({
       }))
       .filter((p) => !Number.isNaN(p.rx) && !Number.isNaN(p.tx))
     return downscale(pts, 600)
-  }, [data, range, effUnit])
+  }, [data, range, effUnit, cycleDay])
 
   const hasData = chartData.length > 1
   const peakRx = hasData ? Math.max(...chartData.map((p) => p.rx)) : 0
@@ -296,6 +370,24 @@ export function PortSeriesChart({
                 </SelectContent>
               </Select>
             </div>
+          )}
+          {/* Selector del día de inicio del ciclo, solo en 12m (#1762) */}
+          {range === '12m' && (
+            <Select value={String(cycleDay)} onValueChange={(v) => setCycleDay(Number(v))}>
+              <SelectTrigger
+                aria-label={t('routerDetail.ports.cycleStart')}
+                className="h-7 w-auto gap-1.5 rounded-lg border-border bg-elevated px-2 font-mono text-[10px] font-medium text-text-secondary"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-56">
+                {CYCLE_DAYS.map((d) => (
+                  <SelectItem key={d} value={String(d)}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           {/* Selector de rango */}
           <div className="flex gap-0.5 rounded-lg border border-border bg-elevated p-0.5">

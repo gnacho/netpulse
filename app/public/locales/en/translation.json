@@ -1076,6 +1076,7 @@
       "seriesTx": "Transmit",
       "seriesNoData": "No historical data",
       "seriesPort": "Port",
+      "cycleStart": "Cycle start day",
       "filterAll": "All",
       "filterActive": "Active",
       "filterInactive": "Inactive",
