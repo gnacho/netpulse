@@ -64,6 +64,10 @@ type OwutStatus struct {
 	// Buildable: la infraestructura ASU puede construir la imagen (owut salió
 	// con código 0, es decir, sin paquetes missing ni build failures).
 	Buildable bool `json:"buildable"`
+	// VersionTo (#1773): destino real que ASU construiría según `owut check`
+	// ("Version-to"). `owut versions` lleva la lista de releases antigua, así
+	// que este es el único dato fiable del siguiente salto.
+	VersionTo string `json:"versionTo,omitempty"`
 	// MissingPkgs (#761): paquetes instalados fuera de los feeds oficiales
 	// ("missing to-version") que bloquean la build de ASU. La UI los muestra
 	// y ofrece excluirlos del upgrade (-r): se pierden y hay que reinstalar.
@@ -97,6 +101,7 @@ func CheckOwut(runner Runner, host string) OwutStatus {
 	status.RawOutput = raw
 	status.UpgradeAvailable, status.Buildable = parseOwutCheck(raw, exitCode)
 	status.MissingPkgs = ParseMissingPkgs(raw)
+	status.VersionTo = parseOwutVersionTo(raw)
 	return status
 }
 
@@ -154,4 +159,21 @@ func parseOwutCheck(out string, exitCode int) (upgradeAvailable, buildable bool)
 		strings.Contains(out, "packages were downgraded") ||
 		strings.Contains(out, "safe to proceed")
 	return upgradeAvailable, buildable
+}
+
+// owutVersionToRe caza el destino real que ASU construiría:
+//
+//	Version-to     25.12.6 r33311-981c978eff (kernel 6.12.112)
+//
+// `owut versions` puede llevar la lista de releases antigua (#1773); la línea
+// Version-to del check es la única fuente fiable del siguiente destino.
+var owutVersionToRe = regexp.MustCompile(`(?m)^Version-to\s+(\S+)`)
+
+// parseOwutVersionTo extrae el Version-to del check. Función pura; sin
+// coincidencia devuelve cadena vacía.
+func parseOwutVersionTo(out string) string {
+	if m := owutVersionToRe.FindStringSubmatch(out); len(m) > 1 {
+		return m[1]
+	}
+	return ""
 }

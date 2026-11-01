@@ -157,3 +157,28 @@ func TestCheckOwutNilRunner(t *testing.T) {
 		t.Fatalf("runner nil debe devolver todo a false: %+v", got)
 	}
 }
+
+// #1773: el Version-to del check es la fuente fiable del siguiente destino.
+func TestParseOwutVersionTo(t *testing.T) {
+	out := "Version-from   25.12.5 r33311-981c978eff\n" +
+		"Version-to     25.12.6 r33311-981c978eff (kernel 6.12.112)\n" +
+		"ERROR: Checks reveal errors, do not upgrade\n"
+	if got := parseOwutVersionTo(out); got != "25.12.6" {
+		t.Fatalf("parseOwutVersionTo = %q, esperaba 25.12.6", got)
+	}
+	if got := parseOwutVersionTo("sin linea Version-to\n"); got != "" {
+		t.Fatalf("parseOwutVersionTo = %q, esperaba vacio", got)
+	}
+}
+
+// #1773: CheckOwut expone el VersionTo del check en el payload.
+func TestCheckOwutExposesVersionTo(t *testing.T) {
+	r := &fakeRunner{rules: []fakeRule{
+		{contains: "command -v owut", out: "/usr/bin/owut\n"},
+		{contains: "owut check", out: checkOKOut + "\nVersion-to     25.12.6 r33311-981c978eff (kernel 6.12.112)\n"},
+	}}
+	got := CheckOwut(r, "192.168.1.50")
+	if got.VersionTo != "25.12.6" {
+		t.Fatalf("VersionTo = %q, esperaba 25.12.6", got.VersionTo)
+	}
+}
