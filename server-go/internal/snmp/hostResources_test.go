@@ -1,4 +1,4 @@
-// hostResources_test.go — parsers de HOST-RESOURCES con la muestra real de un
+// hostResources_test.go: parsers de HOST-RESOURCES con la muestra real de un
 // CRS305 (RouterOS 7.25) capturada por #1725, y los casos en los que el árbol
 // no existe o no dice nada útil.
 package snmp

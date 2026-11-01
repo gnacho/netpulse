@@ -110,8 +110,8 @@ func bridgeMacFromPDU(v gosnmp.SnmpPDU) string {
 // DefaultTimeout×(Retries+1) = 10 s (medido en un XS708T y un S3300). Con el
 // filtro, un equipo que no es MikroTik paga exactamente lo que pagaba antes.
 //
-// Si la tabla no da nada —o ni siquiera se intentó, porque PollSystem falló y
-// no hay descripción— se cae al Get histórico de #1256, que es lo que hoy
+// Si la tabla no da nada (o ni siquiera se intentó, porque PollSystem falló y
+// no hay descripción) se cae al Get histórico de #1256, que es lo que hoy
 // responde en un SwOS. Best-effort en cualquier caso: sin lectura válida
 // (0, false) y el poll sigue (#1036), nunca un cero (#441).
 func PollMikrotikTemp(s *gosnmp.GoSNMP, sysDescr string) (temp int, ok bool) {
@@ -185,7 +185,7 @@ func mikrotikHealthRows(names, values []gosnmp.SnmpPDU) map[string]int {
 // ParseMikrotikHealth: la temperatura de la health table a partir de las filas
 // ya apareadas nombre→valor. `cpu-temperature` manda (es la que /system health
 // imprime como CPU); si el equipo la nombra de otra forma se toma el MÁXIMO de
-// las filas cuyo nombre contenga "temperature" — el punto caliente, el mismo
+// las filas cuyo nombre contenga "temperature" (el punto caliente, el mismo
 // criterio que los sensores Netgear (ParseNetgearTemps) y así el orden del
 // walk no decide la lectura.
 func ParseMikrotikHealth(rows map[string]int) (temp int, ok bool) {

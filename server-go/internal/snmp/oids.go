@@ -65,8 +65,8 @@ const (
 	OidMikrotikHealthName  = ".1.3.6.1.4.1.14988.1.1.3.100.1.2"
 	OidMikrotikHealthValue = ".1.3.6.1.4.1.14988.1.1.3.100.1.3"
 
-	// HOST-RESOURCES-MIB (#1725): el árbol genérico que muchos agentes —
-	// RouterOS incluido— rellenan cuando no existe ninguna MIB privada. Son
+	// HOST-RESOURCES-MIB (#1725): el árbol genérico que muchos agentes
+	// (RouterOS incluido) rellenan cuando no existe ninguna MIB privada. Son
 	// el respaldo cuando el fabricante no contesta, nunca por delante de él.
 	//
 	//	hrProcessorLoad.1 = 1     (cpu0)      → %, Gauge32 0..100

@@ -64,8 +64,8 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	// MikroTik: sin esos árboles, ok=false y los vitales siguen a null.
 	ngCpu, hasNgCpu, ngTemp, hasNgTemp := npsnmp.PollNetgearVitals(session)
 	// #1725: HOST-RESOURCES (hrProcessorLoad / hrStorageTable "main memory")
-	// para los equipos sin MIB privada de vitales — RouterOS por SNMP es el
-	// caso real. Se pregunta primero y una sola vez por equipo
+	// para los equipos sin MIB privada de vitales (RouterOS por SNMP es el
+	// caso real). Se pregunta primero y una sola vez por equipo
 	// (hostResourcesKnown), porque hay agentes que descartan el árbol en
 	// silencio y cada operación así cuesta DefaultTimeout×(Retries+1)=10 s.
 	hrCpu, hasHrCpu, hrRam, hasHrRam := 0, false, 0, false

@@ -1,4 +1,4 @@
-// hostResources.go — HOST-RESOURCES-MIB (#1725): CPU y RAM del árbol genérico,
+// hostResources.go: HOST-RESOURCES-MIB (#1725). CPU y RAM del árbol genérico,
 // para los equipos que no tienen ninguna MIB privada de vitales (RouterOS por
 // SNMP, agentes genéricos). Es RESPALDO: el caller solo lo usa cuando la
 // lectura del fabricante no dijo nada, porque la tabla privada es lo que el
