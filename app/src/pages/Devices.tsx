@@ -411,15 +411,22 @@ function StatsStrip({
   // modo demo no tiene sesión API).
   const { isDemo } = useNetPulse()
   const [roaming, setRoaming] = useState<{ mac: string; name: string; connects: number }[]>([])
+  // #1740: una flota sin atribución wireless (todo SNMP o cable) no puede
+  // reportar roams. Sin este flag el tile pinta un 0 verde que se lee como
+  // "roaming sano" cuando en realidad no hay fuente.
+  const [roamingSource, setRoamingSource] = useState(true)
   useEffect(() => {
     if (isDemo) {
       setRoaming([{ mac: 'demo', name: 'Robot aspirador', connects: 6 }])
       return
     }
     let cancelled = false
-    fetchJson<{ items: { mac: string; name: string; connects: number }[] }>('/api/presence/roaming')
+    fetchJson<{ items: { mac: string; name: string; connects: number }[]; source?: boolean }>('/api/presence/roaming')
       .then((res) => {
-        if (!cancelled && res.ok && res.data) setRoaming(res.data.items)
+        if (!cancelled && res.ok && res.data) {
+          setRoaming(res.data.items)
+          setRoamingSource(res.data.source !== false)
+        }
       })
       .catch(() => {})
     return () => {
@@ -527,14 +534,18 @@ function StatsStrip({
       key: 'roaming',
       label: t('devices.stats.roaming'),
       icon: ArrowLeftRight,
-      iconClass: roamingTop && roamingTop.connects > 3 ? 'text-warn' : 'text-ok',
+      iconClass: !roamingSource ? 'text-text-muted' : roamingTop && roamingTop.connects > 3 ? 'text-warn' : 'text-ok',
       render: () => (
         <>
           <div className="font-mono text-stat text-text-primary">
             <CountUp value={roamingTop?.connects ?? 0} nonce={refreshKey} />
           </div>
           <div className="mt-1 truncate text-caption text-text-muted" translate="no">
-            {roamingTop ? roamingTop.name || roamingTop.mac : t('devices.stats.roamingHealthy')}
+            {!roamingSource
+              ? t('devices.stats.roamingNoSource')
+              : roamingTop
+                ? roamingTop.name || roamingTop.mac
+                : t('devices.stats.roamingHealthy')}
           </div>
         </>
       ),

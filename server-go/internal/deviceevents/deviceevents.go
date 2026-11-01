@@ -227,6 +227,16 @@ func RoamCounts(db *sql.DB, sinceMs int64, limit int) ([]RoamCount, error) {
 	return out, nil
 }
 
+// HasAttribution informa de si hay alguna atribución wireless reciente
+// (device_attrib.last_seen dentro de la ventana). Permite a la UI distinguir
+// "no hay roams" de "ninguna unidad puede reportar roams": una flota sin
+// clientes wireless no escribe nunca en roam_events (#1740).
+func HasAttribution(db *sql.DB, sinceMs int64) bool {
+	var one int
+	err := db.QueryRow(`SELECT 1 FROM device_attrib WHERE last_seen >= ? LIMIT 1`, sinceMs).Scan(&one)
+	return err == nil
+}
+
 // CountConnects cuenta los eventos 'connected' de una MAC en la ventana.
 func CountConnects(db *sql.DB, mac string, sinceMs int64) (int, error) {
 	var n int
