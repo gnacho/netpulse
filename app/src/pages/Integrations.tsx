@@ -51,7 +51,12 @@ import {
   stopIntegration,
   updateIntegration,
 } from '@/lib/integrationsApi'
-import type { CreateIntegrationInput, Integration, Vendor } from '@/lib/integrationsApi'
+import type {
+  CreateIntegrationInput,
+  Integration,
+  UnmanagedIntegration,
+  Vendor,
+} from '@/lib/integrationsApi'
 
 const POLL_MS = 15_000
 const SLUG_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
@@ -91,6 +96,9 @@ export default function Integrations() {
   const [lastRefreshedMs, setLastRefreshedMs] = useState(0)
   const [catalogRefreshing, setCatalogRefreshing] = useState(false)
   const [integrations, setIntegrations] = useState<Integration[]>([])
+  // Pushers instalados a mano: empujan a la flota pero no tienen registro de
+  // integración, así que la app no puede gestionarlos (#1743).
+  const [unmanaged, setUnmanaged] = useState<UnmanagedIntegration[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
@@ -129,6 +137,7 @@ export default function Integrations() {
         setVendors(v.vendors)
         setLastRefreshedMs(v.lastRefreshedAt ?? 0)
         setIntegrations(ints.integrations)
+        setUnmanaged(ints.unmanaged ?? [])
         setError('')
       } catch (err) {
         setError(errMessage(err, t))
@@ -729,6 +738,41 @@ export default function Integrations() {
             )
           })}
         </div>
+      )}
+
+      {unmanaged.length > 0 && (
+        <>
+          <SectionHeader title={t('integrations.unmanagedTitle')} className="mt-8" />
+          <p className="mt-1 text-caption text-text-muted">{t('integrations.unmanagedDesc')}</p>
+          <div className="mt-3 space-y-3">
+            {unmanaged.map((it) => (
+              <div key={it.slug} className="rounded-2xl border border-border bg-surface p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-medium text-text-primary">{it.slug}</span>
+                    <StatusPill
+                      tone={it.fresh ? 'ok' : 'warn'}
+                      label={
+                        it.fresh ? t('integrations.unmanagedPushing') : t('integrations.unmanagedStale')
+                      }
+                    />
+                  </div>
+                  {it.version && (
+                    <span className="font-mono text-caption text-text-muted">
+                      {t('integrations.unmanagedVersion', { version: it.version })}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 text-caption text-text-muted">
+                  {t('integrations.unmanagedLastPush', { when: agoLabel(it.lastPushMs) })}
+                  {it.intervalS
+                    ? ` · ${t('integrations.unmanagedInterval', { count: it.intervalS })}`
+                    : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Dialog open={token !== null} onOpenChange={(open) => !open && setToken(null)}>

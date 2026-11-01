@@ -22,6 +22,22 @@ export interface Integration {
   fresh: boolean
 }
 
+/** A pusher that feeds the fleet without an integration record (#1743). */
+export interface UnmanagedIntegration {
+  slug: string
+  kind: string
+  version?: string
+  intervalS?: number
+  lastPushMs: number
+  fresh: boolean
+}
+
+export interface IntegrationListResponse {
+  integrations: Integration[]
+  /** Pushers installed by hand: they push, but the app cannot manage them. */
+  unmanaged?: UnmanagedIntegration[]
+}
+
 export interface Vendor {
   id: string
   mode: 'local' | 'ssh'
@@ -99,8 +115,8 @@ export function refreshVendors(): Promise<VendorsResponse> {
   return req<VendorsResponse>('/api/integrations/vendors/refresh', { method: 'POST' })
 }
 
-export function fetchIntegrations(): Promise<{ integrations: Integration[] }> {
-  return req<{ integrations: Integration[] }>('/api/integrations')
+export function fetchIntegrations(): Promise<IntegrationListResponse> {
+  return req<IntegrationListResponse>('/api/integrations')
 }
 
 export function createIntegration(
