@@ -12,9 +12,10 @@ export interface IntegrationsState {
   proxmox: boolean
   mqtt: boolean
   mcp: boolean
+  externalAgents: boolean
 }
 
-const DEFAULTS: IntegrationsState = { ntfy: true, telegram: true, proxmox: true, mqtt: false, mcp: false }
+const DEFAULTS: IntegrationsState = { ntfy: true, telegram: true, proxmox: true, mqtt: false, mcp: false, externalAgents: true }
 
 // parseIntegrations: mapea la view del servidor (#968 + MCP #1114). mcp solo
 // es true si el despliegue lo habilitó por env (mcpLocked=false) y el toggle
@@ -26,6 +27,7 @@ function parseIntegrations(d: Record<string, unknown>): IntegrationsState {
     proxmox: d.proxmox !== false,
     mqtt: d.mqtt === true,
     mcp: d.mcp === true,
+    externalAgents: d.externalAgents !== false,
   }
 }
 

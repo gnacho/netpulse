@@ -4071,15 +4071,21 @@ function ServicesCard({
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0">
                 <p className="text-sm font-medium text-text-primary">{t('settings.services.externalAgents')}</p>
-                <p className="truncate text-caption text-text-muted">
-                  {t('settings.services.rtlDesc')}{' '}
-                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
-                  {' · '}
-                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
-                </p>
+                <p className="truncate text-caption text-text-muted">{t('settings.services.externalAgentsCaption')}</p>
               </div>
             </div>
-            {gear('complementos', t('settings.services.externalAgents'))}
+            <div className="flex shrink-0 items-center gap-2.5">
+              {gear('complementos', t('settings.services.externalAgents'))}
+              <Switch
+                checked={integrations.externalAgents}
+                onCheckedChange={(v) => {
+                  setIntegration('externalAgents', v)
+                  onSaved()
+                }}
+                disabled={disabled}
+                aria-label={t('settings.services.externalAgents')}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -4155,6 +4161,12 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.services.externalAgents')}</DialogTitle>
           </DialogHeader>
+          <p className="mb-3 text-sm text-text-muted">
+            {t('settings.services.rtlDesc')}{' '}
+            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
+            {' · '}
+            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
+          </p>
           <Integrations bare />
         </DialogContent>
       </Dialog>
