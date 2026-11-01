@@ -37,6 +37,16 @@ func memUsagePct(total, free, buffered, cached, available, usedProc float64) int
 	return int(math.Round(used / total * 100))
 }
 
+// memUsageKnown: hay alguna cifra de uso de la que derivar el porcentaje.
+// memUsagePct no puede distinguirlas de un payload que solo trae el total: con
+// free/buffered/cached/available/used todos a 0 cae a "available = 0 →
+// used = total" y devuelve 100. Para un pusher parcial o malformado eso es
+// memoria desconocida, no memoria llena, y publicarlo como confirmado (ver
+// polledFromAgent) además la persiste en el histórico.
+func memUsageKnown(free, buffered, cached, available, used float64) bool {
+	return free > 0 || buffered > 0 || cached > 0 || available > 0 || used > 0
+}
+
 // memUsedBytes: mismos criterios que memUsagePct pero en bytes, para que el
 // server envíe la cifra de uso autoritativa (#1501): derivarla en el front
 // desde el porcentaje redondeado (pct × total) acumula hasta ~2% de error
