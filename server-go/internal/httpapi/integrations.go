@@ -290,8 +290,80 @@ func (s *server) resumeIntegrations() {
 	s.broadcastIntegrations()
 }
 
+// unmanagedItem es un pusher externo que alimenta la flota sin fila en
+// router_integrations: se instaló a mano, antes de que la app supiera
+// instalarlos (#1743). Solo se describe; la app no puede arrancarlo, pararlo
+// ni rotarle el token.
+type unmanagedItem struct {
+	Slug       string `json:"slug"`
+	Kind       string `json:"kind"`
+	Version    string `json:"version,omitempty"`
+	IntervalS  int    `json:"intervalS,omitempty"`
+	LastPushMs int64  `json:"lastPushMs"`
+	Fresh      bool   `json:"fresh"`
+}
+
+// unmanagedIntegrations lista los pushers externos vivos que la app no
+// gestiona (#1743). Sin esto la página de Integraciones sale vacía mientras
+// /api/agents muestra unidades alimentadas por ellos, y el operador no tiene
+// ni una pista de que el pusher existe.
+//
+// El kind solo vive en memoria (AgentRegistry), así que justo después de un
+// reinicio la lista queda vacía hasta el primer push de cada unidad (~30 s).
+func (s *server) unmanagedIntegrations() []unmanagedItem {
+	out := []unmanagedItem{}
+	if s.db == nil || s.agents == nil {
+		return out
+	}
+	// Los slugs viven en kv como agent.token.<slug>. El cursor se cierra ANTES
+	// de consultar la tienda de integraciones: con SetMaxOpenConns(1), un
+	// QueryRow con las filas abiertas espera la única conexión y bloquea.
+	slugs := []string{}
+	rows, err := s.db.Query("SELECT key FROM kv WHERE key LIKE ? ORDER BY key", agentTokenKeyPrefix+"%")
+	if err != nil {
+		return out
+	}
+	for rows.Next() {
+		var key string
+		if rows.Scan(&key) == nil {
+			slugs = append(slugs, strings.TrimPrefix(key, agentTokenKeyPrefix))
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return out
+	}
+	store := s.integrationsStore()
+	for _, slug := range slugs {
+		if slug == "" {
+			continue
+		}
+		_, version, kind, interval, ok := s.agents.Info(slug)
+		if !ok || kind != "external" {
+			continue
+		}
+		if _, managed := store.Get(slug); managed {
+			continue
+		}
+		lastPush := s.integrationLastPushMs(slug)
+		fresh := lastPush > 0 && interval > 0 && time.Now().UnixMilli()-lastPush <= int64(interval)*3*1000
+		out = append(out, unmanagedItem{
+			Slug:       slug,
+			Kind:       kind,
+			Version:    version,
+			IntervalS:  interval,
+			LastPushMs: lastPush,
+			Fresh:      fresh,
+		})
+	}
+	return out
+}
+
 func (s *server) handleIntegrationsList(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"integrations": s.integrationList()})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"integrations": s.integrationList(),
+		"unmanaged":    s.unmanagedIntegrations(),
+	})
 }
 
 type integrationCreateBody struct {

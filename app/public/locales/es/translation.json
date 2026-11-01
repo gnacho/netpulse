@@ -713,6 +713,13 @@
     "loading": "Cargando integraciones...",
     "emptyTitle": "Aún no hay integraciones",
     "emptyDesc": "Añade un pusher externo para un router al que NetPulse no llega directamente.",
+    "unmanagedTitle": "Gestionadas fuera de NetPulse",
+    "unmanagedDesc": "Estos pushers alimentan la flota pero no tienen registro de integración, así que NetPulse no puede arrancarlos, pararlos ni rotarles el token. Se instalaron a mano: edita su fichero de entorno en el host para cambiar el token o el pin del certificado.",
+    "unmanagedPushing": "Empujando",
+    "unmanagedStale": "Sin datos",
+    "unmanagedVersion": "v{{version}}",
+    "unmanagedLastPush": "Último envío {{when}}",
+    "unmanagedInterval": "cada {{count}}s",
     "fresh": "Reciente",
     "never": "nunca",
     "states": {
