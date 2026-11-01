@@ -627,6 +627,102 @@ type agentIfSample struct {
 // injectPortRates copia absolutos + rates de rates (keyed por iface física)
 // sobre las bocas: match por Iface si la boca la declara, si no por ID (en
 // DSA coinciden; en swconfig el ID es numérico y solo Iface casa).
+// appendVirtualPorts turns the interfaces NetIf carries that are not physical
+// ports into EthPorts, so the router page can list them with their traffic
+// (#1757). The agent path never built them: NetIf only fed the rates of the
+// physical ports. Up means "has carried traffic", because /proc/net/dev has no
+// link state and inventing one would be worse than saying nothing.
+func appendVirtualPorts(ports []EthPort, ifaces map[string]probe.IfCounters, rates map[string]probe.IfRate) []EthPort {
+	if len(ifaces) == 0 {
+		return ports
+	}
+	seen := make(map[string]bool, len(ports))
+	for _, p := range ports {
+		if p.Iface != "" {
+			seen[p.Iface] = true
+		}
+		if p.ID != "" {
+			seen[p.ID] = true
+		}
+	}
+	names := make([]string, 0, len(ifaces))
+	for name := range ifaces {
+		if name == "lo" || seen[name] {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return ports
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		c := ifaces[name]
+		p := EthPort{
+			ID:      "if-" + name,
+			Label:   name,
+			Iface:   name,
+			Up:      c.Rx+c.Tx > 0,
+			Family:  virtualIfaceFamily(name),
+			RxBytes: c.Rx,
+			TxBytes: c.Tx,
+			RxErrs:  c.RxErr,
+			TxErrs:  c.TxErr,
+		}
+		if r, ok := rates[name]; ok {
+			if r.RxBps != nil {
+				p.RxBps = *r.RxBps
+			}
+			if r.TxBps != nil {
+				p.TxBps = *r.TxBps
+			}
+		}
+		ports = append(ports, p)
+	}
+	return ports
+}
+
+// virtualIfaceFamily names the family the router page groups by, the same
+// values the SNMP path gets from ifType.
+func virtualIfaceFamily(name string) string {
+	switch {
+	case strings.Contains(name, "."), strings.HasPrefix(name, "vlan"):
+		return "vlan"
+	case strings.HasPrefix(name, "br"), name == "bridge":
+		return "bridge"
+	case strings.HasPrefix(name, "bond"), strings.HasPrefix(name, "lag"):
+		return "lag"
+	case strings.HasPrefix(name, "tun"), strings.HasPrefix(name, "tap"), strings.HasPrefix(name, "wg"),
+		strings.HasPrefix(name, "pppoe"), strings.HasPrefix(name, "gre"), strings.HasPrefix(name, "sit"),
+		strings.HasPrefix(name, "vti"), strings.HasPrefix(name, "ip6tnl"):
+		return "tunnel"
+	}
+	return "virtual"
+}
+
+// linkPorts drops the interfaces that are not physical links: they have no
+// link state to watch, so the port monitor has nothing to say about them
+// (#1757).
+func linkPorts(ports []EthPort) []EthPort {
+	n := 0
+	for _, p := range ports {
+		if p.Family != "" && p.Family != "ethernet" {
+			n++
+		}
+	}
+	if n == 0 {
+		return ports
+	}
+	out := make([]EthPort, 0, len(ports)-n)
+	for _, p := range ports {
+		if p.Family != "" && p.Family != "ethernet" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
 func injectPortRates(ports []EthPort, rates map[string]probe.IfRate) {
 	for i := range ports {
 		key := ports[i].Iface
@@ -921,10 +1017,15 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		prev := l.lastAgentIf[cfg.ID]
 		l.lastAgentIf[cfg.ID] = &agentIfSample{at: now, ifaces: p.Data.NetIf}
 		l.mu.Unlock()
+		var rates map[string]probe.IfRate
 		if prev != nil && now.Sub(prev.at).Seconds() > 0 && len(out.ports) > 0 {
-			rates := probe.IfRates(prev.ifaces, p.Data.NetIf, now.Sub(prev.at).Seconds())
+			rates = probe.IfRates(prev.ifaces, p.Data.NetIf, now.Sub(prev.at).Seconds())
 			injectPortRates(out.ports, rates)
 		}
+		// #1757: las interfaces que no son bocas físicas (vlan, bridge,
+		// bond, tun, wg) también cuentan. La página del router las lista
+		// aparte por su familia, con el tráfico que ya trae NetIf.
+		out.ports = appendVirtualPorts(out.ports, p.Data.NetIf, rates)
 	}
 
 	l.mu.Lock()
@@ -974,7 +1075,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		if samples, source, ok := resolveClientBwSources(out.wireless, out.clientBw); ok {
 			l.recordClientBwSamples(cfg.ID, time.Unix(p.Ts, 0), samples, source)
 		}
-		l.portMon.Observe(cfg.ID, out.ports, l.engine)
+		l.portMon.Observe(cfg.ID, linkPorts(out.ports), l.engine)
 	}
 
 	if out.leases == nil {
