@@ -213,12 +213,16 @@ type Router struct {
 	// managed-switch sondeado por SNMP (que sí reporta contadores de bytes →
 	// la UI pinta bps) de un beacon/external que solo reporta tramas (fps)
 	// (#661). Ausente/false = no se sondea por SNMP.
-	SnmpEnabled bool   `json:"snmpEnabled,omitempty"`
-	CPU         *int   `json:"cpu"`
-	RAM         *int   `json:"ram"`
-	Temp        *int   `json:"temp"`
-	Uptime      string `json:"uptime"` // "<d>d <h>h" | "—"
-	Clients     int    `json:"clients"`
+	SnmpEnabled bool `json:"snmpEnabled,omitempty"`
+	// sparklineFromPorts: la unidad no tiene serie nativa de throughput (SNMP
+	// o pusher external), así que su línea de 24 h se rellena desde
+	// port_series. No se serializa (#1741).
+	sparklineFromPorts bool
+	CPU                *int   `json:"cpu"`
+	RAM                *int   `json:"ram"`
+	Temp               *int   `json:"temp"`
+	Uptime             string `json:"uptime"` // "<d>d <h>h" | "—"
+	Clients            int    `json:"clients"`
 	// BandSplit: clientes online por banda (2.4/5/6 GHz + cable) — issue #645.
 	// Misma fuente que Clients (mismo recuento), suma ≤ Clients (los clientes
 	// con banda desconocida "—" no caen en ninguna banda).

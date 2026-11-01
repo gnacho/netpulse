@@ -332,6 +332,41 @@ func TestHourlyFpsTotal(t *testing.T) {
 	}
 }
 
+// HourlyBpsTotal: respaldo de la línea de 24 h de las unidades sin serie
+// propia de throughput (#1741). Por hora y puerto se toma la media de las
+// muestras y se suman los puertos.
+func TestHourlyBpsTotal(t *testing.T) {
+	s := openTestDB(t)
+	nowHour := time.Now().Truncate(time.Hour)
+	samples := []PortSample{
+		{RouterID: "crs305", PortID: "sfp-sfpplus1", TS: nowHour.Add(-time.Hour), RxBps: 100, TxBps: 50},
+		{RouterID: "crs305", PortID: "ether1", TS: nowHour.Add(-time.Hour), RxBps: 200},
+		{RouterID: "crs305", PortID: "sfp-sfpplus1", TS: nowHour, RxBps: 300, TxBps: 100},
+		{RouterID: "crs305", PortID: "sfp-sfpplus1", TS: nowHour.Add(30 * time.Minute), RxBps: 500, TxBps: 100},
+		{RouterID: "crs305", PortID: "ether1", TS: nowHour},
+	}
+	for _, smp := range samples {
+		if err := s.RecordSample(smp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := s.HourlyBpsTotal("crs305", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("esperaba 2 buckets, tengo %d", len(out))
+	}
+	// Hora anterior: 100+50 del SFP y 200 del ether1.
+	if out[0] < 349 || out[0] > 351 {
+		t.Fatalf("hora anterior: %.0f bps, esperaba 350", out[0])
+	}
+	// Hora en curso: media del SFP (400 rx + 100 tx) y ether1 sin tasa.
+	if out[1] < 499 || out[1] > 501 {
+		t.Fatalf("hora en curso: %.0f bps, esperaba 500", out[1])
+	}
+}
+
 // #812: una muestra de hace 60h (dentro de la retención raw, fuera de la
 // antigua ventana de 48h) debe agregarse en el job nocturno.
 func TestNightlyJobBackfillsGapBeyond48h(t *testing.T) {

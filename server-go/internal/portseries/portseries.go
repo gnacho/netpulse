@@ -376,6 +376,63 @@ func (s *Store) HourlyFpsTotal(routerID string, hours int) ([]float64, error) {
 	return out, nil
 }
 
+// HourlyBpsTotal devuelve el tráfico agregado del router en bits/s por bucket
+// de una hora. Es el respaldo de la línea de 24 h de las unidades que no
+// publican serie de throughput propia (SNMP o pusher external, #1741): por
+// cada hora y puerto se toma la media de rx_bps/tx_bps de las muestras
+// guardadas y se suman todos los puertos. A diferencia de HourlyFpsTotal no
+// necesita la hora anterior: la tasa ya viene derivada en cada muestra. El
+// slice tiene `hours` entradas; huecos a 0.
+func (s *Store) HourlyBpsTotal(routerID string, hours int) ([]float64, error) {
+	if routerID == "" || hours <= 0 {
+		return nil, nil
+	}
+	const bucketMs = 3600e3
+	nowMs := time.Now().Truncate(time.Hour).UnixMilli()
+	startMs := nowMs - int64(hours-1)*bucketMs
+	// Mismo cuidado con el driver (issue #648): divisor literal entero dentro
+	// del CAST para que la división sea entera y no pierda precisión.
+	rows, err := s.db.Query(`SELECT CAST(ts / 3600000 AS INTEGER) AS h, port_id,
+			AVG(COALESCE(rx_bps, 0)), AVG(COALESCE(tx_bps, 0))
+		FROM port_series_raw
+		WHERE router_id = ? AND ts >= ?
+		GROUP BY h, port_id ORDER BY h`, routerID, startMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type acc struct{ rx, tx float64 }
+	buckets := make([]map[string]acc, hours)
+	for rows.Next() {
+		var h int64
+		var port string
+		var rx, tx float64
+		if err := rows.Scan(&h, &port, &rx, &tx); err != nil {
+			continue
+		}
+		idx := int(h - startMs/bucketMs)
+		if idx < 0 || idx >= hours {
+			continue
+		}
+		if buckets[idx] == nil {
+			buckets[idx] = map[string]acc{}
+		}
+		buckets[idx][port] = acc{rx: rx, tx: tx}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]float64, hours)
+	for i, ports := range buckets {
+		var bps float64
+		for _, v := range ports {
+			bps += v.rx + v.tx
+		}
+		out[i] = bps
+	}
+	return out, nil
+}
+
 // RollupRawTo5m aggregates raw samples into 5-min buckets.
 func (s *Store) RollupRawTo5m(window time.Duration) error {
 	since := time.Now().Add(-window).UnixMilli()
