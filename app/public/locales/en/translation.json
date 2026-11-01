@@ -1864,7 +1864,7 @@
       "rackCaption": "Draw your rack and detect cables. Off by default.",
       "firmwareUpgradesCaption": "Show or hide the firmware upgrades page",
       "integrationsGroup": "Integrations",
-      "externalAgents": "Add-ons",
+      "externalAgents": "External agents",
       "rtlDesc": "Realtek switches can run rtlplayground, an alternative firmware that turns them into NetPulse agents: flashing guide in",
       "rtlGuideEs": "Guide in Spanish",
       "rtlGuideEn": "Guide in English",
