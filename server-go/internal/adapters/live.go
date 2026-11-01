@@ -223,6 +223,10 @@ type extrasSnapshot struct {
 	// Los pushes event-driven (wireless-only) van sin ella; sin este cache
 	// las vitales del router parpadeaban a 0 entre pushes completos.
 	system *probe.SystemData
+	// systemKind: el agent kind (probe.Payload.Kind) que escribió system. El
+	// cache se clave solo por ID, y una fuente sin sección system no debe
+	// heredar las vitales que confirmó otra fuente del mismo router.
+	systemKind string
 	// lldp (#489): última sección lldp del payload. Mismo anti-parpadeo:
 	// los pushes event-driven van sin ella y la topología no debe perder
 	// los switches managed entre pushes completos.

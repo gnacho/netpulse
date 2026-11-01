@@ -651,6 +651,17 @@ func injectPortRates(ports []EthPort, rates map[string]probe.IfRate) {
 	}
 }
 
+// agentSourceClass: la documentación de probe.Payload.Kind declara "" y
+// "native" como el mismo agente nativo, así que el cache de system los trata
+// como una sola fuente; cada kind restante (external, netgrip…) es la suya
+// propia.
+func agentSourceClass(kind string) string {
+	if kind == "" || kind == "native" {
+		return "native"
+	}
+	return kind
+}
+
 // polledFromAgent convierte el payload del agente en el routerPolled del
 // pipeline (mismos shapes que el sondeo SSH). Aplica el mismo anti-parpadeo
 // que pollRouter: sección ausente en el payload = sonda fallida → conserva
@@ -693,11 +704,17 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		out.brMac = sd.BridgeMAC
 		out.flash = sd.Flash
 		out.firmwareAvailable = sd.FirmwareAvailable
-	} else if cached != nil && cached.system != nil {
+	} else if cached != nil && cached.system != nil && cached.systemKind == agentSourceClass(p.Kind) {
 		// #441: push event-driven (wireless-only) sin system → conserva las
 		// últimas vitals buenas cacheadas en vez de pintar ceros falsos.
 		// Solo vitals/uptime: net/latencia/backhaul no se reciclan (evita
 		// duplicar tráfico con muestras viejas).
+		//
+		// Solo dentro del mismo kind: extrasCache se clave únicamente por ID,
+		// así que un payload external sin sección system heredaría las vitals
+		// del agente nativo que alimentó al router antes. Como #1724 marca lo
+		// que trae el payload de confirmado, esa herencia se publicaría como
+		// lectura propia y acabaría en el histórico.
 		sd := cached.system
 		if sd.CPU != nil {
 			out.cpu, out.hasCpu = *sd.CPU, true
@@ -710,7 +727,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		}
 	}
 	mem := sysInfo.Memory
-	if mem.Total > 0 {
+	// Con solo Mem.Total y ninguna cifra de uso no hay nada que derivar:
+	// memUsagePct caería a "available = free + buffered = 0" y reportaría un
+	// 100 % inventado. Eso es memoria desconocida, no memoria llena.
+	if mem.Total > 0 && memUsageKnown(mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used) {
 		ramPct = memUsagePct(mem.Total, mem.Free, mem.Buffered, mem.Cached, mem.Available, mem.Used)
 		// La memoria del payload es una lectura confirmada (los pushers de
 		// RouterOS/AsusWRT la derivan de free/memory), no un hueco que haya
@@ -904,15 +924,19 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// #441: el cache de system guarda la última sección BUENA (un push
 	// wireless-only no la invalida).
 	sysSnap := p.Data.System
-	if sysSnap == nil && cached != nil {
+	sysSnapKind := ""
+	if kind := agentSourceClass(p.Kind); sysSnap != nil {
+		sysSnapKind = kind
+	} else if cached != nil && cached.systemKind == kind {
 		sysSnap = cached.system
+		sysSnapKind = cached.systemKind
 	}
 	lldpSnap := p.Data.Lldp
 	if (lldpSnap == nil || (lldpSnap.Available && lldpSnap.Neighbors == nil)) && cached != nil {
 		lldpSnap = cached.lldp // conserva la última sección buena (#489)
 	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb, wirelessSide: out.wirelessSide, luci: out.luci, system: sysSnap, lldp: lldpSnap,
+		wireless: out.wireless, fdb: out.fdb, wirelessSide: out.wirelessSide, luci: out.luci, system: sysSnap, systemKind: sysSnapKind, lldp: lldpSnap,
 		clientBw: out.clientBw, vlans: out.vlans, multiWan: out.multiWan}
 	l.mu.Unlock()
 
