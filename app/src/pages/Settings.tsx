@@ -4067,6 +4067,20 @@ function ServicesCard({
               }}
             />
           ))}
+          <div className="flex items-center justify-between gap-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-primary">{t('settings.services.externalAgents')}</p>
+                <p className="truncate text-caption text-text-muted">
+                  {t('settings.services.rtlDesc')}{' '}
+                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
+                  {' · '}
+                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
+                </p>
+              </div>
+            </div>
+            {gear('complementos', t('settings.services.externalAgents'))}
+          </div>
         </div>
       </div>
 
@@ -4105,20 +4119,6 @@ function ServicesCard({
                 }}
               />
             ))}
-          </div>
-          <div className="flex items-center justify-between gap-4 py-2.5">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-text-primary">{t('settings.services.externalAgents')}</p>
-                <p className="truncate text-caption text-text-muted">
-                  {t('settings.services.rtlDesc')}{' '}
-                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
-                  {' · '}
-                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
-                </p>
-              </div>
-            </div>
-            {gear('complementos', t('settings.services.externalAgents'))}
           </div>
         </div>
       )}
