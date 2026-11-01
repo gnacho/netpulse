@@ -1076,6 +1076,7 @@
       "seriesTx": "Envío",
       "seriesNoData": "Sin datos históricos",
       "seriesPort": "Puerto",
+      "cycleStart": "Día de inicio del ciclo",
       "filterAll": "Todos",
       "filterActive": "Activos",
       "filterInactive": "Inactivos",
