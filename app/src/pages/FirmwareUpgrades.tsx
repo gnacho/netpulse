@@ -528,16 +528,17 @@ export default function FirmwareUpgrades() {
 
   // #1414: paso intermedio del flujo owut por pasos: construye y descarga la
   // imagen en el router SIN flashear, para revisar antes de instalar.
-  // #1769: acepta la lista de paquetes a excluir (owut -r), la misma que el
-  // upgrade one-shot; sin ella ASU rechaza routers con paquetes de terceros.
-  const runOwutDownload = async (id: string, missing: string[] = [], targetOverride?: string) => {
+  // #1769: acepta SOLO la lista de exclusión que el usuario escribió a mano
+  // (owut -r). Sin lista, ASU rechaza los routers con paquetes de terceros
+  // y su mensaje es el que hay que ver: nada de exclusión silenciosa.
+  const runOwutDownload = async (id: string, targetOverride?: string) => {
     const e = edits[id]
     setOwutDlBusy((prev) => ({ ...prev, [id]: true }))
     setOwutDlOk((prev) => ({ ...prev, [id]: false }))
     setError('')
     try {
       const stored = (removePkgs[id] ?? '').trim()
-      const removePackages = stored ? stored.split(/[\s,]+/).filter(Boolean) : missing
+      const removePackages = stored ? stored.split(/[\s,]+/).filter(Boolean) : []
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1227,6 +1228,22 @@ export default function FirmwareUpgrades() {
                         {installBusy[item.routerId] ? t('firmwareUpgrades.installingOwut') : t('firmwareUpgrades.installOwut')}
                       </button>
                     )}
+                    {/* #1769: la exclusión de paquetes es siempre explícita:
+                        el campo nace vacío y solo lo que el usuario escriba
+                        va al `-r` de owut (download y one-shot). */}
+                    {(m === 'auto' || m === 'owut') && owutAvail && (
+                      <label className="flex flex-col gap-1">
+                        <span className="text-caption text-text-muted">{t('firmwareUpgrades.excludePkgs')}</span>
+                        <input
+                          type="text"
+                          value={removePkgs[item.routerId] ?? ''}
+                          onChange={(ev) => setRemovePkgs((prev) => ({ ...prev, [item.routerId]: ev.target.value }))}
+                          placeholder="netgrip"
+                          className="rounded-lg border border-border bg-canvas px-3 py-2 font-mono text-sm text-text-primary"
+                        />
+                        <span className="text-xs text-text-muted">{t('firmwareUpgrades.excludePkgsHint')}</span>
+                      </label>
+                    )}
                     {/* #1414 (feedback #1414): los tres pasos owut van juntos
                         y en orden, separados del "Actualizar" a pelo. El
                         grupo lleva tooltips que explican qué hace cada botón. */}
@@ -1251,13 +1268,10 @@ export default function FirmwareUpgrades() {
                             <button
                               type="button"
                               onClick={() => {
-                                // #1769: mismos paquetes a excluir que el
-                                // one-shot, prerrellenados desde el check.
-                                const missing = owut?.missingPkgs ?? []
-                                if (missing.length && !(removePkgs[item.routerId] ?? '').trim()) {
-                                  setRemovePkgs((prev) => ({ ...prev, [item.routerId]: missing.join(' ') }))
-                                }
-                                void runOwutDownload(item.routerId, missing, effTarget)
+                                // #1769: la exclusión es explícita; si ASU
+                                // necesita quitar paquetes, fallará y su
+                                // salida es la que guía al usuario.
+                                void runOwutDownload(item.routerId, effTarget)
                               }}
                               disabled={owutDlBusy[item.routerId] || !!active}
                               title={t('firmwareUpgrades.tipOwutDownload')}
@@ -1301,10 +1315,8 @@ export default function FirmwareUpgrades() {
                     <button
                       onClick={() => {
                         if (owutAvail && (m === 'auto' || m === 'owut')) {
-                          const missing = owut?.missingPkgs ?? []
-                          if (missing.length && !(removePkgs[item.routerId] ?? '').trim()) {
-                            setRemovePkgs((prev) => ({ ...prev, [item.routerId]: missing.join(' ') }))
-                          }
+                          // #1769: sin prerrelleno; la exclusión se decide
+                          // en el diálogo, campo a campo.
                           setOwutConfirmId(item.routerId)
                         } else {
                           setConfirmId(item.routerId)
