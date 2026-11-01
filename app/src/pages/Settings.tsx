@@ -4212,7 +4212,7 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
           />
         ))}
 
-        {/* #1782: agentes externos plegados dentro de Ajustes (grupo Complementos). */}
+        {/* #1782: complementos (integraciones de vendor) plegados dentro de Ajustes. */}
         <div className="mt-10">
           <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-text-muted">
             {t('settings.services.externalAgents')}
