@@ -99,7 +99,14 @@ export function VlanPanel({ vlans }: { vlans: VlanPort[] }) {
                             <span className="pl-[22px] font-mono text-mono-sm text-text-muted">{vp.port}</span>
                           )}
                         </td>
-                        <td className="py-2 pr-4 font-mono text-mono-sm text-text-primary">{v.id}</td>
+                        <td className="py-2 pr-4 font-mono text-mono-sm text-text-primary">
+                          {v.id}
+                          {/* #1757: the name LuCI gives the VLAN, so a row
+                              reads as a network and not only as a number. */}
+                          {v.name && (
+                            <span className="ml-2 font-sans text-[11px] text-text-muted">{v.name}</span>
+                          )}
+                        </td>
                         <td className="py-2 pr-4"><VlanBadge tagged={v.tagged} /></td>
                         <td className="py-2">
                           {v.pvid ? (

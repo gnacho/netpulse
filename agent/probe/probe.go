@@ -1568,6 +1568,9 @@ type VlanEntry struct {
 	ID     int  `json:"id"`
 	Tagged bool `json:"tagged"`
 	PVID   bool `json:"pvid"`
+	// Name es la etiqueta que LuCI da a la VLAN (uci show network, #258),
+	// rellenada por el servidor al juntarla con VlanLabels (#1757).
+	Name string `json:"name,omitempty"`
 }
 
 // VlanPort: puerto del bridge con sus VLANs (issue #315).
