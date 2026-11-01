@@ -304,6 +304,10 @@ type Live struct {
 	snmpPorts map[string]map[string]snmpPortSample
 	// snmpLastPoll (issue #414): timestamp del último poll SNMP real por router.
 	snmpLastPoll map[string]time.Time
+	// snmpSurface (#1726): última superficie leída por SNMP (velocidad de
+	// boca, errores y LLDP) de las unidades que además van por pusher, para
+	// no sondear SNMP en cada push. Protegido por mu.
+	snmpSurface map[string]snmpSurfaceEntry
 	// fwAlert (#1411): estado de la alerta de firmware por unidad con target
 	// configurado: qué relación se alertó y contra qué versiones. Con eso la
 	// alerta es un episodio por unidad (se abre una vez, se actualiza solo si
@@ -522,6 +526,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		lastObsTs:            map[string]int64{},
 		snmpPorts:            map[string]map[string]snmpPortSample{},
 		snmpLastPoll:         map[string]time.Time{},
+		snmpSurface:          map[string]snmpSurfaceEntry{},
 		snmpFdbCount:         map[string]int{},
 		snmpBrMac:            map[string]string{},
 		snmpPollStats:        map[string]*snmpPollStat{},
@@ -1182,6 +1187,10 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		if gw != nil && cfg.ID == gw.ID && client != nil && !hasWan {
 			p.wanInfo = l.probeWanInfo(cfg.ID, client)
 		}
+		// #1726: si la unidad también tiene SNMP configurado, completar con
+		// SNMP lo que el payload no puede dar (velocidad de boca, errores,
+		// LLDP). Sin esto el ajuste era un no-op silencioso.
+		l.mergeSNMPSurface(cfg, p)
 		return p, nil
 	}
 	if cfg.SnmpEnabled {
