@@ -47,14 +47,31 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if sysErr != nil {
 		log.Printf("[netpulse] SNMP system %s: %v", cfg.LogLabel(), sysErr)
 	}
-	// #1256: temperatura del chasis en MikroTik SwOS (grados enteros).
-	// Best-effort: los switches que no exponen el OID responden
-	// NoSuchInstance y hasTemp queda false (vitals a null como antes).
-	mikroTemp, hasTemp := npsnmp.PollMikrotikTemp(session)
+	// #1256 + #1725: temperatura del chasis en switches MikroTik. Se lee la
+	// health table por el NOMBRE de la sonda ("cpu-temperature"), no por el
+	// índice 52 con `.0` que #1256 fijó de un SwOS: en RouterOS la tabla está
+	// ahí mismo pero en otra fila, y el Get nunca contestaba (medido:
+	// NoSuchObject en un CRS305 con 51 °C disponibles). Best-effort: los
+	// switches que no exponen nada dejan hasTemp false (vitals a null como
+	// antes, #441).
+	descr := ""
+	if sysInfo != nil {
+		descr = sysInfo.Descr
+	}
+	mikroTemp, hasTemp := npsnmp.PollMikrotikTemp(session, descr)
 	// Netgear FastPath (XS708T, GS728TXP/S3300…): CPU por proceso y sensores
 	// de temperatura en su MIB privada (4526.11). Best-effort igual que el
 	// MikroTik: sin esos árboles, ok=false y los vitales siguen a null.
 	ngCpu, hasNgCpu, ngTemp, hasNgTemp := npsnmp.PollNetgearVitals(session)
+	// #1725: HOST-RESOURCES (hrProcessorLoad / hrStorageTable "main memory")
+	// para los equipos sin MIB privada de vitales — RouterOS por SNMP es el
+	// caso real. Se pregunta primero y una sola vez por equipo
+	// (hostResourcesKnown), porque hay agentes que descartan el árbol en
+	// silencio y cada operación así cuesta DefaultTimeout×(Retries+1)=10 s.
+	hrCpu, hasHrCpu, hrRam, hasHrRam := 0, false, 0, false
+	if l.hostResourcesKnown(cfg.ID, func() bool { return npsnmp.HostResourcesPresent(session) }) {
+		hrCpu, hasHrCpu, hrRam, hasHrRam = npsnmp.PollHostResourcesVitals(session)
+	}
 	// #1036: MAC propia del switch (dot1dBaseBridgeAddress). Sin ella el
 	// equipo no tenía MAC en flota ni casaba por MAC en topología. Cache:
 	// si el OID no contesta en este poll se conserva la última conocida.
@@ -216,10 +233,65 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if hasNgCpu {
 		p.cpu, p.hasCpu = ngCpu, true
 	}
+	// #1725: HOST-RESOURCES solo rellena huecos (veáse
+	// applyHostResourcesVitals).
+	applyHostResourcesVitals(p, hrCpu, hasHrCpu, hrRam, hasHrRam)
 	l.mu.Lock()
 	l.snmpLastPoll[cfg.ID] = now
 	l.mu.Unlock()
 	return p, nil
+}
+
+// snmpHrEntry (#1725): si el agente de este equipo publica HOST-RESOURCES, y
+// cuándo se preguntó por última vez.
+type snmpHrEntry struct {
+	at time.Time
+	ok bool
+}
+
+// snmpHrProbeTTL: cada cuánto se vuelve a preguntar. Un firmware nuevo puede
+// añadir el árbol, y seis horas es un margen con el que nadie espera ver una
+// vital distinta; a cambio, un equipo que lo descarta en silencio paga UN
+// timeout por ventana en lugar de uno por poll (pollRouterSNMP corre cada
+// snmp_poll_interval, 60 s por defecto).
+const snmpHrProbeTTL = 6 * time.Hour
+
+// hostResourcesKnown cachea la respuesta de la pregunta "¿este agente tiene
+// HOST-RESOURCES?". El probe va como callback porque el paquete adapters no
+// importa gosnmp: la sesión SNMP sigue siendo un detalle de internal/snmp.
+func (l *Live) hostResourcesKnown(routerID string, probe func() bool) bool {
+	now := l.now()
+	l.mu.Lock()
+	entry, seen := l.snmpHr[routerID]
+	l.mu.Unlock()
+	if seen && now.Sub(entry.at) < snmpHrProbeTTL {
+		return entry.ok
+	}
+	ok := probe()
+	l.mu.Lock()
+	if l.snmpHr == nil {
+		l.snmpHr = map[string]snmpHrEntry{}
+	}
+	l.snmpHr[routerID] = snmpHrEntry{at: now, ok: ok}
+	l.mu.Unlock()
+	return ok
+}
+
+// applyHostResourcesVitals (#1725): HOST-RESOURCES es respaldo, no segunda
+// opinión. Una lectura privada (la health table de MikroTik, el FastPath de
+// Netgear) es lo que el panel del propio equipo muestra; el árbol genérico mide
+// de otra forma, así que aquí solo rellena lo que quedó sin bandera. Y sin
+// bandera no inventa: ok=false no escribe ni un cero (#441).
+func applyHostResourcesVitals(p *routerPolled, cpu int, okCpu bool, ramPct int, okRam bool) {
+	if p == nil {
+		return
+	}
+	if !p.hasCpu && okCpu {
+		p.cpu, p.hasCpu = cpu, true
+	}
+	if !p.hasRam && okRam {
+		p.ram, p.hasRam = ramPct, true
+	}
 }
 
 // snmpPollStat (issue #930): salud del sondeo SNMP por router. En memoria,

@@ -3,6 +3,7 @@ package snmp
 import (
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/gosnmp/gosnmp"
 )
@@ -96,11 +97,41 @@ func bridgeMacFromPDU(v gosnmp.SnmpPDU) string {
 	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X", b[0], b[1], b[2], b[3], b[4], b[5])
 }
 
-// PollMikrotikTemp lee la temperatura del chasis de un switch MikroTik SwOS
-// (#1256, OidMikrotikTemp, grados enteros). Best-effort: cualquier fallo
-// (OID ausente, equipo no MikroTik, timeout) devuelve ok=false y NUNCA
-// tumba el poll, igual que PollBridgeAddress (#1036).
-func PollMikrotikTemp(s *gosnmp.GoSNMP) (temp int, ok bool) {
+// PollMikrotikTemp lee la temperatura de la health table de MikroTik (#1725).
+//
+// Antes era un Get del índice 52 que #1256 copió de un SwOS. En RouterOS la
+// tabla existe pero la sonda está en otro índice y sin el `.0` final
+// (`100.1.2.17 = "cpu-temperature"`, `100.1.3.17 = 48`), así que el Get nunca
+// contestaba y la vital se quedaba en null aunque el agente tuviera el dato.
+//
+// La tabla se camina SOLO si sysDescr declara el firmware de MikroTik
+// ("RouterOS…" o "…SwOS…"): hay agentes que DESCARTAN lo que no está en su
+// vista MIB en vez de responder NoSuchObject, y cada operación así cuesta
+// DefaultTimeout×(Retries+1) = 10 s (medido en un XS708T y un S3300). Con el
+// filtro, un equipo que no es MikroTik paga exactamente lo que pagaba antes.
+//
+// Si la tabla no da nada —o ni siquiera se intentó, porque PollSystem falló y
+// no hay descripción— se cae al Get histórico de #1256, que es lo que hoy
+// responde en un SwOS. Best-effort en cualquier caso: sin lectura válida
+// (0, false) y el poll sigue (#1036), nunca un cero (#441).
+func PollMikrotikTemp(s *gosnmp.GoSNMP, sysDescr string) (temp int, ok bool) {
+	if s == nil {
+		return 0, false
+	}
+	if declaresMikrotik(sysDescr) {
+		names, errName := walkSafe(s, OidMikrotikHealthName)
+		values, errVal := []gosnmp.SnmpPDU(nil), error(nil)
+		if errName == nil && len(names) > 0 {
+			// Sin nombres no hay nada que aparear: el segundo walk sería un
+			// RTT más en cada poll de un equipo que no publica la tabla.
+			values, errVal = walkSafe(s, OidMikrotikHealthValue)
+		}
+		if errName == nil && errVal == nil {
+			if t, tok := ParseMikrotikHealth(mikrotikHealthRows(names, values)); tok {
+				return t, true
+			}
+		}
+	}
 	result, err := s.Get([]string{OidMikrotikTemp})
 	if err != nil {
 		return 0, false
@@ -112,6 +143,64 @@ func PollMikrotikTemp(s *gosnmp.GoSNMP) (temp int, ok bool) {
 		return mikrotikTempFromPDU(v)
 	}
 	return 0, false
+}
+
+// declaresMikrotik: el firmware del equipo en su propia descripción. RouterOS
+// publica "RouterOS CRS305-1G-4S+ 7.25" y SwOS "CSS610-8G-2S+ SwOS v2.21"
+// (#1256); ambos son el mismo árbol 14988.
+func declaresMikrotik(sysDescr string) bool {
+	d := strings.ToLower(sysDescr)
+	return strings.Contains(d, "routeros") || strings.Contains(d, "swos")
+}
+
+// mikrotikHealthRows cruza nombre y valor por el índice final del OID. Un
+// índice sin nombre o sin valor utilizable se descarta: la tabla de salud
+// tiene filas que no son temperatura (el .4 es un flag), y aparearlas por las
+// fuerzas daría una lectura con nombre equivocado.
+func mikrotikHealthRows(names, values []gosnmp.SnmpPDU) map[string]int {
+	byIdx := map[int]int{}
+	for _, v := range values {
+		idx := trailingIndex(v.Name, OidMikrotikHealthValue)
+		if idx == 0 {
+			continue
+		}
+		if n, ok := mikrotikTempFromPDU(v); ok {
+			byIdx[idx] = n
+		}
+	}
+	out := map[string]int{}
+	for _, n := range names {
+		idx := trailingIndex(n.Name, OidMikrotikHealthName)
+		name := strings.ToLower(strings.TrimSpace(stringVal(n)))
+		if idx == 0 || name == "" {
+			continue
+		}
+		if val, ok := byIdx[idx]; ok {
+			out[name] = val
+		}
+	}
+	return out
+}
+
+// ParseMikrotikHealth: la temperatura de la health table a partir de las filas
+// ya apareadas nombre→valor. `cpu-temperature` manda (es la que /system health
+// imprime como CPU); si el equipo la nombra de otra forma se toma el MÁXIMO de
+// las filas cuyo nombre contenga "temperature" — el punto caliente, el mismo
+// criterio que los sensores Netgear (ParseNetgearTemps) y así el orden del
+// walk no decide la lectura.
+func ParseMikrotikHealth(rows map[string]int) (temp int, ok bool) {
+	if v, found := rows["cpu-temperature"]; found {
+		return v, true
+	}
+	for name, v := range rows {
+		if !strings.Contains(name, "temperature") {
+			continue
+		}
+		if !ok || v > temp {
+			temp, ok = v, true
+		}
+	}
+	return temp, ok
 }
 
 // mikrotikTempFromPDU convierte el Gauge32 del OID de temperatura a (°C,
