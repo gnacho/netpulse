@@ -33,8 +33,6 @@ export interface ClientDevice extends Device {
   adguard: boolean
   /** Grupo del filtro "Tipo" (devices.md §③) */
   group: FilterGroup
-  /** Visto por primera vez en los últimos 7 días (stat "Nuevos (7 días)") */
-  newThisWeek?: boolean
 }
 
 // 'infra' primero (D6): hipervisores, CTs y switches gestionados de un vistazo.
@@ -87,7 +85,7 @@ const CANON_DETAILS: Record<string, Omit<ClientDevice, keyof Device>> = {
   },
   'galaxy-tab-s9': {
     hostname: 'galaxy-tab-s9', dhcpLease: 'renews in 11h 5min',
-    traffic24hRx: '640 MB', traffic24hTx: '48 MB', adguard: true, group: 'moviles', newThisWeek: true,
+    traffic24hRx: '640 MB', traffic24hTx: '48 MB', adguard: true, group: 'moviles',
   },
   // D1: el GS308E vuelve a ser Device (además del distnode managed del canon).
   // Su grupo visible es 'infra' (lo reasigna Devices.tsx con device.infra/lldp).
@@ -178,7 +176,8 @@ function isMACName(name: string): boolean {
 }
 
 /** Metadatos de cliente que pueden venir inline (canon JSON / API demo).
- *  firstSeen/lastSeen NO van aquí: viajan en Device como epochs (#954). */
+ *  firstSeen/lastSeen NO van aquí: viajan en Device como epochs (#954), y
+ *  newThisWeek tampoco: es alta de device_seen, no detalle del demo. */
 interface InlineDetails {
   hostname?: string
   dhcpLease?: string
@@ -186,7 +185,6 @@ interface InlineDetails {
   traffic24hTx?: string
   adguard?: boolean
   group?: FilterGroup
-  newThisWeek?: boolean
 }
 
 /** Extrae los metadatos inline del canon; null si el Device no los trae. */
@@ -200,7 +198,6 @@ function inlineDetails(d: Device): Omit<ClientDevice, keyof Device> | null {
     traffic24hTx: raw.traffic24hTx ?? '—',
     adguard: raw.adguard ?? true,
     group: raw.group ?? TYPE_TO_GROUP[d.type],
-    newThisWeek: raw.newThisWeek,
   }
 }
 

@@ -249,7 +249,9 @@ type Router struct {
 	LldpHint string `json:"lldpHint,omitempty"`
 }
 
-// DeviceTotals del overview (quirk: NewToday=0 en live).
+// DeviceTotals del overview. NewToday: clientes cuyo alta en device_seen
+// (#954) es de hoy; en el demo lo suma deviceTotalsOf sobre IsNew, mismo
+// criterio y mismo número.
 type DeviceTotals struct {
 	Total        int `json:"total"`
 	Online       int `json:"online"`
@@ -337,8 +339,14 @@ type Device struct {
 	Traffic24hTx string   `json:"traffic24hTx,omitempty"`
 	Adguard      *bool    `json:"adguard,omitempty"` // puntero: demo emite true/false explícito; live lo omite (paridad Node)
 	Group        string   `json:"group,omitempty"`
-	IsNew        bool     `json:"isNew,omitempty"`
-	NewThisWeek  bool     `json:"newThisWeek,omitempty"`
+	// IsNew: el alta del registro device_seen (#954) es de hoy. Lo fijan
+	// applyDeviceSeen y ghostDevices leyendo first_seen; la app lo usa para el
+	// pill "Nuevo" y para el "+N hoy" de deviceTotals.newToday.
+	IsNew bool `json:"isNew,omitempty"`
+	// NewThisWeek: el alta cayó en los últimos 7 días (ventana móvil). Es el
+	// tile "New (7 days)"; en el canon demo viene a mano junto a los tres
+	// IsNew (que también son de esta semana).
+	NewThisWeek bool `json:"newThisWeek,omitempty"`
 }
 
 // LldpInfo identifica un vecino que se anuncia por LLDP (switch gestionado,

@@ -3997,7 +3997,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 		Traffic: TrafficByRange{H1: trafficOf("1h"), H24: trafficOf("24h"), D7: trafficOf("7d"), D30: trafficOf("30d")},
 		Adguard: ag, Wireguard: wgStats, Routers: routerList,
 		DeviceTotals: DeviceTotals{
-			Total: len(devices), Online: online, KnownOffline: len(devices) - online, NewToday: 0,
+			Total: len(devices), Online: online, KnownOffline: len(devices) - online,
+			NewToday: countNewToday(devices),
 		},
 		TopDevices: top, Alerts: alertsCopy, UnreadAlerts: unread,
 		DistributionNodes: distNodes,
