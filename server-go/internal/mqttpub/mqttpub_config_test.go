@@ -64,13 +64,40 @@ func TestSaveConfigValidatesAndKeepsPassword(t *testing.T) {
 	}
 	// Redondo completo: todo lo guardado se lee igual.
 	kv2 := mapKV{m: map[string]string{}}
-	want := Config{Enabled: true, Host: "10.0.0.10", Port: 1884, User: "u", Pass: "p", Instance: "ofi", Interval: 15 * time.Second}
+	want := Config{Enabled: true, Host: "10.0.0.10", Port: 1884, User: "u", Pass: "p", Instance: "ofi", Interval: 15 * time.Second, TLS: true, TLSInsecure: true}
 	if err := SaveConfig(kv2, want); err != nil {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 	got := LoadConfig(kv2)
 	if got != want {
 		t.Fatalf("round trip = %+v, want %+v", got, want)
+	}
+}
+
+func TestSaveConfigClearsInsecureWithoutTLS(t *testing.T) {
+	kv := mapKV{m: map[string]string{}}
+	if err := SaveConfig(kv, Config{Host: "broker", Port: 1883, TLS: false, TLSInsecure: true}); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+	if got := LoadConfig(kv); got.TLSInsecure {
+		t.Fatalf("insecure verification without TLS is meaningless, got %+v", got)
+	}
+}
+
+func TestBrokerURLAndTLSOption(t *testing.T) {
+	plain := Config{Host: "broker", Port: 1883}
+	if got := brokerURL(plain); got != "tcp://broker:1883" {
+		t.Fatalf("plain URL = %q", got)
+	}
+	if _, ok := tlsOption(plain); ok {
+		t.Fatal("plain config must not add a TLS option")
+	}
+	secure := Config{Host: "broker", Port: 8883, TLS: true}
+	if got := brokerURL(secure); got != "tls://broker:8883" {
+		t.Fatalf("TLS URL = %q", got)
+	}
+	if _, ok := tlsOption(secure); !ok {
+		t.Fatal("TLS config must add the TLS option")
 	}
 }
 

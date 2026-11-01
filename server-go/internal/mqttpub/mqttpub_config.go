@@ -20,13 +20,15 @@ type kvStore interface {
 }
 
 const (
-	kvKeyEnabled  = "mqtt.enabled"
-	kvKeyHost     = "mqtt.host"
-	kvKeyPort     = "mqtt.port"
-	kvKeyUser     = "mqtt.user"
-	kvKeyPass     = "mqtt.pass"
-	kvKeyInstance = "mqtt.instance"
-	kvKeyInterval = "mqtt.interval"
+	kvKeyEnabled     = "mqtt.enabled"
+	kvKeyHost        = "mqtt.host"
+	kvKeyPort        = "mqtt.port"
+	kvKeyUser        = "mqtt.user"
+	kvKeyPass        = "mqtt.pass"
+	kvKeyInstance    = "mqtt.instance"
+	kvKeyInterval    = "mqtt.interval"
+	kvKeyTLS         = "mqtt.tls"
+	kvKeyTLSInsecure = "mqtt.tls_insecure"
 )
 
 // LoadConfig lee la configuración: el entorno como base y la kv por encima.
@@ -57,6 +59,12 @@ func LoadConfig(kv kvStore) Config {
 			cfg.Interval = time.Duration(sec) * time.Second
 		}
 	}
+	if v, ok := kv.Get(kvKeyTLS); ok {
+		cfg.TLS = v == "true"
+	}
+	if v, ok := kv.Get(kvKeyTLSInsecure); ok {
+		cfg.TLSInsecure = v == "true"
+	}
 	return cfg
 }
 
@@ -78,6 +86,9 @@ func SaveConfig(kv kvStore, cfg Config) error {
 	if cfg.Interval <= 0 {
 		cfg.Interval = defaultInterval
 	}
+	if !cfg.TLS {
+		cfg.TLSInsecure = false
+	}
 	if cfg.Pass == "" {
 		if prev, ok := kv.Get(kvKeyPass); ok {
 			cfg.Pass = prev
@@ -91,6 +102,8 @@ func SaveConfig(kv kvStore, cfg Config) error {
 		{kvKeyPass, cfg.Pass},
 		{kvKeyInstance, cfg.Instance},
 		{kvKeyInterval, strconv.Itoa(int(cfg.Interval.Seconds()))},
+		{kvKeyTLS, strconv.FormatBool(cfg.TLS)},
+		{kvKeyTLSInsecure, strconv.FormatBool(cfg.TLSInsecure)},
 	}
 	for _, p := range pairs {
 		if err := kv.Set(p.key, p.value); err != nil {

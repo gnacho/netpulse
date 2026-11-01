@@ -209,6 +209,69 @@ func TestMQTTPropagateWithoutAgentIsHonest(t *testing.T) {
 	}
 }
 
+// TestMQTTPropagateTLSRequiresUpdatedNetGrip: con TLS activo, un agente que
+// solo entiende los siete argumentos originales no puede recibir la op (la
+// decodificaría sin TLS y el router publicaría en claro sin avisar). La
+// respuesta lo dice por router y los agentes nuevos reciben los dos args.
+func TestMQTTPropagateTLSRequiresUpdatedNetGrip(t *testing.T) {
+	ov := &adapters.Overview{Routers: []adapters.Router{
+		{ID: "flint2", Name: "Flint 2"},
+		{ID: "rt2", Name: "RT2"},
+	}}
+	ts, reg := newSSEPlanServer(t, ov)
+	addPlanRouter(t, ts, "flint2", "192.0.2.10", true, "")
+	addPlanRouter(t, ts, "rt2", "192.0.2.11", true, "")
+	setAgentToken(t, ts, "flint2", "agent-token")
+	setAgentToken(t, ts, "rt2", "agent-token")
+	reg.Ingest(&probe.Payload{Router: "flint2", Kind: "netgrip", Version: "0.77.3"})
+	reg.Ingest(&probe.Payload{Router: "rt2", Kind: "netgrip", Version: "0.78.0"})
+
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+	if res, body := wanSpeedRequest(t, "PUT", ts.URL, "/api/settings/mqtt", cookie,
+		`{"tls":true,"tlsInsecure":true,"port":8883}`); res.StatusCode != http.StatusOK {
+		t.Fatalf("PUT mqtt TLS: status %d (%v)", res.StatusCode, body)
+	}
+	_ = connectAgentStream(t, ts.URL, "flint2")
+	rt2Events := connectAgentStream(t, ts.URL, "rt2")
+
+	results, _ := propagateMQTT(t, ts, cookie)
+
+	old, ok := results["flint2"]
+	if !ok {
+		t.Fatalf("falta flint2 en la respuesta: %+v", results)
+	}
+	if old.Error != "netgrip_update_required" {
+		t.Errorf("flint2 con NetGrip 0.77.3: error esperado netgrip_update_required, got %+v", old)
+	}
+	if old.Queued || old.PlanID != "" {
+		t.Errorf("no se puede encolar TLS a un agente que no lo entiende: %+v", old)
+	}
+
+	r, ok := results["rt2"]
+	if !ok {
+		t.Fatalf("falta rt2 en la respuesta: %+v", results)
+	}
+	if r.Error != "" || !r.Queued {
+		t.Fatalf("rt2 con NetGrip 0.78.0 debe recibir la op, got %+v", r)
+	}
+	ev := waitAgentEvent(t, rt2Events, "apply")
+	var payload struct {
+		Ops []executor.Op `json:"ops"`
+	}
+	if err := json.Unmarshal([]byte(ev.data), &payload); err != nil {
+		t.Fatalf("payload SSE apply inválido (%q): %v", ev.data, err)
+	}
+	if len(payload.Ops) != 1 {
+		t.Fatalf("ops SSE: %+v", payload.Ops)
+	}
+	if got := payload.Ops[0].Args["tls"]; got != "1" {
+		t.Errorf("arg tls: got %q, want 1", got)
+	}
+	if got := payload.Ops[0].Args["tlsInsecure"]; got != "true" {
+		t.Errorf("arg tlsInsecure: got %q, want true", got)
+	}
+}
+
 // TestMQTTPropagateDoesNotPersistBrokerPassword revisa la copia persistida
 // del plan: el secreto viaja por SSE, no se guarda en orchestr_plans.
 func TestMQTTPropagateDoesNotPersistBrokerPassword(t *testing.T) {

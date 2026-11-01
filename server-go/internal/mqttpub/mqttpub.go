@@ -8,6 +8,7 @@ package mqttpub
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -32,13 +33,15 @@ const (
 
 // Config is the publisher configuration.
 type Config struct {
-	Enabled  bool
-	Host     string
-	Port     int
-	User     string
-	Pass     string
-	Instance string
-	Interval time.Duration
+	Enabled     bool
+	Host        string
+	Port        int
+	User        string
+	Pass        string
+	Instance    string
+	Interval    time.Duration
+	TLS         bool
+	TLSInsecure bool
 }
 
 // ConfigFromEnv reads the configuration from the environment. lookup follows
@@ -71,6 +74,12 @@ func ConfigFromEnv(lookup func(string) (string, bool)) Config {
 			cfg.Interval = time.Duration(sec) * time.Second
 		}
 	}
+	if v, ok := lookup("NETPULSE_MQTT_TLS"); ok {
+		cfg.TLS = isTrue(v)
+	}
+	if v, ok := lookup("NETPULSE_MQTT_TLS_INSECURE"); ok {
+		cfg.TLSInsecure = isTrue(v)
+	}
 	cfg.Instance = sanitize(cfg.Instance)
 	if cfg.Host == "" {
 		cfg.Enabled = false
@@ -84,6 +93,32 @@ func isTrue(v string) bool {
 		return true
 	}
 	return false
+}
+
+// brokerURL builds the dial URL. TLS keeps the configured port and only
+// changes the scheme: the broker listens on 8883 by convention, but the port
+// in Settings always wins.
+func brokerURL(cfg Config) string {
+	scheme := "tcp"
+	if cfg.TLS {
+		scheme = "tls"
+	}
+	return fmt.Sprintf("%s://%s:%d", scheme, cfg.Host, cfg.Port)
+}
+
+// tlsOption returns the TLS client config when TLS is enabled. Certificates
+// are verified against the system roots; TLSInsecure is the explicit opt-in
+// for self-signed brokers, the same trade-off as mosquitto_sub --insecure.
+func tlsOption(cfg Config) (mq.Option, bool) {
+	if !cfg.TLS {
+		return nil, false
+	}
+	tc := &tls.Config{MinVersion: tls.VersionTLS12}
+	if cfg.TLSInsecure {
+		// #nosec G402 -- opted in from Settings for a self-signed broker.
+		tc.InsecureSkipVerify = true
+	}
+	return mq.WithTLS(tc), true
 }
 
 // Publisher keeps the broker connection and publishes the state periodically.
@@ -164,7 +199,7 @@ func (p *Publisher) Run(ctx context.Context) {
 }
 
 func (p *Publisher) dial(ctx context.Context) (*mq.Client, error) {
-	addr := fmt.Sprintf("tcp://%s:%d", p.cfg.Host, p.cfg.Port)
+	addr := brokerURL(p.cfg)
 	opts := []mq.Option{
 		mq.WithProtocolVersion(mq.ProtocolV311),
 		mq.WithClientID("netpulse-" + p.cfg.Instance),
@@ -182,6 +217,9 @@ func (p *Publisher) dial(ctx context.Context) (*mq.Client, error) {
 		mq.WithOnConnectionLost(func(_ *mq.Client, err error) {
 			log.Printf("[mqtt] connection lost: %v", err)
 		}),
+	}
+	if opt, ok := tlsOption(p.cfg); ok {
+		opts = append(opts, opt)
 	}
 	if p.cfg.User != "" {
 		opts = append(opts, mq.WithCredentials(p.cfg.User, p.cfg.Pass))
