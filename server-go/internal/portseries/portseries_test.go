@@ -333,7 +333,7 @@ func TestHourlyFpsTotal(t *testing.T) {
 }
 
 // HourlyBpsTotal: respaldo de la línea de 24 h de las unidades sin serie
-// propia de throughput (#1741). Por hora y puerto se toma la media de las
+// propia de throughput (#1741). Por hora y puerto se conserva el pico de las
 // muestras y se suman los puertos.
 func TestHourlyBpsTotal(t *testing.T) {
 	s := openTestDB(t)
@@ -361,9 +361,9 @@ func TestHourlyBpsTotal(t *testing.T) {
 	if out[0] < 349 || out[0] > 351 {
 		t.Fatalf("hora anterior: %.0f bps, esperaba 350", out[0])
 	}
-	// Hora en curso: media del SFP (400 rx + 100 tx) y ether1 sin tasa.
-	if out[1] < 499 || out[1] > 501 {
-		t.Fatalf("hora en curso: %.0f bps, esperaba 500", out[1])
+	// Hora en curso: pico del SFP (500 rx + 100 tx) y ether1 sin tasa.
+	if out[1] < 599 || out[1] > 601 {
+		t.Fatalf("hora en curso: %.0f bps, esperaba 600", out[1])
 	}
 }
 

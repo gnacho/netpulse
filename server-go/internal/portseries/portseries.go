@@ -379,7 +379,7 @@ func (s *Store) HourlyFpsTotal(routerID string, hours int) ([]float64, error) {
 // HourlyBpsTotal devuelve el tráfico agregado del router en bits/s por bucket
 // de una hora. Es el respaldo de la línea de 24 h de las unidades que no
 // publican serie de throughput propia (SNMP o pusher external, #1741): por
-// cada hora y puerto se toma la media de rx_bps/tx_bps de las muestras
+// cada hora y puerto se toma el máximo de rx_bps/tx_bps de las muestras
 // guardadas y se suman todos los puertos. A diferencia de HourlyFpsTotal no
 // necesita la hora anterior: la tasa ya viene derivada en cada muestra. El
 // slice tiene `hours` entradas; huecos a 0.
@@ -393,7 +393,7 @@ func (s *Store) HourlyBpsTotal(routerID string, hours int) ([]float64, error) {
 	// Mismo cuidado con el driver (issue #648): divisor literal entero dentro
 	// del CAST para que la división sea entera y no pierda precisión.
 	rows, err := s.db.Query(`SELECT CAST(ts / 3600000 AS INTEGER) AS h, port_id,
-			AVG(COALESCE(rx_bps, 0)), AVG(COALESCE(tx_bps, 0))
+			MAX(COALESCE(rx_bps, 0)), MAX(COALESCE(tx_bps, 0))
 		FROM port_series_raw
 		WHERE router_id = ? AND ts >= ?
 		GROUP BY h, port_id ORDER BY h`, routerID, startMs)

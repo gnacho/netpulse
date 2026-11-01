@@ -460,7 +460,7 @@ export function PortSeriesChart({
               <XAxis dataKey="t" hide />
               <Tooltip content={<PortTooltip unit={effUnit} />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
               <Area
-                type="monotone"
+                type="linear"
                 dataKey="rx"
                 name="RX"
                 stroke="#3b82f6"
@@ -471,7 +471,7 @@ export function PortSeriesChart({
                 isAnimationActive={false}
               />
               <Area
-                type="monotone"
+                type="linear"
                 dataKey="tx"
                 name="TX"
                 stroke="#10b981"

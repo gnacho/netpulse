@@ -1023,7 +1023,7 @@ func (l *Live) metricsHistoryBuckets(routerID string, span, bucket int64, fmtLab
 	}
 	now := time.Now().UnixMilli()
 	rows, err := l.db.Query(
-		`SELECT (bucket_ts / ?) AS win, AVG(rx_avg) AS rx, AVG(tx_avg) AS tx,
+		`SELECT (bucket_ts / ?) AS win, MAX(rx_max) AS rx, MAX(tx_max) AS tx,
 		        AVG(cpu_avg) AS cpu, AVG(ram_avg) AS ram, AVG(temp_avg) AS temp,
 		        MIN(bucket_ts) AS t0
 		 FROM metrics_buckets WHERE router_id = ? AND bucket_ts >= ?
@@ -1091,7 +1091,7 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 		return l.metricsHistoryBuckets(routerID, span, bucket, fmtLabel)
 	}
 	rows, err := l.db.Query(
-		`SELECT (ts / ?) AS bucket, AVG(rx_bps) AS rx, AVG(tx_bps) AS tx, AVG(cpu) AS cpu, AVG(ram) AS ram, AVG(temp) AS temp, MIN(ts) AS t0
+		`SELECT (ts / ?) AS bucket, MAX(rx_bps) AS rx, MAX(tx_bps) AS tx, AVG(cpu) AS cpu, AVG(ram) AS ram, AVG(temp) AS temp, MIN(ts) AS t0
 		 FROM metrics WHERE router_id = ? AND ts >= ? GROUP BY bucket ORDER BY bucket`,
 		bucket, routerID, now-span)
 	if err != nil {

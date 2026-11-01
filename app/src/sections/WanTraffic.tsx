@@ -176,7 +176,7 @@ export function WanTraffic() {
               />
             ) : null}
             <Area
-              type="monotone"
+              type="linear"
               dataKey="down"
               stroke="#22D3EE"
               strokeWidth={2}
@@ -187,7 +187,7 @@ export function WanTraffic() {
               animationEasing="ease-out"
             />
             <Area
-              type="monotone"
+              type="linear"
               dataKey="up"
               stroke="#A78BFA"
               strokeWidth={2}
