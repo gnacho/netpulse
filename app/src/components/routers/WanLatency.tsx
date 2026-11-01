@@ -99,8 +99,8 @@ export function WanLatency({ extras }: { extras?: RouterExtras }) {
                 minTickGap={40}
               />
               <Tooltip content={<WanTooltip />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
-              <Area type="monotone" dataKey="down" stroke="#22D3EE" strokeWidth={2} fill="url(#wan-detail-down)" dot={false} animationDuration={900} animationEasing="ease-out" />
-              <Area type="monotone" dataKey="up" stroke="#A78BFA" strokeWidth={2} fill="url(#wan-detail-up)" dot={false} animationDuration={900} animationEasing="ease-out" />
+              <Area type="linear" dataKey="down" stroke="#22D3EE" strokeWidth={2} fill="url(#wan-detail-down)" dot={false} animationDuration={900} animationEasing="ease-out" />
+              <Area type="linear" dataKey="up" stroke="#A78BFA" strokeWidth={2} fill="url(#wan-detail-up)" dot={false} animationDuration={900} animationEasing="ease-out" />
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>

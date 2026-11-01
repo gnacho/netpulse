@@ -652,7 +652,7 @@
       "rangeAria": "Traffic chart range",
       "tableCaption": "Traffic data ({{range}})",
       "time": "Time",
-      "title": "Network traffic",
+      "title": "WAN traffic",
       "total24h": "Total 24h",
       "uploadMbps": "Upload (Mbps)",
       "contracted": "Contracted: ↓ {{down}} / ↑ {{up}} Mbps",

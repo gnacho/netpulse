@@ -652,7 +652,7 @@
       "rangeAria": "Rango del gráfico de tráfico",
       "tableCaption": "Datos de tráfico ({{range}})",
       "time": "Hora",
-      "title": "Tráfico de red",
+      "title": "Tráfico WAN",
       "total24h": "Total 24h",
       "uploadMbps": "Subida (Mbps)",
       "contracted": "Contratado: ↓ {{down}} / ↑ {{up}} Mbps",
