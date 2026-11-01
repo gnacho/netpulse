@@ -16,12 +16,28 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
 	"github.com/gnacho/netpulse/server-go/internal/orchestr"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
+	"github.com/gnacho/netpulse/server-go/internal/vercmp"
 )
 
 // mqttRedactedPass sustituye la contraseña del broker en la copia del plan que
 // se persiste: el secreto viaja al agente por el canal autenticado (SSE), pero
 // no se duplica en orchestr_plans ni en el historial de auditoría.
 const mqttRedactedPass = "<redacted>"
+
+// netgripMQTTTLSMinVersion is the first NetGrip release that reads the tls and
+// tlsInsecure arguments of mqtt.configure. Older agents keep only the original
+// seven args, so a TLS config is not propagated to them at all.
+const netgripMQTTTLSMinVersion = "0.78.0"
+
+// agentSupportsMQTTTLS reports whether an agent version understands the TLS
+// arguments. An empty or unparsable version is treated as unsupported: better
+// to ask for an update than to silently configure the router without TLS.
+func agentSupportsMQTTTLS(version string) bool {
+	if _, ok := vercmp.Parse3(version); !ok {
+		return false
+	}
+	return vercmp.Cmp(version, netgripMQTTTLSMinVersion) >= 0
+}
 
 type mqttConfigResponse struct {
 	Enabled     bool   `json:"enabled"`
@@ -31,6 +47,8 @@ type mqttConfigResponse struct {
 	PassSet     bool   `json:"passSet"`
 	Instance    string `json:"instance"`
 	IntervalSec int    `json:"intervalSec"`
+	TLS         bool   `json:"tls"`
+	TLSInsecure bool   `json:"tlsInsecure"`
 	Running     bool   `json:"running"`
 }
 
@@ -46,7 +64,8 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 		writeJSON(w, http.StatusOK, mqttConfigResponse{
 			Enabled: cfg.Enabled, Host: cfg.Host, Port: cfg.Port, User: cfg.User,
 			PassSet: cfg.Pass != "", Instance: cfg.Instance,
-			IntervalSec: int(cfg.Interval.Seconds()), Running: mgr.Running(),
+			IntervalSec: int(cfg.Interval.Seconds()), TLS: cfg.TLS, TLSInsecure: cfg.TLSInsecure,
+			Running: mgr.Running(),
 		})
 	})))
 
@@ -65,6 +84,8 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			Pass        string `json:"pass"`
 			Instance    string `json:"instance"`
 			IntervalSec int    `json:"intervalSec"`
+			TLS         *bool  `json:"tls"`
+			TLSInsecure *bool  `json:"tlsInsecure"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			return
@@ -91,6 +112,15 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 		if body.IntervalSec > 0 {
 			cfg.Interval = time.Duration(body.IntervalSec) * time.Second
 		}
+		if body.TLS != nil {
+			cfg.TLS = *body.TLS
+		}
+		if body.TLSInsecure != nil {
+			cfg.TLSInsecure = *body.TLSInsecure
+		}
+		if !cfg.TLS {
+			cfg.TLSInsecure = false
+		}
 		if err := mqttpub.SaveConfig(adapter, cfg); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 			return
@@ -105,10 +135,12 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			return
 		}
 		var body struct {
-			Host string `json:"host"`
-			Port int    `json:"port"`
-			User string `json:"user"`
-			Pass string `json:"pass"`
+			Host        string `json:"host"`
+			Port        int    `json:"port"`
+			User        string `json:"user"`
+			Pass        string `json:"pass"`
+			TLS         *bool  `json:"tls"`
+			TLSInsecure *bool  `json:"tlsInsecure"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			return
@@ -125,6 +157,15 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 		}
 		if body.Pass != "" {
 			cfg.Pass = body.Pass
+		}
+		if body.TLS != nil {
+			cfg.TLS = *body.TLS
+		}
+		if body.TLSInsecure != nil {
+			cfg.TLSInsecure = *body.TLSInsecure
+		}
+		if !cfg.TLS {
+			cfg.TLSInsecure = false
 		}
 		if err := mqttpub.Probe(r.Context(), cfg); err != nil {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
@@ -180,6 +221,14 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			},
 			Desc: "MQTT: aplicar el broker de NetPulse",
 		}
+		if cfg.TLS {
+			// Added last on purpose: an old NetGrip decodes only the original
+			// seven keys and would drop TLS without saying so, so propagation
+			// is refused below unless the agent reports a version that knows
+			// them.
+			op.Args["tls"] = "1"
+			op.Args["tlsInsecure"] = strconv.FormatBool(cfg.TLSInsecure)
+		}
 		// Copia persistida del op: el secreto se redacta (el agente recibe el
 		// valor real por el stream autenticado).
 		opPersisted := op
@@ -198,6 +247,8 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			"user":        cfg.User,
 			"instance":    cfg.Instance,
 			"intervalSec": intervalSec,
+			"tls":         cfg.TLS,
+			"tlsInsecure": cfg.TLSInsecure,
 			"passSet":     cfg.Pass != "",
 		})
 
@@ -209,6 +260,14 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			res := map[string]any{
 				"id": rt.ID, "name": rt.Name,
 				"queued": false, "delegated": false, "status": "not_queued",
+			}
+			if cfg.TLS {
+				_, ver, _, _, _ := s.agents.Info(rt.ID)
+				if !agentSupportsMQTTTLS(ver) {
+					res["error"] = "netgrip_update_required"
+					results = append(results, res)
+					continue
+				}
 			}
 			plan, err := orchMgr.CreatePlan(rt.ID, "mqtt", desiredJSON, []executor.Op{opPersisted}, actor)
 			if err != nil {

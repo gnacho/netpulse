@@ -656,17 +656,19 @@ The temperature, signal and latency thresholds that define health and alerts are
 
 ### Procedure: enable it
 
-The usual way is the **MQTT card in Settings**: turn it on, enter host, port and credentials, test the connection and save; it applies live, without a restart. From the same card you can **propagate the configuration to the NetGrip routers** in the fleet, so you do not configure them one by one. Propagation creates one plan per router and only **queues** it on its agent: the card marks it as awaiting confirmation and the real outcome (applied or failed) shows up in Orchestration when the agent reports it.
+The usual way is the **MQTT card in Settings**: turn it on, enter host, port and credentials, test the connection and save; it applies live, without a restart. The card accepts brokers without TLS (1883) and with TLS (8883): with TLS the certificate is checked against the system roots, and there is a checkbox to accept a self-signed one. From the same card you can **propagate the configuration to the NetGrip routers** in the fleet, so you do not configure them one by one. Propagation creates one plan per router and only **queues** it on its agent: the card marks it as awaiting confirmation and the real outcome (applied or failed) shows up in Orchestration when the agent reports it. Propagating with TLS requires NetGrip 0.78.0 or later on the router.
 
 The alternative is environment variables (or the UCI options `mqtt_*` with the on-box install):
 
-1. Make sure the broker is running and note host, port (1883 by default) and credentials.
+1. Make sure the broker is running and note host, port (1883 without TLS, 8883 with TLS) and credentials.
 2. Set the variables where the NetPulse service starts:
    - `NETPULSE_MQTT_ENABLED=1`
    - `NETPULSE_MQTT_HOST=<broker host>`
    - `NETPULSE_MQTT_USER` and `NETPULSE_MQTT_PASS`
    - `NETPULSE_MQTT_INSTANCE=<name>` (optional; `default` otherwise)
    - `NETPULSE_MQTT_PORT` (optional; 1883) and `NETPULSE_MQTT_INTERVAL` (optional; 30 seconds)
+   - `NETPULSE_MQTT_TLS=1` (optional; uses TLS and, if no port is set, 8883)
+   - `NETPULSE_MQTT_TLS_INSECURE=1` (optional; skips certificate verification, only for self-signed brokers)
 3. Restart NetPulse. The log shows `[mqtt] connected ... as instance "<name>"`.
 4. In Home Assistant, open **Settings > Devices & services > MQTT**: the new device is there with its entities. The first state can take one cycle (up to the configured interval).
 
@@ -675,7 +677,7 @@ With the on-box install, the same values go in the UCI options `mqtt_*`.
 ### Limits and privacy
 
 - **Read-only**: NetPulse publishes; it never runs anything that arrives over MQTT.
-- **No TLS**: the broker connection is plain (port 1883). Use it with a broker on your local network; do not expose the broker to the internet.
+- **Optional TLS**: without TLS the connection is plain (port 1883); with TLS it uses 8883 and the certificate is checked against the system roots. The self-signed checkbox skips that check: use it only with your own broker. Either way, do not expose the broker to the internet.
 - **Disabled in demo mode**: the demo instance publishes nothing.
 - **No cloud**: data goes from NetPulse to your broker; it does not pass through anyone else's server.
 - If the broker goes down, the publisher **does not disturb** NetPulse: it fails silently and retries.

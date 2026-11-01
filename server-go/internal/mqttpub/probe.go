@@ -4,7 +4,6 @@ package mqttpub
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gonzalop/mq"
@@ -12,11 +11,14 @@ import (
 
 // Probe hace un CONNECT contra el broker y desconecta.
 func Probe(ctx context.Context, cfg Config) error {
-	addr := fmt.Sprintf("tcp://%s:%d", cfg.Host, cfg.Port)
+	addr := brokerURL(cfg)
 	opts := []mq.Option{
 		mq.WithProtocolVersion(mq.ProtocolV311),
 		mq.WithClientID("netpulse-probe"),
 		mq.WithConnectTimeout(5 * time.Second),
+	}
+	if opt, ok := tlsOption(cfg); ok {
+		opts = append(opts, opt)
 	}
 	if cfg.User != "" {
 		opts = append(opts, mq.WithCredentials(cfg.User, cfg.Pass))

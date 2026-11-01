@@ -243,7 +243,7 @@ NETPULSE_MQTT_INSTANCE=casa</code>
       <div class="card honest reveal" style="padding:2rem 2.25rem;">
         <h3 class="font-display" style="margin:0;font-size:1.25rem;color:rgb(var(--accent));" data-i18n="haPage.limitsTitle">Lo que hay que saber</h3>
         <ul class="honest-list">
-          <li data-i18n="haPage.lim1">La conexión al broker no lleva TLS (puerto 1883): pensada para un broker de tu red local, no para exponerlo a Internet.</li>
+          <li data-i18n="haPage.lim1">El broker puede ir sin TLS (1883) o con TLS (8883); con TLS el certificado se verifica contra las raíces del sistema y puedes aceptar uno autofirmado.</li>
           <li data-i18n="haPage.lim2">Está desactivado hasta que lo enciendas, y en modo demo no publica nada.</li>
           <li data-i18n="haPage.lim3">No hay nube de por medio: los datos van de NetPulse a tu broker y de ahí a tu Home Assistant, sin pasar por terceros.</li>
           <li data-i18n="haPage.lim4">Si el broker cae, NetPulse no se entera: la publicación falla en silencio y reintenta. La monitorización sigue igual.</li>

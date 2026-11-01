@@ -656,17 +656,19 @@ Los umbrales de temperatura, señal y latencia que definen la salud y las alerta
 
 ### Procedimiento: activarlo
 
-La forma habitual es la **tarjeta MQTT de Ajustes**: la activas, pones host, puerto y credenciales, pruebas la conexión y guardas; se aplica en caliente, sin reiniciar. Desde esa misma tarjeta puedes **propagar la configuración a los routers NetGrip** de la flota, para no configurarlos uno a uno. La propagación crea un plan por router y al agente solo se le deja **encolado**: la tarjeta lo marca como pendiente de confirmación y el resultado real (aplicado o fallido) se ve en Orquestación cuando el agente lo reporta.
+La forma habitual es la **tarjeta MQTT de Ajustes**: la activas, pones host, puerto y credenciales, pruebas la conexión y guardas; se aplica en caliente, sin reiniciar. La tarjeta admite brokers sin TLS (1883) y con TLS (8883): con TLS el certificado se verifica contra las raíces del sistema, y hay una casilla para aceptar uno autofirmado. Desde esa misma tarjeta puedes **propagar la configuración a los routers NetGrip** de la flota, para no configurarlos uno a uno. La propagación crea un plan por router y al agente solo se le deja **encolado**: la tarjeta lo marca como pendiente de confirmación y el resultado real (aplicado o fallido) se ve en Orquestación cuando el agente lo reporta. La propagación con TLS exige NetGrip 0.78.0 o posterior en el router.
 
 La alternativa son las variables de entorno (o las opciones UCI `mqtt_*` en modo on-box):
 
-1. Comprueba que el broker está en marcha y anota host, puerto (1883 por defecto) y credenciales.
+1. Comprueba que el broker está en marcha y anota host, puerto (1883 sin TLS, 8883 con TLS) y credenciales.
 2. Define las variables en el arranque del servicio de NetPulse:
    - `NETPULSE_MQTT_ENABLED=1`
    - `NETPULSE_MQTT_HOST=<host del broker>`
    - `NETPULSE_MQTT_USER` y `NETPULSE_MQTT_PASS`
    - `NETPULSE_MQTT_INSTANCE=<nombre>` (opcional; por defecto `default`)
    - `NETPULSE_MQTT_PORT` (opcional; 1883) y `NETPULSE_MQTT_INTERVAL` (opcional; 30 segundos)
+   - `NETPULSE_MQTT_TLS=1` (opcional; usa TLS y, si no fijas puerto, 8883)
+   - `NETPULSE_MQTT_TLS_INSECURE=1` (opcional; omite la verificación del certificado, solo para brokers autofirmados)
 3. Reinicia NetPulse. En el registro aparece `[mqtt] connected ... as instance "<nombre>"`.
 4. En Home Assistant, entra en **Ajustes > Dispositivos y servicios > MQTT**: el dispositivo nuevo ya está con sus entidades. El primer estado puede tardar un ciclo (hasta el intervalo configurado).
 
@@ -675,7 +677,7 @@ Con instalación on-box, estos mismos valores se ponen en las opciones UCI `mqtt
 ### Límites y privacidad
 
 - **Solo lectura**: NetPulse publica; nunca ejecuta lo que llegue por MQTT.
-- **Sin TLS**: la conexión al broker va en claro (puerto 1883). Úsala con un broker de tu red local; no expongas el broker a Internet.
+- **TLS opcional**: sin TLS la conexión va en claro (puerto 1883); con TLS usa 8883 y el certificado se verifica contra las raíces del sistema. La casilla de autofirmado omite esa verificación: úsala solo con un broker propio. En ambos casos, no expongas el broker a Internet.
 - **Desactivado en modo demo**: la instancia de demostración no publica nada.
 - **Sin nube**: los datos van de NetPulse a tu broker; no pasan por ningún servidor ajeno.
 - Si el broker cae, el publisher **no interrumpe** NetPulse: falla en silencio y reintenta.
