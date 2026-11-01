@@ -4,11 +4,13 @@
 package httpapi
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -157,4 +159,173 @@ func TestRunRecurrenceShotLaunchesOwutWhenOutdated(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("desfasado debe lanzar owut upgrade -V 25.12.7: %v", pool.cmds)
+}
+
+// rebootFakeSSH (#1771): variante del fake que simula el corte de sesión SSH
+// de un flash real: el comando muere con error dejando la salida de owut a
+// medias. El resto de comandos (detección, preserve-stack) responde vacío.
+type rebootFakeSSH struct {
+	recFakeSSH
+	installOut string
+	installErr error
+	upgradeOut string
+	upgradeErr error
+}
+
+func (f *rebootFakeSSH) Run(host, cmd string, _ time.Duration) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cmds = append(f.cmds, cmd)
+	switch {
+	case strings.Contains(cmd, "owut install"):
+		return f.installOut, f.installErr
+	case strings.Contains(cmd, "owut upgrade"):
+		if f.upgradeOut != "" || f.upgradeErr != nil {
+			return f.upgradeOut, f.upgradeErr
+		}
+		return "There are no changes to upgrade\n__owut_exit__=0\n", nil
+	case strings.Contains(cmd, "command -v owut"):
+		return "__owut__\n", nil
+	}
+	return "", nil
+}
+
+// staticBoardAdapter: adapter mínimo que reporta siempre la misma versión de
+// board info (lo que haría el router tras completar el flash). El embedding
+// de Demo cubre el resto del interfaz Snapshotter: estos tests solo llegan a
+// BoardInfoFor vía detectedFirmwareVersion.
+type staticBoardAdapter struct {
+	*adapters.Demo
+	version string
+}
+
+func (a *staticBoardAdapter) BoardInfoFor(string) *adapters.BoardInfo {
+	return &adapters.BoardInfo{Release: struct {
+		Version     string `json:"version"`
+		Description string `json:"description"`
+		Target      string `json:"target"`
+	}{Version: a.version}}
+}
+
+// shortenOwutRebootTimers: gracia y sondeo cortos para no alargar los tests.
+func shortenOwutRebootTimers(t *testing.T) {
+	t.Helper()
+	oldGrace, oldPoll := owutRebootGrace, owutRebootPoll
+	owutRebootGrace = 2 * time.Second
+	owutRebootPoll = 50 * time.Millisecond
+	t.Cleanup(func() { owutRebootGrace, owutRebootPoll = oldGrace, oldPoll })
+}
+
+// waitUpgradeStatus sondea el store hasta que el upgrade llega a uno de los
+// estados pedidos (el flash corre en goroutine en el flujo real; aquí las
+// llamadas son directas, pero awaitReboot sondea con su timer).
+func waitUpgradeStatus(t *testing.T, s *server, id int64, want ...string) *firmware.Upgrade {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if up, err := s.firmware.GetUpgradeByID(id); err == nil && up != nil {
+			for _, w := range want {
+				if up.Status == w {
+					return up
+				}
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	up, _ := s.firmware.GetUpgradeByID(id)
+	t.Fatalf("upgrade %d no llegó a %v: %+v", id, want, up)
+	return nil
+}
+
+// #1771: "Installing ... and rebooting..." con la sesión SSH muerta termina
+// en done, no en failed, aunque el flash muera antes de owutSSHMinRun
+// (install por pasos).
+func TestOwutInstallRebootLineGoesToDone(t *testing.T) {
+	shortenOwutRebootTimers(t)
+	s, rid, _ := makeRecServer(t, "25.12.5")
+	re := &rebootFakeSSH{
+		installOut: "Installing /tmp/firmware.bin and rebooting...\n",
+		installErr: errors.New("ssh: session closed"),
+	}
+	s.pool = re
+	s.adapter = &staticBoardAdapter{version: "25.12.6"}
+
+	id, err := s.firmware.BeginUpgradeIfIdle(rid, "25.12.6", "", "")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	s.runOwutInstallImage(id, rid, "192.168.1.60", "25.12.6")
+
+	up := waitUpgradeStatus(t, s, id, "done")
+	if up.Status != "done" {
+		t.Fatalf("status = %q (%q), esperaba done", up.Status, up.Error)
+	}
+	if !re.saw("owut install") {
+		t.Fatalf("el fake no vio owut install: %v", re.cmds)
+	}
+}
+
+// #1771: mismo caso en el one-shot `owut upgrade`.
+func TestOwutUpgradeRebootLineGoesToDone(t *testing.T) {
+	shortenOwutRebootTimers(t)
+	s, rid, _ := makeRecServer(t, "25.12.5")
+	re := &rebootFakeSSH{
+		upgradeOut: "Installing /tmp/firmware.bin and rebooting...\n",
+		upgradeErr: errors.New("ssh: session closed"),
+	}
+	s.pool = re
+	s.adapter = &staticBoardAdapter{version: "25.12.6"}
+
+	id, err := s.firmware.BeginUpgradeIfIdle(rid, "25.12.6", "", "")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	s.runOwutUpgrade(id, rid, "192.168.1.60", "25.12.6", "manual", nil)
+
+	waitUpgradeStatus(t, s, id, "done")
+}
+
+// Un error real (sin línea de reboot) sigue clasificando failed, con el
+// texto accionable de #1769 cuando el motivo es la imagen ausente.
+func TestOwutInstallRealErrorStillFailed(t *testing.T) {
+	shortenOwutRebootTimers(t)
+	s, rid, _ := makeRecServer(t, "25.12.5")
+	re := &rebootFakeSSH{
+		installOut: "sysupgrade: ERROR: Image file '/tmp/firmware.bin' does not exist\n",
+		installErr: errors.New("exit status 1"),
+	}
+	s.pool = re
+	s.adapter = &staticBoardAdapter{version: "25.12.5"}
+
+	id, err := s.firmware.BeginUpgradeIfIdle(rid, "25.12.6", "", "")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	s.runOwutInstallImage(id, rid, "192.168.1.60", "25.12.6")
+
+	up := waitUpgradeStatus(t, s, id, "failed")
+	if !strings.Contains(up.Error, "No hay imagen descargada") {
+		t.Fatalf("error = %q, esperaba el texto accionable de #1769", up.Error)
+	}
+}
+
+// #1771: sin target en memoria, el cambio de versión reportado por el board
+// info también confirma el flash (v != from).
+func TestOwutInstallNoTargetStillDoneWhenVersionChanges(t *testing.T) {
+	shortenOwutRebootTimers(t)
+	s, rid, _ := makeRecServer(t, "25.12.5")
+	re := &rebootFakeSSH{
+		installOut: "Installing /tmp/firmware.bin and rebooting...\n",
+		installErr: errors.New("ssh: session closed"),
+	}
+	s.pool = re
+	s.adapter = &staticBoardAdapter{version: "25.12.6"}
+
+	id, err := s.firmware.BeginUpgradeIfIdle(rid, "25.12.6", "", "")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	s.runOwutInstallImage(id, rid, "192.168.1.60", "")
+
+	waitUpgradeStatus(t, s, id, "done")
 }

@@ -43,15 +43,18 @@ type platformCacheEntry struct {
 	at time.Time
 }
 
-const (
+var (
 	owutDetectCacheTTL = time.Hour
 	// owutRebootGrace: margen para que el router reinicie, vuelva el sondeo
 	// y el board info reporte la versión nueva.
 	owutRebootGrace = 15 * time.Minute
 	// owutSSHMinRun: si la sesión SSH muere antes de este umbral, no fue el
-	// reinicio del sysupgrade: el comando ni arrancó.
+	// reinicio del sysupgrade: el comando ni arrancó. No es suficiente por
+	// sí solo (#1771): un flash rápido muere antes y caía a "failed".
 	owutSSHMinRun = 30 * time.Second
-	recTickEvery  = time.Minute
+	// owutRebootPoll: cadencia de sondeo dentro de awaitReboot.
+	owutRebootPoll = 20 * time.Second
+	recTickEvery   = time.Minute
 )
 
 func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
@@ -350,7 +353,10 @@ func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string,
 	switch {
 	case err == nil && exit == 0 && strings.Contains(out, "no changes"):
 		_ = s.firmware.SetStatus(id, "done", "sin cambios: ya estaba al día", "")
-	case (err == nil && exit == 0) || (err != nil && dur >= owutSSHMinRun):
+	// #1771: la muerte de la sesión SSH es el final normal del flash aunque
+	// sea rápida; la línea "rebooting" de owut lo confirma.
+	case (err == nil && exit == 0) ||
+		(err != nil && (dur >= owutSSHMinRun || strings.Contains(out, "rebooting"))):
 		s.awaitReboot(id, routerID, target, origin, from)
 	default:
 		msg := owutTail(out, err)
@@ -389,7 +395,9 @@ func (s *server) runOwutInstallImage(id int64, routerID, host, target string) {
 		}
 		_ = s.firmware.SetStatus(id, "failed", msg, "")
 		s.emitFirmwareResult(routerID, from, target, "manual", false, msg)
-	case err != nil && dur >= owutSSHMinRun:
+	case err != nil && (dur >= owutSSHMinRun || strings.Contains(out, "rebooting")):
+		// #1771: "Installing ... and rebooting..." con la sesión muerta es un
+		// flash en curso, no un fallo, aunque muera antes de owutSSHMinRun.
 		s.awaitReboot(id, routerID, target, "manual", from)
 	default:
 		msg := owutTail(out, err)
@@ -413,8 +421,8 @@ func (s *server) awaitReboot(id int64, routerID, target, origin, from string) {
 	_ = s.firmware.SetStatus(id, "rebooting", "", "")
 	deadline := time.Now().Add(owutRebootGrace)
 	for time.Now().Before(deadline) {
-		time.Sleep(20 * time.Second)
-		if v := s.detectedFirmwareVersion(routerID); v == target && target != "" {
+		time.Sleep(owutRebootPoll)
+		if v := s.detectedFirmwareVersion(routerID); (target != "" && v == target) || (target == "" && v != "" && v != from) {
 			_ = s.firmware.SetStatus(id, "done", "", "")
 			s.emitFirmwareResult(routerID, from, target, origin, true, "")
 			return
