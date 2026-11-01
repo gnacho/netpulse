@@ -669,8 +669,8 @@ function DiscoveredStrip() {
             <span className="text-caption font-medium text-text-primary">{c.dev}</span>
             {c.fw && <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-text-muted">{c.fw}</span>}
             {pairState.token ? (
-              <code className="min-w-0 flex-1 truncate rounded-lg bg-canvas px-2 py-1 font-mono text-caption text-ok" title={`beacon <ip-netpulse> <slug> <token>`}>
-                beacon &lt;ip-netpulse&gt; &lt;slug&gt; {pairState.token.slice(0, 12)}…
+              <code className="min-w-0 flex-1 truncate rounded-lg bg-canvas px-2 py-1 font-mono text-caption text-ok" title={`beacon <ip-netpulse> <token>`}>
+                beacon &lt;ip-netpulse&gt; {pairState.token.slice(0, 12)}…
               </code>
             ) : (
               <>

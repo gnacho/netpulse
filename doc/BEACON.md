@@ -85,9 +85,14 @@ otras integraciones los usan, pero este firmware no los emitirá.
 ## Comando de configuración (consola + Advanced Settings)
 
 ```
-beacon <ip-netpulse> <slug> <token>     # pareo: unicast + token
-beacon off                               # apaga beacon y announce
+beacon <ip-netpulse> <token>     # pareo: unicast + token
+beacon off                       # apaga beacon y announce
 ```
+
+El `slug` no va en el comando: el firmware lo toma del `hostname` del
+equipo y debe coincidir con el slug con el que NetPulse registra el
+agente. Con un tercer argumento, el parser toma el segundo (el slug)
+como token y el pareo falla.
 
 Puerto destino (5140) y cadencia (30 s / 60 s announce) fijos en código.
 
