@@ -305,3 +305,83 @@ func TestSnmpSelfMacs(t *testing.T) {
 		t.Fatalf("devices: %+v, want solo el cliente real", devs)
 	}
 }
+
+// #1725: HOST-RESOURCES es respaldo, no segunda opinión. Donde la MIB privada
+// ya leyó, la genérica no pisa; donde no leyó nada, rellena; y donde el equipo
+// no publica el árbol, no escribe ni un cero (#441).
+func TestApplyHostResourcesVitalsSoloRellenaHuecos(t *testing.T) {
+	// Netgear FastPath ya dio CPU (suma de procesos). hrProcessorLoad diría
+	// otro número midiendo otra cosa: el panel del equipo muestra el primero.
+	p := &routerPolled{cpu: 7, hasCpu: true}
+	applyHostResourcesVitals(p, 73, true, 40, true)
+	if p.cpu != 7 || !p.hasCpu {
+		t.Errorf("cpu = %d/%v, want 7/true (la lectura privada manda)", p.cpu, p.hasCpu)
+	}
+	if p.ram != 40 || !p.hasRam {
+		t.Errorf("ram = %d/%v, want 40/true (la RAM sí era hueco)", p.ram, p.hasRam)
+	}
+
+	// RouterOS por SNMP: ninguna MIB privada, las dos entran.
+	r := &routerPolled{}
+	applyHostResourcesVitals(r, 1, true, 17, true)
+	if r.cpu != 1 || !r.hasCpu || r.ram != 17 || !r.hasRam {
+		t.Errorf("routeros = cpu %d/%v ram %d/%v, want 1/true 17/true", r.cpu, r.hasCpu, r.ram, r.hasRam)
+	}
+
+	// FN SWITCH 8 PRO: no publica HOST-RESOURCES. Sin bandera no se escribe
+	// nada y la tarjeta sigue mostrando null, no un 0 %.
+	f := &routerPolled{}
+	applyHostResourcesVitals(f, 0, false, 0, false)
+	if f.hasCpu || f.hasRam || f.cpu != 0 || f.ram != 0 {
+		t.Errorf("sin árbol genérico = %+v, want sin banderas y ceros intactos", f)
+	}
+
+	applyHostResourcesVitals(nil, 5, true, 5, true) // sin payload: no panica
+}
+
+// #1725: la pregunta por HOST-RESOURCES se hace una vez por equipo y se
+// recuerda TAMBIÉN cuando la respuesta fue negativa. Un agente que descarta el
+// árbol sin responder cuesta DefaultTimeout×(Retries+1)=10 s por operación;
+// sin cache eso se pagaría en cada poll (snmp_poll_interval, 60 s por
+// defecto) de forma indefinida.
+func TestHostResourcesKnownCachesBothAnswers(t *testing.T) {
+	base := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	l := NewLive(nil, nil, nil, nil)
+	l.now = func() time.Time { return base }
+	probe := func() bool { calls++; return false }
+
+	for i := 0; i < 5; i++ {
+		if l.hostResourcesKnown("sw1", probe) {
+			t.Fatal("el agente dijo que no; no puede salir true")
+		}
+		base = base.Add(time.Minute)
+		l.now = func() time.Time { return base }
+	}
+	if calls != 1 {
+		t.Fatalf("sondeos = %d, want 1 (la negativa se cachea igual que la afirmativa)", calls)
+	}
+
+	// Pasado el TTL se vuelve a preguntar: un firmware que añada el árbol se
+	// recoge sin reiniciar el server.
+	base = base.Add(snmpHrProbeTTL)
+	if l.hostResourcesKnown("sw1", probe) {
+		t.Fatal("sigue sin publicar el árbol")
+	}
+	if calls != 2 {
+		t.Fatalf("sondeos tras el TTL = %d, want 2", calls)
+	}
+
+	// Es por equipo, no global.
+	l.now = func() time.Time { return base }
+	otras := 0
+	if !l.hostResourcesKnown("sw2", func() bool { otras++; return true }) {
+		t.Fatal("sw2 sí publica y se descartó")
+	}
+	if otras != 1 {
+		t.Errorf("sondeos de sw2 = %d, want 1", otras)
+	}
+	if calls != 2 {
+		t.Errorf("sw1 no debe repetir su sondeo (%d)", calls)
+	}
+}

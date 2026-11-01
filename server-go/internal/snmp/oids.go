@@ -47,11 +47,37 @@ const (
 	// vecino). Es la única identidad del vecino que estos switches dan.
 	OidLldpLocPortTable = ".1.0.8802.1.1.2.1.3.7.1"
 
-	// OidMikrotikTemp: temperatura del chasis en switches MikroTik SwOS
-	// (OID empresarial 14988, health table). Gauge32 en GRADOS ENTEROS
-	// (#1256: un CSS610-8G-2S+ SwOS v2.21 reporta 60 = 60 °C; la convención
-	// de décimas es de RouterOS, no asumirla en SwOS). Best-effort: un
-	// switch que no lo expone responde NoSuchInstance y la vital queda a
-	// null como antes (#441).
+	// OidMikrotikTemp: la fila que #1256 fijó a mano (SwOS, índice 52 y
+	// scalar .0, Gauge32 en GRADOS ENTEROS: un CSS610-8G-2S+ v2.21 reporta
+	// 60 = 60 °C; las décimas son convención de RouterOS, no asumirlas).
+	// RouterOS publica la MISMA tabla con la sonda en otro índice y sin .0,
+	// así que el lector pasó a caminar la tabla (#1725) y esto queda como
+	// último intento para equipos cuya tabla no exponga los nombres.
 	OidMikrotikTemp = ".1.3.6.1.4.1.14988.1.1.3.100.1.3.52.0"
+	// OidMikrotikHealthName/OidMikrotikHealthValue: columnas de la health
+	// table de MikroTik (14988.1.1.3.100.1). La fila 17 de un CRS305 real:
+	//
+	//	.100.1.2.17 = STRING: "cpu-temperature"
+	//	.100.1.3.17 = INTEGER: 48
+	//
+	// Se caminan las dos y se emparejan por índice (#1725): el valor sin su
+	// nombre no dice qué sonda es, y el nombre sin valor no da la lectura.
+	OidMikrotikHealthName  = ".1.3.6.1.4.1.14988.1.1.3.100.1.2"
+	OidMikrotikHealthValue = ".1.3.6.1.4.1.14988.1.1.3.100.1.3"
+
+	// HOST-RESOURCES-MIB (#1725): el árbol genérico que muchos agentes —
+	// RouterOS incluido— rellenan cuando no existe ninguna MIB privada. Son
+	// el respaldo cuando el fabricante no contesta, nunca por delante de él.
+	//
+	//	hrProcessorLoad.1 = 1     (cpu0)      → %, Gauge32 0..100
+	//	hrStorageDescr.65536       = "main memory"
+	//	hrStorageSize.65536 = 524288  hrStorageUsed.65536 = 89840
+	//
+	// Size y Used vienen en las MISMAS hrStorageAllocationUnits (1024 B aquí),
+	// así que la proporción es directa y no hace falta leer allocationUnits.
+	OidHrSystemUptime  = ".1.3.6.1.2.1.25.1.1.0"
+	OidHrProcessorLoad = ".1.3.6.1.2.1.25.3.3.1.2"
+	OidHrStorageDescr  = ".1.3.6.1.2.1.25.2.3.1.3"
+	OidHrStorageSize   = ".1.3.6.1.2.1.25.2.3.1.5"
+	OidHrStorageUsed   = ".1.3.6.1.2.1.25.2.3.1.6"
 )
