@@ -4,7 +4,7 @@ package httpapi
 // still do, and handing out the private CA's root. See internal/tlsmode.
 //
 //	GET  /api/settings/https          (admin) state, and the agents still on HTTP
-//	POST /api/settings/https          (admin, password) {enabled?, mode?, force?}
+//	POST /api/settings/https          (admin, password) {enabled?, mode?, port?, cert?, key?, force?}
 //	POST /api/settings/https/confirm  (admin, over HTTPS) {code}
 //	GET  /netpulse-ca.crt | .pem      (anyone) the root, for devices to install
 
@@ -19,6 +19,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/security"
+	"github.com/gnacho/netpulse/server-go/internal/tlscert"
 	"github.com/gnacho/netpulse/server-go/internal/tlsmode"
 )
 
@@ -177,11 +178,13 @@ func (s *server) handleHTTPSChange(w http.ResponseWriter, r *http.Request) {
 		Enabled  *bool   `json:"enabled"`
 		Mode     *string `json:"mode"`
 		Port     *int    `json:"port"`
+		Cert     *string `json:"cert"`
+		Key      *string `json:"key"`
 		Force    bool    `json:"force"`
 		Password string  `json:"password"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
-		writeBodyError(w, st, "invalid_input", `expected { "enabled"?, "mode"?, "port"?, "password" }`)
+		writeBodyError(w, st, "invalid_input", `expected { "enabled"?, "mode"?, "port"?, "cert"?, "key"?, "password" }`)
 		return
 	}
 	// Counted as sign-in attempts: a stolen session must not be a way to
@@ -224,6 +227,35 @@ func (s *server) handleHTTPSChange(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if err := s.tlsMgr.SetPort(httpsPort, by); err != nil {
+			writeHTTPSError(w, err)
+			return
+		}
+	}
+	if body.Cert != nil || body.Key != nil {
+		cert, key := "", ""
+		if body.Cert != nil {
+			cert = strings.TrimSpace(*body.Cert)
+		}
+		if body.Key != nil {
+			key = strings.TrimSpace(*body.Key)
+		}
+		// #1756: agents on HTTPS pin the key they were given. Switching to
+		// a certificate with a different key leaves them unable to verify,
+		// so it needs the same acknowledgement as turning HTTPS off. A
+		// renewal that keeps the key (certbot --reuse-key) does not.
+		if !body.Force && s.tlsMgr.Enabled() && cert != "" {
+			if moved := s.agentsByTransport(true); len(moved) > 0 {
+				if r, err := tlscert.NewReloader(cert, key); err == nil && r.Fingerprint() != s.tlsMgr.Fingerprint() {
+					writeJSON(w, http.StatusConflict, map[string]any{
+						"error":   "agents_on_https",
+						"message": "this certificate has a different key, so the agents pinned to the current one would stop reporting",
+						"agents":  moved,
+					})
+					return
+				}
+			}
+		}
+		if err := s.tlsMgr.SetCertificate(cert, key, by); err != nil {
 			writeHTTPSError(w, err)
 			return
 		}

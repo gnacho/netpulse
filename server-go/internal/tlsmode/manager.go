@@ -26,6 +26,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
+	"crypto/x509"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -68,6 +69,10 @@ const (
 	kvEnabled = "settings.https.enabled"
 	kvMode    = "settings.https.mode"
 	kvPort    = "settings.https.port" // #978: UI-chosen HTTPS port
+	// kvCert and kvKey (#1756) point at a certificate on disk that replaces
+	// the private CA. Both set, or both empty.
+	kvCert = "settings.https.cert"
+	kvKey  = "settings.https.key"
 	// kvPortMigrated (FORK) marks that the pre-#978 port was decided once.
 	kvPortMigrated = "settings.https.port_migrated"
 
@@ -129,6 +134,9 @@ type Manager struct {
 	pending  *pendingMode
 	mode     atomic.Value // Mode
 	caLoaded atomic.Pointer[tlscert.CA]
+	// reloader serves a certificate set in Settings instead of the CA
+	// (#1756). Nil when the CA is the source.
+	reloader *tlscert.Reloader
 
 	sniff *sniffServer
 }
@@ -269,7 +277,18 @@ func (m *Manager) openCALocked() error {
 }
 
 func (m *Manager) startLocked() error {
-	if err := m.openCALocked(); err != nil {
+	// #1756: a certificate set in Settings wins over the private CA, so a
+	// homelab that already has its own PKI serves that. A pair that no
+	// longer loads fails here, before the listener is bound.
+	certPath, keyPath := m.savedCert()
+	var reloader *tlscert.Reloader
+	if certPath != "" {
+		r, err := tlscert.NewReloader(certPath, keyPath)
+		if err != nil {
+			return fmt.Errorf("the certificate from Settings: %w", err)
+		}
+		reloader = r
+	} else if err := m.openCALocked(); err != nil {
 		return err
 	}
 	addr := fmt.Sprintf(":%d", m.port)
@@ -287,7 +306,12 @@ func (m *Manager) startLocked() error {
 		return fmt.Errorf("HTTPS listener on %s: %w", addr, err)
 	}
 	srv := m.opts.NewServer(addr, m.handler)
-	srv.TLSConfig = m.ca.TLSConfig()
+	m.reloader = reloader
+	if reloader != nil {
+		srv.TLSConfig = reloader.Config()
+	} else {
+		srv.TLSConfig = m.ca.TLSConfig()
+	}
 	m.srv = srv
 	go func() {
 		if err := srv.ServeTLS(ln, "", ""); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -295,13 +319,18 @@ func (m *Manager) startLocked() error {
 		}
 	}()
 	m.lastErr = ""
-	m.opts.Logf("[netpulse] HTTPS on :%d (private CA)", m.port)
+	source := "private CA"
+	if reloader != nil {
+		source = "certificate from Settings"
+	}
+	m.opts.Logf("[netpulse] HTTPS on :%d (%s)", m.port, source)
 	return nil
 }
 
 func (m *Manager) stopLocked() {
 	if srv := m.srv; srv != nil {
 		m.srv = nil
+		m.reloader = nil
 		// Shutdown closes the listener at once - the port is free to be
 		// opened again - and lets requests in flight finish, including the
 		// one that turned HTTPS off, whose answer would otherwise be lost.
@@ -484,11 +513,72 @@ func (m *Manager) Enabled() bool {
 	return m.enabled
 }
 
-// Fingerprint is the pin agents should use: the root's SPKI, or "" while
-// HTTPS is off.
+// SetCertificate makes the HTTPS listener serve a certificate from disk
+// instead of the private CA (#1756), which is what a homelab with its own PKI
+// wants. Empty paths go back to the CA. The pair is loaded before anything
+// changes, so a typo leaves the running listener untouched.
+func (m *Manager) SetCertificate(certPath, keyPath, by string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.opts.Unavailable != "" {
+		return ErrLocked
+	}
+	certPath, keyPath = strings.TrimSpace(certPath), strings.TrimSpace(keyPath)
+	if (certPath == "") != (keyPath == "") {
+		return errors.New("give both the certificate and its key, or neither")
+	}
+	if certPath != "" {
+		if !filepath.IsAbs(certPath) || !filepath.IsAbs(keyPath) {
+			return errors.New("the certificate and key paths must be absolute")
+		}
+		if _, err := tlscert.NewReloader(certPath, keyPath); err != nil {
+			return fmt.Errorf("the certificate cannot be used: %w", err)
+		}
+	}
+	oldCert, oldKey := m.savedCert()
+	if certPath == oldCert && keyPath == oldKey {
+		return nil
+	}
+	m.kvSet(kvCert, certPath)
+	m.kvSet(kvKey, keyPath)
+	if m.enabled {
+		m.stopLocked()
+		if err := m.startLocked(); err != nil {
+			// Put back what was serving so a bad pair does not leave the
+			// port closed.
+			m.kvSet(kvCert, oldCert)
+			m.kvSet(kvKey, oldKey)
+			if back := m.startLocked(); back != nil {
+				m.lastErr = back.Error()
+				return fmt.Errorf("%w (and the previous certificate did not come back: %v)", err, back)
+			}
+			m.lastErr = ""
+			return err
+		}
+	}
+	source := "the private CA"
+	if certPath != "" {
+		source = "the certificate set in Settings"
+	}
+	m.opts.Logf("[netpulse] TLS: HTTPS now serves %s (%s)", source, by)
+	return nil
+}
+
+// Fingerprint is the pin agents should use: the SPKI of the certificate the
+// listener serves now (the CA's leaf, or the one set in Settings, #1756), or
+// "" while HTTPS is off.
 func (m *Manager) Fingerprint() string {
-	if !m.Enabled() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.fingerprintLocked()
+}
+
+func (m *Manager) fingerprintLocked() string {
+	if !m.enabled {
 		return ""
+	}
+	if m.reloader != nil {
+		return m.reloader.Fingerprint()
 	}
 	if ca := m.caLoaded.Load(); ca != nil {
 		return ca.Fingerprint()
@@ -499,24 +589,58 @@ func (m *Manager) Fingerprint() string {
 // CA is the private CA once it has been opened, for serving its root.
 func (m *Manager) CA() *tlscert.CA { return m.caLoaded.Load() }
 
+// CertSource says where the served certificate comes from: "custom" when a
+// pair was set in Settings (#1756), "ca" otherwise.
+func (m *Manager) CertSource() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if cert, _ := m.savedCert(); cert != "" {
+		return "custom"
+	}
+	return "ca"
+}
+
+// Leaf is the certificate the HTTPS listener serves now, nil while HTTPS is
+// off. The trust helpers use it to know which names the server answers to.
+func (m *Manager) Leaf() *x509.Certificate {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.enabled {
+		return nil
+	}
+	if m.reloader != nil {
+		return m.reloader.Leaf()
+	}
+	if ca := m.caLoaded.Load(); ca != nil {
+		return ca.Leaf()
+	}
+	return nil
+}
+
 // Status is what the settings page shows.
 type Status struct {
-	Available     bool      `json:"available"`
-	Unavailable   string    `json:"unavailable,omitempty"`
-	Enabled       bool      `json:"enabled"`
-	EnabledLocked bool      `json:"enabledLocked"`
-	Mode          Mode      `json:"mode"`
-	ModeLocked    bool      `json:"modeLocked"`
-	Port          int       `json:"port"`
-	PortLocked    bool      `json:"portLocked"`
-	RootSHA256    string    `json:"rootSha256,omitempty"`
-	Fingerprint   string    `json:"fingerprint,omitempty"`
-	Names         []string  `json:"names,omitempty"`
-	Uncovered     []string  `json:"uncovered,omitempty"`
-	ValidUntil    time.Time `json:"validUntil,omitzero"`
-	Pending       Mode      `json:"pending,omitempty"`
-	PendingUntil  time.Time `json:"pendingUntil,omitzero"`
-	Error         string    `json:"error,omitempty"`
+	Available     bool   `json:"available"`
+	Unavailable   string `json:"unavailable,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	EnabledLocked bool   `json:"enabledLocked"`
+	Mode          Mode   `json:"mode"`
+	ModeLocked    bool   `json:"modeLocked"`
+	Port          int    `json:"port"`
+	PortLocked    bool   `json:"portLocked"`
+	RootSHA256    string `json:"rootSha256,omitempty"`
+	Fingerprint   string `json:"fingerprint,omitempty"`
+	// #1756: where the served certificate comes from. "custom" means the
+	// paths below, so there is no root to download and nothing to renew
+	// from here.
+	CertSource   string    `json:"certSource"`
+	CertPath     string    `json:"certPath,omitempty"`
+	KeyPath      string    `json:"keyPath,omitempty"`
+	Names        []string  `json:"names,omitempty"`
+	Uncovered    []string  `json:"uncovered,omitempty"`
+	ValidUntil   time.Time `json:"validUntil,omitzero"`
+	Pending      Mode      `json:"pending,omitempty"`
+	PendingUntil time.Time `json:"pendingUntil,omitzero"`
+	Error        string    `json:"error,omitempty"`
 }
 
 // Status reports the current state.
@@ -537,13 +661,27 @@ func (m *Manager) Status() Status {
 	if p := m.pending; p != nil && m.opts.Now().Before(p.expires) {
 		st.Pending, st.PendingUntil = p.mode, p.expires
 	}
-	if m.ca != nil && m.enabled {
-		st.RootSHA256 = m.ca.RootSHA256()
-		st.Fingerprint = m.ca.Fingerprint()
-		st.Uncovered = m.ca.Uncovered()
-		if leaf := m.ca.Leaf(); leaf != nil {
-			st.Names = append(slices.Clone(leaf.DNSNames), ipStrings(leaf.IPAddresses)...)
-			st.ValidUntil = leaf.NotAfter
+	certPath, keyPath := m.savedCert()
+	st.CertSource = "ca"
+	if certPath != "" {
+		st.CertSource, st.CertPath, st.KeyPath = "custom", certPath, keyPath
+	}
+	if m.enabled {
+		switch {
+		case m.reloader != nil:
+			st.Fingerprint = m.reloader.Fingerprint()
+			if leaf := m.reloader.Leaf(); leaf != nil {
+				st.Names = append(slices.Clone(leaf.DNSNames), ipStrings(leaf.IPAddresses)...)
+				st.ValidUntil = leaf.NotAfter
+			}
+		case m.ca != nil:
+			st.RootSHA256 = m.ca.RootSHA256()
+			st.Fingerprint = m.ca.Fingerprint()
+			st.Uncovered = m.ca.Uncovered()
+			if leaf := m.ca.Leaf(); leaf != nil {
+				st.Names = append(slices.Clone(leaf.DNSNames), ipStrings(leaf.IPAddresses)...)
+				st.ValidUntil = leaf.NotAfter
+			}
 		}
 	}
 	return st
@@ -554,8 +692,12 @@ func (m *Manager) Status() Status {
 // whether it issued one. The root, and so every pin, stays the same.
 func (m *Manager) Renew(by string) (bool, error) {
 	m.mu.Lock()
-	ca, on := m.ca, m.enabled
+	ca, on, custom := m.ca, m.enabled, m.reloader != nil
 	m.mu.Unlock()
+	if custom {
+		// #1756: nothing to reissue, the file is someone else's.
+		return false, errors.New("this certificate comes from a file, renew it where it is issued")
+	}
 	if ca == nil || !on {
 		return false, errors.New("turn HTTPS on first")
 	}
@@ -647,6 +789,12 @@ func (m *Manager) savedMode() Mode {
 }
 
 // savedPort (#978): the UI-chosen port, 0 when absent or invalid.
+// savedCert is the certificate pair set in Settings, empty when the private
+// CA is the source (#1756).
+func (m *Manager) savedCert() (string, string) {
+	return m.kvGet(kvCert), m.kvGet(kvKey)
+}
+
 func (m *Manager) savedPort() int {
 	v := m.kvGet(kvPort)
 	if v == "" {

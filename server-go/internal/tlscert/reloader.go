@@ -72,18 +72,28 @@ func (r *Reloader) GetCertificate(*tls.ClientHelloInfo) (*tls.Certificate, error
 // --reuse-key), and a value captured at start-up would hand agents a pin
 // the server no longer matches. Empty if the served pair cannot be parsed.
 func (r *Reloader) Fingerprint() string {
+	if leaf := r.Leaf(); leaf != nil {
+		return Fingerprint(leaf)
+	}
+	return ""
+}
+
+// Leaf devuelve la hoja que se está sirviendo ahora (#1756), para que el
+// estado de HTTPS pueda mostrar sus nombres y su caducidad. Pasa por
+// GetCertificate, así que también recarga si el par cambió en disco.
+func (r *Reloader) Leaf() *x509.Certificate {
 	cert, _ := r.GetCertificate(nil)
 	if cert == nil || len(cert.Certificate) == 0 {
-		return ""
+		return nil
 	}
-	leaf := cert.Leaf
-	if leaf == nil {
-		var err error
-		if leaf, err = x509.ParseCertificate(cert.Certificate[0]); err != nil {
-			return ""
-		}
+	if cert.Leaf != nil {
+		return cert.Leaf
 	}
-	return Fingerprint(leaf)
+	leaf, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return nil
+	}
+	return leaf
 }
 
 // reload repuebla la caché desde disco. Debe llamarse con r.mu tomado.
