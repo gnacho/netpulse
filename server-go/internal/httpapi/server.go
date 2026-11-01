@@ -219,6 +219,10 @@ type server struct {
 	owutCache    map[string]platformCacheEntry
 	recMu        sync.Mutex
 	recInFlight  map[string]bool
+
+	// Barrido semanal de versiones de firmware (#1777).
+	sweepMu       sync.Mutex
+	sweepInFlight map[string]bool
 	// boardVersionFn: versión instalada según board info (hook de test).
 	boardVersionFn func(routerID string) string
 
@@ -627,6 +631,9 @@ func NewHandler(d Deps) http.Handler {
 		// Recurrencia de firmware (#761): mismo contrato reboot-safe; el
 		// disparo es idempotente (al día = no-op) y notifica el resultado.
 		go s.firmwareRecurrenceLoop(context.Background(), recTickEvery)
+		// Barrido de versiones disponibles (#1777): check semanal por router,
+		// una alerta info por router+versión.
+		go s.firmwareSweepLoop(context.Background(), fwSweepTick)
 	}
 
 	// --- Overrides manuales de topología (issue #142; solo admin) ---

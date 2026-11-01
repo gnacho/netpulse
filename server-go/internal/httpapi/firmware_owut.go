@@ -490,7 +490,9 @@ func (s *server) emitFirmwareResult(routerID, from, to, origin string, ok bool, 
 	ev := alerts.AlertEvent{
 		ID:       fmt.Sprintf("alert-firmware-upgrade-%s-%d", routerID, time.Now().UnixMilli()),
 		Category: alerts.CatSystem,
-		Urgent:   true,
+		// #1776: un upgrade lanzado a mano no necesita avisar urgent a toda
+		// la flota: quien lo lanzó lo está viendo. Fallos y programados sí.
+		Urgent:   !ok || origin != "manual",
 		RouterID: routerID,
 		Time:     "just now",
 		Ts:       time.Now().Unix(),
