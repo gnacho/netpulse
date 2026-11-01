@@ -171,6 +171,16 @@ export function roleLabel(role: string): string {
   return role
 }
 
+/** Sello del SO que el server declara para la unidad. Router.type es una
+ *  enum cerrada ('glinet' | 'openwrt' | 'managed-switch' | 'external',
+ *  adapters/types.go) y solo las dos primeras son OpenWrt (GL.iNet corre su
+ *  firmware). Vacío para las demás: una tarjeta de switch Mikrotik, un NAS o
+ *  un AP con firmware de fábrica no pueden llevar un SO que el server nunca
+ *  confirmó. */
+export function osBadge(type?: string): string {
+  return !type || type === 'glinet' || type === 'openwrt' ? 'OpenWrt' : ''
+}
+
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
 
 /** Abreviatura de día de la semana: dayAbbr(0) = Lun/Mon … dayAbbr(6) = Dom/Sun */
