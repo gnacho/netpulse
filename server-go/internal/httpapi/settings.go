@@ -30,6 +30,9 @@ const (
 	// EXISTE si el env NETPULSE_MCP_ENABLED=1 (opt-in duro del despliegue);
 	// esta clave (default activa) permite apagarlo desde Ajustes sin reinicio.
 	integrationMCPKey = "settings.integrations.mcp"
+	// integrationExternalAgentsKey: toggle de la fila Agentes externos
+	// (#1782). Ausente = activo, como el resto de toggles del grupo.
+	integrationExternalAgentsKey = "settings.integrations.external_agents"
 )
 
 // adguardServiceKey: si el usuario monitoriza AdGuard (#813). Ausente = SÍ
@@ -152,17 +155,18 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 	// leen la kv por evento, así que el cambio aplica sin reiniciar.
 	mux.Handle("PUT /api/settings/integrations", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			Ntfy     *bool `json:"ntfy"`
-			Telegram *bool `json:"telegram"`
-			Proxmox  *bool `json:"proxmox"`
-			MQTT     *bool `json:"mqtt"`
-			MCP      *bool `json:"mcp"`
+			Ntfy           *bool `json:"ntfy"`
+			Telegram       *bool `json:"telegram"`
+			Proxmox        *bool `json:"proxmox"`
+			MQTT           *bool `json:"mqtt"`
+			MCP            *bool `json:"mcp"`
+			ExternalAgents *bool `json:"externalAgents"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			writeBodyError(w, st, "invalid_body", "")
 			return
 		}
-		if body.Ntfy == nil && body.Telegram == nil && body.Proxmox == nil && body.MQTT == nil && body.MCP == nil {
+		if body.Ntfy == nil && body.Telegram == nil && body.Proxmox == nil && body.MQTT == nil && body.MCP == nil && body.ExternalAgents == nil {
 			writeError(w, http.StatusBadRequest, "invalid_input", "at least one integration key is required")
 			return
 		}
@@ -179,6 +183,7 @@ func (s *server) registerSettingsRoutes(mux *http.ServeMux) {
 			{body.Telegram, integrationTelegramKey, "telegram.enabled"},
 			{body.Proxmox, integrationProxmoxKey, ""},
 			{body.MCP, integrationMCPKey, ""},
+			{body.ExternalAgents, integrationExternalAgentsKey, ""},
 		} {
 			if p.flag == nil {
 				continue
@@ -289,12 +294,13 @@ func (s *server) integrationsView() map[string]any {
 		mqtt = s.mqtt.Config().Enabled
 	}
 	return map[string]any{
-		"ntfy":      kvGetDefaultOn(s.db.DB, integrationNtfyKey),
-		"telegram":  kvGetDefaultOn(s.db.DB, integrationTelegramKey),
-		"proxmox":   kvGetDefaultOn(s.db.DB, integrationProxmoxKey),
-		"mqtt":      mqtt,
-		"mcp":       s.mcpMounted() && kvGetDefaultOn(s.db.DB, integrationMCPKey),
-		"mcpLocked": !s.mcpMounted(),
+		"ntfy":           kvGetDefaultOn(s.db.DB, integrationNtfyKey),
+		"telegram":       kvGetDefaultOn(s.db.DB, integrationTelegramKey),
+		"proxmox":        kvGetDefaultOn(s.db.DB, integrationProxmoxKey),
+		"externalAgents": kvGetDefaultOn(s.db.DB, integrationExternalAgentsKey),
+		"mqtt":           mqtt,
+		"mcp":            s.mcpMounted() && kvGetDefaultOn(s.db.DB, integrationMCPKey),
+		"mcpLocked":      !s.mcpMounted(),
 	}
 }
 

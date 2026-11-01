@@ -1865,6 +1865,7 @@
       "firmwareUpgradesCaption": "Show or hide the firmware upgrades page",
       "integrationsGroup": "Integrations",
       "externalAgents": "External agents",
+      "externalAgentsCaption": "Add supported non-OpenWrt devices",
       "rtlDesc": "Realtek switches can run rtlplayground, an alternative firmware that turns them into NetPulse agents: flashing guide in",
       "rtlGuideEs": "Guide in Spanish",
       "rtlGuideEn": "Guide in English",
