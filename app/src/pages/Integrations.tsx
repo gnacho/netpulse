@@ -86,7 +86,7 @@ function stateTone(state: string): PillTone {
   return 'muted'
 }
 
-export default function Integrations() {
+export default function Integrations({ bare = false }: { bare?: boolean }) {
   const { t, i18n } = useTranslation()
   const auth = useAuth()
   const { isDemo } = useNetPulse()
@@ -515,7 +515,9 @@ export default function Integrations() {
         </form>
       )}
 
-      <SectionHeader title={t('integrations.listTitle')} className="mt-6" />
+      {!bare && (
+        <SectionHeader title={t('integrations.listTitle')} className="mt-6" />
+      )}
 
       {loading ? (
         <p className="text-caption text-text-muted">{t('integrations.loading')}</p>
@@ -740,7 +742,7 @@ export default function Integrations() {
         </div>
       )}
 
-      {unmanaged.length > 0 && (
+      {!bare && unmanaged.length > 0 && (
         <>
           <SectionHeader title={t('integrations.unmanagedTitle')} className="mt-8" />
           <p className="mt-1 text-caption text-text-muted">{t('integrations.unmanagedDesc')}</p>
