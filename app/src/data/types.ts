@@ -251,7 +251,10 @@ export interface Device {
   /** Tráfico actual Mbps */
   trafficMbps: number
   online: boolean
+  /** Primera vez que el server lo vio es HOY (pill "Nuevo", "+N hoy"). */
   isNew?: boolean
+  /** ... y esa primera vez cae dentro de los últimos 7 días (tile "New (7 days)"). */
+  newThisWeek?: boolean
   sparkline: number[]
   /** Puerto físico del router/switch donde se aprende la MAC (cableados; FDB). */
   port?: string | null

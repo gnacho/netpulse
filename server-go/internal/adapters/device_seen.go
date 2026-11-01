@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
@@ -303,7 +304,10 @@ func (l *Live) trackNewClients(firstTimers []Device, devices []Device, dists []D
 
 // applyDeviceSeen rellena FirstSeenMs/LastSeenMs de cada dispositivo desde
 // device_seen (#954). Los sin fila (nunca vistos online por ESTE server, o
-// demo sin BD) quedan a 0 y la app muestra "—".
+// demo sin BD) quedan a 0 y la app muestra "—". Además fija IsNew e
+// IsNewThisWeek leyendo el alta del registro: era la única evidencia de
+// "nuevo" que tenía el live y nunca se usó, así que el pill, la lista de la
+// semana y deviceTotals.newToday salían siempre vacíos.
 func (l *Live) applyDeviceSeen(devices []Device) {
 	if l.db == nil || len(devices) == 0 {
 		return
@@ -312,10 +316,13 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 	if err != nil {
 		return
 	}
+	now := l.seenNow()
 	for i := range devices {
 		if s, ok := byMac[normSeenMAC(devices[i].MAC)]; ok {
 			devices[i].FirstSeenMs = s.first
 			devices[i].LastSeenMs = s.last
+			devices[i].IsNew = s.isNewToday(now)
+			devices[i].NewThisWeek = s.isNewThisWeek(now)
 			// #1315: la fuente viva pierde nombre e IP cuando el lease DHCP
 			// expira (el cliente sigue listado vía estación/ARP/FDB): Name
 			// vuelve a ser la MAC y la IP queda vacía. El registro (#1145)
@@ -350,6 +357,48 @@ type seenRow struct {
 	first, last int64
 	name, ip    string
 	deviceType  string
+}
+
+// isNewToday: el registro (#954) se abrió en el día local del server. Mismo
+// criterio de "hoy" que el pico de tráfico diario (live.go): arranque del
+// día en la zona del server, no ventana móvil de 24 h. first_seen=0 —sin
+// fila— nunca es nuevo: la app lo muestra como "—".
+func (s seenRow) isNewToday(now time.Time) bool {
+	if s.first <= 0 {
+		return false
+	}
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
+	return s.first >= startOfDay
+}
+
+// isNewThisWeek: el alta cayó en los últimos 7 días (ventana móvil). Es el
+// tile "New (7 days)" de la app, que hasta ahora leía isNew —un flag que en
+// el canon demo es "hoy", no "7 días"—, así que ambos flags conviven: isNew
+// para el pill y el contador de hoy, isNewThisWeek para la semana.
+func (s seenRow) isNewThisWeek(now time.Time) bool {
+	return s.first > 0 && s.first >= now.Add(-7*24*time.Hour).UnixMilli()
+}
+
+// seenNow: reloj del Live con su inyectable (l.now) y fallback al real, para
+// que los tests de "hoy" no dependan del calendario.
+func (l *Live) seenNow() time.Time {
+	if l.now != nil {
+		return l.now()
+	}
+	return time.Now()
+}
+
+// countNewToday: clientes cuyo registro se abrió hoy. IsNew lo pone
+// applyDeviceSeen (y ghostDevices); en el demo lo suma deviceTotalsOf sobre
+// el mismo flag, así que live y demo cuentan lo mismo.
+func countNewToday(devices []Device) int {
+	n := 0
+	for _, d := range devices {
+		if d.IsNew {
+			n++
+		}
+	}
+	return n
 }
 
 // seenByMac carga la tabla device_seen completa (una query, sin N+1).
@@ -409,6 +458,7 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 	if err != nil {
 		tomb = map[string]bool{}
 	}
+	now := l.seenNow()
 	var out []Device
 	for rawMac, s := range byMac {
 		mac := normSeenMAC(rawMac)
@@ -432,6 +482,8 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 			Band:        "—",
 			FirstSeenMs: s.first,
 			LastSeenMs:  s.last,
+			IsNew:       s.isNewToday(now),
+			NewThisWeek: s.isNewThisWeek(now),
 		}
 		// #1315: el fantasma conserva el último tipo inferido (misma
 		// stickiness que applyDeviceSeen: al expirar el lease la

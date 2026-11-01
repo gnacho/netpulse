@@ -400,7 +400,7 @@ function StatsStrip({
   const { refreshKey } = useDashboard()
   const { deviceTotals, adguard } = useNetPulse()
   const reduce = useReducedMotion()
-  const newThisWeekDevices = allDevices.filter((d) => d.isNew)
+  const newThisWeekDevices = allDevices.filter((d) => d.newThisWeek)
   // #1003: el umbral de señal débil es el ajuste global (/api/settings/thresholds),
   // no un -70 hardcodeado; mismo criterio que la matriz de roaming (#906).
   const weakDbm = useWeakSignalDbm()

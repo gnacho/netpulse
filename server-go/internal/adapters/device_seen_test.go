@@ -1,6 +1,9 @@
 package adapters
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // #954: first_seen se fija en el alta y no se toca después; last_seen
 // avanza en cada ciclo online. Los clientes offline no entran en la tabla.
@@ -407,5 +410,96 @@ func TestGhostDevicesStickyType(t *testing.T) {
 	}
 	if g := byMAC["11:22:33:44:55:66"]; g.Type != "desconocido" {
 		t.Errorf("ghost Type = %q, want desconocido (nunca hubo inferencia)", g.Type)
+	}
+}
+
+// "Nuevo" = alta del registro HOY y "esta semana" = alta en los últimos 7
+// días. Sin esto el live no marcaba NUNCA ninguno de los dos y el tile
+// "New (7 days)" se quedaba en 0 aunque la tabla de clientes de abajo listara
+// los descubiertos esa misma semana.
+func TestDeviceSeenNewFlagsFromSeenDay(t *testing.T) {
+	d := openLiveTestDB(t)
+	now := time.Date(2026, 3, 14, 12, 0, 0, 0, time.UTC)
+	l := &Live{db: d, now: func() time.Time { return now }}
+	hoy := now.Add(-6 * time.Hour).UnixMilli()   // mismo día, antes del mediodía
+	ayer := now.Add(-20 * time.Hour).UnixMilli() // ayer
+	cuatro := now.Add(-4 * 24 * time.Hour).UnixMilli()
+	ocho := now.Add(-8 * 24 * time.Hour).UnixMilli()
+	l.noteDevicesSeen([]Device{
+		{MAC: "aa:bb:cc:dd:ee:ff", Online: true},
+		{MAC: "11:22:33:44:55:66", Online: true},
+	}, hoy)
+	l.noteDevicesSeen([]Device{{MAC: "22:33:44:55:66:77", Online: true}}, ayer)
+	l.noteDevicesSeen([]Device{{MAC: "33:44:55:66:77:88", Online: true}}, cuatro)
+	l.noteDevicesSeen([]Device{{MAC: "44:55:66:77:88:99", Online: true}}, ocho)
+
+	out := []Device{
+		{MAC: "AA:BB:CC:DD:EE:FF", Online: true},
+		{MAC: "11:22:33:44:55:66", Online: true},
+		{MAC: "22:33:44:55:66:77", Online: true},
+		{MAC: "33:44:55:66:77:88", Online: true},
+		{MAC: "44:55:66:77:88:99", Online: true},
+		{MAC: "55:66:77:88:99:AA", Online: true}, // sin fila: nunca visto por este server
+	}
+	l.applyDeviceSeen(out)
+	want := []struct{ isNew, isWeek bool }{
+		{true, true},  // hoy
+		{true, true},  // hoy
+		{false, true}, // ayer
+		{false, true}, // hace 4 días
+		{false, false},
+		{false, false}, // sin registro → la app pinta "—"
+	}
+	for i, w := range want {
+		if out[i].IsNew != w.isNew || out[i].NewThisWeek != w.isWeek {
+			t.Errorf("[%d] %s: isNew=%v newThisWeek=%v, want %v/%v",
+				i, out[i].MAC, out[i].IsNew, out[i].NewThisWeek, w.isNew, w.isWeek)
+		}
+	}
+	if got := countNewToday(out); got != 2 {
+		t.Errorf("countNewToday = %d, want 2", got)
+	}
+	if out[5].FirstSeenMs != 0 {
+		t.Errorf("sin fila no debe inventar first_seen: %d", out[5].FirstSeenMs)
+	}
+
+	// Los fantasmas (ya fuera de toda fuente viva) leen el mismo first_seen:
+	// un alta de hoy que se fue sigue siendo un alta de hoy.
+	ghosts := l.ghostDevices(nil)
+	if len(ghosts) != 5 {
+		t.Fatalf("ghosts = %d, want 5 (ninguno está en la lista que se pasa)", len(ghosts))
+	}
+	for _, g := range ghosts {
+		isWeek := g.MAC != "44:55:66:77:88:99"
+		isNew := g.MAC == "AA:BB:CC:DD:EE:FF" || g.MAC == "11:22:33:44:55:66"
+		if g.IsNew != isNew || g.NewThisWeek != isWeek {
+			t.Errorf("ghost %s: isNew=%v newThisWeek=%v, want %v/%v",
+				g.MAC, g.IsNew, g.NewThisWeek, isNew, isWeek)
+		}
+	}
+}
+
+// Los dos cortes: "hoy" es el día local del server (como el pico de tráfico
+// diario), la semana es una ventana móvil de 7 × 24 h.
+func TestNewFlagsCutAtDayAndWeek(t *testing.T) {
+	now := time.Date(2026, 3, 14, 0, 0, 0, 1, time.UTC)
+	startOfDay := time.Date(2026, 3, 14, 0, 0, 0, 0, time.UTC).UnixMilli()
+	if !(seenRow{first: startOfDay}).isNewToday(now) {
+		t.Error("el primer ms del día es nuevo")
+	}
+	if (seenRow{first: startOfDay - 1}).isNewToday(now) {
+		t.Error("último ms de ayer no es nuevo, por 1 ms que sea")
+	}
+	week := now.Add(-7 * 24 * time.Hour).UnixMilli()
+	if !(seenRow{first: week}).isNewThisWeek(now) {
+		t.Error("justo hace 7 días sigue siendo esta semana")
+	}
+	if (seenRow{first: week - 1}).isNewThisWeek(now) {
+		t.Error("1 ms fuera de la ventana de 7 días no es de esta semana")
+	}
+	for name, s := range map[string]seenRow{"hoy": {first: startOfDay}, "sin fila": {first: 0}, "negativo": {first: -1}} {
+		if s.isNewToday(now) != (s.first > 0) || s.isNewThisWeek(now) != (s.first > 0) {
+			t.Errorf("%s: los dos flags deben negar un alta ausente", name)
+		}
 	}
 }
