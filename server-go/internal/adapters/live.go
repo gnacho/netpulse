@@ -1501,6 +1501,28 @@ func allZeroF(v []float64) bool {
 	return true
 }
 
+// vlanPortsWithNames joins the VLAN numbers from `bridge vlan show` with the
+// names LuCI keeps for them (uci show network, #258). The bridge output only
+// carries numbers and both arrive in the same poll, so the join is by id and
+// only where a label exists (#1757).
+func vlanPortsWithNames(ports []VlanPort, luci *probe.LuCILabels) []VlanPort {
+	if luci == nil || len(luci.VlanLabels) == 0 {
+		return ports
+	}
+	out := make([]VlanPort, len(ports))
+	for i, vp := range ports {
+		out[i] = vp
+		out[i].Vlans = make([]VlanEntry, len(vp.Vlans))
+		copy(out[i].Vlans, vp.Vlans)
+		for j := range out[i].Vlans {
+			if name := luci.VlanLabels[strconv.Itoa(out[i].Vlans[j].ID)]; name != "" {
+				out[i].Vlans[j].Name = name
+			}
+		}
+	}
+	return out
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -4507,7 +4529,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	}
 	var vlans []VlanPort
 	if p != nil && len(p.vlans) > 0 {
-		vlans = p.vlans
+		vlans = vlanPortsWithNames(p.vlans, p.luci)
 	}
 	var multiWan *MultiWanInfo
 	if p != nil {
