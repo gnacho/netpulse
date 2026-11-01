@@ -3830,7 +3830,7 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
 
 // Clave de integración configurable desde la tarjeta (icono Settings2 que
 // abre el Dialog con su manager, #968).
-type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt' | 'mcp'
+type IntegrationDialogKey = 'adguard' | 'proxmox' | 'ntfy' | 'telegram' | 'mqtt' | 'mcp' | 'complementos'
 
 // Los diálogos de configuración van GRANDES (#968, #977): el manager
 // (formularios, tablas) necesita el ancho casi completo. Wrapper compartido
@@ -4106,17 +4106,20 @@ function ServicesCard({
               />
             ))}
           </div>
-          {/* #1782: complementos (integraciones de vendor) plegados dentro de Ajustes. */}
-          <div className="pb-1 pt-4 text-label uppercase text-text-muted">
-            {t('settings.services.externalAgents')}
+          <div className="flex items-center justify-between gap-4 py-2.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-primary">{t('settings.services.externalAgents')}</p>
+                <p className="truncate text-caption text-text-muted">
+                  {t('settings.services.rtlDesc')}{' '}
+                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
+                  {' · '}
+                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
+                </p>
+              </div>
+            </div>
+            {gear('complementos', t('settings.services.externalAgents'))}
           </div>
-          <p className="pb-3 text-sm text-text-muted">
-            {t('settings.services.rtlDesc')}{' '}
-            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
-            {' · '}
-            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
-          </p>
-          <Integrations bare />
         </div>
       )}
 
@@ -4145,6 +4148,14 @@ function ServicesCard({
             <DialogTitle className="sr-only">{t('settings.mqtt.title')}</DialogTitle>
           </DialogHeader>
           <MqttCard onSaved={() => { onSaved(); setDialog(null) }} bare />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={dialog === 'complementos'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
+        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="sr-only">{t('settings.services.externalAgents')}</DialogTitle>
+          </DialogHeader>
+          <Integrations bare />
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'mcp'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
