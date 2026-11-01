@@ -285,6 +285,53 @@ func TestOwutUpgradeRebootLineGoesToDone(t *testing.T) {
 	waitUpgradeStatus(t, s, id, "done")
 }
 
+// #1771: al reiniciar, la sesión SSH puede cerrar LIMPIA (err nil) y sin el
+// marcador __owut_exit__ (el shell muere antes del printf): la línea de
+// reboot debe clasificar flash en curso, no "terminó sin flashear".
+func TestOwutInstallCleanCloseGoesToDone(t *testing.T) {
+	shortenOwutRebootTimers(t)
+	s, rid, _ := makeRecServer(t, "25.12.5")
+	re := &rebootFakeSSH{
+		installOut: "Installing /tmp/firmware.bin and rebooting...\n",
+	}
+	s.pool = re
+	s.adapter = &staticBoardAdapter{version: "25.12.6"}
+
+	id, err := s.firmware.BeginUpgradeIfIdle(rid, "25.12.6", "", "")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	s.runOwutInstallImage(id, rid, "192.168.1.60", "25.12.6")
+
+	up := waitUpgradeStatus(t, s, id, "done")
+	if up.Status != "done" {
+		t.Fatalf("status = %q (%q), esperaba done", up.Status, up.Error)
+	}
+}
+
+// El caso opuesto (sesión limpia, sin línea de reboot) sigue siendo el
+// no-op "terminó sin flashear".
+func TestOwutInstallCleanCloseWithoutRebootStillNoOp(t *testing.T) {
+	shortenOwutRebootTimers(t)
+	s, rid, _ := makeRecServer(t, "25.12.5")
+	re := &rebootFakeSSH{
+		installOut: "Image verifier: /tmp/firmware.bin OK\n",
+	}
+	s.pool = re
+	s.adapter = &staticBoardAdapter{version: "25.12.5"}
+
+	id, err := s.firmware.BeginUpgradeIfIdle(rid, "25.12.6", "", "")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	s.runOwutInstallImage(id, rid, "192.168.1.60", "25.12.6")
+
+	up := waitUpgradeStatus(t, s, id, "failed")
+	if !strings.Contains(up.Error, "Image verifier") {
+		t.Fatalf("error = %q, esperaba la salida cruda del no-op", up.Error)
+	}
+}
+
 // Un error real (sin línea de reboot) sigue clasificando failed, con el
 // texto accionable de #1769 cuando el motivo es la imagen ausente.
 func TestOwutInstallRealErrorStillFailed(t *testing.T) {

@@ -386,6 +386,11 @@ func (s *server) runOwutInstallImage(id int64, routerID, host, target string) {
 	exit, out, err := firmware.RunOwutUpgrade(s.pool, host, firmware.OwutInstallCmd())
 	dur := time.Since(start)
 	switch {
+	case err == nil && exit == 0 && strings.Contains(out, "rebooting"):
+		// #1771: al reiniciar el router la sesión SSH puede cerrar limpia
+		// (sin error de transporte) y el marcador __owut_exit__ nunca se
+		// imprime (el shell muere): la línea de reboot confirma el flash.
+		s.awaitReboot(id, routerID, target, "manual", from)
 	case err == nil && exit == 0:
 		// owut install puede terminar sin reiniciar si no había imagen
 		// descargada: no es un éxito, es un no-op que hay que decir.
