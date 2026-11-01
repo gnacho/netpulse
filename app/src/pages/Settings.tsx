@@ -4075,7 +4075,7 @@ function ServicesCard({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2.5">
-              {gear('complementos', t('settings.services.externalAgents'))}
+              {integrations.externalAgents && gear('complementos', t('settings.services.externalAgents'))}
               <Switch
                 checked={integrations.externalAgents}
                 onCheckedChange={(v) => {
