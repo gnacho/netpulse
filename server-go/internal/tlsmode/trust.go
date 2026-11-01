@@ -13,14 +13,10 @@ import (
 // whatever address routers were given (NETPULSE_PUBLIC_URL, or the one the
 // admin browsed to).
 func (m *Manager) HTTPSURL(base string) string {
-	if !m.Enabled() {
+	leaf := m.Leaf()
+	if leaf == nil {
 		return ""
 	}
-	ca := m.CA()
-	if ca == nil || ca.Leaf() == nil {
-		return ""
-	}
-	leaf := ca.Leaf()
 	host := urlHost(base)
 	if host == "" {
 		host = hostOnly(base)
@@ -44,6 +40,11 @@ func (m *Manager) HTTPSURL(base string) string {
 func AgentTrust(m *Manager, legacyFP func() string, base string) reinstall.Trust {
 	if m != nil {
 		if url := m.HTTPSURL(base); url != "" {
+			if m.CertSource() == "custom" {
+				// #1756: a certificate from disk has no root of ours to
+				// hand out, so the agent pins the leaf itself.
+				return reinstall.Trust{ServerURL: url, ServerFP: m.Fingerprint()}
+			}
 			ca := m.CA()
 			return reinstall.Trust{ServerURL: url, ServerFP: ca.Fingerprint(), CAPEM: ca.RootPEM()}
 		}

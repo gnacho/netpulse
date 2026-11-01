@@ -195,13 +195,26 @@ To create a new CA, for example to cover a new name:
 Removing only one of `ca.pem` and `ca-key.pem` is refused: a lost half is
 restored from a backup, never silently replaced.
 
+## A certificate of your own
+
+Settings > HTTPS > Certificate serves a pair that is already on the server
+instead of the private CA. Give the absolute paths to the full chain and its
+key. They are read on every handshake, so a renewal is picked up without a
+restart as long as the files keep their names. Nothing changes until the pair
+loads: a typo leaves the running listener as it was.
+
+With a certificate from disk there is no root of ours to download and nothing
+to renew from this page. The pin agents are given is the key of that
+certificate, so renew it with the same key (for example `certbot --reuse-key`)
+or reinstall the agents afterwards.
+
 ## Other HTTPS set-ups
 
 - **On-box** (`NETPULSE_ONBOX=1`) keeps its own HTTPS on the server's port.
-- **A certificate of your own** (`NETPULSE_TLS_CERT` / `NETPULSE_TLS_KEY`)
-  keeps working as before. If agents pin its key, renew it keeping the same
-  key (for example `certbot --reuse-key`). Agents pinning a CA need that CA's
-  certificate in the chain the server sends.
+- **A certificate of your own** can also come from the environment
+  (`NETPULSE_TLS_CERT` / `NETPULSE_TLS_KEY`), which wins over the setting
+  above. Agents pinning a CA need that CA's certificate in the chain the
+  server sends.
 - **Behind a TLS-terminating proxy**, agents see the proxy's certificate. Set
   `NETPULSE_SERVER_FP` on them by hand; pairing cannot prove a key the server
   does not hold.
