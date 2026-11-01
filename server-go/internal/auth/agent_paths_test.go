@@ -31,3 +31,16 @@ func TestIsAgentReportPathFirmwareBackup(t *testing.T) {
 		t.Error("/api/agents no es una ruta de reporte")
 	}
 }
+
+// Regresión #1751: el instalador se sirve desde el propio servidor y lo baja
+// curl en el router antes de tener sesión. Si la ruta no está en la allowlist,
+// RequireAuth responde 401 y el alta de agente no se puede completar.
+func TestInstallAgentScriptIsAnonymous(t *testing.T) {
+	p := "/api/agents/install-agent.sh"
+	if !isAnonymousPath(p) {
+		t.Errorf("%s debería ser anónima", p)
+	}
+	if !IsAgentRequest(httptest.NewRequest("GET", p, nil)) {
+		t.Errorf("%s debería pasar el gate IsAgentRequest", p)
+	}
+}

@@ -82,7 +82,8 @@ func isAgentReportPath(path string) bool {
 func IsAgentRequest(r *http.Request) bool {
 	p := r.URL.Path
 	return p == "/api/ingest/agent" || p == "/api/agents/pair" || p == "/api/agents/pair/hello" ||
-		p == "/api/agents/executor-token" || isAgentReportPath(p) ||
+		p == "/api/agents/executor-token" || p == "/api/agents/install-agent.sh" ||
+		isAgentReportPath(p) ||
 		(p == "/api/config-backup" && r.Method == http.MethodPost)
 }
 
@@ -92,6 +93,10 @@ func isAnonymousPath(path string) bool {
 		path == "/api/ingest/agent" || path == "/api/agents/pair" ||
 		path == "/api/agents/pair/hello" || // FORK: proves the served key; no secret in or out
 		path == "/api/agents/executor-token" ||
+		// #1751: instalador servido por el servidor; lo baja curl desde el
+		// router antes de que exista nada que autenticar (el token viaja en
+		// los argumentos del script, no en la descarga).
+		path == "/api/agents/install-agent.sh" ||
 		isAgentReportPath(path) {
 		return true
 	}
@@ -105,7 +110,9 @@ func isAnonymousPath(path string) bool {
 // Fase 6.2), /api/agents/{slug}/stream (SSE bidireccional, Fase 7.3),
 // /api/agents/{slug}/apply-result, /api/agents/{slug}/upgrade-result,
 // /api/agents/{slug}/upgrade-progress, /api/agents/{slug}/firmware-progress y
-// /api/agents/{slug}/firmware-result (reportes del agente, auth Bearer).
+// /api/agents/{slug}/firmware-result y /api/agents/{slug}/firmware-backup
+// (reportes del agente, auth Bearer), y /api/agents/install-agent.sh (#1751:
+// el instalador que baja curl en el router, sin secretos en el cuerpo).
 // POST /api/config-backup (issue #340): recibe snapshots UCI desde NetGrip;
 // auth Bearer por token de agente validado en el handler.
 // Acepta Bearer tokens de API (#330) como alternativa a la cookie de sesión.

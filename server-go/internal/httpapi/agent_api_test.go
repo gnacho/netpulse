@@ -160,6 +160,14 @@ func TestIngestTokenValidoEInvalido(t *testing.T) {
 	if !strings.Contains(install, "-o /tmp/netpulse-install-agent.sh") || !strings.Contains(install, "&& sh /tmp/netpulse-install-agent.sh") {
 		t.Fatalf("one-liner debe descargar a fichero y ejecutarlo: %q", install)
 	}
+	// #1751: el script se sirve desde el propio servidor y no de GitHub, así
+	// que instalar no depende de la salida a internet ni del rate limit.
+	if !strings.Contains(install, "/api/agents/install-agent.sh") {
+		t.Fatalf("one-liner debe bajar el instalador del server: %q", install)
+	}
+	if strings.Contains(install, "raw.githubusercontent.com") {
+		t.Fatalf("one-liner no debe depender de GitHub: %q", install)
+	}
 	// kv guarda sha256, NUNCA el token en claro
 	var stored string
 	if err := ts.db.QueryRow("SELECT value FROM kv WHERE key = 'agent.token.patio'").Scan(&stored); err != nil {
