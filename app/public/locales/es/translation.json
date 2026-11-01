@@ -544,6 +544,7 @@
       "seenThisWeek": "Vistos esta semana",
       "roaming": "Roaming (24 h)",
       "roamingHealthy": "Sin saltos de AP",
+    "roamingNoSource": "Sin datos wireless",
       "showUnprotected": "Mostrar solo los clientes sin proteger",
       "unprotectedPill": "Sin proteger por AdGuard"
     },

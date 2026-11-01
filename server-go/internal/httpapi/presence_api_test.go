@@ -173,11 +173,32 @@ func TestPresenceRoaming(t *testing.T) {
 			MAC      string `json:"mac"`
 			Connects int    `json:"connects"`
 		} `json:"items"`
+		Source *bool `json:"source"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(body.Items) != 1 || body.Items[0].Connects != 3 {
 		t.Fatalf("roaming items = %+v, want 1 con 3", body.Items)
+	}
+	// #1740: sin atribución wireless, un 0 no significa "roaming sano".
+	if body.Source == nil || *body.Source {
+		t.Fatalf("source = %v, want false sin device_attrib", body.Source)
+	}
+
+	if _, err := ts.db.Exec(`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen)
+		VALUES ('AA:BB:CC:DD:EE:09', 'gw', '5', -60, ?)`, now); err != nil {
+		t.Fatalf("insert attrib: %v", err)
+	}
+	resp2 := deviceReq(t, "GET", ts.Server.URL, "/api/presence/roaming", ts.cookie, "")
+	defer resp2.Body.Close()
+	var body2 struct {
+		Source *bool `json:"source"`
+	}
+	if err := json.NewDecoder(resp2.Body).Decode(&body2); err != nil {
+		t.Fatalf("decode 2: %v", err)
+	}
+	if body2.Source == nil || !*body2.Source {
+		t.Fatalf("source = %v, want true con device_attrib reciente", body2.Source)
 	}
 }

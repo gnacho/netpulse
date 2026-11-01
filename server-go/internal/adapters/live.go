@@ -27,6 +27,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 	"github.com/gnacho/netpulse/server-go/internal/oui"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
+	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 )
 
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
@@ -420,6 +421,12 @@ type Live struct {
 	backhaulCache map[string]backhaulCacheEntry
 	lldpCache     map[string]lldpCacheEntry
 	wanInfoCache  map[string]wanInfoCacheEntry
+	// roams derivados (#1740): último salto emitido por MAC, para no rebotar
+	// A→B→A cuando buildDevices corre con una foto cacheada del poll
+	// (attributedDevices) y la atribución guardada es más nueva. Mutex
+	// propio: la derivación ocurre fuera de mu.
+	roamMu   sync.Mutex
+	lastRoam map[string]roamMark
 
 	// Agentes nativos (Tier 2): último payload por slug + flag de caída
 	// (degradado a SSH tras emitir la alerta, SPEC-AGENTE-PILOTO §1).
@@ -2872,6 +2879,41 @@ func (l *Live) applyWireGuardTransitions(stats *WireGuardStats, gwID string) {
 	l.wgPrimed = true
 }
 
+// roamEchoWindow: durante cuánto tiempo se ignora el salto exactamente inverso
+// al último emitido para la misma MAC (#1740). buildDevices se llama también
+// con la foto cacheada del poll, así que una petición que caiga entre la
+// escritura de la atribución y el refresco de la foto vería el AP anterior y
+// emitiría el salto de vuelta.
+const roamEchoWindow = 10 * time.Minute
+
+// roamMark: último salto emitido para una MAC.
+type roamMark struct {
+	from string
+	to   string
+	at   time.Time
+}
+
+// roamIsEcho: true si (from → to) es el inverso exacto del último salto
+// emitido para esa MAC y está dentro de la ventana de eco.
+func (l *Live) roamIsEcho(mac, from, to string) bool {
+	l.roamMu.Lock()
+	defer l.roamMu.Unlock()
+	m, ok := l.lastRoam[mac]
+	if !ok {
+		return false
+	}
+	return m.from == to && m.to == from && time.Since(m.at) < roamEchoWindow
+}
+
+func (l *Live) markRoam(mac, from, to string, at time.Time) {
+	l.roamMu.Lock()
+	defer l.roamMu.Unlock()
+	if l.lastRoam == nil {
+		l.lastRoam = map[string]roamMark{}
+	}
+	l.lastRoam[mac] = roamMark{from: from, to: to, at: at}
+}
+
 // wgDuration humanizes a WireGuard session duration as "Xh Ym" (hours and
 // minutes). Negative values collapse to "0h 0m".
 func wgDuration(d time.Duration) string {
@@ -2969,16 +3011,60 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		signal   *int
 	}
 	seen := map[string]seenInfo{}
+	// assocSeen (#1740): en qué routers vio ESTE ciclo a cada MAC. Solo se usa
+	// para derivar roams. Si aparece en más de uno el dato es ambiguo (el orden
+	// de iteración del mapa decide la atribución), así que no se emite nada.
+	assocSeen := map[string][]seenInfo{}
 	// (1) wireless de cualquier router: la ÚNICA que se persiste
 	for routerID, p := range polled {
 		for mac, w := range p.wireless {
 			sig := w.SignalDbm
 			seen[mac] = seenInfo{routerID, w.Band, &sig}
+			assocSeen[mac] = append(assocSeen[mac], seenInfo{routerID, w.Band, &sig})
 			if l.db != nil {
 				_, _ = l.db.Exec(
 					`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)
 					 ON CONFLICT(mac) DO UPDATE SET router_id=excluded.router_id, band=excluded.band, signal_dbm=excluded.signal_dbm, last_seen=excluded.last_seen`,
 					mac, routerID, w.Band, w.SignalDbm, now)
+			}
+		}
+	}
+	// (1c) Roams derivados de la atribución (#1740): una flota agent-only no
+	// tiene logread/hostapd que leer, así que el salto de AP se detecta
+	// comparando la atribución del ciclo anterior (device_attrib, leída arriba
+	// en known) con la de este. El evento entra por roamevents.InsertEvent, el
+	// mismo camino que usa el colector SSH, así que la dedup por content_hash
+	// y la retención son las mismas.
+	if l.db != nil {
+		for mac, obs := range assocSeen {
+			if len(obs) != 1 {
+				continue
+			}
+			cur := obs[0]
+			prev, ok := known[mac]
+			if !ok || prev.routerID == "" {
+				continue // primera atribución: no es un salto
+			}
+			var detail string
+			switch {
+			case prev.routerID != cur.routerID:
+				detail = fmt.Sprintf("roamed from %s to %s", prev.routerID, cur.routerID)
+			case prev.band != "" && cur.band != "" && prev.band != cur.band:
+				detail = fmt.Sprintf("changed band from %s to %s on %s", prev.band, cur.band, cur.routerID)
+			default:
+				continue
+			}
+			if l.roamIsEcho(mac, prev.routerID, cur.routerID) {
+				continue
+			}
+			if err := roamevents.InsertEvent(l.db.DB, roamevents.Event{
+				TsMs:     now,
+				RouterID: cur.routerID,
+				Type:     roamevents.TypeConnected,
+				MAC:      mac,
+				Detail:   detail,
+			}); err == nil {
+				l.markRoam(mac, prev.routerID, cur.routerID, time.UnixMilli(now))
 			}
 		}
 	}

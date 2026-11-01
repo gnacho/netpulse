@@ -73,6 +73,8 @@ func (s *server) handleDevicePresence(w http.ResponseWriter, r *http.Request) {
 // handlePresenceRoaming devuelve las MACs con más eventos 'connected' en las
 // últimas 24 h (los primeros puestos son los clientes que más rebotan entre
 // APs), con nombre resuelto desde la flota actual o los alias conocidos.
+// source=false indica que ninguna unidad aporta atribución wireless, así que
+// un 0 no significa "roaming sano" sino "no hay fuente" (#1740).
 func (s *server) handlePresenceRoaming(w http.ResponseWriter, r *http.Request) {
 	type item struct {
 		MAC      string `json:"mac"`
@@ -80,7 +82,7 @@ func (s *server) handlePresenceRoaming(w http.ResponseWriter, r *http.Request) {
 		Connects int    `json:"connects"`
 	}
 	if s.cfg.DemoMode {
-		writeJSON(w, http.StatusOK, map[string]any{"items": []item{}})
+		writeJSON(w, http.StatusOK, map[string]any{"items": []item{}, "source": true})
 		return
 	}
 	since := time.Now().Add(-24 * time.Hour).UnixMilli()
@@ -104,7 +106,10 @@ func (s *server) handlePresenceRoaming(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item{MAC: mac, Name: nm, Connects: c.Connects})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":  items,
+		"source": deviceevents.HasAttribution(s.db.DB, since),
+	})
 }
 
 // knownMacName resuelve el alias de una MAC desde known_macs ("" si no hay).
