@@ -874,7 +874,7 @@
     },
     "survey": {
       "title": "Current channels",
-      "empty": "No router returned survey data. Verify that `iw dev wlanX survey dump` works on your routers.",
+      "empty": "No unit returned survey data. The reason for each unit is listed below.",
       "unreachable": "Router not reachable over SSH or no wireless interfaces.",
       "colChannel": "Channel",
       "colFreq": "MHz",
@@ -893,7 +893,14 @@
       "noScans": "This router does not report channel scans. NetGrip routers do not scan; use one running the NetPulse agent or check it is active.",
       "ownLabel": "Own network",
       "notParticipating": "This unit does not provide survey data. Units that do: {{units}}",
-      "unitNoSurvey": "This unit has no WiFi radios or returned no survey (SNMP/cable-only)."
+      "unitNoSurvey": "This unit does not provide survey data.",
+      "reason": {
+        "agentNoSurvey": "The NetPulse agent cannot read survey data from this unit's driver.",
+        "noSurveyData": "The survey ran but returned no channels.",
+        "sshUnreachable": "The unit is not reachable over SSH.",
+        "noWifi": "The unit has no wireless interfaces.",
+        "snmpOnly": "The unit is monitored over SNMP only, which carries no survey."
+      }
     },
     "events": {
       "title": "Roaming events",

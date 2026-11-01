@@ -931,16 +931,29 @@ type SurveyRadio struct {
 }
 
 // SurveyRouter es el survey de un router: lista de radios wifi-iface.
-// Available=false si SSH falló.
+// Available=false si SSH falló o si la unidad no tiene survey (entonces
+// Reason dice por qué).
 type SurveyRouter struct {
 	RouterID  string        `json:"routerId"`
 	Name      string        `json:"name"`
 	Available bool          `json:"available"`
+	Reason    string        `json:"reason,omitempty"`
 	Radios    []SurveyRadio `json:"radios"`
 }
 
-// SurveyOverview es la respuesta de GET /api/survey. Available=false si
-// ningún router responde → el handler devuelve 503.
+// Motivos por los que una unidad no aporta survey (#1742). Cerrado: la UI
+// traduce cada uno a una explicación accionable.
+const (
+	SurveyReasonAgentNoSurvey  = "agent_no_survey" // el agente no empuja iw survey dump
+	SurveyReasonNoSurveyData   = "no_survey_data"  // iw survey dump no devolvió canales
+	SurveyReasonSSHUnreachable = "ssh_unreachable" // SSH falló
+	SurveyReasonNoWifi         = "no_wifi"         // sin interfaces wifi
+	SurveyReasonSnmpOnly       = "snmp_only"       // unidad SNMP, sin SSH ni agente
+)
+
+// SurveyOverview es la respuesta de GET /api/survey. Available=false cuando
+// ninguna unidad aporta survey; el handler responde 200 igualmente para que
+// la UI pueda explicar el motivo de cada una (#1742).
 type SurveyOverview struct {
 	Available bool           `json:"available"`
 	Routers   []SurveyRouter `json:"routers"`

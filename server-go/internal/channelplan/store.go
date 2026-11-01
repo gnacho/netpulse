@@ -193,8 +193,7 @@ type ChannelScore struct {
 
 // bandBlocks devuelve TODOS los canales/bloques puntuables de la banda a su
 // ancho (#1076): 2.4 GHz canal a canal (20 MHz); 5 GHz primarios cuyo bloque
-// completo cabe en la banda (DFS incluidos); 6 GHz solo los no-DFS (no
-// mantenemos la tabla PSC).
+// completo cabe en la banda (DFS incluidos); 6 GHz impares 1-233 sin DFS.
 func bandBlocks(band string, widthMhz int) []ChannelScore {
 	mk := func(ch int, dfs bool) ChannelScore {
 		return ChannelScore{Channel: ch, DFS: dfs, Recommendable: !dfs}
@@ -245,6 +244,30 @@ func bandBlocks(band string, widthMhz int) []ChannelScore {
 				c.Recommendable = !dfs && (ch <= 48 || ch >= 149)
 				out = append(out, c)
 			}
+		}
+		return out
+	case "6 GHz":
+		// #1742: sin tabla propia, 6 GHz caía en candidateChannels y el motor
+		// sugería canales de 2.4 GHz (1, 5, 9...) que nadie había medido. La
+		// banda no tiene DFS en el ámbito doméstico y sus canales son los
+		// impares 1-233 (paso de 5 MHz, igual que 5 GHz: 4 números por 20 MHz).
+		// Los bloques se alinean desde el 1 con salto n*4 para no solaparse.
+		n := widthMhz / 20
+		if n < 1 {
+			n = 1
+		}
+		stride := n * 4
+		out := make([]ChannelScore, 0, 60)
+		for ch := 1; ch <= 233; ch += stride {
+			if ch+(n-1)*4 > 233 {
+				break
+			}
+			// A 20 MHz solo se sugieren los PSC (5, 21, 37...): son los que
+			// un cliente escanea para descubrir la red. El resto se puntúa
+			// igual, para informar de la congestión real.
+			c := mk(ch, false)
+			c.Recommendable = n > 1 || isPSC6(ch)
+			out = append(out, c)
 		}
 		return out
 	default:
@@ -341,7 +364,13 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		for _, m := range byBand[band] {
 			bandNeighbors += len(m)
 		}
-		currentNotRecommendable := true
+		// #1742: un canal que no existe en su banda (el fallback wl de Broadcom
+		// devuelve índices hardware: 323, 195...) no se puede comparar con
+		// nada, así que no se sugiere cambio. Dentro de la banda se mantiene
+		// el criterio legacy: si no es primario de ningún bloque puntuable se
+		// asume que hay que moverlo.
+		currentKnown := channelInBand(band, r.Channel)
+		currentNotRecommendable := currentKnown
 		for _, b := range scores {
 			if b.Channel == r.Channel {
 				currentNotRecommendable = !b.Recommendable
@@ -349,6 +378,10 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 			}
 		}
 		switch {
+		case !currentKnown:
+			// 0 es el centinela de "sin datos" que la UI ya distingue de
+			// "mantén el actual".
+			rec.Recommended = 0
 		case currentNotRecommendable && bestCh != 0:
 			rec.Recommended = bestCh
 		case bestCh != 0 && bandNeighbors > 0 && bestScore < currentScore && bestScore*100 <= currentScore*70:
@@ -409,7 +442,8 @@ func channelScore(scans map[int][]ScanRow, channel int) int {
 // candidateChannels devuelve los canales candidatos no-DFS para la banda,
 // filtrando por el ancho del radio (#631): a 40/80/160 MHz solo valen los
 // canales cuyo bloque completo (canales ch..ch+(n-1)*4, n=w/20) no entra en
-// un canal DFS (52-64, 100-144) ni se sale de la banda.
+// un canal DFS (52-64, 100-144) ni se sale de la banda. 6 GHz tiene su propia
+// tabla de bloques en bandBlocks (#1742).
 func candidateChannels(band string, widthMhz int) []int {
 	var base []int
 	switch band {
@@ -418,8 +452,6 @@ func candidateChannels(band string, widthMhz int) []int {
 	case "5 GHz":
 		// UNII-1/3 canales no-DFS preferidos para uso doméstico.
 		base = []int{36, 40, 44, 48, 149, 153, 157, 161, 165}
-	case "6 GHz":
-		base = []int{1, 5, 9, 13, 17, 21, 25, 29}
 	default:
 		return nil
 	}
@@ -453,6 +485,29 @@ func validForWidth(ch, widthMhz int, band string) bool {
 		}
 	}
 	return true
+}
+
+// channelInBand indica si el canal que reporta el radio existe en su banda.
+// El fallback wl de Broadcom devuelve índices hardware (323, 195) que no son
+// canales de 6 GHz (#1742).
+func channelInBand(band string, ch int) bool {
+	switch band {
+	case "2.4 GHz":
+		return ch >= 1 && ch <= 14
+	case "5 GHz":
+		return ch >= 36 && ch <= 165 && (ch-4)%4 == 0
+	case "6 GHz":
+		return ch >= 1 && ch <= 233 && (ch-1)%4 == 0
+	default:
+		// Banda desconocida: no se juzga el canal, se deja el criterio previo.
+		return true
+	}
+}
+
+// isPSC6 marca los Preferred Scanning Channels de 6 GHz (5, 21, 37 ... 229):
+// los que un cliente escanea para descubrir la red.
+func isPSC6(ch int) bool {
+	return ch >= 5 && ch <= 229 && (ch-5)%16 == 0
 }
 
 // isDFSChannel: canales que en ETSI/EU requieren detección DFS (radio no
