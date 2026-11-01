@@ -1852,7 +1852,7 @@
     },
     "saved": "Preferences saved",
     "services": {
-      "title": "Services and integrations",
+      "title": "Add-ons",
       "caption": "Visible network services and active server integrations",
       "adguardCaption": "Filtered DNS on the gateway",
       "wireguardCaption": "WireGuard VPN tunnels",

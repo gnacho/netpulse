@@ -1852,7 +1852,7 @@
     },
     "saved": "Preferencias guardadas",
     "services": {
-      "title": "Servicios e Integraciones",
+      "title": "Complementos",
       "caption": "Servicios de red visibles e integraciones activas en el servidor",
       "adguardCaption": "DNS filtrado en la puerta de enlace",
       "wireguardCaption": "Túneles VPN WireGuard",
