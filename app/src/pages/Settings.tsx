@@ -49,6 +49,7 @@ import {
   CalendarClock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import Integrations from './Integrations'
 import { findAgentFor, type AgentKeys } from '@/lib/agentMatch'
 import { HealthRing } from '@/components/HealthRing'
 import { KnownMacsManager } from '@/components/KnownMacsManager'
@@ -4210,6 +4211,20 @@ function NotifChannels({ onSaved, disabled = false }: { onSaved: () => void; dis
             }}
           />
         ))}
+
+        {/* #1782: agentes externos plegados dentro de Ajustes (grupo Complementos). */}
+        <div className="mt-10">
+          <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+            {t('settings.services.externalAgents')}
+          </div>
+          <p className="mb-3 text-[13px] text-text-muted">
+            {t('settings.services.rtlDesc')}{' '}
+            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
+            {' · '}
+            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
+          </p>
+          <Integrations />
+        </div>
       <Dialog open={dialog === 'ntfy'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
         <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
           <DialogHeader>

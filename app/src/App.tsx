@@ -18,7 +18,6 @@ import Reports from '@/pages/Reports'
 import Rack from '@/pages/Rack'
 import Orchestration from '@/pages/Orchestration'
 import FirmwareUpgrades from '@/pages/FirmwareUpgrades'
-import Integrations from '@/pages/Integrations'
 import Settings from '@/pages/Settings'
 import Help from '@/pages/Help'
 import Placeholder from '@/pages/Placeholder'
@@ -61,7 +60,7 @@ export default function App() {
         <Route path="roaming" element={<Roaming />} />
         <Route path="wifi/channel-plan" element={<ChannelPlan />} />
         <Route path="firmware-upgrades" element={<FirmwareUpgrades />} />
-        <Route path="integrations" element={<Integrations />} />
+        <Route path="integrations" element={<Navigate to="/settings" replace />} />
         <Route path="reports" element={<Reports />} />
         <Route path="orchestration" element={<Orchestration />} />
         <Route path="help" element={<Help />} />
