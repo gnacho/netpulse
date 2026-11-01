@@ -662,6 +662,17 @@ func agentSourceClass(kind string) string {
 	return kind
 }
 
+// portsCarryTraffic: el payload trae contadores o tasas por boca. Un beacon
+// solo publica estado de enlace y FDB, así que no entra (#1741).
+func portsCarryTraffic(ports []EthPort) bool {
+	for _, p := range ports {
+		if p.RxBytes > 0 || p.TxBytes > 0 || p.RxBps > 0 || p.TxBps > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // polledFromAgent convierte el payload del agente en el routerPolled del
 // pipeline (mismos shapes que el sondeo SSH). Aplica el mismo anti-parpadeo
 // que pollRouter: sección ausente en el payload = sonda fallida → conserva
@@ -947,10 +958,14 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// del siguiente push).
 	if freshPayload {
 		// Los pushers external/beacon persisten sus propias series con
-		// contadores de tramas en recordBeaconPortSamples (httpapi/beacon.go);
-		// los EthPort de su payload no llevan contadores, así que pasar por
+		// contadores de tramas en recordBeaconPortSamples (httpapi/beacon.go)
+		// y sus EthPort no llevan contadores, así que pasar por
 		// recordPortSamples escribiría filas a 0 intercaladas con las buenas.
-		if out.agentKind != "external" {
+		// #1741: un pusher que sí manda contadores o tasas por boca
+		// (RouterOS/AsusWRT) es una fuente válida y sin estas muestras su
+		// línea de 24 h no tiene de dónde salir, así que la puerta mira el
+		// dato, no el kind.
+		if out.agentKind != "external" || portsCarryTraffic(out.ports) {
 			l.recordPortSamples(cfg.ID, out.ports)
 		}
 		// #551: tráfico por cliente (nlbwmon preferente, hostapd fallback).

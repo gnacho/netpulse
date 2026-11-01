@@ -1571,6 +1571,11 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.VitalsAvailable = bptr(v.available)
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
+	// #1741: la serie de 24 h de una unidad sin throughput nativo (SNMP o
+	// pusher external) sale de sus puertos. Se decide aquí, donde se conoce el
+	// agent kind, porque Router no lo expone y VitalsAvailable ya no sirve de
+	// proxy: un pusher que confirma CPU/temp la deja en true.
+	r.sparklineFromPorts = p.cfg.SnmpEnabled || p.agentKind == "external"
 	if p.selfExpose {
 		r.SelfExpose = bptr(true)
 	}
@@ -3717,6 +3722,34 @@ func (l *Live) GetOverview(ctx context.Context) (ov *Overview, err error) {
 	return l.buildOverview(ctx)
 }
 
+// fillSparklineFromPorts rellena la línea de 24 h de las unidades que no
+// publican serie propia de throughput (switch beacon, SNMP sin métricas
+// agregadas, pusher external): sale de sus puertos en port_series, no de la
+// tabla metrics (siempre 0 ahí).
+//
+// #1741: la condición no puede colgar de VitalsAvailable (un pusher que
+// confirma CPU/temp la deja en true y el respaldo nunca corría) y un pusher
+// RouterOS/AsusWRT manda tasas por boca en vez de contadores de tramas, así
+// que se prueba primero la serie en bps y se cae a frames solo si está vacía.
+func (l *Live) fillSparklineFromPorts(routerList []Router) {
+	if l.db == nil || l.db.PortSeries == nil {
+		return
+	}
+	for i := range routerList {
+		r := &routerList[i]
+		if !r.sparklineFromPorts || !allZeroF(r.Sparkline) {
+			continue
+		}
+		if sp, err := l.db.PortSeries.HourlyBpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
+			r.Sparkline = sp
+			continue
+		}
+		if sp, err := l.db.PortSeries.HourlyFpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
+			r.Sparkline = sp
+		}
+	}
+}
+
 func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	polled := l.pollAll(ctx)
 	l.mu.Lock()
@@ -3868,17 +3901,8 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	devices = append(devices, l.ghostDevices(devices)...)
 	// Clientes reales por router (atribución wireless/FDB, no leases)
 	countClientsPerRouter(routerList, devices)
-	// Sparkline de la tarjeta para fuentes sin throughput bps (switch beacon/
-	// SNMP sin métricas agregadas): su línea de tráfico 24h sale de los fps de
-	// sus puertos (port_series), no de la tabla metrics (siempre 0 ahí).
-	for i := range routerList {
-		r := &routerList[i]
-		if r.VitalsAvailable != nil && !*r.VitalsAvailable && allZeroF(r.Sparkline) && l.db != nil && l.db.PortSeries != nil {
-			if sp, err := l.db.PortSeries.HourlyFpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
-				r.Sparkline = sp
-			}
-		}
-	}
+	// Sparkline de la tarjeta para fuentes sin throughput bps (#1741).
+	l.fillSparklineFromPorts(routerList)
 	adguard := l.pollAdGuard(ctx)
 	wireguard := l.pollWireGuard(devices)
 	gwID := ""
