@@ -4,6 +4,7 @@ package httpapi_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -208,6 +209,62 @@ func TestOwutUpgradeRequiresTarget(t *testing.T) {
 	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-upgrade", `{}`, cookie)
 	if res.StatusCode != 400 {
 		t.Fatalf("status %d, esperaba 400 sin targetVersion", res.StatusCode)
+	}
+}
+
+// #1769: el download del flujo por pasos propaga removePackages a owut -r,
+// igual que el one-shot; sin eso ASU rechaza routers con paquetes de
+// terceros y el paso final se queda sin imagen.
+func TestOwutDownloadEndpointPassesRemovePackages(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
+		{contains: "owut download", out: "Downloading image to /tmp/firmware.bin\n__owut_exit__=0\n"},
+	}}
+	ts, rid := makeOwutTestServer(t, ssh)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-download",
+		`{"targetVersion":"25.12.6","removePackages":["netgrip"]}`, cookie)
+	body := readJSON(t, res)
+	if res.StatusCode != 200 {
+		t.Fatalf("status %d: %v", res.StatusCode, body)
+	}
+	if !ssh.saw("owut download -r 'netgrip'") {
+		t.Fatalf("comando lanzado: %v", ssh.cmdsSnapshot())
+	}
+}
+
+// #1769: instalar sin imagen previa no entra en la máquina de estados:
+// 422 con código accionable y ningún upgrade creado.
+func TestOwutInstallImageRequiresDownloadedImage(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
+		{contains: "test -s /tmp/firmware.bin", err: errors.New("exit 1")},
+	}}
+	ts, rid := makeOwutTestServer(t, ssh)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-install-image", `{}`, cookie)
+	body := readJSON(t, res)
+	if res.StatusCode != http.StatusPreconditionFailed {
+		t.Fatalf("status %d: %v", res.StatusCode, body)
+	}
+	errObj, _ := body["error"].(string)
+	if errObj != "owut_no_image" {
+		t.Fatalf("error: %v", body)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		res := getJSONPath(t, ts.URL, "/api/firmware-upgrades", cookie)
+		for _, it := range readJSONArray(t, res) {
+			m, _ := it.(map[string]any)
+			if m["routerId"] == rid {
+				if up, ok := m["upgrade"].(map[string]any); ok {
+					t.Fatalf("no debió crearse ningún upgrade: %v", up)
+				}
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

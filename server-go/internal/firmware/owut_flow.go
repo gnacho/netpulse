@@ -218,11 +218,17 @@ const owutDownloadTimeout = 10 * time.Minute
 // OwutDownloadCmd construye `owut download` (paso intermedio del flujo por
 // pasos de #1414): construye la imagen en ASU y la descarga al router SIN
 // flashear, para que el admin la revise antes de `owut install`. Sin -q a
-// propósito: la salida completa es la revisión.
-func OwutDownloadCmd(target, current string) string {
+// propósito: la salida completa es la revisión. removePkgs excluye paquetes
+// locales sin feed oficial (owut "-r"), igual que OwutUpgradeCmd: sin eso
+// ASU se niega a construir la imagen si el router lleva paquetes de terceros
+// (#1769).
+func OwutDownloadCmd(target, current string, removePkgs []string) string {
 	cmd := "owut download"
 	if target != "" && current != "" && target != current {
 		cmd += " -V " + shQuote(target)
+	}
+	if pkgs := sanitizeRemovePkgs(removePkgs); pkgs != "" {
+		cmd += " -r " + shQuote(pkgs)
 	}
 	return cmd
 }
@@ -241,6 +247,24 @@ func RunOwutDownload(runner Runner, host, cmd string) (int, string, error) {
 // download` dejó en el router y reinicia (la sesión SSH muere como en el
 // upgrade; el resultado se confirma por el board info tras el reboot).
 func OwutInstallCmd() string { return "owut install" }
+
+// owutImageCheckCmd: `owut download` deja la imagen en /tmp/firmware.bin
+// (su ruta por defecto para download/verify/install) y `owut install` la
+// espera ahí. Comprobarla antes de lanzar el flash evita el error crudo de
+// sysupgrade cuando no hay nada descargado (#1769).
+const owutImageCheckCmd = "test -s /tmp/firmware.bin"
+
+// HasOwutDownloadedImage informa de si el router tiene una imagen descargada
+// lista para `owut install`. Tolerante: runner o host vacíos → false. Un
+// fallo de transporte también cuenta como "no hay imagen": sin confirmación
+// no se flashea.
+func HasOwutDownloadedImage(runner Runner, host string) bool {
+	if runner == nil || host == "" {
+		return false
+	}
+	_, err := runner.Run(host, owutImageCheckCmd, owutDetectTimeout)
+	return err == nil
+}
 
 // Platform es la foto de plataforma de un router: si tiene owut y si lleva
 // firmware de fabricante. Vendor != "" significa firmware compilado por el

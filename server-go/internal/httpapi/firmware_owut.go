@@ -197,12 +197,13 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			return
 		}
 		var body struct {
-			TargetVersion string `json:"targetVersion"`
+			TargetVersion string   `json:"targetVersion"`
+			RemovePkgs    []string `json:"removePackages"`
 		}
 		if st := readJSONBody(w, r, &body); st != 0 {
 			return
 		}
-		cmd := firmware.OwutDownloadCmd(body.TargetVersion, s.detectedFirmwareVersion(id))
+		cmd := firmware.OwutDownloadCmd(body.TargetVersion, s.detectedFirmwareVersion(id), body.RemovePkgs)
 		exit, out, err := firmware.RunOwutDownload(s.pool, host, cmd)
 		if err != nil || exit != 0 {
 			msg := owutTail(out, err)
@@ -238,6 +239,13 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 		if !plat.Owut {
 			writeError(w, http.StatusPreconditionFailed, "owut_not_installed",
 				"owut no está instalado en el router: instálalo primero con el botón Instalar owut.")
+			return
+		}
+		// #1769: sin imagen descargada no se entra en la máquina de estados:
+		// el error crudo de sysupgrade no dice al admin qué hacer.
+		if !firmware.HasOwutDownloadedImage(s.pool, host) {
+			writeError(w, http.StatusPreconditionFailed, "owut_no_image",
+				"No hay imagen descargada en el router: ejecuta antes Descargar imagen (owut download) y revisa su salida.")
 			return
 		}
 		target := ""
@@ -388,7 +396,12 @@ func (s *server) runOwutInstallImage(id int64, routerID, host, target string) {
 		if strings.TrimSpace(msg) == "" {
 			msg = fmt.Sprintf("owut install falló (exit %d)", exit)
 		}
-		log.Printf("[firmware] owut install %s falló (exit %d): %s", routerID, exit, msg)
+		// #1769: si el fallo es "no hay imagen", el detalle debe decir qué
+		// hacer, no repetir el error de sysupgrade.
+		if strings.Contains(out, "Image file") && strings.Contains(out, "does not exist") {
+			msg = "No hay imagen descargada en el router: ejecuta antes Descargar imagen (owut download) y revisa su salida."
+		}
+		log.Printf("[firmware] owut install %s falló (exit %d): %s", routerID, exit, owutTail(out, err))
 		_ = s.firmware.SetStatus(id, "failed", msg, "")
 		s.emitFirmwareResult(routerID, from, target, "manual", false, msg)
 	}

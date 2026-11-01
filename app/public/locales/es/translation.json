@@ -2539,6 +2539,7 @@
     "tipInstallOwut": "Instala el paquete owut (attended sysupgrade) en la unidad por SSH",
     "tipOwutDownload": "Construye y descarga la imagen en la unidad con owut, sin flashear, para revisarla antes de instalar",
     "tipOwutInstallImage": "Instala en la unidad la imagen descargada en el paso anterior",
+    "tipOwutInstallNeedsDownload": "Descarga antes la imagen: Instalar imagen flashea el fichero que produce Descargar imagen",
     "tipUpgradeOwut": "Flashea ahora la versión de destino con owut (con los paquetes actuales)",
     "tipSchedule": "Programa la actualización para más tarde o de forma recurrente",
     "tipSave": "Guarda modelo y target para el flujo clásico (URL/imagen)",

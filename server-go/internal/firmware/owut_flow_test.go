@@ -131,6 +131,43 @@ func TestOwutUpgradeCmd(t *testing.T) {
 	}
 }
 
+// #1769: el download del flujo por pasos acepta la misma lista de
+// exclusiones que el one-shot; sin -r, ASU rechaza routers con paquetes
+// de terceros (p. ej. netgrip) y el paso final no tiene imagen.
+func TestOwutDownloadCmdRemovePkgs(t *testing.T) {
+	if got := OwutDownloadCmd("25.12.6", "25.12.5", nil); got != "owut download -V '25.12.6'" {
+		t.Fatalf("salto de versión sin exclusiones: %q", got)
+	}
+	if got := OwutDownloadCmd("25.12.5", "25.12.5", nil); got != "owut download" {
+		t.Fatalf("rebuild sin exclusiones: %q", got)
+	}
+	if got := OwutDownloadCmd("25.12.5", "25.12.5", []string{"netgrip"}); got != "owut download -r 'netgrip'" {
+		t.Fatalf("exclusión de paquete local: %q", got)
+	}
+	if got := OwutDownloadCmd("25.12.6", "25.12.5", []string{"bad pkg!", "netgrip", "x"}); got != "owut download -V '25.12.6' -r 'netgrip x'" {
+		t.Fatalf("nombres hostiles se filtran: %q", got)
+	}
+}
+
+// #1769: el pre-check de imagen antes de flashear. Tolerante: sin runner o
+// sin host no hay imagen, y un fallo de transporte tampoco confirma.
+func TestHasOwutDownloadedImage(t *testing.T) {
+	if HasOwutDownloadedImage(nil, "h") {
+		t.Fatal("runner nil debe dar false")
+	}
+	f := &fakeSSHRunner{}
+	if !HasOwutDownloadedImage(f, "h") {
+		t.Fatalf("test -s ok debe dar true; comando: %q", f.got)
+	}
+	if f.got != "test -s /tmp/firmware.bin" {
+		t.Fatalf("comando de chequeo: %q", f.got)
+	}
+	fail := &fakeSSHRunner{err: errors.New("exit 1")}
+	if HasOwutDownloadedImage(fail, "h") {
+		t.Fatal("sin imagen debe dar false")
+	}
+}
+
 func TestRunOwutUpgradeParsesExit(t *testing.T) {
 	f := &fakeSSHRunner{out: "There are no changes to upgrade\n__owut_exit__=0\n"}
 	exit, out, err := RunOwutUpgrade(f, "h", OwutUpgradeCmd("25.12.5", "25.12.5", nil))
