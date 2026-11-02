@@ -60,6 +60,9 @@ export interface ChipNode {
   hubId: string
   /** CT/VM anidado bajo un hipervisor (grid, sin enlace propio al router) */
   isCt: boolean
+  /** #1757: VLAN del puerto del cliente cableado (bridge VLAN filtering).
+   *  Ausente si la unidad no publica VLANs o el puerto no aparece. */
+  vlan?: { id: number; name?: string; pvid: boolean }
 }
 
 /** Vista de un DistributionNode kind=inferred (círculo dashed, sin IP). */
@@ -1047,6 +1050,22 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   // -- chips de dispositivos --------------------------------------------------
   const chips: ChipNode[] = []
+  // #1757: VLAN del puerto del cliente cableado. El bridge VLAN filtering del
+  // router dice qué VLANs lleva cada puerto; PVID es la nativa y manda, y sin
+  // PVID se toma la primera entrada. Solo cableado: la API no declara la VLAN
+  // de un cliente WiFi, y suponerla sería inventar el dato.
+  const vlanOf = (d: Device): ChipNode['vlan'] => {
+    if (!isWired(d) || !d.port) return undefined
+    const ports = routers.find((r) => r.id === d.routerId)?.vlans
+    if (!ports) return undefined
+    for (const entry of ports) {
+      if (entry.port !== d.port) continue
+      const hit = entry.vlans.find((v) => v.pvid) ?? entry.vlans[0]
+      if (hit) return { id: hit.id, name: hit.name, pvid: hit.pvid }
+    }
+    return undefined
+  }
+
   const mkChip = (d: Device, hubId: string, isCt = false): ChipNode => ({
     kind: 'chip',
     id: d.id,
@@ -1059,6 +1078,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     weak: d.signalDbm != null && d.signalDbm <= -65,
     hubId,
     isCt,
+    vlan: vlanOf(d),
   })
 
   // wifi: anillos con arcos prohibidos (uplink, etiqueta, WAN, fan cableado)

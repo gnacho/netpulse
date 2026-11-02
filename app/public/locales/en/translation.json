@@ -1508,7 +1508,8 @@
       "note": "Virtual machine on the hypervisor · its traffic rides the host's cable",
       "noteIn": "Virtual machine on {{host}} · virtual bridge ({{port}}) · traffic rides the host's cable"
     },
-    "defaultRoute": "Default route"
+    "defaultRoute": "Default route",
+    "vlan": "VLAN"
   },
   "settings": {
     "admin": {

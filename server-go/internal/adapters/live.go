@@ -1642,6 +1642,11 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.brMac != "" {
 		r.MAC = p.brMac
 	}
+	// #1757: bridge VLAN filtering por puerto. nil cuando la unidad no lo
+	// reporta, para no publicar una lista vacía como si no hubiera VLANs.
+	if len(p.vlans) > 0 {
+		r.Vlans = vlanPortsWithNames(p.vlans, p.luci)
+	}
 	if p.backhaul != "" {
 		r.Backhaul = p.backhaul
 	}

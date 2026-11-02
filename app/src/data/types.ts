@@ -38,6 +38,10 @@ export interface Router {
   disabled?: boolean
   /** Tipo de dispositivo: "glinet"|"openwrt"|"managed-switch"|"external". */
   type?: string
+  /** #1757: bridge VLAN filtering por puerto (id, tagged, pvid y nombre de
+   *  LuCI). La topología cruza el puerto del cliente con esta lista para
+   *  etiquetar su VLAN. Ausente si la unidad no lo reporta. */
+  vlans?: VlanPort[]
   status: Status
   /** Salud 0–100 */
   health: number

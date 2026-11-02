@@ -1508,7 +1508,8 @@
       "note": "Máquina virtual en el hipervisor · su tráfico viaja por el cable del host",
       "noteIn": "Máquina virtual en {{host}} · bridge virtual ({{port}}) · tráfico por el cable del host"
     },
-    "defaultRoute": "Ruta por defecto"
+    "defaultRoute": "Ruta por defecto",
+    "vlan": "VLAN"
   },
   "settings": {
     "admin": {

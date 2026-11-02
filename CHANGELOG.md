@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- Wired clients in the topology show their VLAN (#1757): the router list now carries the bridge VLAN filtering table, and each wired chip is coloured by the VLAN of the port it sits on, with the id and the LuCI name in its tooltip. Only clients with a known port get a VLAN, and wireless clients stay unlabelled because the agent does not report which VLAN a station belongs to.
 - Configuration backups can now run on a schedule (#1795): a card on the Firmware upgrades page picks a weekday and a time, and the server keeps the last and next run so a restart does not lose the cadence. The archives are isolated from the firmware uploads, which also makes them visible from the upgrades page instead of being buried in the generic backup listing.
 - Pending upgrades show their configuration backup (#1795): the upgrade card exposes the archive that belongs to the unit, so restoring after a flash no longer means hunting for a file by date.
 

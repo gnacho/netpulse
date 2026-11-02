@@ -180,9 +180,13 @@ type Router struct {
 	// Type: "glinet"|"openwrt"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
-	Type   string `json:"type,omitempty"`
-	Status string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
-	Health int    `json:"health"`
+	Type string `json:"type,omitempty"`
+	// Vlans (#1757): bridge VLAN filtering por puerto (id, tagged, pvid y el
+	// nombre declarado en LuCI). La topología cruza el puerto del cliente con
+	// esta lista para etiquetar su VLAN. Ausente si la unidad no lo reporta.
+	Vlans  []VlanPort `json:"vlans,omitempty"`
+	Status string     `json:"status"` // "online"|"warn"|"offline"|"unreachable"
+	Health int        `json:"health"`
 	// LatencyMs (#1384): latencia sondeada de la unidad (ping unidad→gateway
 	// en no-gateway; latencia WAN en el gateway). Null cuando la fuente no la
 	// sondea (agent-only/external/SNMP) - la tabla de enlaces pinta "—".
