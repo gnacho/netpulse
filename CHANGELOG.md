@@ -7,6 +7,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- Configuration backups can now run on a schedule (#1795): a card on the Firmware upgrades page picks a weekday and a time, and the server keeps the last and next run so a restart does not lose the cadence. The archives are isolated from the firmware uploads, which also makes them visible from the upgrades page instead of being buried in the generic backup listing.
+- Pending upgrades show their configuration backup (#1795): the upgrade card exposes the archive that belongs to the unit, so restoring after a flash no longer means hunting for a file by date.
+
 ### Fixed
 
 - Units now report the MACs of all their interfaces (#1765). Only the bridge MAC was absorbed, so the CPU port of a DSA switch, a VLAN interface or a radio could be learned by a neighbour and published as an unknown client forever. The agent sends the list and the server absorbs it; the field is optional, so older agents and pushers keep working unchanged and an external pusher will populate it when it is updated in its own repository.
