@@ -4157,7 +4157,7 @@ function ServicesCard({
         </DialogContent>
       </Dialog>
       <Dialog open={dialog === 'complementos'} onOpenChange={(o) => { if (!o) setDialog(null) }}>
-        <DialogContent className={integrationDialogCls} aria-describedby={undefined}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-h-[94vh] overflow-y-auto sm:max-w-[1300px]" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.services.externalAgents')}</DialogTitle>
           </DialogHeader>
