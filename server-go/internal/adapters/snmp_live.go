@@ -87,6 +87,14 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	// 6933 columns; one walk, and a switch without the table leaves both
 	// fields empty. Best-effort like the bridge MAC above.
 	entity, _ := npsnmp.PollEntityInfo(session)
+	// #1802: TP-Link firmware ignores ENTITY-MIB and HOST-RESOURCES-MIB but
+	// publishes the same identity and vitals in its enterprise subtree. The
+	// sysObjectID selects the vendor before paying for its OIDs; the private
+	// MIB wins over the generic fallback, as the panel of the unit does.
+	tpLink := npsnmp.TpLinkInfo{}
+	if sysInfo != nil && npsnmp.IsTpLink(sysInfo.ObjectID) {
+		tpLink = npsnmp.PollTpLinkInfo(session)
+	}
 	ports, ifErr := npsnmp.PollIfTable(session)
 	if ifErr != nil {
 		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.LogLabel(), ifErr)
@@ -226,6 +234,19 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	// #1767: ENTITY-MIB is optional identity, not a vitals source.
 	p.snmpFirmware = entity.Firmware
 	p.snmpModelShort = entity.ModelShort
+	// #1802: fill only what the generic readers could not answer.
+	if p.snmpFirmware == "" {
+		p.snmpFirmware = tpLink.Firmware
+	}
+	if p.snmpModelShort == "" {
+		p.snmpModelShort = tpLink.Hardware
+	}
+	if tpLink.HasCPU {
+		p.cpu, p.hasCpu = tpLink.CPU, true
+	}
+	if tpLink.HasMemory {
+		p.ram, p.hasRam = tpLink.Memory, true
+	}
 	if sysInfo != nil {
 		// #1256: sysDescr declara el modelo completo del equipo (p. ej.
 		// "CSS610-8G-2S+ SwOS v2.21") y sysName el hostname que define el

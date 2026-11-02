@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- TP-Link switches now report model, firmware, CPU and memory through their enterprise MIB (#1802). The firmware answers neither ENTITY-MIB nor HOST-RESOURCES-MIB, so `sysObjectID` selects the vendor and four private OIDs fill values that used to stay empty. The private MIB wins over the generic fallback, and a missing OID leaves the field unknown instead of zero.
 - SNMP switches now read the generic ENTITY-MIB (#1767): the chassis row supplies `entPhysicalSoftwareRev` as the firmware (falling back to `entPhysicalFirmwareRev`) and `entPhysicalModelName` as the short model. Units that only advertised a long sysDescr now show a real firmware version and a usable model name.
 - The packaged OpenWrt agent now receives its UCI configuration (#1772): the procd service passes server, token, slug, interval, scan interval, ping targets and SPKI fingerprint in a single `procd_set_param env` call. Bare `export`s never reached the daemon, so setting the ping targets in LuCI left the latency cards empty.
 - Opening the Channels page no longer starts a WiFi scan (#1794): with the periodic scan off, stale data used to trigger one automatically after six hours. Scanning happens only when you press **Scan now**, so beacon-sensitive clients keep their association.
