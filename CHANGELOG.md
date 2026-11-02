@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- The packaged OpenWrt agent now receives its UCI configuration (#1772): the procd service passes server, token, slug, interval, scan interval, ping targets and SPKI fingerprint in a single `procd_set_param env` call. Bare `export`s never reached the daemon, so setting the ping targets in LuCI left the latency cards empty.
 - Opening the Channels page no longer starts a WiFi scan (#1794): with the periodic scan off, stale data used to trigger one automatically after six hours. Scanning happens only when you press **Scan now**, so beacon-sensitive clients keep their association.
 
 ## [2.50.0] - 2026-10-31

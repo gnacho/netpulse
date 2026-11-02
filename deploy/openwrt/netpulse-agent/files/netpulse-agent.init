@@ -83,6 +83,19 @@ start_service() {
 
 	procd_open_instance
 	procd_set_param command "$PROG"
+	# #1772: procd lanza el binario desde su propio entorno, asi que los
+	# export de load_config no llegan al proceso. Una sola llamada env con
+	# todas las variables (varias llamadas se pisan entre si en 21.02).
+	procd_set_param env \
+		NETPULSE_SERVER="$NETPULSE_SERVER" \
+		NETPULSE_TOKEN="$NETPULSE_TOKEN" \
+		NETPULSE_SLUG="$NETPULSE_SLUG" \
+		NETPULSE_INTERVAL="$NETPULSE_INTERVAL" \
+		NETPULSE_HEARTBEAT_FILE="$NETPULSE_HEARTBEAT_FILE" \
+		NETPULSE_SCAN_INTERVAL="$NETPULSE_SCAN_INTERVAL" \
+		NETPULSE_WAN_TARGET="$NETPULSE_WAN_TARGET" \
+		NETPULSE_GW_TARGET="$NETPULSE_GW_TARGET" \
+		NETPULSE_SERVER_FP="$NETPULSE_SERVER_FP"
 	# Booleanos explícitos: "procd_set_param stdout stderr" no es válido y en
 	# OpenWrt 21.02 deja los logs sin redirigir a syslog (#1701).
 	procd_set_param stdout 1
