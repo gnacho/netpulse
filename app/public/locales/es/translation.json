@@ -1869,7 +1869,11 @@
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
       "mqttCaption": "Publicación del estado en el broker MQTT",
       "mcpCaption": "Consultas de solo lectura para asistentes de IA",
-      "configure": "Configurar {{name}}"
+      "configure": "Configurar {{name}}",
+      "rtlInfoTip": "rtlplayground convierte estos switches en agentes de NetPulse. Guía de flasheo e imágenes:",
+      "rtlInstructions": "Instrucciones de flasheo",
+      "rtlTechGuide": "Guía técnica",
+      "rtlImages": "Imágenes"
     },
     "session": {
       "active": "Sesión activa en este dispositivo",
