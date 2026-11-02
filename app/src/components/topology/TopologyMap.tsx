@@ -244,6 +244,7 @@ function TooltipCard({
           </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <MiniStat label={t('routerDetail.wan.publicIp')} value={wan.publicIp} />
+            <MiniStat label={t('topology.defaultRoute')} value={wan.gateway || '—'} />
             <MiniStat label={t('topology.plan')} value={wan.plan} />
             <MiniStat label={t('home.latency')} value={wan.latencyMs > 0 ? `${Math.round(wan.latencyMs)} ms` : '—'} />
             <MiniStat label={t('home.traffic.loss')} value={`${wan.lossPct} %`} />

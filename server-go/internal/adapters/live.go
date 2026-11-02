@@ -3405,6 +3405,23 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			}
 		}
 	}
+	// #1791: el vecino de la ruta por defecto del gateway (su siguiente salto
+	// WAN) no es un cliente de la LAN. Aparecía en la lista porque su MAC está
+	// en la tabla ARP y ninguna otra evidencia lo reclamaba. Se absorbe por la
+	// IP de la puerta de enlace WAN, no por un prefijo de MAC ni por un puerto,
+	// que en PPPoE no existe.
+	defaultRouteMacs := map[string]bool{}
+	for _, p := range polled {
+		gwIP := strings.TrimSpace(p.wanInfo.Gateway)
+		if gwIP == "" {
+			continue
+		}
+		for mac, ip := range p.arp {
+			if strings.TrimSpace(ip) == gwIP {
+				defaultRouteMacs[strings.ToUpper(mac)] = true
+			}
+		}
+	}
 	// issue #196: allowlist de dispositivos confiables (mac → alias).
 	knownMacs := map[string]string{}
 	if l.db != nil {
@@ -3454,8 +3471,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	}
 	devices := []Device{}
 	for mac := range allMacs {
-		if routerMacs[mac] {
-			continue // los routers no son clientes
+		if routerMacs[mac] || defaultRouteMacs[strings.ToUpper(mac)] {
+			continue // los routers y la ruta por defecto no son clientes
 		}
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
