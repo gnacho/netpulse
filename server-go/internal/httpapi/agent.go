@@ -409,36 +409,59 @@ func (s *server) handleAgentPackage(w http.ResponseWriter, r *http.Request) {
 			"falta ?arch= (amd64, arm64, arm, mips, mipsle)")
 		return
 	}
-	// Solo .ipk por ahora: el .apk de OpenWrt 25.12 lo firma el SDK y no se
-	// genera aqui. Un router con apk cae al camino de ficheros sueltos.
-	if format := r.URL.Query().Get("format"); format != "" && format != "ipk" {
+	// #1476: format=ipk (por defecto) lo compone el servidor al vuelo desde el
+	// binario embebido. format=apk sirve el asset que firma el CI: el formato
+	// v3 de apk-tools no se puede fabricar aqui sin su SDK.
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "ipk"
+	}
+	switch format {
+	case "ipk":
+		f, err := agentbin.Open(arch)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found",
+				"binario no disponible para "+arch+" (compila el servidor con los binarios de agente embebidos)")
+			return
+		}
+		binary, readErr := io.ReadAll(f)
+		f.Close()
+		if readErr != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		ipk, err := openwrtpkg.BuildIPK(arch, agentbin.EmbeddedAgentVersion, binary)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent_%s_%s.ipk"`, agentbin.EmbeddedAgentVersion, arch))
+		if d := agentbin.Digest(arch); d != "" {
+			w.Header().Set("X-Binary-Checksum-Sha256", d)
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(ipk)))
+		_, _ = w.Write(ipk)
+	case "apk":
+		f, err := agentbin.OpenAsset(arch, "apk")
+		if err != nil {
+			writeError(w, http.StatusNotFound, "not_found",
+				"paquete .apk no empaquetado para "+arch+" (lo firma el CI y se copia a agents/)")
+			return
+		}
+		pkg, readErr := io.ReadAll(f)
+		f.Close()
+		if readErr != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent_%s_%s.apk"`, agentbin.EmbeddedAgentVersion, arch))
+		w.Header().Set("Content-Length", strconv.Itoa(len(pkg)))
+		_, _ = w.Write(pkg)
+	default:
 		writeError(w, http.StatusBadRequest, "invalid_request", "format no soportado: "+format)
-		return
 	}
-	f, err := agentbin.Open(arch)
-	if err != nil {
-		writeError(w, http.StatusNotFound, "not_found",
-			"binario no disponible para "+arch+" (compila el servidor con los binarios de agente embebidos)")
-		return
-	}
-	binary, readErr := io.ReadAll(f)
-	f.Close()
-	if readErr != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error")
-		return
-	}
-	ipk, err := openwrtpkg.BuildIPK(arch, agentbin.EmbeddedAgentVersion, binary)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
-		return
-	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent_%s_%s.ipk"`, agentbin.EmbeddedAgentVersion, arch))
-	if d := agentbin.Digest(arch); d != "" {
-		w.Header().Set("X-Binary-Checksum-Sha256", d)
-	}
-	w.Header().Set("Content-Length", strconv.Itoa(len(ipk)))
-	_, _ = w.Write(ipk)
 }
 
 // ---------------------------------------------------------------------------

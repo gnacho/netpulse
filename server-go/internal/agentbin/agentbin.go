@@ -93,7 +93,18 @@ func normalizeArch(arch string) string {
 // "amd64", "arm64", "armv7". Normaliza sinónimos (armv7 -> arm) para que el
 // one-liner del agente, que reporta GOARCH=armv7, encuentre el binario.
 func Open(arch string) (fs.File, error) {
-	name := "agents/netpulse-agent-" + normalizeArch(arch)
+	return openEmbedded("agents/netpulse-agent-" + normalizeArch(arch))
+}
+
+// OpenAsset abre un asset extra del agente empaquetado junto al binario. Hoy
+// solo se usa para el .apk de OpenWrt 25.12, que firma el CI: el formato v3 de
+// apk-tools no se puede fabricar aqui sin su SDK, asi que el servidor solo lo
+// sirve cuando el operador lo deja en agents/ con el nombre esperado.
+func OpenAsset(arch, ext string) (fs.File, error) {
+	return openEmbedded("agents/netpulse-agent-" + normalizeArch(arch) + "." + ext)
+}
+
+func openEmbedded(name string) (fs.File, error) {
 	f, err := agentsFS.Open(name)
 	if err != nil {
 		return nil, err

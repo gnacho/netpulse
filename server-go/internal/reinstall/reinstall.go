@@ -299,22 +299,34 @@ case "$ARCH" in
 	*) echo "arch no soportado: $ARCH"; exit 20 ;;
 esac
 
-# #1476: si el router habla opkg, instala el paquete .ipk que sirve el propio
+# #1476: si el router habla opkg o apk, instala el paquete que sirve el propio
 # servidor. Deja binario, init y /etc/config/netpulse-agent, que es conffile y
-# sobrevive a un sysupgrade. Cualquier fallo (sin opkg, descarga rota, paquete
+# sobrevive a un sysupgrade. El .ipk lo compone el servidor al vuelo desde el
+# binario embebido; el .apk lo firma el CI y solo esta si el operador lo dejo
+# junto al binario. Cualquier fallo (sin gestor, descarga rota, paquete
 # rechazado) cae al camino de ficheros sueltos de abajo: el paquete es una
 # mejora, no un requisito.
 PKG_OK=0
-if command -v opkg >/dev/null 2>&1; then
+PKG_URL="$SERVER/api/agents/$SLUG/package?arch=$GOARCH"
+pkg_fetch() {
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/package?arch=$GOARCH" -o /tmp/netpulse-agent.ipk 2>/dev/null || rm -f /tmp/netpulse-agent.ipk
+		curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$1" -o "$2" 2>/dev/null
 	else
-		wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.ipk --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/package?arch=$GOARCH" 2>/dev/null || rm -f /tmp/netpulse-agent.ipk
+		wget -q $WGET_TLS -T 60 -O "$2" --header="Authorization: Bearer $TOKEN" "$1" 2>/dev/null
 	fi
+}
+if command -v opkg >/dev/null 2>&1; then
+	pkg_fetch "$PKG_URL&format=ipk" /tmp/netpulse-agent.ipk || rm -f /tmp/netpulse-agent.ipk
 	if [ -s /tmp/netpulse-agent.ipk ] && opkg install --force-reinstall /tmp/netpulse-agent.ipk >/dev/null 2>&1; then
 		PKG_OK=1
 	fi
 	rm -f /tmp/netpulse-agent.ipk
+elif command -v apk >/dev/null 2>&1; then
+	pkg_fetch "$PKG_URL&format=apk" /tmp/netpulse-agent.apk || rm -f /tmp/netpulse-agent.apk
+	if [ -s /tmp/netpulse-agent.apk ] && apk add --allow-untrusted /tmp/netpulse-agent.apk >/dev/null 2>&1; then
+		PKG_OK=1
+	fi
+	rm -f /tmp/netpulse-agent.apk
 fi
 
 # Parar servicio previo si existe (el proceso vivo mantiene el binario abierto)
