@@ -58,6 +58,7 @@ import { TokensManager } from '@/components/TokensManager'
 import { TopologyOverridesManager } from '@/components/topology/TopologyOverridesManager'
 import { ReadinessPanel, type UpdateReadiness } from '@/components/UpdateReadiness'
 import { UpdateDialog } from '@/components/UpdateDialog'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Slider } from '@/components/ui/slider'
@@ -4161,15 +4162,22 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.services.externalAgents')}</DialogTitle>
           </DialogHeader>
-          <div className="mb-4 rounded-xl border border-border bg-surface px-4 py-3">
-            <p className="text-sm font-medium text-text-primary">rtlplayground</p>
-            <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.services.rtlDescription')}</p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption">
-              <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlInstructions')}</a>
-              <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/blob/netpulse/beacon-octets/doc/beacon.md" target="_blank" rel="noreferrer">{t('settings.services.rtlTechGuide')}</a>
-              <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/releases" target="_blank" rel="noreferrer">{t('settings.services.rtlImages')}</a>
-            </div>
-          </div>
+          <Accordion type="single" collapsible className="mb-4 rounded-xl border border-border bg-surface">
+            <AccordionItem value="firmwares" className="border-b-0">
+              <AccordionTrigger className="px-4 py-3 text-sm font-medium text-text-primary hover:no-underline">
+                {t('settings.services.firmwares')}
+              </AccordionTrigger>
+              <AccordionContent className="px-4 pb-3">
+                <p className="text-sm font-medium text-text-primary">rtlplayground</p>
+                <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.services.rtlDescription')}</p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption">
+                  <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlInstructions')}</a>
+                  <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/blob/netpulse/beacon-octets/doc/beacon.md" target="_blank" rel="noreferrer">{t('settings.services.rtlTechGuide')}</a>
+                  <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/releases" target="_blank" rel="noreferrer">{t('settings.services.rtlImages')}</a>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
           <Integrations bare />
         </DialogContent>
       </Dialog>
