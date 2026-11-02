@@ -109,6 +109,12 @@ type SystemData struct {
 	LossPct   *float64   `json:"lossPct"`             // solo gateway (ping WAN)
 	Backhaul  string     `json:"backhaul,omitempty"`  // "cable"|"wifi" (ausente = desconocido)
 	BridgeMAC string     `json:"bridgeMac,omitempty"` // MAC de br-lan (uplinks/topología)
+	// IfaceMACs (#1765): MACs de TODAS las interfaces del propio equipo
+	// (bridge, VLANs, puerto CPU de un switch DSA, radios). El servidor las
+	// absorbe como identidades de la unidad aunque las aprenda un vecino.
+	// Vacío o ausente con agentes y pushers antiguos: ningún cambio de
+	// contrato para ellos.
+	IfaceMACs []string `json:"ifaceMacs,omitempty"`
 	// Flash and FirmwareAvailable let an external pusher report storage and
 	// pending firmware without a vendor-specific server adapter. Both are
 	// optional and remain empty when the source does not expose them.
