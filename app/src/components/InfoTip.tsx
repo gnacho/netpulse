@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { Info } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -6,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 // ratón, para que la sección quede con lo justo. Reusa el Tooltip radix de
 // la app (mismo patrón que PortPanel). Compartido por Settings y las cards
 // de integración (#1002).
-export function InfoTip({ text, children }: { text: string; children?: ReactNode }) {
+export function InfoTip({ text }: { text: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -23,7 +22,7 @@ export function InfoTip({ text, children }: { text: string; children?: ReactNode
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-xs text-left leading-relaxed">
-        {children ?? text}
+        {text}
       </TooltipContent>
     </Tooltip>
   )

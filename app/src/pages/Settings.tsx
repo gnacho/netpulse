@@ -4070,14 +4070,7 @@ function ServicesCard({
           <div className="flex items-center justify-between gap-4 py-2.5">
             <div className="flex min-w-0 items-center gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium text-text-primary">{t('settings.services.externalAgents')}</p>
-                  <InfoTip text={t('settings.services.rtlInfoTip')}>
-                    <a className="block mt-1 text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlInstructions')}</a>
-                    <a className="block mt-1 text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/blob/netpulse/beacon-octets/doc/beacon.md" target="_blank" rel="noreferrer">{t('settings.services.rtlTechGuide')}</a>
-                    <a className="block mt-1 text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/releases" target="_blank" rel="noreferrer">{t('settings.services.rtlImages')}</a>
-                  </InfoTip>
-                </div>
+                <p className="text-sm font-medium text-text-primary">{t('settings.services.externalAgents')}</p>
                 <p className="truncate text-caption text-text-muted">{t('settings.services.externalAgentsCaption')}</p>
               </div>
             </div>
@@ -4168,6 +4161,15 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.services.externalAgents')}</DialogTitle>
           </DialogHeader>
+          <div className="mb-4 rounded-xl border border-border bg-surface px-4 py-3">
+            <p className="text-sm font-medium text-text-primary">rtlplayground</p>
+            <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.services.rtlDescription')}</p>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-caption">
+              <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlInstructions')}</a>
+              <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/blob/netpulse/beacon-octets/doc/beacon.md" target="_blank" rel="noreferrer">{t('settings.services.rtlTechGuide')}</a>
+              <a className="text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/releases" target="_blank" rel="noreferrer">{t('settings.services.rtlImages')}</a>
+            </div>
+          </div>
           <Integrations bare />
         </DialogContent>
       </Dialog>

@@ -1870,10 +1870,10 @@
       "mqttCaption": "Fleet state published to the MQTT broker",
       "mcpCaption": "Read-only queries for AI assistants",
       "configure": "Configure {{name}}",
-      "rtlInfoTip": "rtlplayground turns these switches into NetPulse agents. Flashing guide and images:",
       "rtlInstructions": "Flashing instructions",
       "rtlTechGuide": "Technical guide",
-      "rtlImages": "Images"
+      "rtlImages": "Images",
+      "rtlDescription": "rtlplayground is the firmware for Realtek switches that turns them into NetPulse agents. Flashing instructions, technical guide and images:"
     },
     "session": {
       "active": "Active session on this device",
