@@ -2551,7 +2551,17 @@
     "tipUpgradeOwut": "Flashes the target version now with owut (keeping current packages)",
     "tipSchedule": "Schedule the upgrade for later or recurring",
     "tipSave": "Saves model and target for the classic flow (URL/image)",
-    "owutStepsGroup": "owut steps"
+    "owutStepsGroup": "owut steps",
+    "backupScheduleTitle": "Scheduled configuration backups",
+    "backupScheduleCaption": "Sends a weekly backup to connected agents. If none are online, it retries after reconnection.",
+    "backupScheduleEnabled": "Enable",
+    "backupScheduleDay": "Weekday",
+    "backupScheduleTime": "Time",
+    "backupScheduleSave": "Save",
+    "backupScheduleSaved": "Schedule saved",
+    "backupScheduleError": "Could not save the schedule",
+    "backupScheduleLastRun": "Last: {{when}}",
+    "backupScheduleNextRun": "Next: {{when}}"
   },
   "orchestration": {
     "title": "Orchestration",

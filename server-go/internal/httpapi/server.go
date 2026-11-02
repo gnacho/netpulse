@@ -615,6 +615,7 @@ func NewHandler(d Deps) http.Handler {
 
 	// --- Copias de seguridad (issue #158) ---
 	s.registerBackupRoutes(mux)
+	s.registerConfigBackupScheduleRoutes(mux)
 
 	// --- Rack canvas (fase 1) ---
 	s.registerRackRoutes(mux)
@@ -634,6 +635,9 @@ func NewHandler(d Deps) http.Handler {
 		// Barrido de versiones disponibles (#1777): check semanal por router,
 		// una alerta info por router+versión.
 		go s.firmwareSweepLoop(context.Background(), fwSweepTick)
+		// Backup de configuración semanal (#1795): dispara config_backup a
+		// los agentes conectados en el día y hora elegidos.
+		go s.configBackupScheduleLoop(context.Background(), configBackupScheduleTick)
 	}
 
 	// --- Overrides manuales de topología (issue #142; solo admin) ---

@@ -2551,7 +2551,17 @@
     "tipUpgradeOwut": "Flashea ahora la versión de destino con owut (con los paquetes actuales)",
     "tipSchedule": "Programa la actualización para más tarde o de forma recurrente",
     "tipSave": "Guarda modelo y target para el flujo clásico (URL/imagen)",
-    "owutStepsGroup": "Pasos owut"
+    "owutStepsGroup": "Pasos owut",
+    "backupScheduleTitle": "Backups de configuración programados",
+    "backupScheduleCaption": "Envía un backup semanal a los agentes conectados. Si no hay ninguno, se reintenta al reconectar.",
+    "backupScheduleEnabled": "Activar",
+    "backupScheduleDay": "Día de la semana",
+    "backupScheduleTime": "Hora",
+    "backupScheduleSave": "Guardar",
+    "backupScheduleSaved": "Programación guardada",
+    "backupScheduleError": "No se pudo guardar la programación",
+    "backupScheduleLastRun": "Último: {{when}}",
+    "backupScheduleNextRun": "Próximo: {{when}}"
   },
   "orchestration": {
     "title": "Orquestación",
