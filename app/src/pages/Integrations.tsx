@@ -409,14 +409,6 @@ export default function Integrations({ bare = false }: { bare?: boolean }) {
                   </option>
                 ))}
               </select>
-              {vendorId === 'rtlplayground' && (
-                <p className="mt-1 text-caption text-text-muted">
-                  {t('settings.services.rtlDesc')}{' '}
-                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
-                  {' · '}
-                  <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
-                </p>
-              )}
               {!isDemo && lastRefreshedMs > 0 && (
                 <span className="mt-1 block text-caption text-text-muted">
                   {t('integrations.catalog.updated', { time: agoLabel(lastRefreshedMs) })}
