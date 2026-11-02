@@ -35,6 +35,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
 	"github.com/gnacho/netpulse/server-go/internal/agentinstall"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/openwrtpkg"
 	"github.com/gnacho/netpulse/server-go/internal/rearmer"
 	"github.com/gnacho/netpulse/server-go/internal/reinstall"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
@@ -381,6 +382,63 @@ func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Checksum-Sha256", d)
 	}
 	http.ServeContent(w, r, st.Name(), st.ModTime(), rs)
+}
+
+// handleAgentPackage sirve el paquete .ipk del agente, generado al vuelo
+// desde el binario embebido (#1476). Misma auth que el binario: el instalador
+// ya lleva el token del equipo.
+//
+// Es el camino que instala el agente como paquete OpenWrt, con su config UCI
+// nativa como conffile, en vez de dejar binario, init y fichero de entorno
+// sueltos por SSH. Un router sin opkg (o con un fallo de descarga) sigue
+// teniendo el camino de ficheros sueltos en el script de reinstall.
+func (s *server) handleAgentPackage(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if !agentSlugRe.MatchString(slug) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !s.checkAgentToken(slug, token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	arch := r.URL.Query().Get("arch")
+	if arch == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request",
+			"falta ?arch= (amd64, arm64, arm, mips, mipsle)")
+		return
+	}
+	// Solo .ipk por ahora: el .apk de OpenWrt 25.12 lo firma el SDK y no se
+	// genera aqui. Un router con apk cae al camino de ficheros sueltos.
+	if format := r.URL.Query().Get("format"); format != "" && format != "ipk" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "format no soportado: "+format)
+		return
+	}
+	f, err := agentbin.Open(arch)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found",
+			"binario no disponible para "+arch+" (compila el servidor con los binarios de agente embebidos)")
+		return
+	}
+	binary, readErr := io.ReadAll(f)
+	f.Close()
+	if readErr != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	ipk, err := openwrtpkg.BuildIPK(arch, agentbin.EmbeddedAgentVersion, binary)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="netpulse-agent_%s_%s.ipk"`, agentbin.EmbeddedAgentVersion, arch))
+	if d := agentbin.Digest(arch); d != "" {
+		w.Header().Set("X-Binary-Checksum-Sha256", d)
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(ipk)))
+	_, _ = w.Write(ipk)
 }
 
 // ---------------------------------------------------------------------------

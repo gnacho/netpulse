@@ -619,3 +619,39 @@ func TestScriptsPreserveUCIConfig(t *testing.T) {
 		}
 	}
 }
+
+// #1476: el reinstall instala el paquete .ipk cuando el router tiene opkg, y
+// conserva el camino de ficheros sueltos como respaldo si el paquete falla.
+func TestScriptInstallsPackageWithFallback(t *testing.T) {
+	s := reinstall.ScriptWithTargets("test-router", strings.Repeat("a1", 32), "https://192.168.1.226:3000", "sha256//AAAA", map[string]string{"arm64": "cafebabe"}, reinstall.WanTargets{})
+	for _, want := range []string{
+		`if command -v opkg >/dev/null 2>&1; then`,
+		`"$SERVER/api/agents/$SLUG/package?arch=$GOARCH"`,
+		`opkg install --force-reinstall /tmp/netpulse-agent.ipk`,
+		`PKG_OK=1`,
+		`if [ "$PKG_OK" != "1" ]; then`,
+		`"$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("falta en el script: %q", want)
+		}
+	}
+	// El bloque del paquete va antes de la descarga del binario suelto: si
+	// instalase despues, pisaria el init del paquete con el de ficheros sueltos.
+	pkgIdx := strings.Index(s, `if command -v opkg >/dev/null 2>&1; then`)
+	binIdx := strings.Index(s, `"$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"`)
+	if pkgIdx < 0 || binIdx < 0 || pkgIdx > binIdx {
+		t.Fatalf("orden incorrecto: paquete en %d, binario en %d", pkgIdx, binIdx)
+	}
+	if out, err := exec.Command("sh", "-n", "-c", s).CombinedOutput(); err != nil {
+		t.Fatalf("sh -n: %v\n%s", err, out)
+	}
+}
+
+// El script ligero de entorno no instala paquetes: solo sincroniza config.
+func TestEnvScriptDoesNotInstallPackage(t *testing.T) {
+	s := reinstall.EnvScript("test-router", strings.Repeat("a1", 32), "https://192.168.1.226:3000", "sha256//AAAA", reinstall.WanTargets{})
+	if strings.Contains(s, "opkg install") {
+		t.Fatal("el script ligero no debe instalar el paquete")
+	}
+}

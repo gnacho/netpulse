@@ -1,0 +1,79 @@
+#!/bin/sh
+# uci-defaults: ejecutado UNA vez tras instalar el .ipk.
+# Migra una instalación manual previa (si existe /etc/netpulse-agent.env)
+# al formato UCI, y retira el watchdog cron de versiones anteriores (#851).
+
+AGENT_ENV=/etc/netpulse-agent.env
+AGENT_UCI=netpulse-agent
+
+# NetGrip detectado (#363): el agente EMBEBIDO en el panel ya cubre este
+# router. Entregarle la config migrada (solo si aún no tiene) y NO instalar
+# el standalone (ni servicio ni watchdog ni cron).
+if [ -x /usr/sbin/netgrip ] || [ -f /etc/init.d/netgrip ]; then
+	NG_ENV=/etc/netgrip/netpulse.env
+	if [ ! -f "$NG_ENV" ] && [ -f "$AGENT_ENV" ]; then
+		. "$AGENT_ENV"
+		if [ -n "$NETPULSE_SERVER" ] && [ -n "$NETPULSE_SLUG" ] && [ -n "$NETPULSE_TOKEN" ]; then
+			mkdir -p /etc/netgrip
+			{
+				echo "# managed by netgrip; netpulse embedded agent config"
+				echo "NETPULSE_SERVER=$NETPULSE_SERVER"
+				echo "NETPULSE_SLUG=$NETPULSE_SLUG"
+				echo "NETPULSE_TOKEN=$NETPULSE_TOKEN"
+				echo "NETPULSE_ENABLED=1"
+			} > "$NG_ENV"
+			chmod 600 "$NG_ENV"
+			logger -t netpulse-agent "NetGrip detectado: config migrada a $NG_ENV"
+		fi
+	fi
+	/etc/init.d/netgrip restart >/dev/null 2>&1 || true
+	logger -t netpulse-agent "NetGrip detectado: agente standalone NO instalado"
+	exit 0
+fi
+
+# Migrar instalación manual previa (.env) a UCI
+if [ -f "$AGENT_ENV" ]; then
+	. "$AGENT_ENV"
+	[ -n "$NETPULSE_SERVER" ]  && uci set "$AGENT_UCI.main.server=$NETPULSE_SERVER"
+	[ -n "$NETPULSE_TOKEN" ]   && uci set "$AGENT_UCI.main.token=$NETPULSE_TOKEN"
+	[ -n "$NETPULSE_SLUG" ]    && uci set "$AGENT_UCI.main.slug=$NETPULSE_SLUG"
+	[ -n "$NETPULSE_INTERVAL" ] && uci set "$AGENT_UCI.main.interval=$NETPULSE_INTERVAL"
+	[ "$NETPULSE_INSECURE_TLS" = "1" ] && uci set "$AGENT_UCI.main.insecure_tls=1"
+	[ -n "$NETPULSE_WAN_TARGET" ] && uci set "$AGENT_UCI.main.wan_target=$NETPULSE_WAN_TARGET"
+	[ -n "$NETPULSE_GW_TARGET" ]  && uci set "$AGENT_UCI.main.gw_target=$NETPULSE_GW_TARGET"
+	uci commit "$AGENT_UCI"
+fi
+
+# Watchdog cron (#851): YA NO se programa. Si venimos de una versión que lo
+# instalaba, limpiarlo aquí: el reinicio a ciegas de un agente en bucle de
+# crash no lo arregla (solo ensucia el log); la detección efectiva es el
+# dead-man del servidor (alerta) y el crash puntual lo cubre el respawn de
+# procd. El binario tras sysupgrade lo restaura el self-heal del init.
+rm -f /usr/sbin/netpulse-watchdog
+crontab -l 2>/dev/null | grep -v netpulse-watchdog | crontab - 2>/dev/null || true
+
+# Habilitar y arrancar el servicio
+/etc/init.d/netpulse-agent enable
+/etc/init.d/netpulse-agent restart
+
+# Config vacía (#462): el servicio NO arrancará hasta definir server, token
+# y slug. Banner claro en consola y syslog en vez de un fallo silencioso.
+SERVER_CFG=$(uci -q get netpulse-agent.main.server)
+TOKEN_CFG=$(uci -q get netpulse-agent.main.token)
+SLUG_CFG=$(uci -q get netpulse-agent.main.slug)
+if [ -z "$SERVER_CFG" ] || [ -z "$TOKEN_CFG" ] || [ -z "$SLUG_CFG" ]; then
+	logger -t netpulse-agent "config vacía: define server, token y slug; el servicio no arrancará hasta completarla"
+	echo ""
+	echo "netpulse-agent: PENDIENTE DE CONFIGURAR: el servicio no arrancará hasta completarla."
+	echo "  1. Crea el agente en el servidor NetPulse (Ajustes → Agents) y copia su token (se muestra una sola vez)."
+	echo "  2. En este router:"
+	echo "       uci set netpulse-agent.main.server='http://<netpulse-server-ip>:3000'"
+	echo "       uci set netpulse-agent.main.slug='<slug>'"
+	echo "       uci set netpulse-agent.main.token='<token-64-hex>'"
+	echo "       uci commit netpulse-agent"
+	echo "       /etc/init.d/netpulse-agent enable && /etc/init.d/netpulse-agent restart"
+	echo "  (Si el servidor ya puede entrar por SSH a este router, usa el botón Reinstalar de la web y se configura solo.)"
+	echo ""
+fi
+
+exit 0

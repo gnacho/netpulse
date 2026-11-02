@@ -299,9 +299,28 @@ case "$ARCH" in
 	*) echo "arch no soportado: $ARCH"; exit 20 ;;
 esac
 
+# #1476: si el router habla opkg, instala el paquete .ipk que sirve el propio
+# servidor. Deja binario, init y /etc/config/netpulse-agent, que es conffile y
+# sobrevive a un sysupgrade. Cualquier fallo (sin opkg, descarga rota, paquete
+# rechazado) cae al camino de ficheros sueltos de abajo: el paquete es una
+# mejora, no un requisito.
+PKG_OK=0
+if command -v opkg >/dev/null 2>&1; then
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/package?arch=$GOARCH" -o /tmp/netpulse-agent.ipk 2>/dev/null || rm -f /tmp/netpulse-agent.ipk
+	else
+		wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.ipk --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/package?arch=$GOARCH" 2>/dev/null || rm -f /tmp/netpulse-agent.ipk
+	fi
+	if [ -s /tmp/netpulse-agent.ipk ] && opkg install --force-reinstall /tmp/netpulse-agent.ipk >/dev/null 2>&1; then
+		PKG_OK=1
+	fi
+	rm -f /tmp/netpulse-agent.ipk
+fi
+
 # Parar servicio previo si existe (el proceso vivo mantiene el binario abierto)
 [ -f "$INIT" ] && "$INIT" stop >/dev/null 2>&1 || true
 
+if [ "$PKG_OK" != "1" ]; then
 # Descargar el binario del propio server (auth por token)
 if command -v curl >/dev/null 2>&1; then
 	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new
@@ -316,11 +335,13 @@ if [ -n "$SHA256" ]; then
 fi
 chmod 0755 /tmp/netpulse-agent.new
 mv -f /tmp/netpulse-agent.new "$BIN"
+fi
 
 # Config (chmod 600). El rewrite toca SOLO las vars gestionadas (SERVER,
 # SLUG, TOKEN, SERVER_FP, WAN_TARGET, GW_TARGET): las NETPULSE_* del usuario
 # (p. ej. NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
 ` + envRewriteBlock(targets) + uciConfigBlock(targets) + `
+if [ "$PKG_OK" != "1" ]; then
 # Init procd con self-heal (#457): un sysupgrade no conserva los ficheros
 # sueltos, así que el binario, el init y el env se añaden a
 # /etc/sysupgrade.conf (#1476); si aun así falta el binario al arrancar se
@@ -420,6 +441,7 @@ selfheal_binary() {
 }
 INITEOF
 chmod 0755 "$INIT"
+fi
 
 # #851: el watchdog cron YA NO se instala (un reinicio a ciegas de un crash
 # loop no arregla nada y ensucia el log; la detección es el dead-man del
