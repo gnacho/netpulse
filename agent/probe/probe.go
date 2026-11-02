@@ -339,6 +339,12 @@ type WirelessClient struct {
 	Band      string `json:"band"`
 	RxBytes   uint64 `json:"rxBytes,omitempty"`
 	TxBytes   uint64 `json:"txBytes,omitempty"`
+	// Iface/SSID (#1757): interfaz AP y SSID con la que la estacion esta
+	// asociada. Permiten al servidor cruzar la estacion con el bridge VLAN
+	// filtering y saber en que segmento vive. Omitidos cuando la fuente no
+	// los expone (wl, iwinfo, drivers sin esa salida): el campo es opcional.
+	Iface string `json:"iface,omitempty"`
+	SSID  string `json:"ssid,omitempty"`
 }
 
 // PortState es {name, up, speed} de una interfaz (/sys operstate+speed).

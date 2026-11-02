@@ -38,6 +38,9 @@ type iwIface struct {
 	band    string
 	channel int
 	width   int
+	// ssid: `iw dev` la imprime en las interfaces AP/STA activas. Vacia en
+	// interfaces down o sin ESSID, y en kernels que no la publican.
+	ssid string
 }
 
 // ParseIwWireless parsea la salida combinada de CmdIwStationDump: clientes
@@ -89,6 +92,8 @@ func ParseIwWireless(out string) (map[string]WirelessClient, []Radio) {
 				cur.addr = strings.ToUpper(strings.TrimPrefix(trim, "addr "))
 			case cur != nil && strings.HasPrefix(trim, "type "):
 				cur.kind = strings.TrimPrefix(trim, "type ")
+			case cur != nil && strings.HasPrefix(trim, "ssid "):
+				cur.ssid = strings.TrimSpace(strings.TrimPrefix(trim, "ssid "))
 			case cur != nil && strings.HasPrefix(trim, "channel "):
 				f := strings.Fields(trim)
 				if len(f) >= 2 {
@@ -119,7 +124,11 @@ func ParseIwWireless(out string) (map[string]WirelessClient, []Radio) {
 				iface := strings.TrimSuffix(strings.TrimPrefix(f[3], "("), ")")
 				stationIface[station] = iface
 				if _, ok := clients[station]; !ok {
-					clients[station] = WirelessClient{Band: ifaces[iface].band}
+					c := WirelessClient{Band: ifaces[iface].band, Iface: iface}
+					// #1757: sin SSID no se puede ubicar la estacion en una
+					// VLAN; se deja vacio antes que inventarlo.
+					c.SSID = ifaces[iface].ssid
+					clients[station] = c
 				}
 			}
 			continue

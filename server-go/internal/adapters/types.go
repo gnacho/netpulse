@@ -271,18 +271,24 @@ type DeviceTotals struct {
 // (SPEC §2.9); el resto solo existe en demo (ausentes en live).
 // SignalDbm es null cuando no hay medida (nunca ausente).
 type Device struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	Manufacturer string    `json:"manufacturer"`
-	IP           string    `json:"ip"`
-	MAC          string    `json:"mac"`
-	RouterID     string    `json:"routerId"`
-	Band         string    `json:"band"` // "5 GHz"|"2.4 GHz"|"cable"|"—"
-	SignalDbm    *int      `json:"signalDbm"`
-	TrafficMbps  float64   `json:"trafficMbps"`
-	Online       bool      `json:"online"`
-	Sparkline    []float64 `json:"sparkline"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Manufacturer string `json:"manufacturer"`
+	IP           string `json:"ip"`
+	MAC          string `json:"mac"`
+	RouterID     string `json:"routerId"`
+	Band         string `json:"band"` // "5 GHz"|"2.4 GHz"|"cable"|"—"
+	// WifiIface/SSID (#1757): interfaz AP y red a la que esta asociado un
+	// cliente inalambrico. El agente los declara desde iw; vacios cuando la
+	// fuente no los expone. La topologia cruza WifiIface con el bridge VLAN
+	// filtering del router para etiquetar la VLAN de la estacion.
+	WifiIface   string    `json:"wifiIface,omitempty"`
+	SSID        string    `json:"ssid,omitempty"`
+	SignalDbm   *int      `json:"signalDbm"`
+	TrafficMbps float64   `json:"trafficMbps"`
+	Online      bool      `json:"online"`
+	Sparkline   []float64 `json:"sparkline"`
 	// --- topología v5 (FDB/LLDP; omitempty: ausentes si no hay datos) ---
 	// Port: puerto físico del bridge donde se aprende la MAC (cableados, FDB).
 	Port string `json:"port,omitempty"`

@@ -3058,9 +3058,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	now := time.Now().UnixMilli()
 
 	type seenInfo struct {
-		routerID string
-		band     string
-		signal   *int
+		routerID  string
+		band      string
+		wifiIface string
+		ssid      string
+		signal    *int
 	}
 	seen := map[string]seenInfo{}
 	// assocSeen (#1740): en qué routers vio ESTE ciclo a cada MAC. Solo se usa
@@ -3071,8 +3073,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	for routerID, p := range polled {
 		for mac, w := range p.wireless {
 			sig := w.SignalDbm
-			seen[mac] = seenInfo{routerID, w.Band, &sig}
-			assocSeen[mac] = append(assocSeen[mac], seenInfo{routerID, w.Band, &sig})
+			seen[mac] = seenInfo{routerID: routerID, band: w.Band, wifiIface: w.Iface, ssid: w.SSID, signal: &sig}
+			assocSeen[mac] = append(assocSeen[mac], seenInfo{routerID: routerID, band: w.Band, wifiIface: w.Iface, ssid: w.SSID, signal: &sig})
 			if l.db != nil {
 				_, _ = l.db.Exec(
 					`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)
@@ -3145,7 +3147,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if _, ok := seen[mac]; ok {
 					continue
 				}
-				seen[mac] = seenInfo{routerID, band, nil}
+				seen[mac] = seenInfo{routerID: routerID, band: band}
 				if l.db != nil {
 					// Sin signal_dbm en el DO UPDATE: el hint no trae RSSI y
 					// pisar con NULL el último bueno de una asociación real
@@ -3221,7 +3223,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				continue // uplink: MACs en tránsito, no clientes de este equipo
 			}
 			if _, ok := seen[mac]; !ok {
-				seen[mac] = seenInfo{routerID, "cable", nil}
+				seen[mac] = seenInfo{routerID: routerID, band: "cable"}
 			}
 		}
 	}
@@ -3231,7 +3233,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			for mac := range gwPolled.fdb {
 				if _, ok := seen[mac]; !ok {
 					if _, ok := known[mac]; !ok {
-						seen[mac] = seenInfo{gwID, "cable", nil}
+						seen[mac] = seenInfo{routerID: gwID, band: "cable"}
 					}
 				}
 			}
@@ -3272,7 +3274,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if _, ok := seen[mac]; ok {
 					continue
 				}
-				seen[mac] = seenInfo{gwID, "cable", nil}
+				seen[mac] = seenInfo{routerID: gwID, band: "cable"}
 				wanSide[mac] = true
 			}
 		}
@@ -3301,7 +3303,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			if !arpConfirmed[mac] {
 				continue
 			}
-			seen[mac] = seenInfo{routerID, "cable", nil}
+			seen[mac] = seenInfo{routerID: routerID, band: "cable"}
 		}
 	}
 	// (5) Atribución sticky (#678): un cableado que este tick solo aparece en el
@@ -3336,7 +3338,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 					continue // boca local del gateway: evidencia fresca, no tocar
 				}
 			}
-			seen[mac] = seenInfo{m.routerID, "cable", nil}
+			seen[mac] = seenInfo{routerID: m.routerID, band: "cable"}
 		}
 	}
 
@@ -3611,6 +3613,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		if isSeen {
 			d.RouterID = s.routerID
 			d.Band = s.band
+			d.WifiIface = s.wifiIface
+			d.SSID = s.ssid
 			d.SignalDbm = s.signal
 		} else if k, ok := known[mac]; ok {
 			d.RouterID = k.routerID

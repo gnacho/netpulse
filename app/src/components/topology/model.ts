@@ -1055,11 +1055,16 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // PVID se toma la primera entrada. Solo cableado: la API no declara la VLAN
   // de un cliente WiFi, y suponerla sería inventar el dato.
   const vlanOf = (d: Device): ChipNode['vlan'] => {
-    if (!isWired(d) || !d.port) return undefined
+    // #1757: `bridge vlan show` lista también las interfaces AP (wlan0,
+    // wlan1) como puertos del bridge, así que la estación inalámbrica se
+    // resuelve por su interfaz igual que un cliente cableado por su puerto.
+    // Si el agente no declara ninguna de las dos cosas, no hay VLAN.
+    const port = isWired(d) ? d.port : d.wifiIface
+    if (!port) return undefined
     const ports = routers.find((r) => r.id === d.routerId)?.vlans
     if (!ports) return undefined
     for (const entry of ports) {
-      if (entry.port !== d.port) continue
+      if (entry.port !== port) continue
       const hit = entry.vlans.find((v) => v.pvid) ?? entry.vlans[0]
       if (hit) return { id: hit.id, name: hit.name, pvid: hit.pvid }
     }
