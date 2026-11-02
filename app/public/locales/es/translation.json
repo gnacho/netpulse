@@ -1870,10 +1870,10 @@
       "mqttCaption": "Publicación del estado en el broker MQTT",
       "mcpCaption": "Consultas de solo lectura para asistentes de IA",
       "configure": "Configurar {{name}}",
-      "rtlInfoTip": "rtlplayground convierte estos switches en agentes de NetPulse. Guía de flasheo e imágenes:",
       "rtlInstructions": "Instrucciones de flasheo",
       "rtlTechGuide": "Guía técnica",
-      "rtlImages": "Imágenes"
+      "rtlImages": "Imágenes",
+      "rtlDescription": "rtlplayground es el firmware para switches Realtek que los convierte en agentes de NetPulse. Instrucciones de flasheo, guía técnica e imágenes:"
     },
     "session": {
       "active": "Sesión activa en este dispositivo",
