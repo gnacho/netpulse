@@ -88,6 +88,7 @@ func TestSeedCatalogServesCurrentVendors(t *testing.T) {
 		{"asuswrt", "ssh", "[arm64]", "asuswrt/v", "asuswrt-pusher", "merlin", "1.0.0", "arm64", "asuswrt_1.0.0_linux_arm64.tar.gz"},
 		{"bbox", "local", "[amd64 arm64]", "bbox/v", "netpulse-integrations", "procd", "0.1.0", "amd64", "integrations-supervisor_0.1.0_linux_amd64.tar.gz"},
 		{"unifi", "local", "[amd64]", "unifi/v", "unifi-pusher", "procd", "1.0.0", "amd64", "unifi_1.0.0_linux_amd64.tar.gz"},
+		{"rtlplayground", "local", "[mipsle]", "rtlplayground/v", "rtlplayground-pusher", "procd", "1.2.3", "mipsle", "rtlplayground_1.2.3_linux_mipsle.tar.gz"},
 	}
 	c := NewCatalog(nil)
 	if got := len(c.Current()); got != len(want) {
@@ -128,7 +129,7 @@ func TestCatalogServesSeedWithoutNetwork(t *testing.T) {
 		return nil, nil
 	}
 	vs := c.Vendors(context.Background())
-	if len(vs) != 4 {
+	if len(vs) != 5 {
 		t.Fatalf("seed vendors = %d, want 4", len(vs))
 	}
 	if !c.LastRefreshedAt().IsZero() {
@@ -257,7 +258,7 @@ func TestCatalogFetchFailsNoCacheServesSeed(t *testing.T) {
 	c := NewCatalog(d.DB)
 	c.FetchOverride = failingOverride(&calls)
 	vs := c.Vendors(context.Background())
-	if len(vs) != 4 {
+	if len(vs) != 5 {
 		t.Fatalf("seed must be served when the fetch fails without cache: %d vendors", len(vs))
 	}
 	if _, ok := c.Lookup("routeros"); !ok {

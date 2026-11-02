@@ -35,6 +35,15 @@
       "binary": "unifi-pusher",
       "target": "unifi/cmd/unifi-pusher",
       "description": "Read-only UniFi controller pusher covering gateways, switches and APs of one site"
+    },
+    {
+      "id": "rtlplayground",
+      "mode": "local",
+      "arches": ["mipsle"],
+      "tagPrefix": "rtlplayground/v",
+      "binary": "rtlplayground-pusher",
+      "target": "rtlplayground/cmd/rtlplayground-pusher",
+      "description": "Alternative Realtek switch firmware (RTLPlayground fork) that turns RTL837x switches into NetPulse agents; see the flashing guides in the docs"
     }
   ]
 }

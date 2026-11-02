@@ -4161,12 +4161,6 @@ function ServicesCard({
           <DialogHeader>
             <DialogTitle className="sr-only">{t('settings.services.externalAgents')}</DialogTitle>
           </DialogHeader>
-          <p className="mb-3 text-sm text-text-muted">
-            {t('settings.services.rtlDesc')}{' '}
-            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEs')}</a>
-            {' · '}
-            <a className="text-accent hover:underline" href="https://github.com/gnacho/netpulse/blob/main/docs/RTL-SWITCH-BEACON.md" target="_blank" rel="noreferrer">{t('settings.services.rtlGuideEn')}</a>
-          </p>
           <Integrations bare />
         </DialogContent>
       </Dialog>
