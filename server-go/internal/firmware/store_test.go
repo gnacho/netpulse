@@ -4,6 +4,7 @@ package firmware
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
@@ -158,5 +159,64 @@ func TestStartScheduled(t *testing.T) {
 	ok, err = s.StartScheduled(id)
 	if err != nil || ok {
 		t.Fatalf("segundo start debe ser no-op: ok=%v err=%v", ok, err)
+	}
+}
+
+// #1776: un registro en curso que dejó de avanzar se puede limpiar, pero uno
+// reciente no: eso sería cancelar un upgrade vivo.
+func TestResetLatestClearsStaleRunning(t *testing.T) {
+	s := open(t)
+	id, err := s.BeginUpgrade("rt1", "v2", "http://x", "abc")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if err := s.SetStatus(id, "running", "", ""); err != nil {
+		t.Fatalf("set running: %v", err)
+	}
+	// El intento se creó justo ahora: para que cuente como rancio se evalúa
+	// dos horas más tarde, con un umbral de una hora.
+	now := time.Now().Add(2 * time.Hour)
+	cleared, err := s.ResetLatest("rt1", now, time.Hour)
+	if err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if !cleared {
+		t.Fatal("esperaba limpiar el running rancio")
+	}
+	if up, _ := s.LatestUpgrade("rt1"); up != nil {
+		t.Fatalf("tras reset no debería haber upgrade: %+v", up)
+	}
+}
+
+func TestResetLatestKeepsFreshRunning(t *testing.T) {
+	s := open(t)
+	id, err := s.BeginUpgrade("rt1", "v2", "http://x", "abc")
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if err := s.SetStatus(id, "running", "", ""); err != nil {
+		t.Fatalf("set running: %v", err)
+	}
+	cleared, err := s.ResetLatest("rt1", time.Now(), time.Hour)
+	if err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if cleared {
+		t.Fatal("no debe limpiar un upgrade vivo")
+	}
+	if up, _ := s.LatestUpgrade("rt1"); up == nil || up.Status != "running" {
+		t.Fatalf("el upgrade debe seguir: %+v", up)
+	}
+}
+
+func TestResetLatestClearsFailed(t *testing.T) {
+	s := open(t)
+	id, _ := s.BeginUpgrade("rt1", "v2", "http://x", "abc")
+	if err := s.SetStatus(id, "failed", "boom", ""); err != nil {
+		t.Fatalf("set failed: %v", err)
+	}
+	cleared, err := s.ResetLatest("rt1", time.Now(), time.Hour)
+	if err != nil || !cleared {
+		t.Fatalf("reset = (%v, %v), esperaba limpiar el failed", cleared, err)
 	}
 }

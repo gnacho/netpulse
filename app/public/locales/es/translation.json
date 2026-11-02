@@ -2563,7 +2563,9 @@
     "backupScheduleSaved": "Programación guardada",
     "backupScheduleError": "No se pudo guardar la programación",
     "backupScheduleLastRun": "Último: {{when}}",
-    "backupScheduleNextRun": "Próximo: {{when}}"
+    "backupScheduleNextRun": "Próximo: {{when}}",
+    "resetStale": "Reiniciar estado",
+    "resetStaleHint": "Borra el registro de un intento que lleva más de 15 minutos sin avanzar (el router no volvió o el SSH murió), para poder lanzarlo otra vez."
   },
   "orchestration": {
     "title": "Orquestación",

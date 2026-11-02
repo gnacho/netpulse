@@ -2563,7 +2563,9 @@
     "backupScheduleSaved": "Schedule saved",
     "backupScheduleError": "Could not save the schedule",
     "backupScheduleLastRun": "Last: {{when}}",
-    "backupScheduleNextRun": "Next: {{when}}"
+    "backupScheduleNextRun": "Next: {{when}}",
+    "resetStale": "Reset state",
+    "resetStaleHint": "Clears the record of an attempt that has been stuck for more than 15 minutes (the router never came back or the SSH session died), so you can start it again."
   },
   "orchestration": {
     "title": "Orchestration",

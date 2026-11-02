@@ -438,6 +438,29 @@ export default function FirmwareUpgrades() {
     }
   }
 
+  // #1776: un intento que lleva mas de 15 min en requested/running/rebooting
+  // esta atascado (el router no volvio, el SSH murio y nadie cerro el
+  // registro). El reset lo borra para poder relanzar sin llamar a la API a
+  // mano. Un intento reciente se respeta: puede estar trabajando de verdad.
+  const STALE_UPGRADE_MS = 15 * 60 * 1000
+  const isStaleUpgrade = (item: FirmwareItem) => {
+    const s = item.upgrade?.status
+    if (s !== 'requested' && s !== 'running' && s !== 'rebooting') return false
+    return Date.now() - (item.upgrade?.startedAt ?? 0) * 1000 > STALE_UPGRADE_MS
+  }
+  const resetUpgrade = async (id: string) => {
+    setBusy((prev) => ({ ...prev, [id]: 'reset' }))
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/reset`, { method: 'POST' })
+      if (!res.ok) throw new Error(await res.text())
+      await fetchItems()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy((prev) => ({ ...prev, [id]: '' }))
+    }
+  }
+
   const startUpgrade = async (id: string) => {
     setBusy((prev) => ({ ...prev, [id]: 'upgrade' }))
     try {
@@ -909,6 +932,16 @@ export default function FirmwareUpgrades() {
                   >
                     {t(`firmwareUpgrades.status.${item.upgrade.status}`, { defaultValue: item.upgrade.status })}
                   </span>
+                )}
+                {isAdmin && isStaleUpgrade(item) && (
+                  <button
+                    onClick={() => void resetUpgrade(item.routerId)}
+                    disabled={busy[item.routerId] === 'reset'}
+                    title={t('firmwareUpgrades.resetStaleHint')}
+                    className="rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
+                  >
+                    {busy[item.routerId] === 'reset' ? t('common.loading') : t('firmwareUpgrades.resetStale')}
+                  </button>
                 )}
               </div>
 

@@ -246,6 +246,28 @@ func (s *Store) DismissLatest(routerID string) error {
 	return err
 }
 
+// ResetLatest borra el estado de upgrade del router para desatascarlo (#1776):
+// un intento terminado (failed/done) o un registro en curso que lleva más de
+// staleBefore sin avanzar. Un upgrade realmente vivo no se toca, para no
+// cancelar una operación por accidente. Devuelve si borró algo.
+func (s *Store) ResetLatest(routerID string, now time.Time, staleFor time.Duration) (bool, error) {
+	up, err := s.LatestUpgrade(routerID)
+	if err != nil || up == nil {
+		return false, err
+	}
+	switch up.Status {
+	case "failed", "done":
+	default:
+		if staleFor <= 0 || now.Sub(time.Unix(up.StartedAt, 0)) < staleFor {
+			return false, nil
+		}
+	}
+	if _, err := s.db.Exec(`DELETE FROM firmware_upgrades WHERE id = ?`, up.ID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // ScheduleUpgrade crea o actualiza la fila 'scheduled' del router (#494).
 // Una fila por router: si ya hay una pendiente, se actualizan target y hora;
 // si no, se inserta. scheduledFor es epoch ms UTC.
