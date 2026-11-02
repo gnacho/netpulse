@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- SNMP switches now read the generic ENTITY-MIB (#1767): the chassis row supplies `entPhysicalSoftwareRev` as the firmware (falling back to `entPhysicalFirmwareRev`) and `entPhysicalModelName` as the short model. Units that only advertised a long sysDescr now show a real firmware version and a usable model name.
 - The packaged OpenWrt agent now receives its UCI configuration (#1772): the procd service passes server, token, slug, interval, scan interval, ping targets and SPKI fingerprint in a single `procd_set_param env` call. Bare `export`s never reached the daemon, so setting the ping targets in LuCI left the latency cards empty.
 - Opening the Channels page no longer starts a WiFi scan (#1794): with the periodic scan off, stale data used to trigger one automatically after six hours. Scanning happens only when you press **Scan now**, so beacon-sensitive clients keep their association.
 

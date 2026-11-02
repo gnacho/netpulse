@@ -83,6 +83,10 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		l.snmpBrMac[cfg.ID] = brMac
 	}
 	l.mu.Unlock()
+	// #1767: ENTITY-MIB identity (firmware and short model). Generic RFC
+	// 6933 columns; one walk, and a switch without the table leaves both
+	// fields empty. Best-effort like the bridge MAC above.
+	entity, _ := npsnmp.PollEntityInfo(session)
 	ports, ifErr := npsnmp.PollIfTable(session)
 	if ifErr != nil {
 		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.LogLabel(), ifErr)
@@ -219,6 +223,9 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		lldp:      snmpLldpNeighbors(lldpRem, portIdxToName),
 		polledAt:  now.UnixMilli(),
 	}
+	// #1767: ENTITY-MIB is optional identity, not a vitals source.
+	p.snmpFirmware = entity.Firmware
+	p.snmpModelShort = entity.ModelShort
 	if sysInfo != nil {
 		// #1256: sysDescr declara el modelo completo del equipo (p. ej.
 		// "CSS610-8G-2S+ SwOS v2.21") y sysName el hostname que define el

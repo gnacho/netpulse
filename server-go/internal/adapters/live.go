@@ -114,7 +114,11 @@ type routerPolled struct {
 	sysDescr string
 	// sysName (#1256): hostname que el usuario define en el equipo; para
 	// SNMP alimenta el Name visible de la unidad en flota.
-	sysName           string
+	sysName string
+	// snmpFirmware/snmpModelShort (#1767): identity read from ENTITY-MIB.
+	// Empty when the unit has no table, so the sysDescr fallback stays.
+	snmpFirmware      string
+	snmpModelShort    string
 	flash             string
 	firmwareAvailable string
 	uptimeSec         float64
@@ -1652,6 +1656,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
+	}
+	// #1767: an SNMP switch has no board; ENTITY-MIB is its own declaration.
+	if p.snmpFirmware != "" {
+		r.Firmware = p.snmpFirmware
+	}
+	if p.snmpModelShort != "" {
+		r.ModelShort = p.snmpModelShort
 	}
 	if p.cfg.FirmwareTarget != "" {
 		r.FirmwareTarget = p.cfg.FirmwareTarget
