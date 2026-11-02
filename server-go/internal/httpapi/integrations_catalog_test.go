@@ -64,7 +64,7 @@ func TestVendorsEndpointServesSeedAndDegradesOffline(t *testing.T) {
 	if !ok {
 		t.Fatalf("vendors missing: %v", body)
 	}
-	if len(rawVendors) != 4 {
+	if len(rawVendors) != 5 {
 		t.Fatalf("seed must be served when offline: %d vendors (%v)", len(rawVendors), rawVendors)
 	}
 	if got := body["lastRefreshedAt"].(float64); got != 0 {
@@ -96,7 +96,7 @@ func TestVendorsRefreshEndpointUpdatesCatalog(t *testing.T) {
 	// Estado inicial: el GET de arranque falla y sirve la semilla.
 	res0 := get(t, ts.URL, "/api/integrations/vendors", cookie)
 	body0 := readJSON(t, res0)
-	if rawVendors0, ok := body0["vendors"].([]any); !ok || len(rawVendors0) != 4 {
+	if rawVendors0, ok := body0["vendors"].([]any); !ok || len(rawVendors0) != 5 {
 		t.Fatalf("seed must be served while the fetch fails: %v", body0)
 	}
 
@@ -149,7 +149,7 @@ func TestVendorsFallbackCatalogHasNoNetwork(t *testing.T) {
 	}
 	body := readJSON(t, res)
 	rawVendors, ok := body["vendors"].([]any)
-	if !ok || len(rawVendors) != 4 {
+	if !ok || len(rawVendors) != 5 {
 		t.Fatalf("fallback catalog must serve the seed: %v", body)
 	}
 	if got := body["lastRefreshedAt"].(float64); got != 0 {
