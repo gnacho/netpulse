@@ -566,7 +566,11 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	for _, opt := range opts {
 		opt(&o)
 	}
-	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+	// #1795: el grupo del servicio puede leer backups y datos sin ser owner.
+	if err := os.MkdirAll(dataDir, 0o770); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(dataDir, 0o770); err != nil {
 		return nil, err
 	}
 	dbPath := filepath.Join(dataDir, databaseFile)

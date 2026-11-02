@@ -5,6 +5,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -17,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
@@ -195,14 +197,20 @@ func (s *server) registerFirmwareBackupRoutes(mux *http.ServeMux) {
 			return
 		}
 		dir := s.firmwareBackupDir()
-		if err := os.MkdirAll(dir, 0o700); err != nil {
+		if err := ensureBackupDir(dir); err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
 			return
 		}
-		name := fmt.Sprintf("%s-%d.tar.gz", slug, time.Now().Unix())
+		name := s.firmwareBackupName(r.Context(), slug)
 		dest := filepath.Join(dir, name)
-		df, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+		df, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
 		if err != nil {
+			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
+			return
+		}
+		if err := df.Chmod(backupFileMode); err != nil {
+			df.Close()
+			os.Remove(dest)
 			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
 			return
 		}
@@ -241,15 +249,14 @@ func (s *server) registerFirmwareBackupRoutes(mux *http.ServeMux) {
 		}
 		out := []info{}
 		for _, e := range entries {
-			if e.IsDir() || !strings.HasPrefix(e.Name(), id+"-") || !strings.HasSuffix(e.Name(), ".tar.gz") {
+			if e.IsDir() {
+				continue
+			}
+			ts, ok := firmwareBackupTimestamp(e.Name(), id)
+			if !ok {
 				continue
 			}
 			if fi, err := e.Info(); err == nil {
-				// ts = parte numérica del nombre (<slug>-<ts>.tar.gz)
-				ts := int64(0)
-				if n, err := strconv.ParseInt(strings.TrimSuffix(strings.TrimPrefix(e.Name(), id+"-"), ".tar.gz"), 10, 64); err == nil {
-					ts = n
-				}
 				out = append(out, info{Name: e.Name(), Size: fi.Size(), Ts: ts})
 			}
 		}
@@ -261,7 +268,11 @@ func (s *server) registerFirmwareBackupRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/firmware-backups/{routerId}/file", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("routerId")
 		name := filepath.Base(r.URL.Query().Get("name"))
-		if name == "." || name == "" || !strings.HasPrefix(name, id+"-") || !strings.HasSuffix(name, ".tar.gz") {
+		if name == "." || name == "" {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		if _, ok := firmwareBackupTimestamp(name, id); !ok {
 			writeError(w, http.StatusNotFound, "not_found")
 			return
 		}
@@ -282,22 +293,128 @@ func (s *server) registerFirmwareBackupRoutes(mux *http.ServeMux) {
 }
 
 // pruneFirmwareBackups deja los maxFirmwareBackupsPerRouter más recientes de
-// una unidad (el nombre lleva ts, ordenar por nombre = ordenar por ts).
+// una unidad. El id se compara con el sufijo exacto del nombre, no con un
+// prefijo: "netgear-wax220" no debe capturar los backups de
+// "netgear-wax220-2" (#1795).
 func pruneFirmwareBackups(dir, slug string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
-	var mine []os.DirEntry
+	type backup struct {
+		name string
+		ts   int64
+	}
+	var mine []backup
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), slug+"-") && strings.HasSuffix(e.Name(), ".tar.gz") {
-			mine = append(mine, e)
+		if e.IsDir() {
+			continue
+		}
+		if ts, ok := firmwareBackupTimestamp(e.Name(), slug); ok {
+			mine = append(mine, backup{name: e.Name(), ts: ts})
 		}
 	}
-	sort.Slice(mine, func(i, j int) bool { return mine[i].Name() > mine[j].Name() })
+	sort.Slice(mine, func(i, j int) bool {
+		if mine[i].ts == mine[j].ts {
+			return mine[i].name > mine[j].name
+		}
+		return mine[i].ts > mine[j].ts
+	})
 	for i := maxFirmwareBackupsPerRouter; i < len(mine); i++ {
-		os.Remove(filepath.Join(dir, mine[i].Name()))
+		os.Remove(filepath.Join(dir, mine[i].name))
 	}
+}
+
+// firmwareBackupTimestamp reconoce el formato nuevo
+// (<unidad>-<unix10>-<slug>.tar.gz) y el legacy (<slug>-<unix10>.tar.gz).
+// Compara el slug por su límite exacto y devuelve el ts común de ambos.
+func firmwareBackupTimestamp(name, slug string) (int64, bool) {
+	if slug == "" || !strings.HasSuffix(name, ".tar.gz") {
+		return 0, false
+	}
+	stem := strings.TrimSuffix(name, ".tar.gz")
+	if strings.HasSuffix(stem, "-"+slug) {
+		prefix := strings.TrimSuffix(stem, "-"+slug)
+		if i := strings.LastIndexByte(prefix, '-'); i > 0 {
+			if ts, ok := parseBackupTimestamp(prefix[i+1:]); ok {
+				return ts, true
+			}
+		}
+	}
+	legacyPrefix := slug + "-"
+	if strings.HasPrefix(stem, legacyPrefix) {
+		if ts, ok := parseBackupTimestamp(strings.TrimPrefix(stem, legacyPrefix)); ok {
+			return ts, true
+		}
+	}
+	return 0, false
+}
+
+func parseBackupTimestamp(s string) (int64, bool) {
+	if len(s) != 10 {
+		return 0, false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+	ts, err := strconv.ParseInt(s, 10, 64)
+	return ts, err == nil
+}
+
+// firmwareBackupName usa el nombre visible de la unidad para que el archivo
+// se reconozca fuera de la UI, y mantiene el slug al final para resolverlo
+// sin ambigüedad. Si la unidad ya no existe, cae al slug.
+func (s *server) firmwareBackupName(ctx context.Context, slug string) string {
+	label := slug
+	if s.adapter != nil {
+		for _, router := range s.adapter.GetRouters(ctx) {
+			if router.ID == slug && strings.TrimSpace(router.Name) != "" {
+				label = router.Name
+				break
+			}
+		}
+	}
+	return firmwareBackupFileName(label, slug, time.Now().Unix())
+}
+
+func firmwareBackupFileName(label, slug string, ts int64) string {
+	return fmt.Sprintf("%s-%d-%s.tar.gz", sanitizeBackupLabel(label), ts, slug)
+}
+
+func sanitizeBackupLabel(label string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.TrimSpace(label) {
+		ok := unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '_'
+		if ok {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	out := strings.Trim(b.String(), "-.")
+	if out == "" {
+		return "netpulse"
+	}
+	return out
+}
+
+const (
+	backupDirMode  = 0o770
+	backupFileMode = 0o640
+)
+
+func ensureBackupDir(path string) error {
+	if err := os.MkdirAll(path, backupDirMode); err != nil {
+		return err
+	}
+	return os.Chmod(path, backupDirMode)
 }
 
 // handleFirmwareImage sirve la imagen subida de un router. El id se sanea:

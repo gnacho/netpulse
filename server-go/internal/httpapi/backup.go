@@ -107,7 +107,7 @@ func (s *server) runBackup() (string, error) {
 
 	cfg := getBackupConfig(s.db)
 	backupDir := filepath.Join(filepath.Dir(s.db.Path), "backups")
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
+	if err := ensureBackupDir(backupDir); err != nil {
 		return "", err
 	}
 
@@ -256,7 +256,7 @@ func (s *server) registerBackupRoutes(mux *http.ServeMux) {
 	// log on-box con el admin que descargó.
 	mux.Handle("GET /api/backup/download", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		backupDir := filepath.Join(filepath.Dir(s.db.Path), "backups")
-		os.MkdirAll(backupDir, 0755)
+		_ = ensureBackupDir(backupDir)
 		tmpFile := filepath.Join(backupDir, "export-temp.db")
 		if err := copyFile(s.db.Path, tmpFile); err != nil {
 			writeError(w, http.StatusInternalServerError, "backup_error")
@@ -281,11 +281,14 @@ func copyFile(src, dst string) error {
 	}
 	defer srcFile.Close()
 
-	dstFile, err := os.Create(dst)
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
 	if err != nil {
 		return err
 	}
 	defer dstFile.Close()
+	if err := dstFile.Chmod(backupFileMode); err != nil {
+		return err
+	}
 
 	_, err = dstFile.ReadFrom(srcFile)
 	return err
@@ -301,11 +304,14 @@ func gzipFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
+	if err := out.Chmod(backupFileMode); err != nil {
+		return err
+	}
 
 	zw := gzip.NewWriter(out)
 	if _, err := io.Copy(zw, in); err != nil {

@@ -128,7 +128,11 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 	staging := filepath.Join(u.dataDir, "updates")
 	_ = os.RemoveAll(staging) // restos de intentos previos
 	_ = os.Remove(filepath.Join(u.dataDir, stableErrorName))
-	if err := os.MkdirAll(staging, 0o755); err != nil {
+	if err := os.MkdirAll(staging, 0o770); err != nil {
+		fail("stable_staging_failed")
+		return
+	}
+	if err := os.Chmod(staging, 0o770); err != nil {
 		fail("stable_staging_failed")
 		return
 	}
@@ -187,7 +191,7 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 	marker := filepath.Join(u.dataDir, stableMarkerName)
 	tmp := marker + ".tmp"
 	content := fmt.Sprintf("target=%s\nsha256=%s\nstaged=%s\n", tag, binSHA, binNew)
-	if err := os.WriteFile(tmp, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte(content), 0o640); err != nil {
 		fail("stable_marker_failed")
 		return
 	}
@@ -223,8 +227,12 @@ func downloadToFile(url, dst string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("http %d para %s", resp.StatusCode, url)
 	}
-	f, err := os.Create(dst)
+	f, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o640)
 	if err != nil {
+		return err
+	}
+	if err := f.Chmod(0o640); err != nil {
+		f.Close()
 		return err
 	}
 	defer f.Close()
@@ -291,7 +299,7 @@ func extractBinary(tgz, staging string) (string, error) {
 			return "", fmt.Errorf("entrada %s demasiado grande (%d)", name, hdr.Size)
 		}
 		dst := filepath.Join(staging, "netpulse.new")
-		out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+		out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o750)
 		if err != nil {
 			return "", err
 		}

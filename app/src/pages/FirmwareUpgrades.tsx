@@ -6,6 +6,8 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { AlertCircle, CalendarClock, Cpu, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
+import { findAgentFor } from '@/lib/agentMatch'
+import { AgentBackupButton } from '@/components/routers/AgentBackupButton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,7 +128,7 @@ function dowLabel(lang: string, dow: number): string {
 export default function FirmwareUpgrades() {
   const { t, i18n } = useTranslation()
   const auth = useAuth()
-  const { routers } = useNetPulse()
+  const { routers, agents } = useNetPulse()
   // #1146: la visibilidad de la página la controla el toggle de Servicios.
   const [services] = useServicesVisibility()
   const isAdmin = auth?.role === 'admin'
@@ -1163,6 +1165,10 @@ export default function FirmwareUpgrades() {
                   )}
                 </div>
               )}
+
+              <div className="mt-3 flex justify-end">
+                <AgentBackupButton agent={findAgentFor(agents, item.routerId)} routerId={item.routerId} />
+              </div>
 
               <details
                 className="mt-3 rounded-lg border border-border bg-canvas px-3 py-2"

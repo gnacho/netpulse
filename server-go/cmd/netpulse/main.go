@@ -189,6 +189,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := ensureDataLayout(cfg.DataDir); err != nil {
+		return err
+	}
 
 	// Modo mantenimiento: `-rollup` ejecuta el rollup nocturno de la escalera
 	// de retención y sale. Con `-rollup-repair` primero purga metrics_buckets
@@ -1082,4 +1085,23 @@ func pruneWifiScans(store *channelplan.Store) {
 			log.Printf("[netpulse] aviso: purge de wifi_scans: %v", err)
 		}
 	}
+}
+
+// ensureDataLayout normaliza los directorios persistentes para que los
+// miembros del grupo netpulse puedan leer backups y artefactos (#1795).
+func ensureDataLayout(dataDir string) error {
+	for _, dir := range []string{
+		dataDir,
+		filepath.Join(dataDir, "backups"),
+		filepath.Join(dataDir, "backups", "firmware"),
+		filepath.Join(dataDir, "updates"),
+	} {
+		if err := os.MkdirAll(dir, 0o770); err != nil {
+			return err
+		}
+		if err := os.Chmod(dir, 0o770); err != nil {
+			return err
+		}
+	}
+	return nil
 }
