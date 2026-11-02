@@ -1873,6 +1873,7 @@
       "rtlInstructions": "Flashing instructions",
       "rtlTechGuide": "Technical guide",
       "rtlImages": "Images",
+      "firmwares": "Firmwares",
       "rtlDescription": "rtlplayground is the firmware for Realtek switches that turns them into NetPulse agents. Flashing instructions, technical guide and images:"
     },
     "session": {
