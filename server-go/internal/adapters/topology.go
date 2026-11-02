@@ -637,6 +637,14 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 					ID: id, Kind: "inferred", RouterID: switchID, Port: port,
 					PortLabel: portLabel(p, port), MacCount: len(kept), Parent: dn.ID,
 				})
+				// #1791: los clientes del puerto cuelgan del nodo hoja, no del
+				// gateway que les dio la IP. Sin AttachTo, hubOf los anclaba al
+				// router y el nodo inferido quedaba vacío.
+				for _, mac := range kept {
+					if idx, ok := byMAC[mac]; ok {
+						devices[idx].AttachTo = id
+					}
+				}
 			}
 		}
 	}
