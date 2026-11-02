@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next'
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   Pencil,
@@ -86,7 +87,13 @@ function stateTone(state: string): PillTone {
   return 'muted'
 }
 
-export default function Integrations({ bare = false }: { bare?: boolean }) {
+export default function Integrations({
+  bare = false,
+  firmwares = false,
+}: {
+  bare?: boolean
+  firmwares?: boolean
+}) {
   const { t, i18n } = useTranslation()
   const auth = useAuth()
   const { isDemo } = useNetPulse()
@@ -100,7 +107,7 @@ export default function Integrations({ bare = false }: { bare?: boolean }) {
   // integración, así que la app no puede gestionarlos (#1743).
   const [unmanaged, setUnmanaged] = useState<UnmanagedIntegration[]>([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  const [showFirmwares, setShowFirmwares] = useState(false)
   const [error, setError] = useState('')
 
   // Formulario de alta.
@@ -130,8 +137,7 @@ export default function Integrations({ bare = false }: { bare?: boolean }) {
 
   const load = useCallback(
     async (silent = false) => {
-      if (silent) setRefreshing(true)
-      else setLoading(true)
+      if (!silent) setLoading(true)
       try {
         const [v, ints] = await Promise.all([fetchVendors(), fetchIntegrations()])
         setVendors(v.vendors)
@@ -142,8 +148,7 @@ export default function Integrations({ bare = false }: { bare?: boolean }) {
       } catch (err) {
         setError(errMessage(err, t))
       } finally {
-        if (silent) setRefreshing(false)
-        else setLoading(false)
+        if (!silent) setLoading(false)
       }
     },
     [t],
@@ -324,15 +329,21 @@ export default function Integrations({ bare = false }: { bare?: boolean }) {
           <p className="mt-0.5 text-sm text-text-secondary">{t('integrations.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void load(true)}
-            disabled={refreshing}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-primary transition-colors hover:bg-elevated disabled:opacity-50"
-          >
-            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} strokeWidth={1.75} />
-            {t('common.refresh')}
-          </button>
+          {firmwares && (
+            <button
+              type="button"
+              aria-expanded={showFirmwares}
+              aria-controls="external-agent-firmwares"
+              onClick={() => setShowFirmwares((v) => !v)}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-primary transition-colors hover:bg-elevated"
+            >
+              {t('settings.services.firmwares')}
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform', showFirmwares && 'rotate-180')}
+                strokeWidth={1.75}
+              />
+            </button>
+          )}
           <button
             type="button"
             aria-expanded={showForm}
@@ -344,6 +355,18 @@ export default function Integrations({ bare = false }: { bare?: boolean }) {
           </button>
         </div>
       </header>
+
+      {firmwares && showFirmwares && (
+        <div id="external-agent-firmwares" className="rounded-xl border border-border bg-surface px-4 py-3">
+          <p className="text-sm font-medium text-text-primary">rtlplayground</p>
+          <p className="mt-1 text-sm text-text-secondary">{t('settings.services.rtlDescription')}</p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+            <a className="text-sm text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/netpulse/blob/main/docs/AGENTE-RTL-SWITCH.md" target="_blank" rel="noreferrer">{t('settings.services.rtlInstructions')}</a>
+            <a className="text-sm text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/blob/netpulse/beacon-octets/doc/beacon.md" target="_blank" rel="noreferrer">{t('settings.services.rtlTechGuide')}</a>
+            <a className="text-sm text-accent hover:underline underline-offset-2" href="https://github.com/gnacho/RTLPlayground/releases" target="_blank" rel="noreferrer">{t('settings.services.rtlImages')}</a>
+          </div>
+        </div>
+      )}
 
       {!isAdmin && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
