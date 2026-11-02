@@ -1852,7 +1852,7 @@
     },
     "saved": "Preferencias guardadas",
     "services": {
-      "title": "Complementos",
+      "title": "Integraciones",
       "caption": "Servicios de red visibles e integraciones activas en el servidor",
       "adguardCaption": "DNS filtrado en la puerta de enlace",
       "wireguardCaption": "Túneles VPN WireGuard",
@@ -1863,7 +1863,7 @@
       "networkGroup": "Servicios de red",
       "rackCaption": "Dibuja tu rack y detecta los cables. Desactivado por defecto.",
       "firmwareUpgradesCaption": "Muestra u oculta la página de actualizaciones de firmware",
-      "integrationsGroup": "Integraciones",
+      "integrationsGroup": "Complementos",
       "externalAgents": "Agentes externos",
       "externalAgentsCaption": "Añadir dispositivos soportados no OpenWRT",
       "proxmoxCaption": "Inventario del cluster (hipervisores y CTs)",
