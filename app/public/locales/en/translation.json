@@ -2956,6 +2956,7 @@
     "pickHint": "Drag onto a rack (or click) to mount into the active rack (the cyan one). Then drag to adjust the slot.",
     "pickFleet": "Fleet units",
     "pickDevice": "Clients",
+    "pickDeviceHint": "Wired clients not mounted yet. Only what cannot be racked is left out: phones, tablets, laptops and room appliances.",
     "pickAccessory": "Accessories",
     "plates": {
       "server-1u": "1U server",

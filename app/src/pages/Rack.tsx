@@ -55,6 +55,11 @@ interface Working {
 let localSeq = 0
 const localId = (p: string) => `${p}-local-${++localSeq}`
 
+// #1804: tipos que no se montan en un rack. El resto de clientes cableados sí
+// se ofrece: el tipo lo adivina el clasificador y excluir por conjetura era lo
+// que dejaba equipos fuera de la lista.
+const NOT_RACKABLE = new Set(['movil', 'tablet', 'portatil', 'aspirador', 'videoportero', 'clima', 'caldera'])
+
 function RackCanvas() {
   const { t } = useTranslation()
   const np = useNetPulse()
@@ -1045,17 +1050,20 @@ function RackCanvas() {
   // Solo cableados: el rack es físico; WiFi (2.4/5/6/60 GHz) queda fuera.
   const unmountedDevices = useMemo(
     () =>
-      // El rack es hardware de red: switches, servidores, ordenadores de
-      // torre y CCTV. Fuera TVs, altavoces, IoT y resto que no tenga sentido.
-      // #rack-mini: los `desconocido` fuera también - si no sabemos qué es,
-      // no se ofrece para el rack.
+      // #1804: el criterio es "cliente cableado que se puede atornillar", no
+      // una lista corta de tipos. El allowlist anterior (switch, servidor,
+      // ordenador, camara) dejaba fuera módems, placas SBC, impresoras y todo
+      // lo que el clasificador no supo etiquetar (`desconocido`), y el
+      // reportero veía 7 de sus 32 clientes. El tipo es una heurística, así
+      // que se excluye solo lo que no tiene sentido en una balda: equipos
+      // portátiles y electrodomésticos de sala.
       np.devices.filter(
         (d) =>
           !mountedMacs.has(d.mac.toLowerCase()) &&
           (d.band === 'cable' || d.band === '—') &&
           d.infra !== 'ct' &&
           d.infra !== 'vm' &&
-          ['switch', 'servidor', 'ordenador', 'camara'].includes(d.type),
+          !NOT_RACKABLE.has(d.type),
       ),
     [np.devices, mountedMacs],
   )
@@ -1566,6 +1574,7 @@ function RackPicker({
         ))}
       </PickerGroup>
       <PickerGroup title={t('rack.pickDevice')}>
+        <p className="mb-1 text-[10.5px] leading-snug text-text-muted">{t('rack.pickDeviceHint')}</p>
         {unmountedDevices.length === 0 && <p className="text-[11px] text-text-muted">—</p>}
         {unmountedDevices.slice(0, 60).map((d) => (
           <PickerItem

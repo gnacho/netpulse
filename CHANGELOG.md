@@ -14,6 +14,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - A rack is created with any height you type instead of picking from six presets (#1804). Home-built racks are rarely 6, 9, 12, 18, 24 or 42 U; the field accepts 1 to 45 and keeps the same validation as before.
 - Ports of a racked fleet unit show their name in the tooltip instead of the SNMP ifIndex (#1804): the port keeps its id as the key for cables and profiles, but the label the unit publishes (`ifName`/`ifAlias`) is what you read. Existing profiles get the label from the live unit detail, so a switch placed before this change reads the same as a new one.
 - Patch panel ports are numbered the way the panel is (#1804): the tooltip and the accessible name say 1 to 48 instead of the internal `p01` key, which is what a person reads off the hardware.
+- The rack picker lists every wired client that can be racked (#1804), not a short list of guessed types. The old filter only offered switches, servers, desktops and cameras, so modems, single-board computers, printers and anything the classifier could not name stayed hidden: the reporter saw 7 of their 32 clients and could not mount three of them. Phones, tablets, laptops and room appliances are still left out, and the panel says so.
 
 ## [2.50.0] - 2026-10-31
 

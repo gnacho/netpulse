@@ -2956,6 +2956,7 @@
     "pickHint": "Arrastra al rack (o haz clic) para montar en el rack activo (el resaltado en cyan). Luego arrastra para ajustar el hueco.",
     "pickFleet": "Unidades",
     "pickDevice": "Clientes",
+    "pickDeviceHint": "Clientes cableados sin montar. Fuera solo lo que no se atornilla: móviles, tablets, portátiles y electrodomésticos de sala.",
     "pickAccessory": "Accesorios",
     "plates": {
       "server-1u": "Servidor 1U",
