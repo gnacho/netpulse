@@ -5525,14 +5525,6 @@ export default function Settings() {
         <span className="mx-1.5">/</span>
         <span className="text-text-secondary">{t('nav.settings')}</span>
       </nav>
-      <motion.h1
-        initial={reduce ? false : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="font-display text-h1 text-text-primary"
-      >
-        {t('nav.settings')}
-      </motion.h1>
       <motion.p
         initial={reduce ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}

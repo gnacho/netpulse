@@ -217,7 +217,6 @@ export default function Topology() {
               {t('nav.topology')}
             </span>
           </nav>
-          <h1 className="font-display text-h1 text-text-primary">{t('nav.topology')}</h1>
           <p className="mt-0.5 text-sm text-text-secondary">{t('topology.subtitle')}</p>
         </motion.div>
 

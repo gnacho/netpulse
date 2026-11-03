@@ -846,14 +846,6 @@ export default function Alerts() {
       </nav>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <motion.h1
-            initial={reduce ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="font-display text-h1 text-text-primary"
-          >
-            {t('alerts.title')}
-          </motion.h1>
           <motion.p
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
