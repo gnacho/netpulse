@@ -28,7 +28,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, temp_threshold, console_polling, disabled FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, temp_threshold, console_polling, disabled FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -36,10 +36,10 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	out := []adapters.RouterConfig{}
 	for rows.Next() {
 		var r adapters.RouterConfig
-		var gw, ao, snmpEn, snmpPort, snmpInterval, sshPort, consolePoll, disabled int
+		var gw, ao, snmpEn, snmpPort, snmpInterval, agentInterval, sshPort, consolePoll, disabled int
 		var name, ft, snmpComm sql.NullString
 		var tt sql.NullInt64
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &sshPort, &tt, &consolePoll, &disabled); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &agentInterval, &sshPort, &tt, &consolePoll, &disabled); err != nil {
 			continue
 		}
 		// DEFAULT 1 de la migración, pero una fila insertada antes de la
@@ -55,6 +55,7 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		r.SnmpCommunity = snmpComm.String
 		r.SnmpPort = snmpPort
 		r.SnmpPollInterval = snmpInterval
+		r.AgentInterval = agentInterval
 		r.SSHPort = sshPort
 		if tt.Valid {
 			v := int(tt.Int64)
@@ -143,6 +144,9 @@ type AddInput struct {
 	SnmpCommunity    string
 	SnmpPort         int
 	SnmpPollInterval int // issue #414; 0 = default 60
+	// AgentInterval (#1476): cadencia de push del agente en segundos.
+	// 0 = el default del agente (30 s).
+	AgentInterval int
 	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
 	// estándar). 0/ausente → 22.
 	SSHPort int
@@ -202,8 +206,8 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 		consolePoll = 0
 	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, ssh_port, console_polling) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, sshPort, consolePoll,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, console_polling) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, in.AgentInterval, sshPort, consolePoll,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -246,6 +250,8 @@ type UpdateInput struct {
 	SnmpCommunity    *string
 	SnmpPort         *int
 	SnmpPollInterval *int // issue #414
+	// AgentInterval (#1476): nil = no tocar; 0 = volver al default.
+	AgentInterval *int
 	// SSHPort (issue #605): puerto SSH; nil = no tocar.
 	SSHPort *int
 	// TempThreshold (issue #716): umbral de alerta por temperatura alta (°C).
@@ -342,6 +348,12 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 		}
 		sets = append(sets, "snmp_poll_interval = ?")
 		args = append(args, v)
+	}
+	// #1476: el intervalo del agente se guarda tal cual. 0 significa "usa el
+	// default del agente", así que no se normaliza aquí.
+	if in.AgentInterval != nil {
+		sets = append(sets, "agent_interval = ?")
+		args = append(args, *in.AgentInterval)
 	}
 	if in.SSHPort != nil {
 		v := *in.SSHPort
