@@ -63,6 +63,9 @@ interface OwutStatus {
   /** Destino real que ASU construiría según el check (#1773). */
   versionTo?: string
   missingPkgs?: string[]
+  /** #1769: paquetes que el router ya excluye de sus propias builds
+   *  (attendedsysupgrade.owut.remove). Se ofrecen como relleno del campo. */
+  removeConfigured?: string[]
   rawOutput?: string
   error?: string
 }
@@ -370,7 +373,15 @@ export default function FirmwareUpgrades() {
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.message ?? body.error ?? (await res.text()))
-      setOwutResult((prev) => ({ ...prev, [id]: body as OwutStatus }))
+      const status = body as OwutStatus
+      setOwutResult((prev) => ({ ...prev, [id]: status }))
+      // #1769: si el router ya excluye paquetes de sus propias builds, se
+      // rellena el campo con esa lista para no retipearla. Nunca se pisa lo
+      // que el usuario haya escrito, y sigue sin enviarse nada que él no vea.
+      const configured = status.removeConfigured ?? []
+      if (configured.length > 0) {
+        setRemovePkgs((prev) => (prev[id]?.trim() ? prev : { ...prev, [id]: configured.join(' ') }))
+      }
     } catch (err) {
       setError(String(err))
     } finally {
@@ -1284,6 +1295,13 @@ export default function FirmwareUpgrades() {
                           className="rounded-lg border border-border bg-canvas px-3 py-2 font-mono text-sm text-text-primary"
                         />
                         <span className="text-xs text-text-muted">{t('firmwareUpgrades.excludePkgsHint')}</span>
+                        {(owutResult[item.routerId]?.removeConfigured?.length ?? 0) > 0 && (
+                          <span className="text-xs text-text-muted">
+                            {t('firmwareUpgrades.excludePkgsFromRouter', {
+                              pkgs: (owutResult[item.routerId]?.removeConfigured ?? []).join(', '),
+                            })}
+                          </span>
+                        )}
                       </label>
                     )}
                     {/* #1414 (feedback #1414): los tres pasos owut van juntos

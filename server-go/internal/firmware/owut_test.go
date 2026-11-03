@@ -182,3 +182,62 @@ func TestCheckOwutExposesVersionTo(t *testing.T) {
 		t.Fatalf("VersionTo = %q, esperaba 25.12.6", got.VersionTo)
 	}
 }
+
+// #1769: la lista que el router ya excluye de sus propias builds sale del
+// check, para que la UI la ofrezca en vez de pedir que se retipee. La línea
+// del ejemplo es la que reportó David en el issue.
+func TestParseUciRemoveList(t *testing.T) {
+	got := ParseUciRemoveList("attendedsysupgrade.owut.remove='bandix' 'luci-app-bandix'\n")
+	if len(got) != 2 || got[0] != "bandix" || got[1] != "luci-app-bandix" {
+		t.Fatalf("ParseUciRemoveList = %v, esperaba [bandix luci-app-bandix]", got)
+	}
+}
+
+func TestParseUciRemoveListEmpty(t *testing.T) {
+	for _, out := range []string{"", "\n", "uci: Entry not found\n"} {
+		if got := ParseUciRemoveList(out); len(got) != 0 {
+			t.Fatalf("ParseUciRemoveList(%q) = %v, esperaba vacío", out, got)
+		}
+	}
+}
+
+func TestParseUciRemoveListIgnoresOtherOptions(t *testing.T) {
+	out := "attendedsysupgrade.owut.server='https://sysupgrade.openwrt.org'\n" +
+		"attendedsysupgrade.owut.remove='netgrip' 'netgrip'\n"
+	got := ParseUciRemoveList(out)
+	if len(got) != 1 || got[0] != "netgrip" {
+		t.Fatalf("ParseUciRemoveList = %v, esperaba [netgrip] sin duplicados", got)
+	}
+}
+
+// #1769: CheckOwut devuelve la lista configurada en el router junto al resto
+// del estado, y un fallo de uci no rompe el check.
+func TestCheckOwutReadsConfiguredRemoveList(t *testing.T) {
+	r := &fakeRunner{rules: []fakeRule{
+		{contains: "command -v owut", out: "/usr/bin/owut"},
+		{contains: "owut check", out: checkOKOut},
+		{contains: "attendedsysupgrade.owut.remove", out: "attendedsysupgrade.owut.remove='bandix' 'luci-app-bandix'\n"},
+	}}
+	got := CheckOwut(r, "192.168.1.50")
+	if !r.saw("uci show attendedsysupgrade.owut.remove") {
+		t.Fatal("CheckOwut no consultó la lista configurada en el router")
+	}
+	if len(got.RemoveConfigured) != 2 {
+		t.Fatalf("RemoveConfigured = %v, esperaba dos paquetes", got.RemoveConfigured)
+	}
+}
+
+func TestCheckOwutSurvivesUciFailure(t *testing.T) {
+	r := &fakeRunner{rules: []fakeRule{
+		{contains: "command -v owut", out: "/usr/bin/owut"},
+		{contains: "owut check", out: checkOKOut},
+		{contains: "attendedsysupgrade.owut.remove", err: errors.New("uci: not found")},
+	}}
+	got := CheckOwut(r, "192.168.1.50")
+	if len(got.RemoveConfigured) != 0 {
+		t.Fatalf("RemoveConfigured = %v, esperaba vacío", got.RemoveConfigured)
+	}
+	if !got.CheckRan || !got.OwutAvailable {
+		t.Fatal("un fallo de uci no debe afectar al resto del check")
+	}
+}

@@ -39,6 +39,12 @@ const owutDetectCmd = "command -v owut"
 // se retira del rawOutput antes de exponerlo.
 const owutCheckCmd = "owut check -v 2>&1; printf '\\n__owut_exit__=%d\\n' $?"
 
+// owutUciRemoveCmd lee la lista de exclusión que el propio router tiene
+// configurada para attended sysupgrade (#1769). David la usa para sus
+// paquetes fuera de los feeds, así que NetPulse debe ofrecerla en vez de
+// obligar a retipearla. Solo lectura: escribir esa lista es una acción aparte.
+const owutUciRemoveCmd = "uci show attendedsysupgrade.owut.remove 2>/dev/null"
+
 // owutExitRe extrae el exit code embebido por el wrapper de owutCheckCmd.
 var owutExitRe = regexp.MustCompile(`__owut_exit__=(\d+)`)
 
@@ -72,6 +78,12 @@ type OwutStatus struct {
 	// ("missing to-version") que bloquean la build de ASU. La UI los muestra
 	// y ofrece excluirlos del upgrade (-r): se pierden y hay que reinstalar.
 	MissingPkgs []string `json:"missingPkgs,omitempty"`
+	// RemoveConfigured (#1769): paquetes que el router ya excluye de sus
+	// propias builds (attendedsysupgrade.owut.remove). Son los que el admin
+	// conoce como no disponibles en los feeds, así que la UI los ofrece para
+	// rellenar la exclusión del download en vez de retipearlos. Vacío si el
+	// router no tiene esa lista configurada.
+	RemoveConfigured []string `json:"removeConfigured,omitempty"`
 	// RawOutput: salida completa de `owut check` (sin la línea de exit code).
 	RawOutput string `json:"rawOutput,omitempty"`
 	// Error: fallo de transporte (router inalcanzable, timeout SSH), no un
@@ -102,7 +114,54 @@ func CheckOwut(runner Runner, host string) OwutStatus {
 	status.UpgradeAvailable, status.Buildable = parseOwutCheck(raw, exitCode)
 	status.MissingPkgs = ParseMissingPkgs(raw)
 	status.VersionTo = parseOwutVersionTo(raw)
+	// #1769: best effort. Un router sin uci o sin esa opción deja la lista
+	// vacía y el flujo sigue igual.
+	status.RemoveConfigured = readOwutRemoveList(runner, host)
 	return status
+}
+
+// readOwutRemoveList lee attendedsysupgrade.owut.remove del router. Devuelve
+// nil ante cualquier fallo: es información de apoyo, nunca un requisito.
+func readOwutRemoveList(runner Runner, host string) []string {
+	if runner == nil || host == "" {
+		return nil
+	}
+	out, err := runner.Run(host, owutUciRemoveCmd, owutDetectTimeout)
+	if err != nil {
+		return nil
+	}
+	return ParseUciRemoveList(out)
+}
+
+// ParseUciRemoveList interpreta la salida de `uci show` para una opción de
+// tipo lista. `uci` la imprime en una línea con cada valor entre comillas
+// simples:
+//
+//	attendedsysupgrade.owut.remove='bandix' 'luci-app-bandix'
+//
+// Función pura: ignora líneas que no sean esa opción, deduplica y conserva el
+// orden del router.
+func ParseUciRemoveList(out string) []string {
+	var pkgs []string
+	seen := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "attendedsysupgrade.owut.remove=") {
+			continue
+		}
+		value := strings.TrimPrefix(line, "attendedsysupgrade.owut.remove=")
+		// Los nombres de paquete no llevan comillas ni espacios: quitar las
+		// comillas y separar por blancos cubre el formato de uci sin ambigüedad.
+		value = strings.NewReplacer("'", " ", "\"", " ").Replace(value)
+		for _, f := range strings.Fields(value) {
+			if seen[f] {
+				continue
+			}
+			seen[f] = true
+			pkgs = append(pkgs, f)
+		}
+	}
+	return pkgs
 }
 
 // detectOwut comprueba si el router tiene owut ejecutable en su PATH.
