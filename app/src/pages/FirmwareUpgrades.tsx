@@ -182,6 +182,8 @@ export default function FirmwareUpgrades() {
   const [versionsBusy, setVersionsBusy] = useState<Record<string, boolean>>({})
   const [installBusy, setInstallBusy] = useState<Record<string, boolean>>({})
   const [owutConfirmId, setOwutConfirmId] = useState<string | null>(null)
+  // #1769: confirmación para escribir la lista de exclusión en el router.
+  const [excludeConfirmId, setExcludeConfirmId] = useState<string | null>(null)
   // #761: paquetes a excluir de la build ASU (locales sin feed, p. ej. netgrip).
   const [removePkgs, setRemovePkgs] = useState<Record<string, string>>({})
   // #761: upgrade done cuya fiesta ya se cerro (routerId -> upgrade.id).
@@ -386,6 +388,33 @@ export default function FirmwareUpgrades() {
       setError(String(err))
     } finally {
       setOwutBusy((prev) => ({ ...prev, [id]: false }))
+    }
+  }
+
+  // #1769: añade a attendedsysupgrade.owut.remove los paquetes que ASU
+  // reporta como missing. Escribe configuración en el router, así que solo
+  // corre tras la confirmación del admin.
+  const addRouterExclusions = async (id: string) => {
+    const pkgs = owutResult[id]?.missingPkgs ?? []
+    if (pkgs.length === 0) return
+    setBusy((prev) => ({ ...prev, [id]: 'exclude' }))
+    setError('')
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-exclusions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packages: pkgs }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
+      const list: string[] = body.removeConfigured ?? []
+      setOwutResult((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], removeConfigured: list } } : prev))
+      if (list.length > 0) setRemovePkgs((prev) => ({ ...prev, [id]: list.join(' ') }))
+      setExcludeConfirmId(null)
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy((prev) => ({ ...prev, [id]: '' }))
     }
   }
 
@@ -1114,6 +1143,18 @@ export default function FirmwareUpgrades() {
                             : t('firmwareUpgrades.missingPkgsBanner', { pkgs: owut.missingPkgs.join(', ') })
                           : `${t('firmwareUpgrades.owutNotBuildable')} ${t('firmwareUpgrades.owutNotBuildableHint')}`}
                       </span>
+                      {!!owut.missingPkgs?.length && (
+                        <button
+                          type="button"
+                          onClick={() => setExcludeConfirmId(item.routerId)}
+                          disabled={busy[item.routerId] === 'exclude'}
+                          className="ml-auto shrink-0 self-center rounded-lg border border-amber-500/40 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-amber-500/10 disabled:opacity-50"
+                        >
+                          {busy[item.routerId] === 'exclude'
+                            ? t('common.loading')
+                            : t('firmwareUpgrades.excludeAddRouter')}
+                        </button>
+                      )}
                     </div>
                   )}
                   {owut?.rawOutput && (
@@ -1518,6 +1559,28 @@ export default function FirmwareUpgrades() {
       </AlertDialog>
 
       {/* #761: confirmación owut/ASU (actualizar desde lo detectado). */}
+      {/* #1769: confirmación antes de escribir la lista en el router. */}
+      <AlertDialog open={!!excludeConfirmId} onOpenChange={(open) => !open && setExcludeConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('firmwareUpgrades.excludeAddTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('firmwareUpgrades.excludeAddBody', {
+                pkgs: (excludeConfirmId ? owutResult[excludeConfirmId]?.missingPkgs ?? [] : []).join(', '),
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => excludeConfirmId && void addRouterExclusions(excludeConfirmId)}
+            >
+              {t('firmwareUpgrades.excludeAddAction')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!owutConfirm} onOpenChange={(open) => !open && setOwutConfirmId(null)}>
         <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
