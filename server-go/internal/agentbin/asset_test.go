@@ -8,28 +8,39 @@ import (
 
 // #1476: el .apk de OpenWrt 25.12 no se fabrica aqui (lo firma el CI), asi que
 // el servidor solo puede servirlo cuando el operador lo deja junto al binario.
-// Sin el, OpenAsset tiene que responder igual que Open sin binarios: ausencia,
-// nunca un fichero vacio ni un error de otra clase.
+// Una extension que nunca existe tiene que responder ausencia, nunca un
+// fichero vacio ni un error de otra clase. No se comprueba "apk" a proposito:
+// en un build con assets empaquetados el fichero puede estar y el test debe
+// seguir siendo valido en los dos entornos.
 func TestOpenAssetMissingIsNotExist(t *testing.T) {
-	for _, ext := range []string{"apk", "noexiste"} {
-		f, err := OpenAsset("arm64", ext)
-		if err == nil {
-			f.Close()
-			t.Fatalf("OpenAsset(arm64, %q) devolvio un fichero; sin assets debe fallar", ext)
-		}
-		if !errors.Is(err, fs.ErrNotExist) {
-			t.Fatalf("OpenAsset(arm64, %q) error = %v, want fs.ErrNotExist", ext, err)
-		}
+	f, err := OpenAsset("arm64", "noexiste")
+	if err == nil {
+		f.Close()
+		t.Fatal("OpenAsset(arm64, noexiste) devolvio un fichero; debe fallar")
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("OpenAsset(arm64, noexiste) error = %v, want fs.ErrNotExist", err)
 	}
 }
 
 // El binario sigue abriendose con el nombre sin extension: Open y OpenAsset no
-// comparten namespace y el helper extraido no cambio su contrato.
+// comparten namespace y el helper extraido no cambio su contrato. Se compara
+// contra openEmbedded en vez de exigir ausencia, porque un build con binarios
+// embebidos (CI) si los tiene y un arbol de desarrollo no.
 func TestOpenKeepsBinaryName(t *testing.T) {
-	if _, err := Open("arm64"); err == nil {
-		t.Fatal("sin binarios embebidos Open debe fallar")
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("Open error = %v, want fs.ErrNotExist", err)
+	got, gotErr := Open("arm64")
+	if got != nil {
+		got.Close()
+	}
+	want, wantErr := openEmbedded("agents/netpulse-agent-arm64")
+	if want != nil {
+		want.Close()
+	}
+	if (gotErr == nil) != (wantErr == nil) {
+		t.Fatalf("Open y openEmbedded discrepan: %v vs %v", gotErr, wantErr)
+	}
+	if gotErr != nil && !errors.Is(gotErr, fs.ErrNotExist) {
+		t.Fatalf("Open error = %v, want fs.ErrNotExist", gotErr)
 	}
 }
 
