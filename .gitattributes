@@ -1,0 +1,7 @@
+# #1812: los scripts de shell viajan al router (go:embed) y se ejecutan con
+# busybox ash, que rechaza CRLF. Se fuerzan LF en el repositorio aunque el
+# checkout tenga core.autocrlf=true.
+*.sh    text eol=lf
+*.init  text eol=lf
+*.config text eol=lf
+*.defaults text eol=lf

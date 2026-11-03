@@ -8,13 +8,29 @@
 package agentinstall
 
 import (
+	"bytes"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
 )
 
 //go:embed install-agent.sh
-var script []byte
+var embedded []byte
+
+// script es el instalador que se sirve, siempre con saltos LF. Un checkout con
+// core.autocrlf=true (el default de Git en Windows) deja CRLF en el fichero
+// embebido, y el busybox ash del router rechaza ese script con un error de
+// sintaxis (#1812). La normalización es idempotente: un fichero LF se sirve
+// tal cual, sin copia nueva.
+var script = normalizeLF(embedded)
+
+// normalizeLF convierte los finales de línea CRLF en LF.
+func normalizeLF(b []byte) []byte {
+	if !bytes.Contains(b, []byte("\r\n")) {
+		return b
+	}
+	return bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+}
 
 // Script devuelve el instalador embebido. El llamante no debe modificarlo.
 func Script() []byte { return script }
