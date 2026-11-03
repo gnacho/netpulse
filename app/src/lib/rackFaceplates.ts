@@ -15,6 +15,8 @@ export interface FaceplatePort {
   kind: RackPortKind
   x: number
   y: number
+  /** #1804: nombre legible de la boca (ifName/ifAlias). El id sigue mandando. */
+  label?: string
 }
 
 export interface PortRow {
@@ -299,22 +301,23 @@ export function layoutPortZone(
  * mismo algoritmo de zona, preservando los ids en el orden de disposición.
  */
 export function layoutPhysicalPorts(
-  ports: { id: string; kind: RackPortKind }[],
+  ports: { id: string; kind: RackPortKind; label?: string }[],
   zone?: { xStart: number; xEnd: number },
 ): FaceplatePort[] {
   const counts: Partial<Record<RackPortKind, number>> = {}
   for (const p of ports) counts[p.kind] = (counts[p.kind] ?? 0) + 1
   const laid = layoutPortZone(counts, zone ?? { xStart: 0.24, xEnd: 0.94 })
-  const byKind: Record<string, string[]> = {}
+  const byKind: Record<string, { id: string; label?: string }[]> = {}
   for (const p of ports) {
-    ;(byKind[p.kind] = byKind[p.kind] ?? []).push(p.id)
+    ;(byKind[p.kind] = byKind[p.kind] ?? []).push({ id: p.id, label: p.label })
   }
   const used: Record<string, number> = {}
   return laid.map((slot) => {
     const ids = byKind[slot.kind] ?? []
     const idx = Math.min(used[slot.kind] ?? 0, ids.length - 1)
     used[slot.kind] = (used[slot.kind] ?? 0) + 1
-    return { ...slot, id: ids[idx] ?? slot.id }
+    const hit = ids[idx]
+    return { ...slot, id: hit?.id ?? slot.id, label: hit?.label }
   })
 }
 

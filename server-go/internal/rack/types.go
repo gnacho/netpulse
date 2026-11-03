@@ -59,6 +59,10 @@ type Port struct {
 	Kind PortKind `json:"kind"`
 	X    float64  `json:"x"`
 	Y    float64  `json:"y"`
+	// Label: nombre legible de la boca (ifName/ifAlias de la unidad, "1" en un
+	// patch panel). El id sigue siendo la clave estable de cables y perfiles;
+	// esto es solo lo que se pinta. Vacio en perfiles antiguos (#1804).
+	Label string `json:"label,omitempty"`
 }
 
 // DeviceProfile es el modelo físico compartido del dispositivo: la misma

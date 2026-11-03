@@ -7,6 +7,16 @@ import { useTranslation } from 'react-i18next'
 import { EthernetPort } from 'lucide-react'
 import type { FaceplateTemplate, FaceplatePort } from '@/lib/rackFaceplates'
 
+/** #1804: un id de boca tipo "p01" es interno (lo genera la plantilla). Al
+ *  usuario se le muestra el número de puerto, no el identificador. Cualquier
+ *  otro id sin etiqueta se pinta tal cual: "lan1" y "snmp-49153" ya son lo que
+ *  el usuario ve en el equipo. */
+function portDisplay(p: FaceplatePort): string {
+  if (p.label) return p.label
+  const m = /^p0*(\d+)$/.exec(p.id)
+  return m ? m[1]! : p.id
+}
+
 export interface PortState {
   /** el puerto tiene al menos un cable */
   cabled: boolean
@@ -112,9 +122,9 @@ export function Faceplate({
               key={p.id}
               type="button"
               tabIndex={st.interactive ? 0 : -1}
-              aria-label={p.id}
+              aria-label={portDisplay(p)}
               data-port={p.id}
-              title={`${p.id} · ${p.kind}`}
+              title={`${portDisplay(p)} · ${p.kind}`}
               onClick={(e) => {
                 e.stopPropagation()
                 if (st.interactive) onPortClick?.(p.id)

@@ -55,6 +55,11 @@ interface Working {
 let localSeq = 0
 const localId = (p: string) => `${p}-local-${++localSeq}`
 
+// #1804: tipos que no se montan en un rack. El resto de clientes cableados sí
+// se ofrece: el tipo lo adivina el clasificador y excluir por conjetura era lo
+// que dejaba equipos fuera de la lista.
+const NOT_RACKABLE = new Set(['movil', 'tablet', 'portatil', 'aspirador', 'videoportero', 'clima', 'caldera'])
+
 function RackCanvas() {
   const { t } = useTranslation()
   const np = useNetPulse()
@@ -64,11 +69,54 @@ function RackCanvas() {
     () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.name] as const] : []))),
     [np.routers],
   )
+  // #1804: los perfiles guardados antes de este cambio solo llevan el id de la
+  // boca (snmp-49153 en un switch SNMP). La etiqueta legible se resuelve
+  // contra el detalle vivo de cada unidad montada, una vez por MAC.
+  const routerIdByMac = useMemo(
+    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.id] as const] : []))),
+    [np.routers],
+  )
+  const [portLabels, setPortLabels] = useState<Map<string, Record<string, string>>>(new Map())
   const services = useServicesVisibility()[0]
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
 
   const [working, setWorking] = useState<Working>({ racks: [], mounts: [], cables: [], profiles: new Map(), audit: {} })
+
+  const labelMacs = useMemo(() => {
+    const out = new Set<string>()
+    for (const m of working.mounts) if (m.device_mac) out.add(m.device_mac.toLowerCase())
+    return out
+  }, [working.mounts])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      for (const mac of labelMacs) {
+        if (portLabels.has(mac)) continue
+        const rid = routerIdByMac.get(mac)
+        if (!rid) continue
+        try {
+          const res = await fetch(`/api/routers/${encodeURIComponent(rid)}`)
+          if (!res.ok) continue
+          const detail = await res.json()
+          const eth: { id?: string; iface?: string; name?: string; label?: string }[] = detail?.extras?.ethPorts ?? []
+          const map: Record<string, string> = {}
+          for (const p of eth) {
+            const id = p.id || p.iface || p.name || ''
+            const label = p.label || p.iface || ''
+            if (id && label) map[id] = label
+          }
+          if (!cancelled) setPortLabels((prev) => new Map(prev).set(mac, map))
+        } catch {
+          // Sin detalle: el tooltip cae al id, como antes.
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [labelMacs, routerIdByMac, portLabels])
   const [loaded, setLoaded] = useState(false)
   const [activeRackId, setActiveRackId] = useState<string | null>(null)
   const [patchMode, setPatchMode] = useState(false)
@@ -95,7 +143,7 @@ function RackCanvas() {
     deviceType: string
     label: string
     faceplateId?: string
-    physicalPorts?: { id: string; kind: RackPortKind }[]
+    physicalPorts?: { id: string; kind: RackPortKind; label?: string }[]
     defaultU: number
     isPatch: boolean
     /** punto de drop en coords relativas al rack (coloca donde se soltó) */
@@ -103,6 +151,9 @@ function RackCanvas() {
   } | null>(null)
   const [askU, setAskU] = useState('1')
   const [askPorts, setAskPorts] = useState('24')
+  // #1804: ancho del montaje. El rack son 12 columnas; media balda son 6 y un
+  // tercio son 4, para meter dos o tres equipos en el mismo U.
+  const [askWidth, setAskWidth] = useState<'full' | 'half' | 'third'>('full')
 
   // Dirty tracking (todo lo que Save debe persistir).
   const [newMountIds, setNewMountIds] = useState<Set<string>>(new Set())
@@ -400,7 +451,10 @@ function RackCanvas() {
         style: { width: m.col_span * COL_PX, height: m.u_height * U_PX },
         data: {
           plate,
-          ports: portsFor(m),
+          ports: portsFor(m).map((p) => ({
+            ...p,
+            label: p.label ?? (m.device_mac ? portLabels.get(m.device_mac.toLowerCase())?.[p.id] : undefined),
+          })),
           mountId: m.id,
           label:
             m.label ||
@@ -583,7 +637,7 @@ function RackCanvas() {
       mac: string,
       deviceType: string,
       label: string,
-      physicalPorts?: { id: string; kind: RackPortKind }[],
+      physicalPorts?: { id: string; kind: RackPortKind; label?: string }[],
       rackId?: string,
       dropRel?: { x: number; y: number },
     ) => {
@@ -614,6 +668,7 @@ function RackCanvas() {
         dropRel,
       })
       setAskU(String(defU))
+      setAskWidth('full')
     },
     [activeRackId, working.racks, rackById, working.profiles, t],
   )
@@ -631,6 +686,7 @@ function RackCanvas() {
       setMountAsk({ rackId: rid!, deviceType: '', label: '', faceplateId, defaultU: plate.uHeight, isPatch, dropRel })
       setAskU(String(plate.uHeight))
       setAskPorts(faceplateId === 'patch-panel-12p' ? '12' : faceplateId === 'patch-panel-48p' ? '48' : '24')
+      setAskWidth('full')
     },
     [activeRackId, working.racks, rackById, t],
   )
@@ -650,7 +706,9 @@ function RackCanvas() {
       uHeight = getFaceplate(faceplateId)?.uHeight ?? uHeight
     }
     const plate = getFaceplate(faceplateId)
-    const colSpan = plate?.colSpan ?? 12
+    // #1804: un panel de parcheo manda su ancho de plantilla; el resto usa el
+    // que eligio el usuario (completo, media balda o un tercio).
+    const colSpan = ask.isPatch ? (plate?.colSpan ?? 12) : askWidth === 'half' ? 6 : askWidth === 'third' ? 4 : 12
     // Coloca donde se soltó (snap al hueco libre más cercano a ese punto);
     // sin punto de drop, el primer hueco libre desde abajo.
     let dropU = 1
@@ -667,7 +725,7 @@ function RackCanvas() {
     }
     if (ask.mac) {
       const existing = working.profiles.get(ask.mac)
-      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id) || existing.u_height !== uHeight)) {
+      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id) || existing.u_height !== uHeight || existing.col_span !== colSpan)) {
         const prof: ProfileDTO = {
           mac: ask.mac,
           faceplate_id: plate.id,
@@ -694,24 +752,33 @@ function RackCanvas() {
       label: ask.label,
     })
     setMountAsk(null)
-  }, [mountAsk, askU, askPorts, rackById, footprintsOfRack, working.profiles, mountAt, t])
+  }, [mountAsk, askU, askPorts, askWidth, rackById, footprintsOfRack, working.profiles, mountAt, t])
 
   // Los routers de flota traen sus bocas reales del poller (extras.ethPorts).
   const mountRouter = useCallback(
     async (router: { id: string; mac?: string; name: string }, rackId?: string, dropRel?: { x: number; y: number }) => {
       if (!router.mac) return
-      let physical: { id: string; kind: RackPortKind }[] | undefined
+      let physical: { id: string; kind: RackPortKind; label?: string }[] | undefined
       try {
         const res = await fetch(`/api/routers/${encodeURIComponent(router.id)}`)
         if (res.ok) {
           const detail = await res.json()
-          const eth: { id?: string; iface?: string; name?: string }[] = detail?.extras?.ethPorts ?? []
+          const eth: { id?: string; iface?: string; name?: string; label?: string; family?: string }[] =
+            detail?.extras?.ethPorts ?? []
           physical = eth
-            .map((p) => p.id || p.iface || p.name || '')
-            .filter((id) => id && !id.startsWith('wlan'))
-            .map((id) => {
-              const k = /sfp\+|10g|fiber|fibre/i.test(id) ? 'sfp+' : /sfp/i.test(id) ? 'sfp' : 'rj45'
-              return { id, kind: k as RackPortKind }
+            // #1804: `family` sale del ifType IANA del sondeo. vlan, lag,
+            // bridge, tunnel y virtual no son bocas del frontal: un Omada
+            // declara vlan1 (ifIndex 1) y el port-channel (32769) como
+            // ethernet y ocupaban sitio en el panel. Las bocas físicas llegan
+            // sin familia.
+            .filter((p) => !p.family)
+            .map((p) => ({ id: p.id || p.iface || p.name || '', label: p.label || p.iface || '' }))
+            .filter((p) => p.id && !p.id.startsWith('wlan'))
+            .map((p) => {
+              // #1804: el id sigue siendo la clave (snmp-49153); el label es lo
+              // que se pinta en el tooltip, para no enseñar un ifIndex.
+              const k = /sfp\+|10g|fiber|fibre/i.test(p.id) ? 'sfp+' : /sfp/i.test(p.id) ? 'sfp' : 'rj45'
+              return { id: p.id, kind: k as RackPortKind, label: p.label || undefined }
             })
         }
       } catch {
@@ -990,17 +1057,20 @@ function RackCanvas() {
   // Solo cableados: el rack es físico; WiFi (2.4/5/6/60 GHz) queda fuera.
   const unmountedDevices = useMemo(
     () =>
-      // El rack es hardware de red: switches, servidores, ordenadores de
-      // torre y CCTV. Fuera TVs, altavoces, IoT y resto que no tenga sentido.
-      // #rack-mini: los `desconocido` fuera también - si no sabemos qué es,
-      // no se ofrece para el rack.
+      // #1804: el criterio es "cliente cableado que se puede atornillar", no
+      // una lista corta de tipos. El allowlist anterior (switch, servidor,
+      // ordenador, camara) dejaba fuera módems, placas SBC, impresoras y todo
+      // lo que el clasificador no supo etiquetar (`desconocido`), y el
+      // reportero veía 7 de sus 32 clientes. El tipo es una heurística, así
+      // que se excluye solo lo que no tiene sentido en una balda: equipos
+      // portátiles y electrodomésticos de sala.
       np.devices.filter(
         (d) =>
           !mountedMacs.has(d.mac.toLowerCase()) &&
           (d.band === 'cable' || d.band === '—') &&
           d.infra !== 'ct' &&
           d.infra !== 'vm' &&
-          ['switch', 'servidor', 'ordenador', 'camara'].includes(d.type),
+          !NOT_RACKABLE.has(d.type),
       ),
     [np.devices, mountedMacs],
   )
@@ -1268,18 +1338,18 @@ function RackCanvas() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-u">{t('rack.createU')}</Label>
-              <Select value={addU} onValueChange={setAddU}>
-                <SelectTrigger id="rack-u" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['6', '9', '12', '18', '24', '42'].map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}U
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* #1804: la lista fija no cubre racks caseros. Un campo libre,
+                  acotado al rango que ya valida submitAddRack (1..45). */}
+              <Input
+                id="rack-u"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={45}
+                value={addU}
+                onChange={(e) => setAddU(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-location">{t('rack.createLocation')}</Label>
@@ -1338,6 +1408,29 @@ function RackCanvas() {
                 </Select>
               </div>
             )}
+            {!mountAsk?.isPatch && (
+              <div className="flex flex-col gap-1.5">
+                <Label>{t('rack.askWidth')}</Label>
+                <div className="flex gap-1">
+                  {(['full', 'half', 'third'] as const).map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      aria-pressed={askWidth === w}
+                      onClick={() => setAskWidth(w)}
+                      className={
+                        'inline-flex h-8 flex-1 items-center justify-center rounded-lg border px-2 text-xs font-medium transition-colors ' +
+                        (askWidth === w
+                          ? 'border-accent bg-accent/10 text-text-primary'
+                          : 'border-border bg-surface text-text-muted hover:bg-hover')
+                      }
+                    >
+                      {t(w === 'full' ? 'rack.widthFull' : w === 'half' ? 'rack.widthHalf' : 'rack.widthThird')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ask-u">{t('rack.askHeight')}</Label>
               <Input
@@ -1383,18 +1476,16 @@ function RackCanvas() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-edit-u">{t('rack.createU')}</Label>
-              <Select value={editU} onValueChange={setEditU}>
-                <SelectTrigger id="rack-edit-u" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['6', '9', '12', '18', '24', '42'].map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}U
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                id="rack-edit-u"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={45}
+                value={editU}
+                onChange={(e) => setEditU(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-edit-location">{t('rack.createLocation')}</Label>
@@ -1490,6 +1581,7 @@ function RackPicker({
         ))}
       </PickerGroup>
       <PickerGroup title={t('rack.pickDevice')}>
+        <p className="mb-1 text-[10.5px] leading-snug text-text-muted">{t('rack.pickDeviceHint')}</p>
         {unmountedDevices.length === 0 && <p className="text-[11px] text-text-muted">—</p>}
         {unmountedDevices.slice(0, 60).map((d) => (
           <PickerItem
@@ -1572,11 +1664,18 @@ function PickerItem({
       onDragStart={onDragStart}
       className="flex cursor-grab items-center justify-between gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:border-accent/40 hover:text-accent active:cursor-grabbing disabled:opacity-50"
     >
-      <span className="flex min-w-0 items-center gap-1.5">
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
         {icon}
-        <span className="truncate">{label}</span>
+        <span className="truncate" title={label}>
+          {label}
+        </span>
       </span>
-      <span className="shrink-0 text-[10px] uppercase text-text-muted">{meta}</span>
+      {/* #1804: el nombre de la unidad manda. Antes el modelo era shrink-0 y
+          el hostname se truncaba primero; ahora el modelo se queda con un
+          maximo del 45% y es el que cede el sitio. */}
+      <span className="max-w-[45%] shrink-0 truncate text-[10px] uppercase text-text-muted" title={meta}>
+        {meta}
+      </span>
     </button>
   )
 }
