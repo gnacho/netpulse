@@ -839,18 +839,18 @@ export default function Alerts() {
   return (
     <div className="mx-auto w-full max-w-[1100px]">
       {/* ① Page header */}
-      <nav aria-label={t('common.breadcrumb')} className="mb-1 text-caption text-text-muted">
+      <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
         <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-        <span className="mx-1.5">/</span>
+        <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
         <span className="text-text-secondary">{t('nav.alerts')}</span>
       </nav>
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
           <motion.p
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: reduce ? 0 : 0.15 }}
-            className="mt-0.5 text-caption text-text-muted"
+            className="mt-0.5 text-sm text-text-secondary"
           >
             {unread > 0 ? (
               <>

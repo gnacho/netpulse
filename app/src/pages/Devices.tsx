@@ -2,27 +2,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import {
-  ArrowDown,
-  ArrowLeftRight,
-  ArrowUp,
-  ArrowUpDown,
-  Check,
-  ChevronDown,
-  Columns3,
-  Download,
-  Filter,
-  LayoutGrid,
-  List,
-  Pencil,
-  Pin,
-  Search,
-  ShieldCheck,
-  SignalLow,
-  Sparkles,
-  Wifi,
-  X,
-} from 'lucide-react'
+import { ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronRight, Columns3, Download, Filter, LayoutGrid, List, Pencil, Pin, Search, ShieldCheck, SignalLow, Sparkles, Wifi, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { DeviceRow, deviceIcon, SignalIcon } from '@/components/DeviceRow'
 import { CountUp } from '@/components/CountUp'
@@ -1988,16 +1968,16 @@ export default function Devices() {
     <div className="space-y-4 md:space-y-5">
       {/* ① Page header */}
       <header>
-        <nav aria-label={t('common.breadcrumb')} className="text-caption text-text-muted">
+        <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
           <Link to="/" className="transition-colors hover:text-accent">
             {t('common.home')}
           </Link>
-          <span className="mx-1.5">/</span>
+          <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
           <span className="text-text-secondary">{t('nav.devices')}</span>
         </nav>
         <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
-            <p className="mt-0.5 text-caption text-text-muted">
+            <p className="mt-0.5 text-sm text-text-secondary">
               {t('devices.summary', { total: deviceTotals.total, online: deviceTotals.online })}
             </p>
           </div>

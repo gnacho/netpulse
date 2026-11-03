@@ -2,52 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import {
-  BadgeCheck,
-  Check,
-  ChevronDown,
-  CircleAlert,
-  Copy,
-  Database,
-  Download,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  FileText,
-  FlaskConical,
-  Gauge,
-  HardDrive,
-  History,
-  KeyRound,
-  Loader2,
-  LogOut,
-  MonitorSmartphone,
-  Moon,
-  Pencil,
-  Plus,
-  Power,
-  Lock,
-   Radar,
-   RefreshCw,
-   RotateCcw,
-   RotateCw,
-  Router as RouterIcon,
-   Server,
-   Settings2,
-    Shield,
-    ShieldCheck,
-   Star,
-   Sun,
-   Trash2,
-   TriangleAlert,
-   UserCog,
-   Users,
-   Volume2,
-   Wifi,
-   X,
-   ChevronUp,
-  CalendarClock,
-} from 'lucide-react'
+import { BadgeCheck, CalendarClock, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, Database, Download, ExternalLink, Eye, EyeOff, FileText, FlaskConical, Gauge, HardDrive, History, KeyRound, Loader2, Lock, LogOut, MonitorSmartphone, Moon, Pencil, Plus, Power, Radar, RefreshCw, RotateCcw, RotateCw, Router as RouterIcon, Server, Settings2, Shield, ShieldCheck, Star, Sun, Trash2, TriangleAlert, UserCog, Users, Volume2, Wifi, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import Integrations from './Integrations'
 import { HealthRing } from '@/components/HealthRing'
@@ -218,7 +173,7 @@ function Card({ title, caption, index, reduce, children, headerSlot, className }
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-h2 text-text-primary">{title}</h2>
-          {caption && <p className="mt-0.5 text-caption text-text-muted">{caption}</p>}
+          {caption && <p className="mt-0.5 text-sm text-text-secondary">{caption}</p>}
         </div>
         {headerSlot}
       </div>
@@ -5520,9 +5475,9 @@ export default function Settings() {
   return (
     <div className="mx-auto w-full max-w-[1180px]">
       {/* ① Page header */}
-      <nav aria-label={t('common.breadcrumb')} className="mb-1 text-caption text-text-muted">
+      <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
         <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-        <span className="mx-1.5">/</span>
+        <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
         <span className="text-text-secondary">{t('nav.settings')}</span>
       </nav>
       <motion.p
