@@ -2954,8 +2954,8 @@
     "empty": "No racks yet",
     "emptyHint": "Create a rack first",
     "pickHint": "Drag onto a rack (or click) to mount into the active rack (the cyan one). Then drag to adjust the slot.",
-    "pickFleet": "Routers",
-    "pickDevice": "Devices",
+    "pickFleet": "Fleet units",
+    "pickDevice": "Clients",
     "pickAccessory": "Accessories",
     "plates": {
       "server-1u": "1U server",

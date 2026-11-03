@@ -1268,18 +1268,18 @@ function RackCanvas() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-u">{t('rack.createU')}</Label>
-              <Select value={addU} onValueChange={setAddU}>
-                <SelectTrigger id="rack-u" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['6', '9', '12', '18', '24', '42'].map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}U
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* #1804: la lista fija no cubre racks caseros. Un campo libre,
+                  acotado al rango que ya valida submitAddRack (1..45). */}
+              <Input
+                id="rack-u"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={45}
+                value={addU}
+                onChange={(e) => setAddU(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-location">{t('rack.createLocation')}</Label>
@@ -1383,18 +1383,16 @@ function RackCanvas() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-edit-u">{t('rack.createU')}</Label>
-              <Select value={editU} onValueChange={setEditU}>
-                <SelectTrigger id="rack-edit-u" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {['6', '9', '12', '18', '24', '42'].map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}U
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                id="rack-edit-u"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={45}
+                value={editU}
+                onChange={(e) => setEditU(e.target.value.replace(/[^0-9]/g, ''))}
+                className="w-full"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="rack-edit-location">{t('rack.createLocation')}</Label>

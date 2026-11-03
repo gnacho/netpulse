@@ -2954,8 +2954,8 @@
     "empty": "Todavía no hay ningún rack",
     "emptyHint": "Crea primero un rack",
     "pickHint": "Arrastra al rack (o haz clic) para montar en el rack activo (el resaltado en cyan). Luego arrastra para ajustar el hueco.",
-    "pickFleet": "Routers",
-    "pickDevice": "Dispositivos",
+    "pickFleet": "Unidades",
+    "pickDevice": "Clientes",
     "pickAccessory": "Accesorios",
     "plates": {
       "server-1u": "Servidor 1U",
