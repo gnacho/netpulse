@@ -1664,11 +1664,18 @@ function PickerItem({
       onDragStart={onDragStart}
       className="flex cursor-grab items-center justify-between gap-2 rounded-lg border border-border/60 px-2.5 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:border-accent/40 hover:text-accent active:cursor-grabbing disabled:opacity-50"
     >
-      <span className="flex min-w-0 items-center gap-1.5">
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
         {icon}
-        <span className="truncate">{label}</span>
+        <span className="truncate" title={label}>
+          {label}
+        </span>
       </span>
-      <span className="shrink-0 text-[10px] uppercase text-text-muted">{meta}</span>
+      {/* #1804: el nombre de la unidad manda. Antes el modelo era shrink-0 y
+          el hostname se truncaba primero; ahora el modelo se queda con un
+          maximo del 45% y es el que cede el sitio. */}
+      <span className="max-w-[45%] shrink-0 truncate text-[10px] uppercase text-text-muted" title={meta}>
+        {meta}
+      </span>
     </button>
   )
 }
