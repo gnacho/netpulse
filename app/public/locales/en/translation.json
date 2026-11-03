@@ -2962,6 +2962,31 @@
           "In your assistant, configure a remote MCP server with the URL http://IP:port/mcp and the token as a Bearer credential."
         ],
         "tip": "The tools are read-only and every call is logged in the server journal. Revoke the token when you stop using it."
+      },
+      "integrations": {
+        "title": "Connect integrations",
+        "subtitle": "Units that cannot be polled over SSH",
+        "intro": "A pusher is a small binary that runs where the unit is and sends its data to NetPulse. Every vendor ships as its own executable, so you only download the code for hardware you own.",
+        "steps": [
+          "Open ⟦Settings⟧ and find the ⟦Add-ons⟧ group.",
+          "Turn on ⟦External agents⟧ and press its gear to open the integrations manager.",
+          "Pick the vendor from the catalog: asuswrt, bbox, opnsense, routeros or unifi, among others.",
+          "NetPulse deploys the pusher, starts it and lets you edit its settings and token from the same dialog.",
+          "A unit that was already pushing without a record shows up under ⟦Managed outside NetPulse⟧ with its version and last push: NetPulse cannot start it or rotate its token."
+        ]
+      },
+      "certificates": {
+        "title": "Install your certificate",
+        "subtitle": "HTTPS with your own certificate or CA",
+        "intro": "The HTTPS card in Settings accepts your own certificate or one issued by your CA. The pair is validated before the listener is touched, so a broken certificate does not take the instance down.",
+        "steps": [
+          "Open ⟦Settings⟧ and go to the ⟦HTTPS⟧ card.",
+          "Choose the source: ⟦private CA⟧ or ⟦own pair⟧.",
+          "Point to the certificate and key paths, and give the password when the key is encrypted.",
+          "Apply: NetPulse loads the pair and restarts the listener; if the new one does not start, it rolls back.",
+          "Agents pin the leaf key, so after changing it they have to be paired again.",
+          "Under ⟦Additional options⟧ you can re-issue the connection strings and decide what plain HTTP is still allowed to do."
+        ]
       }
     }
   },
