@@ -162,7 +162,7 @@ export default function Routers() {
           <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
           <span className="text-text-secondary">{t('nav.routers')}</span>
         </motion.nav>
-        <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
