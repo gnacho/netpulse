@@ -151,23 +151,23 @@ export default function Routers() {
     <div className="space-y-4 md:space-y-5">
       {/* ① Page header */}
       <header>
-        <motion.nav
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          aria-label={t('common.breadcrumb')}
-          className="mb-1 flex items-center gap-1 text-caption text-text-muted"
-        >
-          <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-          <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
-          <span className="text-text-secondary">{t('nav.routers')}</span>
-        </motion.nav>
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
+  <motion.nav
+            initial={reduce ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            aria-label={t('common.breadcrumb')}
+            className="mb-1 flex items-center gap-1 text-caption text-text-muted"
+          >
+            <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
+            <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
+            <span className="text-text-secondary">{t('nav.routers')}</span>
+          </motion.nav>
             <p className="mt-0.5 text-sm text-text-secondary">
               {t('routers.summary', { total: routers.length, online, warnings: warned })}
             </p>

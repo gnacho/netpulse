@@ -5473,7 +5473,7 @@ export default function Settings() {
   )
 
   return (
-    <div className="mx-auto w-full max-w-[1180px]">
+    <div className="w-full">
       {/* ① Page header */}
       <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
         <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
