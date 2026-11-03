@@ -54,3 +54,27 @@ func TestBuildDevicesMarksLocallyAdministeredFromFDB(t *testing.T) {
 		t.Error("una MAC de fabricante quedó marcada como RandomMAC")
 	}
 }
+
+// #1818: la MAC local sin IP ni lease no se recuerda; con cualquiera de los
+// dos, o si es de fabricante, sí.
+func TestPersistLocalMAC(t *testing.T) {
+	cases := []struct {
+		name     string
+		mac      string
+		ip       string
+		hasLease bool
+		wasKnown bool
+		want     bool
+	}{
+		{"NMRP sin IP ni lease", "D2:95:DE:65:C5:B0", "", false, false, false},
+		{"local con IP", "D2:95:DE:65:C5:B0", "192.168.1.61", false, false, true},
+		{"local con lease", "D2:95:DE:65:C5:B0", "", true, false, true},
+		{"local ya conocida", "D2:95:DE:65:C5:B0", "", false, true, true},
+		{"fabricante sin nada", "04:F4:1C:F3:46:65", "", false, false, true},
+	}
+	for _, c := range cases {
+		if got := persistLocalMAC(c.mac, c.ip, c.hasLease, c.wasKnown); got != c.want {
+			t.Errorf("%s: persistLocalMAC = %v, esperaba %v", c.name, got, c.want)
+		}
+	}
+}
