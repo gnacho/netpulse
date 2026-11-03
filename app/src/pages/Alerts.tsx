@@ -837,15 +837,15 @@ export default function Alerts() {
   const filterKey = `${sev}|${[...cats].sort().join(',')}|${onlyUnread}`
 
   return (
-    <div className="mx-auto w-full max-w-[1100px]">
+    <div className="w-full">
       {/* ① Page header */}
-      <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
-        <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-        <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
-        <span className="text-text-secondary">{t('nav.alerts')}</span>
-      </nav>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
+        <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
+          <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
+          <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
+          <span className="text-text-secondary">{t('nav.alerts')}</span>
+        </nav>
           <motion.p
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}

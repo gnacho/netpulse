@@ -1968,15 +1968,15 @@ export default function Devices() {
     <div className="space-y-4 md:space-y-5">
       {/* ① Page header */}
       <header>
-        <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
-          <Link to="/" className="transition-colors hover:text-accent">
-            {t('common.home')}
-          </Link>
-          <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
-          <span className="text-text-secondary">{t('nav.devices')}</span>
-        </nav>
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
+  <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
+            <Link to="/" className="transition-colors hover:text-accent">
+              {t('common.home')}
+            </Link>
+            <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
+            <span className="text-text-secondary">{t('nav.devices')}</span>
+          </nav>
             <p className="mt-0.5 text-sm text-text-secondary">
               {t('devices.summary', { total: deviceTotals.total, online: deviceTotals.online })}
             </p>
