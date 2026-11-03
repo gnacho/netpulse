@@ -50,7 +50,6 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import Integrations from './Integrations'
-import { findAgentFor, type AgentKeys } from '@/lib/agentMatch'
 import { HealthRing } from '@/components/HealthRing'
 import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -405,14 +404,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [addSnmpPollInterval, setAddSnmpPollInterval] = useState(60)
   const [submitting, setSubmitting] = useState(false)
   const [confirmDeleteFor, setConfirmDeleteFor] = useState<string | null>(null)
-  const [confirmRotateFor, setConfirmRotateFor] = useState<string | null>(null)
-  const [regenerating, setRegenerating] = useState<string | null>(null)
   // Aviso tras regenerar el token: "hot" (aplicado en caliente) o "manual".
-  const [regenerateNotice, setRegenerateNotice] = useState<'hot' | 'netgrip' | 'ssh_failed' | 'no_agent' | null>(null)
   // Routers con agente nativo (GET /api/agents): marcan cuáles tienen
   // acceso root para poder regenerar su token (Labs). Se guardan las claves
   // del agente, no solo el slug: el slug no es el id del router.
-  const [agentKeys, setAgentKeys] = useState<AgentKeys[]>([])
   const [editing, setEditing] = useState<ConfigRouter | null>(null)
   const [editHost, setEditHost] = useState('')
   const [editName, setEditName] = useState('')
@@ -443,18 +438,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
 
   const load = useCallback(async () => {
     try {
-      const [rRes, aRes] = await Promise.all([fetch('/api/config/routers'), fetch('/api/agents')])
-      if (rRes.status === 401 || aRes.status === 401) {
+      const rRes = await fetch('/api/config/routers')
+      if (rRes.status === 401) {
         window.location.assign('/login')
         return
       }
       if (!rRes.ok) throw new Error(`HTTP ${rRes.status}`)
       const json = (await rRes.json()) as { routers: ConfigRouter[] }
       setList(json.routers)
-      if (aRes.ok) {
-        const { agents } = (await aRes.json()) as { agents: AgentKeys[] }
-        setAgentKeys(agents)
-      }
       setError(null)
     } catch {
       setError(t('settings.routers.errorGeneric'))
@@ -683,41 +674,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }
 
-  // Regenerar token del agente (Labs): solo routers-agente con acceso root
-  // (openwrt/glinet nativos; switch gestionado y external no tienen SSH/root).
-  // Envía hot:true para que el servidor, si puede, aplique el token en
-  // caliente (rewrite del .env + restart por SSH) y el router no quede
-  // offline esperando un reinstall.
-  const regenerateToken = async (r: ConfigRouter) => {
-    if (regenerating) return
-    setRegenerating(r.id)
-    setRegenerateNotice(null)
-    try {
-      const res = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: r.id, hot: true }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const agent = (await res.json()) as { slug: string; token: string; install: string; method?: string; manualReason?: string }
-      // Copia el token al portapapeles y refuerza la fila.
-      await copyToClipboard(agent.token)
-      // #719: el servidor explica por qué no se pudo aplicar en caliente
-      // (manualReason), para no pedir "reinstalar el agente" cuando no lo hay.
-      setRegenerateNotice(
-        agent.method === 'hot' ? 'hot'
-        : agent.manualReason === 'netgrip' ? 'netgrip'
-        : agent.manualReason === 'ssh_failed' ? 'ssh_failed'
-        : 'no_agent',
-      )
-      onSaved()
-    } catch {
-      setError(t('settings.routers.errorGeneric'))
-    } finally {
-      setRegenerating(null)
-    }
-  }
-
   return (
     <Card
       title={t('settings.routers.title')}
@@ -800,22 +756,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   </td>
                   <td className="px-3.5 py-2.5">
                     <span className="flex items-center justify-end gap-1.5">
-                      {findAgentFor(agentKeys, r.id) !== undefined && r.type !== 'managed-switch' && r.type !== 'external' && (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmRotateFor(r.id)}
-                          disabled={regenerating === r.id}
-                          aria-label={t('settings.routers.regenerateToken')}
-                          title={t('settings.routers.regenerateToken')}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg border border-danger/30 text-danger transition-colors duration-150 hover:border-danger/60 hover:bg-danger/10 disabled:opacity-50"
-                        >
-                          {regenerating === r.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-                          ) : (
-                            <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
-                          )}
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => openEdit(r)}
@@ -832,18 +772,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             </tbody>
           </table>
         </div>
-      )}
-
-      {regenerateNotice && (
-        <p className={cn('mt-2 text-caption font-medium', regenerateNotice === 'hot' ? 'text-accent' : 'text-danger')}>
-          {regenerateNotice === 'hot'
-            ? t('settings.routers.rotateTokenHotApplied')
-            : regenerateNotice === 'netgrip'
-              ? t('settings.routers.rotateTokenNetgrip')
-              : regenerateNotice === 'ssh_failed'
-                ? t('settings.routers.rotateTokenManualNeeded')
-                : t('settings.routers.rotateTokenSavedNoAgent')}
-        </p>
       )}
 
       <AlertDialog open={confirmDeleteFor !== null} onOpenChange={(open) => !open && setConfirmDeleteFor(null)}>
@@ -863,34 +791,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             >
               <Trash2 className="mr-1.5 h-4 w-4" strokeWidth={2} />
               {t('settings.routers.delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={confirmRotateFor !== null} onOpenChange={(open) => !open && setConfirmRotateFor(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('settings.routers.rotateTokenTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('settings.routers.rotateTokenCaption', { name: list.find((x) => x.id === confirmRotateFor)?.name ?? list.find((x) => x.id === confirmRotateFor)?.host ?? '' })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={regenerating !== null}>{t('settings.users.cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const target = list.find((x) => x.id === confirmRotateFor)
-                if (target) {
-                  setConfirmRotateFor(null)
-                  void regenerateToken(target)
-                }
-              }}
-              disabled={regenerating !== null}
-              className="bg-danger text-canvas hover:bg-danger/90"
-            >
-              <RotateCw className="mr-1.5 h-4 w-4" strokeWidth={2} />
-              {t('settings.routers.regenerateToken')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
