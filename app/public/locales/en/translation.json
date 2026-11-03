@@ -1852,7 +1852,7 @@
     },
     "saved": "Preferences saved",
     "services": {
-      "title": "Add-ons",
+      "title": "Integrations",
       "caption": "Visible network services and active server integrations",
       "adguardCaption": "Filtered DNS on the gateway",
       "wireguardCaption": "WireGuard VPN tunnels",
@@ -1863,7 +1863,7 @@
       "networkGroup": "Network services",
       "rackCaption": "Draw your rack and detect cables. Off by default.",
       "firmwareUpgradesCaption": "Show or hide the firmware upgrades page",
-      "integrationsGroup": "Integrations",
+      "integrationsGroup": "Add-ons",
       "externalAgents": "External agents",
       "externalAgentsCaption": "Add supported non-OpenWrt devices",
       "proxmoxCaption": "Cluster inventory (hypervisors and CTs)",
