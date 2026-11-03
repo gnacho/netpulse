@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { useNetPulse } from '@/data/DataProvider'
-import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, Radar, RefreshCw, Router, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Radar, RefreshCw, Router, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CurrentChannels } from '@/components/channels/CurrentChannels'
 import { ssidColor } from '@/lib/ssidColor'
@@ -505,9 +506,15 @@ export default function ChannelPlan() {
 
   return (
     <div className="space-y-4 md:space-y-5">
-      <header>
-        <h1 className="font-display text-h1 text-text-primary">{t('channelPlan.title')}</h1>
-        <p className="mt-0.5 text-sm text-text-secondary">{t('channelPlan.subtitle')}</p>
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div>
+          <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
+            <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
+            <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
+            <span className="text-text-secondary" aria-current="page">{t('nav.channelPlan')}</span>
+          </nav>
+          <p className="mt-0.5 text-sm text-text-secondary">{t('channelPlan.subtitle')}</p>
+        </div>
       </header>
 
       {/* Barra de contexto: equipo + pestañas de radio + acciones */}
