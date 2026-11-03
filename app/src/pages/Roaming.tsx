@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { motion, useReducedMotion } from 'framer-motion'
-import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, Filter, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, ChevronRight, Filter, GitFork, History, RefreshCw, Wifi, X, XCircle } from 'lucide-react'
 import { cn, fetchJson } from '@/lib/utils'
 import { useNetPulse, redirectLogin } from '@/data/DataProvider'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
@@ -441,10 +441,10 @@ export default function Roaming() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           aria-label={t('common.breadcrumb')}
-          className="font-mono text-caption text-text-muted"
+          className="mb-1 flex items-center gap-1 text-caption text-text-muted"
         >
           <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-          <span className="mx-1.5">/</span>
+          <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
           <span className="text-text-secondary">{t('nav.roaming')}</span>
         </motion.nav>
         <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
@@ -453,7 +453,7 @@ export default function Roaming() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
-            <p className="text-caption text-text-muted">{t('roaming.subtitle')}</p>
+            <p className="mt-0.5 text-sm text-text-secondary">{t('roaming.subtitle')}</p>
             {(() => {
               const meta = roamingDaemonMeta(roamingDaemon, t)
               if (!meta) return null
@@ -487,10 +487,11 @@ export default function Roaming() {
                 setSpin(false)
               }, 650)
             }}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+            aria-label={t('common.refresh')}
+            title={t('common.refresh')}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
           >
             <RefreshCw className={cn('h-4 w-4 transition-transform duration-500', spin && 'rotate-[360deg]')} strokeWidth={1.75} />
-            {t('common.refresh')}
           </motion.button>
         </div>
       </header>

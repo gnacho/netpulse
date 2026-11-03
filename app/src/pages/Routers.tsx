@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { RefreshCw, Rocket } from 'lucide-react'
+import { ChevronRight, RefreshCw, Rocket } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { AgentsSection } from '@/components/routers/AgentsSection'
@@ -156,10 +156,10 @@ export default function Routers() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
           aria-label={t('common.breadcrumb')}
-          className="font-mono text-caption text-text-muted"
+          className="mb-1 flex items-center gap-1 text-caption text-text-muted"
         >
           <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
-          <span className="mx-1.5">/</span>
+          <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
           <span className="text-text-secondary">{t('nav.routers')}</span>
         </motion.nav>
         <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
@@ -168,7 +168,7 @@ export default function Routers() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
-            <p className="text-caption text-text-muted">
+            <p className="mt-0.5 text-sm text-text-secondary">
               {t('routers.summary', { total: routers.length, online, warnings: warned })}
             </p>
           </motion.div>
@@ -198,10 +198,11 @@ export default function Routers() {
             </span>
             <button
               onClick={handleRefresh}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+              aria-label={t('common.refresh')}
+              title={t('common.refresh')}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
             >
               <RefreshCw className={cn('h-4 w-4 transition-transform duration-500', spinning && 'rotate-[360deg]')} strokeWidth={1.75} />
-              {t('common.refresh')}
             </button>
             {pendingAgents > 0 && (
               <span className="inline-flex items-center gap-2 rounded-full border border-warn/40 bg-warn/10 px-3 py-1.5">
