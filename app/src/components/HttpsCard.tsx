@@ -72,6 +72,9 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
   // integraciones (#968). La card solo resume el origen actual.
   const [certOpen, setCertOpen] = useState(false)
   const [certPassword, setCertPassword] = useState('')
+  // #1807: segundo chip, para lo que no es el certificado: re-emitir la
+  // conexion a la flota y lo que el HTTP plano puede seguir haciendo.
+  const [extraOpen, setExtraOpen] = useState(false)
   const confirming = useRef(false)
   const changeRef = useRef(change)
   changeRef.current = change
@@ -232,6 +235,63 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
     'w-full rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none'
   const onHttps = window.location.protocol === 'https:'
 
+  // #1807: bloque de confirmacion compartido. El cambio llega por argumento
+  // porque lo inician sitios distintos (la card y los dos dialogos).
+  const applyBlock = (ch: Change) => (
+    <div className="rounded-lg border border-border p-3">
+      <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+        {t('settings.https.password')}
+      </label>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete="current-password"
+        className={inputCls}
+      />
+      {blocked && (
+        <div className="mt-2 text-[11px] text-warn">
+          <p>
+            {t(blocked.kind === 'http' ? 'settings.https.blocked' : 'settings.https.blockedOff', {
+              agents: blocked.agents.map((a) => a.slug).join(', '),
+            })}
+          </p>
+          <button
+            type="button"
+            className="mt-1 font-semibold underline"
+            onClick={() => void applyChange({ ...ch, force: true }, password)}
+          >
+            {t('settings.https.switchAnyway')}
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => void applyChange(ch, password)}
+          disabled={busy || !password}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
+          {t('settings.https.apply')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setChange(null)
+            setPassword('')
+            setError('')
+            setBlocked(null)
+          }}
+          className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-[13px] text-text-primary hover:bg-hover"
+        >
+          {t('common.cancel')}
+        </button>
+      </div>
+    </div>
+  )
+
   // #1807: lo que se envia al guardar desde el dialogo. Volver a la CA privada
   // se expresa con cert y key vacios, igual que hacia la card.
   const certChange: Change = {
@@ -287,6 +347,9 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       {(st.enabledLocked || st.portLocked) && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
       {st.error && <p className="text-xs text-danger">{st.error}</p>}
 
+      {/* #1807: dos chips, uno por cada dialogo de configuracion. La card
+          solo resume el estado; las opciones viven en sus ventanas. */}
+      <div className="grid gap-2 sm:grid-cols-2">
       {/* #1807: la card solo resume el origen del certificado. Todo lo demas
           (origen, rutas, raiz, renovacion y pin) vive en el dialogo que abre
           este engranaje, igual que los managers de integraciones (#968). */}
@@ -314,97 +377,28 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
         </button>
       </div>
 
-      {st.enabled && (
-        <>
-          {/* #1294: re-emitir el env de conexión a la flota tras un cambio
-              de TLS/HTTPS/puerto: sin esto los agentes instalados antes del
-              cambio siguen empujando al scheme viejo para siempre (#1289). */}
-          <div>
-            <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-              {t('settings.https.reemitTitle')}
-              <InfoTip text={t('settings.https.reemitHint')} />
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-elevated p-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+              <Lock className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} />
+              {t('settings.https.extraTitle')}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void reemit()}
-                disabled={reemitting}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
-              >
-                {reemitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                {t('settings.https.reemit')}
-              </button>
-              {reemitError && <span className="text-[11px] text-danger">{reemitError}</span>}
-            </div>
-            {reemitResults && (
-              <ul className="mt-2 space-y-0.5">
-                {reemitResults.map((it) => (
-                  <li key={it.slug} className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className={it.status === 'reemitted' ? 'text-ok' : it.status === 'ssh_failed' ? 'text-danger' : 'text-text-muted'}>
-                      {it.status === 'reemitted' ? '✓' : it.status === 'ssh_failed' ? '✗' : '–'}
-                    </span>
-                    <span className="text-text-primary">{it.slug}</span>
-                    <span className="text-text-muted">
-                      {t(`settings.https.reemitStatus.${it.status}`, it.status)}
-                      {it.error ? ` · ${it.error}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="mt-0.5 truncate text-[11px] text-text-muted">
+              {t(`settings.https.modes.${st.mode}.title`)}
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setExtraOpen(true)}
+            aria-label={t('settings.https.extraConfigure')}
+            title={t('settings.https.extraConfigure')}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+          >
+            <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
 
-          {/* What plain HTTP may still do */}
-          <div>
-            <div className="text-sm font-medium text-text-primary">{t('settings.https.modeTitle')}</div>
-            <div className="mt-2 space-y-2">
-              {MODES.map((m) => (
-                <label
-                  key={m}
-                  className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 ${
-                    (change?.mode ?? st.mode) === m ? 'border-accent bg-accent/[0.04]' : 'border-border'
-                  } ${st.modeLocked ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="https-mode"
-                    className="mt-0.5"
-                    checked={(change?.mode ?? st.mode) === m}
-                    disabled={st.modeLocked || busy}
-                    onChange={() => setChange(m === st.mode ? null : { mode: m })}
-                  />
-                  <span>
-                    <span className="block text-xs font-semibold text-text-primary">
-                      {t(`settings.https.modes.${m}.title`)}
-                      {st.mode === m && <span className="ml-1.5 font-normal text-ok">{t('settings.https.current')}</span>}
-                    </span>
-                    <span className="block text-[11px] leading-relaxed text-text-secondary">
-                      {t(`settings.https.modes.${m}.hint`)}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            {st.modeLocked && <p className="mt-1 text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
-          </div>
-
-          {/* Agents that would stop reporting */}
-          {(st.agentsOnHttp ?? []).length > 0 && (
-            <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-[11px] text-warn">
-              <div className="mb-1 flex items-center gap-1.5 font-semibold">
-                <TriangleAlert className="h-3.5 w-3.5" /> {t('settings.https.agentsOnHttp')}
-              </div>
-              <ul className="space-y-0.5">
-                {(st.agentsOnHttp ?? []).map((a) => (
-                  <li key={a.slug}>
-                    {a.slug} · {new Date(a.lastSeen).toLocaleString()}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
-      )}
 
       {/* A staged change waiting for confirmation over HTTPS */}
       {(confirmUrl || st.pending) && (
@@ -427,62 +421,131 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
         </div>
       )}
 
-      {/* Password, for any change */}
-      {change && (
-        <div className="rounded-lg border border-border p-3">
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
-            {t('settings.https.password')}
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            className={inputCls}
-          />
-          {blocked && (
-            <div className="mt-2 text-[11px] text-warn">
-              <p>
-                {t(blocked.kind === 'http' ? 'settings.https.blocked' : 'settings.https.blockedOff', {
-                  agents: blocked.agents.map((a) => a.slug).join(', '),
-                })}
-              </p>
-              <button
-                type="button"
-                className="mt-1 font-semibold underline"
-                onClick={() => setChange((c) => (c ? { ...c, force: true } : c))}
-              >
-                {t('settings.https.switchAnyway')}
-              </button>
-            </div>
-          )}
-          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={() => change && void applyChange(change, password)}
-              disabled={busy || !password}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      {/* La confirmacion con contrasena se pinta donde se inicio el cambio:
+          en la card para HTTPS y puerto, en el dialogo para modos y certificado. */}
+      {change && !change.mode && applyBlock(change)}
+      {!change && error && <p className="text-xs text-danger">{error}</p>}
+
+
+      {/* #1807: opciones adicionales, fuera del certificado: re-emitir la
+          conexion de la flota y lo que el HTTP plano puede seguir haciendo. */}
+      <Dialog
+        open={extraOpen}
+        onOpenChange={(o) => {
+          setExtraOpen(o)
+          if (!o) {
+            setPassword('')
+            setError('')
+            setBlocked(null)
+          }
+        }}
+      >
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-h-[88vh] overflow-y-auto sm:max-w-[620px]"
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <Lock className="h-4 w-4 text-accent" strokeWidth={2} />
+              {t('settings.https.extraTitle')}
+            </DialogTitle>
+          </DialogHeader>
+          {st.enabled ? (
+            <div className="space-y-4">
+        {/* #1294: re-emitir el env de conexión a la flota tras un cambio
+          de TLS/HTTPS/puerto: sin esto los agentes instalados antes del
+          cambio siguen empujando al scheme viejo para siempre (#1289). */}
+      <div>
+        <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+          {t('settings.https.reemitTitle')}
+          <InfoTip text={t('settings.https.reemitHint')} />
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void reemit()}
+            disabled={reemitting}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+          >
+            {reemitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {t('settings.https.reemit')}
+          </button>
+          {reemitError && <span className="text-[11px] text-danger">{reemitError}</span>}
+        </div>
+        {reemitResults && (
+          <ul className="mt-2 space-y-0.5">
+            {reemitResults.map((it) => (
+              <li key={it.slug} className="flex items-center gap-2 font-mono text-[11px]">
+                <span className={it.status === 'reemitted' ? 'text-ok' : it.status === 'ssh_failed' ? 'text-danger' : 'text-text-muted'}>
+                  {it.status === 'reemitted' ? '✓' : it.status === 'ssh_failed' ? '✗' : '–'}
+                </span>
+                <span className="text-text-primary">{it.slug}</span>
+                <span className="text-text-muted">
+                  {t(`settings.https.reemitStatus.${it.status}`, it.status)}
+                  {it.error ? ` · ${it.error}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* What plain HTTP may still do */}
+      <div>
+        <div className="text-sm font-medium text-text-primary">{t('settings.https.modeTitle')}</div>
+        <div className="mt-2 space-y-2">
+          {MODES.map((m) => (
+            <label
+              key={m}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 ${
+                (change?.mode ?? st.mode) === m ? 'border-accent bg-accent/[0.04]' : 'border-border'
+              } ${st.modeLocked ? 'cursor-not-allowed opacity-60' : ''}`}
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
-              {t('settings.https.apply')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setChange(null)
-                setPassword('')
-                setError('')
-                setBlocked(null)
-              }}
-              className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-[13px] text-text-primary hover:bg-hover"
-            >
-              {t('common.cancel')}
-            </button>
+              <input
+                type="radio"
+                name="https-mode"
+                className="mt-0.5"
+                checked={(change?.mode ?? st.mode) === m}
+                disabled={st.modeLocked || busy}
+                onChange={() => setChange(m === st.mode ? null : { mode: m })}
+              />
+              <span>
+                <span className="block text-xs font-semibold text-text-primary">
+                  {t(`settings.https.modes.${m}.title`)}
+                  {st.mode === m && <span className="ml-1.5 font-normal text-ok">{t('settings.https.current')}</span>}
+                </span>
+                <span className="block text-[11px] leading-relaxed text-text-secondary">
+                  {t(`settings.https.modes.${m}.hint`)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {st.modeLocked && <p className="mt-1 text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
+      </div>
+
+      {/* Agents that would stop reporting */}
+      {(st.agentsOnHttp ?? []).length > 0 && (
+        <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-[11px] text-warn">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <TriangleAlert className="h-3.5 w-3.5" /> {t('settings.https.agentsOnHttp')}
           </div>
+          <ul className="space-y-0.5">
+            {(st.agentsOnHttp ?? []).map((a) => (
+              <li key={a.slug}>
+                {a.slug} · {new Date(a.lastSeen).toLocaleString()}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-      {!change && error && <p className="text-xs text-danger">{error}</p>}
+              {change?.mode && applyBlock(change)}
+            </div>
+          ) : (
+            <p className="text-[11px] leading-relaxed text-text-muted">{t('settings.https.extraDisabled')}</p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* #1807: opciones del certificado en un dialogo, como las integraciones
           (#968). El cambio se confirma aqui con la contrasena, sin bajar a la
