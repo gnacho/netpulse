@@ -2156,6 +2156,7 @@
       "title": "HTTPS",
       "certTitle": "Certificado",
       "certHint": "NetPulse puede servir su propia CA privada o un certificado que ya tengas en esta máquina.",
+      "certConfigure": "Configurar certificado",
       "certModeCa": "CA de NetPulse",
       "certModeCustom": "Mi certificado",
       "certPathLabel": "Certificado (cadena completa, PEM)",
