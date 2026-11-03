@@ -3148,7 +3148,10 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 					continue
 				}
 				seen[mac] = seenInfo{routerID: routerID, band: band}
-				if l.db != nil {
+				// #1818: una MAC local sin IP ni lease no se recuerda.
+				_, hasLocalLease := leasesByMac[mac]
+				_, localWasKnown := known[mac]
+				if l.db != nil && persistLocalMAC(mac, arpByMac[mac], hasLocalLease, localWasKnown) {
 					// Sin signal_dbm en el DO UPDATE: el hint no trae RSSI y
 					// pisar con NULL el último bueno de una asociación real
 					// rompería la serie de señal del dispositivo.
