@@ -127,3 +127,53 @@ func TestResolvesSurviveRestart(t *testing.T) {
 	}
 	t.Fatal("el evento de cierre no volvió tras el reinicio")
 }
+
+// #1466 (reabierto por David en v2.50): el flujo real resuelve el aviso
+// original ANTES de que la UI pida el feed, y Resolve() lo retira de la
+// lista viva. El test anterior nunca llamaba a Resolve, por eso el detalle
+// salía en las pruebas y en producción solo quedaba el id.
+func TestListResolvedDetailsAfterResolve(t *testing.T) {
+	e := newPersistTestEngine(t, t.TempDir(), false)
+	if err := e.SetConfig(map[string]string{CatSignal: LevelAll}); err != nil {
+		t.Fatalf("SetConfig: %v", err)
+	}
+	orig := AlertEvent{
+		ID: "alert-weak-64:9D:38:2E:E1:E7-1792538956947", Category: CatSignal,
+		Severity: "warn", Title: "Señal WiFi débil en Pixel", Type: "wifi-weak",
+		Vars: map[string]string{"device": "Pixel"}, RouterID: "rt4", Ts: 1_792_538_956,
+	}
+	if !e.Emit(orig) {
+		t.Fatal("no emitió el original")
+	}
+	// La condición se recupera: el motor retira el aviso de la lista viva y
+	// deja la fila en alert_log marcada como resuelta.
+	e.Resolve(orig.ID)
+	if !e.Emit(AlertEvent{
+		ID: "alert-weak-64:9D:38:2E:E1:E7-ok", Category: CatSignal, Severity: "ok",
+		Title: "Señal WiFi recuperada", Type: "wifi-weak-recovered", RouterID: "rt4",
+		Resolves: []string{orig.ID},
+	}) {
+		t.Fatal("no emitió el cierre")
+	}
+
+	for _, ev := range e.List() {
+		if ev.ID != "alert-weak-64:9D:38:2E:E1:E7-ok" {
+			continue
+		}
+		if len(ev.Resolved) != 1 {
+			t.Fatalf("resolved: %d entradas, esperaba 1", len(ev.Resolved))
+		}
+		r := ev.Resolved[0]
+		if r.Title != orig.Title {
+			t.Fatalf("título del resuelto = %q, esperaba %q (solo sobrevivía el id)", r.Title, orig.Title)
+		}
+		if r.Ts != orig.Ts || r.Type != orig.Type {
+			t.Fatalf("resuelto incompleto: %+v", r)
+		}
+		if r.Vars["device"] != "Pixel" {
+			t.Fatalf("vars no recuperadas: %+v", r.Vars)
+		}
+		return
+	}
+	t.Fatal("el cierre no está en el feed")
+}

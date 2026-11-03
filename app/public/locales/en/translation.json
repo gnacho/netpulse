@@ -2284,7 +2284,19 @@
       "network": "GitHub reachable",
       "concurrent": "No update in progress",
       "ok": "OK",
-      "fail": "Failed"
+      "fail": "Failed",
+      "detail": {
+        "diskOk": "{{free}} MB free",
+        "diskLow": "{{free}} MB free, {{need}} MB needed",
+        "diskError": "Could not read the free disk space",
+        "gitStable": "not applicable (stable layout)",
+        "gitNoClone": "not applicable (no git clone)",
+        "gitError": "Could not read the git status",
+        "gitDirty": "There are uncommitted changes",
+        "netUrl": "Invalid API URL",
+        "netUnreachable": "Could not reach GitHub",
+        "busy": "An update is already in progress"
+      }
     },
     "confirmed": "Updated to {{sha}}",
     "history": {
@@ -2580,7 +2592,8 @@
     "backupScheduleLastRun": "Last: {{when}}",
     "backupScheduleNextRun": "Next: {{when}}",
     "resetStale": "Reset state",
-    "resetStaleHint": "Clears the record of an attempt that has been stuck for more than 15 minutes (the router never came back or the SSH session died), so you can start it again."
+    "resetStaleHint": "Clears the record of an attempt that has been stuck for more than 15 minutes (the router never came back or the SSH session died), so you can start it again.",
+    "excludePkgsFromRouter": "The router already excludes these packages from its own builds: {{pkgs}}. The field has been filled with that list, review it before downloading."
   },
   "orchestration": {
     "title": "Orchestration",

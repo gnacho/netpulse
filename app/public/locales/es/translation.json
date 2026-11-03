@@ -2284,7 +2284,19 @@
       "network": "Conexión con GitHub",
       "concurrent": "Sin actualización en curso",
       "ok": "OK",
-      "fail": "Fallo"
+      "fail": "Fallo",
+      "detail": {
+        "diskOk": "{{free}} MB libres",
+        "diskLow": "{{free}} MB libres, se necesitan {{need}}",
+        "diskError": "No se pudo leer el espacio en disco",
+        "gitStable": "no aplica (layout estable)",
+        "gitNoClone": "no aplica (sin clone git)",
+        "gitError": "No se pudo leer el estado de git",
+        "gitDirty": "Hay cambios sin commitear",
+        "netUrl": "URL de API inválida",
+        "netUnreachable": "No se pudo contactar con GitHub",
+        "busy": "Hay una actualización en curso"
+      }
     },
     "confirmed": "Actualizado a {{sha}}",
     "history": {
@@ -2580,7 +2592,8 @@
     "backupScheduleLastRun": "Último: {{when}}",
     "backupScheduleNextRun": "Próximo: {{when}}",
     "resetStale": "Reiniciar estado",
-    "resetStaleHint": "Borra el registro de un intento que lleva más de 15 minutos sin avanzar (el router no volvió o el SSH murió), para poder lanzarlo otra vez."
+    "resetStaleHint": "Borra el registro de un intento que lleva más de 15 minutos sin avanzar (el router no volvió o el SSH murió), para poder lanzarlo otra vez.",
+    "excludePkgsFromRouter": "El router ya excluye estos paquetes de sus propias builds: {{pkgs}}. El campo se ha rellenado con esa lista, revísala antes de descargar."
   },
   "orchestration": {
     "title": "Orquestación",
