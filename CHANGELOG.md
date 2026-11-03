@@ -19,6 +19,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Changed
 
+- Page headers follow the topology one (#1822): the breadcrumb keeps its small caption size with the same chevron separator, and the line under it grows to the body size in the secondary colour, so the explanation reads before the controls. Every refresh control is icon-only now, square and with the accessible name kept, which also matches the height of the rest of the header actions.
 - The page title is no longer printed twice (#1815). The top bar already shows it, so the copy under the breadcrumb is gone and what stays is the breadcrumb plus a one-line explanation of what the page is for. Refresh actions in the page header are icon-only now, with the accessible name kept, and every header button shares the same height.
 - The per-unit actions live together now (#1803). **Regenerate token** moved from Settings > Fleet to the Actions column of the agents card, and **Forget host key** moved from the unit detail to the same card, so a unit's configuration is not split across three screens. Both keep their confirmation dialog and only appear where they apply: the token for netpulse agents, the host key for units NetPulse polls over SSH.
 - The settings group goes back to its Integrations label and the section that hosts the vendor integrations manager is the one called Complementos (Add-ons in English), which is how the code comment already described it (#1784).

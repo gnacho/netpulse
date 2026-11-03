@@ -737,10 +737,11 @@ export default function FirmwareUpgrades() {
         <button
           onClick={fetchItems}
           disabled={loading}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-primary transition-colors hover:bg-elevated disabled:opacity-50"
+          aria-label={t('common.refresh')}
+          title={t('common.refresh')}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-primary transition-colors hover:bg-elevated disabled:opacity-50"
         >
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} strokeWidth={1.75} />
-          {t('common.refresh')}
         </button>
       </header>
 

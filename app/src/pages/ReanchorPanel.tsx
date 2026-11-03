@@ -155,10 +155,11 @@ export default function ReanchorPanel({ refreshTick }: Props) {
           <button
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+            aria-label={t('common.refresh')}
+            title={t('common.refresh')}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-elevated text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
           >
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} strokeWidth={1.75} />
-            {t('common.refresh')}
           </button>
         </div>
 
