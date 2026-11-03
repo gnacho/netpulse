@@ -112,9 +112,9 @@ export function Faceplate({
               key={p.id}
               type="button"
               tabIndex={st.interactive ? 0 : -1}
-              aria-label={p.id}
+              aria-label={p.label || p.id}
               data-port={p.id}
-              title={`${p.id} · ${p.kind}`}
+              title={`${p.label || p.id} · ${p.kind}`}
               onClick={(e) => {
                 e.stopPropagation()
                 if (st.interactive) onPortClick?.(p.id)

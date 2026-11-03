@@ -64,11 +64,54 @@ function RackCanvas() {
     () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.name] as const] : []))),
     [np.routers],
   )
+  // #1804: los perfiles guardados antes de este cambio solo llevan el id de la
+  // boca (snmp-49153 en un switch SNMP). La etiqueta legible se resuelve
+  // contra el detalle vivo de cada unidad montada, una vez por MAC.
+  const routerIdByMac = useMemo(
+    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.id] as const] : []))),
+    [np.routers],
+  )
+  const [portLabels, setPortLabels] = useState<Map<string, Record<string, string>>>(new Map())
   const services = useServicesVisibility()[0]
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
 
   const [working, setWorking] = useState<Working>({ racks: [], mounts: [], cables: [], profiles: new Map(), audit: {} })
+
+  const labelMacs = useMemo(() => {
+    const out = new Set<string>()
+    for (const m of working.mounts) if (m.device_mac) out.add(m.device_mac.toLowerCase())
+    return out
+  }, [working.mounts])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      for (const mac of labelMacs) {
+        if (portLabels.has(mac)) continue
+        const rid = routerIdByMac.get(mac)
+        if (!rid) continue
+        try {
+          const res = await fetch(`/api/routers/${encodeURIComponent(rid)}`)
+          if (!res.ok) continue
+          const detail = await res.json()
+          const eth: { id?: string; iface?: string; name?: string; label?: string }[] = detail?.extras?.ethPorts ?? []
+          const map: Record<string, string> = {}
+          for (const p of eth) {
+            const id = p.id || p.iface || p.name || ''
+            const label = p.label || p.iface || ''
+            if (id && label) map[id] = label
+          }
+          if (!cancelled) setPortLabels((prev) => new Map(prev).set(mac, map))
+        } catch {
+          // Sin detalle: el tooltip cae al id, como antes.
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [labelMacs, routerIdByMac, portLabels])
   const [loaded, setLoaded] = useState(false)
   const [activeRackId, setActiveRackId] = useState<string | null>(null)
   const [patchMode, setPatchMode] = useState(false)
@@ -95,7 +138,7 @@ function RackCanvas() {
     deviceType: string
     label: string
     faceplateId?: string
-    physicalPorts?: { id: string; kind: RackPortKind }[]
+    physicalPorts?: { id: string; kind: RackPortKind; label?: string }[]
     defaultU: number
     isPatch: boolean
     /** punto de drop en coords relativas al rack (coloca donde se soltó) */
@@ -400,7 +443,10 @@ function RackCanvas() {
         style: { width: m.col_span * COL_PX, height: m.u_height * U_PX },
         data: {
           plate,
-          ports: portsFor(m),
+          ports: portsFor(m).map((p) => ({
+            ...p,
+            label: p.label ?? (m.device_mac ? portLabels.get(m.device_mac.toLowerCase())?.[p.id] : undefined),
+          })),
           mountId: m.id,
           label:
             m.label ||
@@ -583,7 +629,7 @@ function RackCanvas() {
       mac: string,
       deviceType: string,
       label: string,
-      physicalPorts?: { id: string; kind: RackPortKind }[],
+      physicalPorts?: { id: string; kind: RackPortKind; label?: string }[],
       rackId?: string,
       dropRel?: { x: number; y: number },
     ) => {
@@ -700,18 +746,20 @@ function RackCanvas() {
   const mountRouter = useCallback(
     async (router: { id: string; mac?: string; name: string }, rackId?: string, dropRel?: { x: number; y: number }) => {
       if (!router.mac) return
-      let physical: { id: string; kind: RackPortKind }[] | undefined
+      let physical: { id: string; kind: RackPortKind; label?: string }[] | undefined
       try {
         const res = await fetch(`/api/routers/${encodeURIComponent(router.id)}`)
         if (res.ok) {
           const detail = await res.json()
-          const eth: { id?: string; iface?: string; name?: string }[] = detail?.extras?.ethPorts ?? []
+          const eth: { id?: string; iface?: string; name?: string; label?: string }[] = detail?.extras?.ethPorts ?? []
           physical = eth
-            .map((p) => p.id || p.iface || p.name || '')
-            .filter((id) => id && !id.startsWith('wlan'))
-            .map((id) => {
-              const k = /sfp\+|10g|fiber|fibre/i.test(id) ? 'sfp+' : /sfp/i.test(id) ? 'sfp' : 'rj45'
-              return { id, kind: k as RackPortKind }
+            .map((p) => ({ id: p.id || p.iface || p.name || '', label: p.label || p.iface || '' }))
+            .filter((p) => p.id && !p.id.startsWith('wlan'))
+            .map((p) => {
+              // #1804: el id sigue siendo la clave (snmp-49153); el label es lo
+              // que se pinta en el tooltip, para no enseñar un ifIndex.
+              const k = /sfp\+|10g|fiber|fibre/i.test(p.id) ? 'sfp+' : /sfp/i.test(p.id) ? 'sfp' : 'rj45'
+              return { id: p.id, kind: k as RackPortKind, label: p.label || undefined }
             })
         }
       } catch {

@@ -11,6 +11,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - The rack picker names its groups the way the rest of the UI does (#1804): **Fleet units** instead of Routers and **Clients** instead of Devices.
 - A rack is created with any height you type instead of picking from six presets (#1804). Home-built racks are rarely 6, 9, 12, 18, 24 or 42 U; the field accepts 1 to 45 and keeps the same validation as before.
+- Ports of a racked fleet unit show their name in the tooltip instead of the SNMP ifIndex (#1804): the port keeps its id as the key for cables and profiles, but the label the unit publishes (`ifName`/`ifAlias`) is what you read. Existing profiles get the label from the live unit detail, so a switch placed before this change reads the same as a new one.
 
 ## [2.50.0] - 2026-10-31
 
