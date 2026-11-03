@@ -307,7 +307,6 @@ export default function Reports() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
-            <h1 className="font-display text-h1 text-text-primary">{t('nav.reports')}</h1>
             <p className="text-caption text-text-muted">{t('reports.explain', { window: windowText })}</p>
           </motion.div>
           <motion.div
@@ -341,10 +340,11 @@ export default function Reports() {
                   setSpin(false)
                 }, 650)
               }}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-3 text-sm font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
+              aria-label={t('common.refresh')}
+              title={t('common.refresh')}
             >
               <RefreshCw className={cn('h-4 w-4 transition-transform duration-500', spin && 'rotate-[360deg]')} strokeWidth={1.75} />
-              {t('common.refresh')}
             </button>
           </motion.div>
         </div>

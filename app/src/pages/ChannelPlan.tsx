@@ -610,9 +610,15 @@ export default function ChannelPlan() {
             <Radar className={cn('mr-1.5 h-3.5 w-3.5', scanning && 'animate-pulse')} strokeWidth={1.75} />
             {t('channelPlan.scanNow')}
           </Button>
-          <Button size="sm" variant="outline" disabled={!routerId || loading} onClick={() => loadPlan(routerId)}>
-            <RefreshCw className={cn('mr-1.5 h-3.5 w-3.5', loading && 'animate-spin')} strokeWidth={1.75} />
-            {t('channelPlan.refresh')}
+          <Button
+            size="icon"
+            variant="outline"
+            disabled={!routerId || loading}
+            onClick={() => loadPlan(routerId)}
+            aria-label={t('channelPlan.refresh')}
+            title={t('channelPlan.refresh')}
+          >
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} strokeWidth={1.75} />
           </Button>
         </div>
       </div>

@@ -19,6 +19,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Changed
 
+- The page title is no longer printed twice (#1815). The top bar already shows it, so the copy under the breadcrumb is gone and what stays is the breadcrumb plus a one-line explanation of what the page is for. Refresh actions in the page header are icon-only now, with the accessible name kept, and every header button shares the same height.
 - The per-unit actions live together now (#1803). **Regenerate token** moved from Settings > Fleet to the Actions column of the agents card, and **Forget host key** moved from the unit detail to the same card, so a unit's configuration is not split across three screens. Both keep their confirmation dialog and only appear where they apply: the token for netpulse agents, the host key for units NetPulse polls over SSH.
 - The settings group goes back to its Integrations label and the section that hosts the vendor integrations manager is the one called Complementos (Add-ons in English), which is how the code comment already described it (#1784).
 - The rack picker names its groups the way the rest of the UI does (#1804): **Fleet units** instead of Routers and **Clients** instead of Devices.

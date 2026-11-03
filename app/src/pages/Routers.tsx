@@ -168,7 +168,6 @@ export default function Routers() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
-            <h1 className="font-display text-h1 text-text-primary">{t('nav.routers')}</h1>
             <p className="text-caption text-text-muted">
               {t('routers.summary', { total: routers.length, online, warnings: warned })}
             </p>

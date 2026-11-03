@@ -1997,14 +1997,6 @@ export default function Devices() {
         </nav>
         <div className="mt-1.5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
-            <motion.h1
-              initial={reduce ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="font-display text-h1 text-text-primary"
-            >
-              {t('nav.devices')}
-            </motion.h1>
             <p className="mt-0.5 text-caption text-text-muted">
               {t('devices.summary', { total: deviceTotals.total, online: deviceTotals.online })}
             </p>

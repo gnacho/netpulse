@@ -453,7 +453,6 @@ export default function Roaming() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut', delay: 0.06 }}
           >
-            <h1 className="font-display text-h1 text-text-primary">{t('nav.roaming')}</h1>
             <p className="text-caption text-text-muted">{t('roaming.subtitle')}</p>
             {(() => {
               const meta = roamingDaemonMeta(roamingDaemon, t)
