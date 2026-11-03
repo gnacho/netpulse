@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
-import { AlertCircle, CalendarClock, Cpu, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
+import { AlertCircle, CalendarClock, ChevronRight, Cpu, Download, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
 import { findAgentFor } from '@/lib/agentMatch'
@@ -729,9 +730,13 @@ export default function FirmwareUpgrades() {
 
   return (
     <div className="space-y-4 md:space-y-5">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 className="font-display text-h1 text-text-primary">{t('firmwareUpgrades.title')}</h1>
+          <nav aria-label={t('common.breadcrumb')} className="mb-1 flex items-center gap-1 text-caption text-text-muted">
+            <Link to="/" className="transition-colors hover:text-accent">{t('common.home')}</Link>
+            <ChevronRight className="h-3 w-3" strokeWidth={1.75} aria-hidden />
+            <span className="text-text-secondary" aria-current="page">{t('nav.firmwareUpgrades')}</span>
+          </nav>
           <p className="mt-0.5 text-sm text-text-secondary">{t('firmwareUpgrades.subtitle')}</p>
         </div>
         <button
