@@ -146,6 +146,9 @@ function RackCanvas() {
   } | null>(null)
   const [askU, setAskU] = useState('1')
   const [askPorts, setAskPorts] = useState('24')
+  // #1804: ancho del montaje. El rack son 12 columnas; media balda son 6 y un
+  // tercio son 4, para meter dos o tres equipos en el mismo U.
+  const [askWidth, setAskWidth] = useState<'full' | 'half' | 'third'>('full')
 
   // Dirty tracking (todo lo que Save debe persistir).
   const [newMountIds, setNewMountIds] = useState<Set<string>>(new Set())
@@ -660,6 +663,7 @@ function RackCanvas() {
         dropRel,
       })
       setAskU(String(defU))
+      setAskWidth('full')
     },
     [activeRackId, working.racks, rackById, working.profiles, t],
   )
@@ -677,6 +681,7 @@ function RackCanvas() {
       setMountAsk({ rackId: rid!, deviceType: '', label: '', faceplateId, defaultU: plate.uHeight, isPatch, dropRel })
       setAskU(String(plate.uHeight))
       setAskPorts(faceplateId === 'patch-panel-12p' ? '12' : faceplateId === 'patch-panel-48p' ? '48' : '24')
+      setAskWidth('full')
     },
     [activeRackId, working.racks, rackById, t],
   )
@@ -696,7 +701,9 @@ function RackCanvas() {
       uHeight = getFaceplate(faceplateId)?.uHeight ?? uHeight
     }
     const plate = getFaceplate(faceplateId)
-    const colSpan = plate?.colSpan ?? 12
+    // #1804: un panel de parcheo manda su ancho de plantilla; el resto usa el
+    // que eligio el usuario (completo, media balda o un tercio).
+    const colSpan = ask.isPatch ? (plate?.colSpan ?? 12) : askWidth === 'half' ? 6 : askWidth === 'third' ? 4 : 12
     // Coloca donde se soltó (snap al hueco libre más cercano a ese punto);
     // sin punto de drop, el primer hueco libre desde abajo.
     let dropU = 1
@@ -713,7 +720,7 @@ function RackCanvas() {
     }
     if (ask.mac) {
       const existing = working.profiles.get(ask.mac)
-      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id) || existing.u_height !== uHeight)) {
+      if (plate && (!existing || (existing.ports.length === 0 && !existing.faceplate_id) || existing.u_height !== uHeight || existing.col_span !== colSpan)) {
         const prof: ProfileDTO = {
           mac: ask.mac,
           faceplate_id: plate.id,
@@ -740,7 +747,7 @@ function RackCanvas() {
       label: ask.label,
     })
     setMountAsk(null)
-  }, [mountAsk, askU, askPorts, rackById, footprintsOfRack, working.profiles, mountAt, t])
+  }, [mountAsk, askU, askPorts, askWidth, rackById, footprintsOfRack, working.profiles, mountAt, t])
 
   // Los routers de flota traen sus bocas reales del poller (extras.ethPorts).
   const mountRouter = useCallback(
@@ -1384,6 +1391,29 @@ function RackCanvas() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {!mountAsk?.isPatch && (
+              <div className="flex flex-col gap-1.5">
+                <Label>{t('rack.askWidth')}</Label>
+                <div className="flex gap-1">
+                  {(['full', 'half', 'third'] as const).map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      aria-pressed={askWidth === w}
+                      onClick={() => setAskWidth(w)}
+                      className={
+                        'inline-flex h-8 flex-1 items-center justify-center rounded-lg border px-2 text-xs font-medium transition-colors ' +
+                        (askWidth === w
+                          ? 'border-accent bg-accent/10 text-text-primary'
+                          : 'border-border bg-surface text-text-muted hover:bg-hover')
+                      }
+                    >
+                      {t(w === 'full' ? 'rack.widthFull' : w === 'half' ? 'rack.widthHalf' : 'rack.widthThird')}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             <div className="flex flex-col gap-1.5">
