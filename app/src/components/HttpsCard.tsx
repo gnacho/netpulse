@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
-import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink, RefreshCw, Send, KeyRound } from 'lucide-react'
+import { Loader2, Check, Lock, Download, Copy, ShieldCheck, TriangleAlert, ExternalLink, RefreshCw, Send, KeyRound, Settings2 } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { InfoTip } from '@/components/InfoTip'
 
 // FORK: Settings > HTTPS (server: internal/httpapi/https_settings.go).
@@ -67,6 +68,13 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
   const [certMode, setCertMode] = useState<'ca' | 'custom'>('ca')
   const [certDraft, setCertDraft] = useState('')
   const [keyDraft, setKeyDraft] = useState('')
+  // #1807: las opciones del certificado viven en un dialogo, como las
+  // integraciones (#968). La card solo resume el origen actual.
+  const [certOpen, setCertOpen] = useState(false)
+  const [certPassword, setCertPassword] = useState('')
+  // #1807: segundo chip, para lo que no es el certificado: re-emitir la
+  // conexion a la flota y lo que el HTTP plano puede seguir haciendo.
+  const [extraOpen, setExtraOpen] = useState(false)
   const confirming = useRef(false)
   const changeRef = useRef(change)
   changeRef.current = change
@@ -124,8 +132,10 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
     })()
   }, [params, setParams, load, onSaved, t])
 
-  const apply = useCallback(async () => {
-    if (!change) return
+  // #1807: un solo guardado para la card y para el dialogo del certificado.
+  // El cambio y la contrasena llegan como argumentos porque el dialogo tiene
+  // su propio campo, en vez de compartir el estado de la card.
+  const applyChange = useCallback(async (ch: Change, pw: string, force = false) => {
     setBusy(true)
     setError('')
     setBlocked(null)
@@ -133,7 +143,7 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       const r = await fetch('/api/settings/https', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...change, password }),
+        body: JSON.stringify({ ...ch, force: force || ch.force, password: pw }),
       })
       const d = await r.json().catch(() => ({}))
       if (r.status === 409 && (d.error === 'agents_on_http' || d.error === 'agents_on_https')) {
@@ -155,6 +165,8 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       setConfirmUrl(d.confirmUrl ?? '')
       setChange(null)
       setPassword('')
+      setCertPassword('')
+      setCertOpen(false)
       onSaved()
       await load()
     } catch {
@@ -162,7 +174,7 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
     } finally {
       setBusy(false)
     }
-  }, [change, password, load, onSaved, t])
+  }, [load, onSaved, t])
 
   // Re-checks the certificate against the server's addresses and names now,
   // rather than at the next periodic check. Same root: nothing to reinstall.
@@ -223,6 +235,70 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
     'w-full rounded-md border border-border bg-elevated px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none'
   const onHttps = window.location.protocol === 'https:'
 
+  // #1807: bloque de confirmacion compartido. El cambio llega por argumento
+  // porque lo inician sitios distintos (la card y los dos dialogos).
+  const applyBlock = (ch: Change) => (
+    <div className="rounded-lg border border-border p-3">
+      <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+        {t('settings.https.password')}
+      </label>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete="current-password"
+        className={inputCls}
+      />
+      {blocked && (
+        <div className="mt-2 text-[11px] text-warn">
+          <p>
+            {t(blocked.kind === 'http' ? 'settings.https.blocked' : 'settings.https.blockedOff', {
+              agents: blocked.agents.map((a) => a.slug).join(', '),
+            })}
+          </p>
+          <button
+            type="button"
+            className="mt-1 font-semibold underline"
+            onClick={() => void applyChange({ ...ch, force: true }, password)}
+          >
+            {t('settings.https.switchAnyway')}
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => void applyChange(ch, password)}
+          disabled={busy || !password}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
+          {t('settings.https.apply')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setChange(null)
+            setPassword('')
+            setError('')
+            setBlocked(null)
+          }}
+          className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-[13px] text-text-primary hover:bg-hover"
+        >
+          {t('common.cancel')}
+        </button>
+      </div>
+    </div>
+  )
+
+  // #1807: lo que se envia al guardar desde el dialogo. Volver a la CA privada
+  // se expresa con cert y key vacios, igual que hacia la card.
+  const certChange: Change = {
+    cert: certMode === 'custom' ? certDraft.trim() : '',
+    key: certMode === 'custom' ? keyDraft.trim() : '',
+  }
+
   return (
     <div className="space-y-4">
       {/* Activar HTTPS + puerto del listener (#978) en UNA fila (#995): el
@@ -231,14 +307,14 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
-            {t('settings.https.enabled', { port: st.port })}
+            {t('settings.https.enableLabel')}
             <InfoTip text={t('settings.https.enabledHint')} />
           </span>
           <Switch
             checked={change?.enabled ?? st.enabled}
             disabled={st.enabledLocked || busy}
             onCheckedChange={(v) => setChange(v === st.enabled ? null : { enabled: v })}
-            aria-label={t('settings.https.enabled', { port: st.port })}
+            aria-label={t('settings.https.title')}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -268,260 +344,60 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
           </button>
         </div>
       </div>
-      {(st.enabledLocked || st.portLocked) && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
       {st.error && <p className="text-xs text-danger">{st.error}</p>}
 
-      {/* #1756: where the certificate comes from */}
-      <div className="rounded-lg border border-border bg-elevated p-3">
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+      {/* #1807: dos chips, uno por cada dialogo de configuracion. La card
+          solo resume el estado; las opciones viven en sus ventanas. */}
+      <div className="grid gap-2 sm:grid-cols-2">
+      {/* #1807: la card solo resume el origen del certificado. Todo lo demas
+          (origen, rutas, raiz, renovacion y pin) vive en el dialogo que abre
+          este engranaje, igual que los managers de integraciones (#968). */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-elevated p-3">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-            <KeyRound className="h-4 w-4 text-accent" strokeWidth={2} />
+            <KeyRound className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} />
             {t('settings.https.certTitle')}
             <InfoTip text={t('settings.https.certHint')} />
           </div>
-          <div className="flex gap-1">
-            {(['ca', 'custom'] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={certMode === mode}
-                onClick={() => setCertMode(mode)}
-                disabled={busy}
-                className={
-                  'inline-flex h-7 items-center rounded-lg border px-2 text-[11px] font-medium disabled:opacity-50 ' +
-                  (certMode === mode
-                    ? 'border-accent bg-accent/10 text-text-primary'
-                    : 'border-border bg-surface text-text-muted hover:bg-hover')
-                }
-              >
-                {t(mode === 'ca' ? 'settings.https.certModeCa' : 'settings.https.certModeCustom')}
-              </button>
-            ))}
-          </div>
-        </div>
-        {certMode === 'custom' && (
-          <div className="mt-2 space-y-2">
-            <label className="block text-[11px] text-text-muted">
-              {t('settings.https.certPathLabel')}
-              <input
-                className={`${inputCls} mt-1 w-full font-mono`}
-                value={certDraft}
-                onChange={(e) => setCertDraft(e.target.value)}
-                placeholder="/etc/letsencrypt/live/host/fullchain.pem"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </label>
-            <label className="block text-[11px] text-text-muted">
-              {t('settings.https.keyPathLabel')}
-              <input
-                className={`${inputCls} mt-1 w-full font-mono`}
-                value={keyDraft}
-                onChange={(e) => setKeyDraft(e.target.value)}
-                placeholder="/etc/letsencrypt/live/host/privkey.pem"
-                spellCheck={false}
-                autoComplete="off"
-              />
-            </label>
-            {st.certSource === 'custom' && (
-              <p className="text-[11px] leading-relaxed text-warn">{t('settings.https.certRenewHint')}</p>
-            )}
-          </div>
-        )}
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={busy || (certMode === 'custom' && (!certDraft.trim() || !keyDraft.trim()))}
-            onClick={() =>
-              setChange((c) => ({
-                ...c,
-                cert: certMode === 'custom' ? certDraft.trim() : '',
-                key: certMode === 'custom' ? keyDraft.trim() : '',
-              }))
-            }
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
-          >
-            {t(certMode === 'custom' ? 'settings.https.certApply' : 'settings.https.certUseCa')}
-          </button>
-          <span className="text-[11px] text-text-muted">
+          <p className="mt-0.5 truncate text-[11px] text-text-muted">
             {st.certSource === 'custom'
               ? t('settings.https.certCurrentCustom', { path: st.certPath ?? '' })
               : t('settings.https.certCurrentCa')}
-          </span>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCertOpen(true)}
+          aria-label={t('settings.https.certConfigure')}
+          title={t('settings.https.certConfigure')}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+        </button>
+      </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-elevated p-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+              <Lock className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} />
+              {t('settings.https.extraTitle')}
+            </div>
+            <p className="mt-0.5 truncate text-[11px] text-text-muted">
+              {t(`settings.https.modes.${st.mode}.title`)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExtraOpen(true)}
+            aria-label={t('settings.https.extraConfigure')}
+            title={t('settings.https.extraConfigure')}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+          >
+            <Settings2 className="h-4 w-4" strokeWidth={1.75} />
+          </button>
         </div>
       </div>
 
-      {st.enabled && (
-        <>
-          {/* The root, for devices to install. A certificate from disk has
-              no root of ours to hand out (#1756). */}
-          {st.certSource !== 'custom' && (
-          <div className="rounded-lg border border-border bg-elevated p-3">
-            <div className="mb-1 flex items-center gap-2 text-sm font-medium text-text-primary">
-              <ShieldCheck className="h-4 w-4 text-accent" strokeWidth={2} />
-              {t('settings.https.rootTitle')}
-              <InfoTip text={t('settings.https.rootHint')} />
-            </div>
-            <div className="mb-2 break-all font-mono text-[11px] text-text-primary">{st.rootSha256}</div>
-            <div className="flex flex-wrap gap-2">
-              <a
-                href="/netpulse-ca.crt"
-                download
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover"
-              >
-                <Download className="h-3.5 w-3.5" /> netpulse-ca.crt
-              </a>
-              <a
-                href="/netpulse-ca.pem"
-                download
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover"
-              >
-                <Download className="h-3.5 w-3.5" /> netpulse-ca.pem
-              </a>
-            </div>
-            {st.names && st.names.length > 0 && (
-              <p className="mt-2 text-[11px] text-text-muted">
-                {t('settings.https.names', {
-                  names: st.names.join(', '),
-                  until: st.validUntil ? new Date(st.validUntil).toLocaleDateString() : '',
-                })}
-              </p>
-            )}
-            {st.uncovered && st.uncovered.length > 0 && (
-              <p className="mt-2 text-[11px] leading-relaxed text-warn">
-                {t('settings.https.uncovered', { names: st.uncovered.join(', ') })}
-              </p>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void renew()}
-                disabled={renewing}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
-              >
-                {renewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                {t('settings.https.renew')}
-              </button>
-              <InfoTip text={t('settings.https.renewHint')} />
-              {renewNote && <span className="text-[11px] text-text-muted">{renewNote}</span>}
-            </div>
-          </div>
-          )}
-
-          {/* The pin for agents */}
-          <div>
-            <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-              {t('settings.https.agentPin')}
-              <InfoTip text={t('settings.https.agentPinHint', { port: st.port })} />
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <code className="flex-1 break-all rounded-md border border-border bg-elevated px-2 py-1 font-mono text-[11px] text-text-primary">
-                {st.fingerprint}
-              </code>
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(st.fingerprint ?? '')
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 1500)
-                }}
-                className="rounded-md border border-border p-1.5 text-text-muted hover:text-text-primary"
-                title={t('settings.https.copy')}
-              >
-                {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* #1294: re-emitir el env de conexión a la flota tras un cambio
-              de TLS/HTTPS/puerto: sin esto los agentes instalados antes del
-              cambio siguen empujando al scheme viejo para siempre (#1289). */}
-          <div>
-            <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-              {t('settings.https.reemitTitle')}
-              <InfoTip text={t('settings.https.reemitHint')} />
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void reemit()}
-                disabled={reemitting}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
-              >
-                {reemitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                {t('settings.https.reemit')}
-              </button>
-              {reemitError && <span className="text-[11px] text-danger">{reemitError}</span>}
-            </div>
-            {reemitResults && (
-              <ul className="mt-2 space-y-0.5">
-                {reemitResults.map((it) => (
-                  <li key={it.slug} className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className={it.status === 'reemitted' ? 'text-ok' : it.status === 'ssh_failed' ? 'text-danger' : 'text-text-muted'}>
-                      {it.status === 'reemitted' ? '✓' : it.status === 'ssh_failed' ? '✗' : '–'}
-                    </span>
-                    <span className="text-text-primary">{it.slug}</span>
-                    <span className="text-text-muted">
-                      {t(`settings.https.reemitStatus.${it.status}`, it.status)}
-                      {it.error ? ` · ${it.error}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* What plain HTTP may still do */}
-          <div>
-            <div className="text-sm font-medium text-text-primary">{t('settings.https.modeTitle')}</div>
-            <div className="mt-2 space-y-2">
-              {MODES.map((m) => (
-                <label
-                  key={m}
-                  className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 ${
-                    (change?.mode ?? st.mode) === m ? 'border-accent bg-accent/[0.04]' : 'border-border'
-                  } ${st.modeLocked ? 'cursor-not-allowed opacity-60' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="https-mode"
-                    className="mt-0.5"
-                    checked={(change?.mode ?? st.mode) === m}
-                    disabled={st.modeLocked || busy}
-                    onChange={() => setChange(m === st.mode ? null : { mode: m })}
-                  />
-                  <span>
-                    <span className="block text-xs font-semibold text-text-primary">
-                      {t(`settings.https.modes.${m}.title`)}
-                      {st.mode === m && <span className="ml-1.5 font-normal text-ok">{t('settings.https.current')}</span>}
-                    </span>
-                    <span className="block text-[11px] leading-relaxed text-text-secondary">
-                      {t(`settings.https.modes.${m}.hint`)}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            {st.modeLocked && <p className="mt-1 text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
-          </div>
-
-          {/* Agents that would stop reporting */}
-          {(st.agentsOnHttp ?? []).length > 0 && (
-            <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-[11px] text-warn">
-              <div className="mb-1 flex items-center gap-1.5 font-semibold">
-                <TriangleAlert className="h-3.5 w-3.5" /> {t('settings.https.agentsOnHttp')}
-              </div>
-              <ul className="space-y-0.5">
-                {(st.agentsOnHttp ?? []).map((a) => (
-                  <li key={a.slug}>
-                    {a.slug} · {new Date(a.lastSeen).toLocaleString()}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
-      )}
 
       {/* A staged change waiting for confirmation over HTTPS */}
       {(confirmUrl || st.pending) && (
@@ -544,62 +420,348 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
         </div>
       )}
 
-      {/* Password, for any change */}
-      {change && (
-        <div className="rounded-lg border border-border p-3">
-          <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
-            {t('settings.https.password')}
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            className={inputCls}
-          />
-          {blocked && (
-            <div className="mt-2 text-[11px] text-warn">
-              <p>
-                {t(blocked.kind === 'http' ? 'settings.https.blocked' : 'settings.https.blockedOff', {
-                  agents: blocked.agents.map((a) => a.slug).join(', '),
-                })}
-              </p>
-              <button
-                type="button"
-                className="mt-1 font-semibold underline"
-                onClick={() => setChange((c) => (c ? { ...c, force: true } : c))}
-              >
-                {t('settings.https.switchAnyway')}
-              </button>
-            </div>
-          )}
-          {error && <p className="mt-2 text-xs text-danger">{error}</p>}
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={() => void apply()}
-              disabled={busy || !password}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      {/* La confirmacion con contrasena se pinta donde se inicio el cambio:
+          en la card para HTTPS y puerto, en el dialogo para modos y certificado. */}
+      {change && !change.mode && applyBlock(change)}
+      {!change && error && <p className="text-xs text-danger">{error}</p>}
+
+
+      {/* #1807: opciones adicionales, fuera del certificado: re-emitir la
+          conexion de la flota y lo que el HTTP plano puede seguir haciendo. */}
+      <Dialog
+        open={extraOpen}
+        onOpenChange={(o) => {
+          setExtraOpen(o)
+          if (!o) {
+            setPassword('')
+            setError('')
+            setBlocked(null)
+          }
+        }}
+      >
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-h-[88vh] overflow-y-auto sm:max-w-[620px]"
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <Lock className="h-4 w-4 text-accent" strokeWidth={2} />
+              {t('settings.https.extraTitle')}
+            </DialogTitle>
+          </DialogHeader>
+          {st.enabled ? (
+            <div className="space-y-4">
+        {/* #1294: re-emitir el env de conexión a la flota tras un cambio
+          de TLS/HTTPS/puerto: sin esto los agentes instalados antes del
+          cambio siguen empujando al scheme viejo para siempre (#1289). */}
+      <div>
+        <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+          {t('settings.https.reemitTitle')}
+          <InfoTip text={t('settings.https.reemitHint')} />
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void reemit()}
+            disabled={reemitting}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+          >
+            {reemitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {t('settings.https.reemit')}
+          </button>
+          {reemitError && <span className="text-[11px] text-danger">{reemitError}</span>}
+        </div>
+        {reemitResults && (
+          <ul className="mt-2 space-y-0.5">
+            {reemitResults.map((it) => (
+              <li key={it.slug} className="flex items-center gap-2 font-mono text-[11px]">
+                <span className={it.status === 'reemitted' ? 'text-ok' : it.status === 'ssh_failed' ? 'text-danger' : 'text-text-muted'}>
+                  {it.status === 'reemitted' ? '✓' : it.status === 'ssh_failed' ? '✗' : '–'}
+                </span>
+                <span className="text-text-primary">{it.slug}</span>
+                <span className="text-text-muted">
+                  {t(`settings.https.reemitStatus.${it.status}`, it.status)}
+                  {it.error ? ` · ${it.error}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* What plain HTTP may still do */}
+      <div>
+        <div className="text-sm font-medium text-text-primary">{t('settings.https.modeTitle')}</div>
+        <div className="mt-2 space-y-2">
+          {MODES.map((m) => (
+            <label
+              key={m}
+              className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 ${
+                (change?.mode ?? st.mode) === m ? 'border-accent bg-accent/[0.04]' : 'border-border'
+              } ${st.modeLocked ? 'cursor-not-allowed opacity-60' : ''}`}
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
-              {t('settings.https.apply')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setChange(null)
-                setPassword('')
-                setError('')
-                setBlocked(null)
-              }}
-              className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-[13px] text-text-primary hover:bg-hover"
-            >
-              {t('common.cancel')}
-            </button>
+              <input
+                type="radio"
+                name="https-mode"
+                className="mt-0.5"
+                checked={(change?.mode ?? st.mode) === m}
+                disabled={st.modeLocked || busy}
+                onChange={() => setChange(m === st.mode ? null : { mode: m })}
+              />
+              <span>
+                <span className="block text-xs font-semibold text-text-primary">
+                  {t(`settings.https.modes.${m}.title`)}
+                  {st.mode === m && <span className="ml-1.5 font-normal text-ok">{t('settings.https.current')}</span>}
+                </span>
+                <span className="block text-[11px] leading-relaxed text-text-secondary">
+                  {t(`settings.https.modes.${m}.hint`)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Agents that would stop reporting */}
+      {(st.agentsOnHttp ?? []).length > 0 && (
+        <div className="rounded-lg border border-warn/30 bg-warn/10 p-3 text-[11px] text-warn">
+          <div className="mb-1 flex items-center gap-1.5 font-semibold">
+            <TriangleAlert className="h-3.5 w-3.5" /> {t('settings.https.agentsOnHttp')}
           </div>
+          <ul className="space-y-0.5">
+            {(st.agentsOnHttp ?? []).map((a) => (
+              <li key={a.slug}>
+                {a.slug} · {new Date(a.lastSeen).toLocaleString()}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-      {!change && error && <p className="text-xs text-danger">{error}</p>}
+              {change?.mode && applyBlock(change)}
+            </div>
+          ) : (
+            <p className="text-[11px] leading-relaxed text-text-muted">{t('settings.https.extraDisabled')}</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* #1807: opciones del certificado en un dialogo, como las integraciones
+          (#968). El cambio se confirma aqui con la contrasena, sin bajar a la
+          card. */}
+      <Dialog
+        open={certOpen}
+        onOpenChange={(o) => {
+          setCertOpen(o)
+          if (!o) {
+            setCertPassword('')
+            setError('')
+            setBlocked(null)
+          }
+        }}
+      >
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-h-[88vh] overflow-y-auto sm:max-w-[620px]"
+          aria-describedby={undefined}
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <KeyRound className="h-4 w-4 text-accent" strokeWidth={2} />
+              {t('settings.https.certTitle')}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Origen: CA privada del servidor o un par que ya tengamos */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] leading-relaxed text-text-muted">{t('settings.https.certHint')}</span>
+              <div className="flex gap-1">
+                {(['ca', 'custom'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={certMode === mode}
+                    onClick={() => setCertMode(mode)}
+                    disabled={busy}
+                    className={
+                      'inline-flex h-7 items-center rounded-lg border px-2 text-[11px] font-medium disabled:opacity-50 ' +
+                      (certMode === mode
+                        ? 'border-accent bg-accent/10 text-text-primary'
+                        : 'border-border bg-surface text-text-muted hover:bg-hover')
+                    }
+                  >
+                    {t(mode === 'ca' ? 'settings.https.certModeCa' : 'settings.https.certModeCustom')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {certMode === 'custom' && (
+              <div className="space-y-2">
+                <label className="block text-[11px] text-text-muted">
+                  {t('settings.https.certPathLabel')}
+                  <input
+                    className={`${inputCls} mt-1 w-full font-mono`}
+                    value={certDraft}
+                    onChange={(e) => setCertDraft(e.target.value)}
+                    placeholder="/etc/letsencrypt/live/host/fullchain.pem"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="block text-[11px] text-text-muted">
+                  {t('settings.https.keyPathLabel')}
+                  <input
+                    className={`${inputCls} mt-1 w-full font-mono`}
+                    value={keyDraft}
+                    onChange={(e) => setKeyDraft(e.target.value)}
+                    placeholder="/etc/letsencrypt/live/host/privkey.pem"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                </label>
+                {st.certSource === 'custom' && (
+                  <p className="text-[11px] leading-relaxed text-warn">{t('settings.https.certRenewHint')}</p>
+                )}
+              </div>
+            )}
+
+            {/* Aplicar, con la contrasena del admin */}
+            <div className="rounded-lg border border-border p-3">
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-text-muted">
+                {t('settings.https.password')}
+              </label>
+              <input
+                type="password"
+                value={certPassword}
+                onChange={(e) => setCertPassword(e.target.value)}
+                autoComplete="current-password"
+                className={inputCls}
+              />
+              {blocked && (
+                <div className="mt-2 text-[11px] text-warn">
+                  <p>
+                    {t(blocked.kind === 'http' ? 'settings.https.blocked' : 'settings.https.blockedOff', {
+                      agents: blocked.agents.map((a) => a.slug).join(', '),
+                    })}
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-1 font-semibold underline"
+                    onClick={() => void applyChange(certChange, certPassword, true)}
+                  >
+                    {t('settings.https.switchAnyway')}
+                  </button>
+                </div>
+              )}
+              {error && <p className="mt-2 text-xs text-danger">{error}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void applyChange(certChange, certPassword)}
+                  disabled={
+                    busy ||
+                    !certPassword ||
+                    (certMode === 'custom' && (!certDraft.trim() || !keyDraft.trim()))
+                  }
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-accent px-3 text-[13px] font-semibold text-canvas hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={2.5} />}
+                  {t(certMode === 'custom' ? 'settings.https.certApply' : 'settings.https.certUseCa')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCertOpen(false)}
+                  className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-[13px] text-text-primary hover:bg-hover"
+                >
+                  {t('common.cancel')}
+                </button>
+              </div>
+            </div>
+
+            {/* La raiz, para instalarla en los equipos. Un certificado de
+                disco no tiene raiz nuestra que repartir (#1756). */}
+            {st.enabled && st.certSource !== 'custom' && (
+              <div className="rounded-lg border border-border bg-elevated p-3">
+                <div className="mb-1 flex items-center gap-2 text-sm font-medium text-text-primary">
+                  <ShieldCheck className="h-4 w-4 text-accent" strokeWidth={2} />
+                  {t('settings.https.rootTitle')}
+                  <InfoTip text={t('settings.https.rootHint')} />
+                </div>
+                <div className="mb-2 break-all font-mono text-[11px] text-text-primary">{st.rootSha256}</div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="/netpulse-ca.crt"
+                    download
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover"
+                  >
+                    <Download className="h-3.5 w-3.5" /> netpulse-ca.crt
+                  </a>
+                  <a
+                    href="/netpulse-ca.pem"
+                    download
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover"
+                  >
+                    <Download className="h-3.5 w-3.5" /> netpulse-ca.pem
+                  </a>
+                </div>
+                {st.names && st.names.length > 0 && (
+                  <p className="mt-2 text-[11px] text-text-muted">
+                    {t('settings.https.names', {
+                      names: st.names.join(', '),
+                      until: st.validUntil ? new Date(st.validUntil).toLocaleDateString() : '',
+                    })}
+                  </p>
+                )}
+                {st.uncovered && st.uncovered.length > 0 && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-warn">
+                    {t('settings.https.uncovered', { names: st.uncovered.join(', ') })}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void renew()}
+                    disabled={renewing}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 text-xs font-medium text-text-primary hover:bg-hover disabled:opacity-50"
+                  >
+                    {renewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    {t('settings.https.renew')}
+                  </button>
+                  <InfoTip text={t('settings.https.renewHint')} />
+                  {renewNote && <span className="text-[11px] text-text-muted">{renewNote}</span>}
+                </div>
+              </div>
+            )}
+
+            {/* El pin que fijan los agentes y NetGrip */}
+            {st.enabled && (
+              <div>
+                <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+                  {t('settings.https.agentPin')}
+                  <InfoTip text={t('settings.https.agentPinHint', { port: st.port })} />
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="flex-1 break-all rounded-md border border-border bg-elevated px-2 py-1 font-mono text-[11px] text-text-primary">
+                    {st.fingerprint}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(st.fingerprint ?? '')
+                      setCopied(true)
+                      setTimeout(() => setCopied(false), 1500)
+                    }}
+                    className="rounded-md border border-border p-1.5 text-text-muted hover:text-text-primary"
+                    title={t('settings.https.copy')}
+                  >
+                    {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
