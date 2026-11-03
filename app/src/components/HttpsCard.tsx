@@ -307,14 +307,14 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
-            {t('settings.https.enabled', { port: st.port })}
+            {t('settings.https.enableLabel')}
             <InfoTip text={t('settings.https.enabledHint')} />
           </span>
           <Switch
             checked={change?.enabled ?? st.enabled}
             disabled={st.enabledLocked || busy}
             onCheckedChange={(v) => setChange(v === st.enabled ? null : { enabled: v })}
-            aria-label={t('settings.https.enabled', { port: st.port })}
+            aria-label={t('settings.https.title')}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -344,7 +344,6 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
           </button>
         </div>
       </div>
-      {(st.enabledLocked || st.portLocked) && <p className="text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
       {st.error && <p className="text-xs text-danger">{st.error}</p>}
 
       {/* #1807: dos chips, uno por cada dialogo de configuracion. La card
@@ -521,7 +520,6 @@ export default function HttpsCard({ onSaved }: { onSaved: () => void }) {
             </label>
           ))}
         </div>
-        {st.modeLocked && <p className="mt-1 text-[11px] text-text-muted">{t('settings.https.locked')}</p>}
       </div>
 
       {/* Agents that would stop reporting */}
