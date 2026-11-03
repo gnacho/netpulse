@@ -23,6 +23,8 @@ import {
   Router as RouterIcon,
   Send,
   Server,
+  ShieldCheck,
+  Blocks,
   Wifi,
 } from 'lucide-react'
 import {
@@ -66,6 +68,8 @@ const FLOWS = [
   { key: 'ntfy', icon: BellRing },
   { key: 'telegram', icon: Send },
   { key: 'mcp', icon: Bot },
+  { key: 'integrations', icon: Blocks },
+  { key: 'certificates', icon: ShieldCheck },
 ] as const
 
 export default function Help() {

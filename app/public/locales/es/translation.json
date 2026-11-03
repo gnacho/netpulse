@@ -2962,6 +2962,31 @@
           "En tu asistente, configura un servidor MCP remoto con la URL http://IP:puerto/mcp y el token como Bearer."
         ],
         "tip": "Las herramientas son de solo lectura y cada llamada queda registrada en el journal del servidor. Revoca el token cuando dejes de usarlo."
+      },
+      "integrations": {
+        "title": "Conectar integraciones",
+        "subtitle": "Unidades que no se pueden sondear por SSH",
+        "intro": "Un pusher es un binario pequeño que corre donde está la unidad y manda sus datos a NetPulse. Cada fabricante es su propio ejecutable, así que solo descargas el código del hardware que tienes.",
+        "steps": [
+          "Abre ⟦Ajustes⟧ y busca el grupo ⟦Complementos⟧.",
+          "Activa ⟦Agentes externos⟧ y pulsa su engranaje para abrir el gestor de integraciones.",
+          "Elige el fabricante en el catálogo: asuswrt, bbox, opnsense, routeros o unifi, entre otros.",
+          "NetPulse despliega el pusher, lo arranca y te deja editar sus ajustes y su token desde la misma ventana.",
+          "Si una unidad ya empujaba sin registro, aparece en ⟦Managed outside NetPulse⟧ con su versión y su último envío: NetPulse no puede arrancarla ni rotarle el token."
+        ]
+      },
+      "certificates": {
+        "title": "Poner tu certificado",
+        "subtitle": "HTTPS con tu certificado o tu CA privada",
+        "intro": "La tarjeta HTTPS de Ajustes acepta un certificado propio o uno emitido por tu CA. El par se valida antes de tocar el listener, así que un certificado roto no tumba la instancia.",
+        "steps": [
+          "Abre ⟦Ajustes⟧ y entra en la tarjeta ⟦HTTPS⟧.",
+          "Elige el origen: ⟦CA privada⟧ o ⟦par propio⟧.",
+          "Indica las rutas del certificado y de la clave, y la contraseña si la clave va cifrada.",
+          "Aplica: NetPulse carga el par y reinicia el listener; si el nuevo no arranca, vuelve al anterior.",
+          "Los agentes fijan la clave de la hoja, así que tras cambiarla hay que re-emparejarlos.",
+          "En ⟦Opciones adicionales⟧ puedes re-emitir los connection strings y decidir qué sigue permitiendo el HTTP plano."
+        ]
       }
     }
   },
