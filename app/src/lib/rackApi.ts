@@ -47,6 +47,8 @@ export interface ProfilePortDTO {
   kind: RackPortKindWire
   x: number
   y: number
+  /** #1804: nombre legible de la boca; el id sigue siendo la clave. */
+  label?: string
 }
 
 export interface ProfileDTO {
