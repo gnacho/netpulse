@@ -2440,7 +2440,7 @@
   },
   "firmwareUpgrades": {
     "title": "Firmware upgrades",
-    "subtitle": "Schedule OpenWrt firmware upgrades and track progress per router.",
+    "subtitle": "Track each unit, start the flash and keep a copy of the configuration before anything changes.",
     "disabledTitle": "Firmware upgrades is hidden",
     "disabledText": "Turn it on in Settings > Services to manage firmware upgrades from here.",
     "currentVersion": "Current version",

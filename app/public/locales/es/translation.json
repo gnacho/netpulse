@@ -2440,7 +2440,7 @@
   },
   "firmwareUpgrades": {
     "title": "Actualizaciones de firmware",
-    "subtitle": "Programa actualizaciones de firmware OpenWrt y sigue el progreso por equipo.",
+    "subtitle": "Sigue el estado de cada equipo, lanza el flasheo y guarda una copia de la configuración antes de tocar nada.",
     "disabledTitle": "Actualizaciones de firmware está oculto",
     "disabledText": "Actívalo en Ajustes > Servicios para gestionar las actualizaciones desde aquí.",
     "currentVersion": "Versión actual",
