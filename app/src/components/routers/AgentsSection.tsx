@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Check, Clipboard, Clock, Loader2, Radar, RotateCcw, Trash2, Unplug } from 'lucide-react'
+import { Check, Clipboard, Clock, Fingerprint, KeyRound, Loader2, Radar, RotateCcw, Trash2, Unplug } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useNetPulse } from '@/data/DataProvider'
 import { useAuth } from '@/data/AuthContext'
@@ -107,6 +107,22 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
   const [removeState, setRemoveState] = useState<ReinstallState>('idle')
   const [removeMsg, setRemoveMsg] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
+  // #1803: las dos acciones de configuracion de la unidad viven aqui, junto al
+  // resto de acciones del agente, en vez de repartidas entre Settings > Flota
+  // (regenerar token) y el detalle de la unidad (olvidar host key).
+  const canRotate =
+    auth?.role === 'admin' && agent !== undefined && agent.kind !== 'netgrip' && agent.kind !== 'external'
+  const [rotateState, setRotateState] = useState<ReinstallState>('idle')
+  const [rotateMsg, setRotateMsg] = useState('')
+  const [confirmRotate, setConfirmRotate] = useState(false)
+  // #1477: olvidar la host key SSH solo aplica a unidades que NetPulse sondea
+  // por SSH; un agente-only o un scraper no hablan SSH con el servidor.
+  const canForgetHostKey =
+    auth?.role === 'admin' && !!router && !router.agentOnly &&
+    (router.type === 'openwrt' || router.type === 'glinet')
+  const [forgetState, setForgetState] = useState<ReinstallState>('idle')
+  const [forgetMsg, setForgetMsg] = useState('')
+  const [confirmForget, setConfirmForget] = useState(false)
 
   const slug = agent?.slug ?? router?.id ?? ''
   // #691: el relativo se calcula con el reloj compartido nowSec (prop), no con
@@ -185,6 +201,62 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
   // el token y olvida su estado). Para equipos dados de baja de la red; si
   // vuelven a conectar con el token viejo recibirán 401 (re-enrolar).
   // Confirmación con diálogo propio (AlertDialog), acción destructiva.
+  // #1803: regenerar el token del agente (antes en Settings > Flota). Pide
+  // hot:true para que el servidor lo aplique por SSH si puede y la unidad no
+  // quede fuera esperando un reinstall.
+  const rotateToken = async () => {
+    if (rotateState === 'busy' || !slug) return
+    setRotateState('busy')
+    setRotateMsg('')
+    try {
+      const res = await fetch('/api/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, hot: true }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const created = (await res.json()) as { token: string; method?: string; manualReason?: string }
+      await copyToClipboard(created.token)
+      setRotateState('done')
+      setRotateMsg(
+        created.method === 'hot'
+          ? t('settings.routers.rotateTokenHotApplied')
+          : created.manualReason === 'netgrip'
+            ? t('settings.routers.rotateTokenNetgrip')
+            : created.manualReason === 'ssh_failed'
+              ? t('settings.routers.rotateTokenManualNeeded')
+              : t('settings.routers.rotateTokenSavedNoAgent'),
+      )
+      await refreshAgents()
+    } catch {
+      setRotateState('fail')
+      setRotateMsg(t('routers.agents.rotateFail'))
+    }
+    window.setTimeout(() => setRotateState('idle'), 8000)
+  }
+
+  // #1477/#1803: olvidar la host key SSH de la unidad (misma llamada que el
+  // re-onboard de #603). Sale del detalle para estar junto a Reinstalar.
+  const forgetHostKey = async () => {
+    if (forgetState === 'busy' || !router) return
+    setForgetState('busy')
+    setForgetMsg('')
+    try {
+      const res = await fetch(`/api/routers/${encodeURIComponent(router.id)}/accept-host-key`, { method: 'POST' })
+      if (res.status === 202 || res.status === 200) {
+        setForgetState('done')
+        setForgetMsg(t('routerDetail.hostKeyForgetDone'))
+      } else {
+        setForgetState('fail')
+        setForgetMsg(t('routerDetail.hostKeyForgetError', { status: res.status }))
+      }
+    } catch {
+      setForgetState('fail')
+      setForgetMsg(t('routerDetail.hostKeyForgetError', { status: 'network' }))
+    }
+    window.setTimeout(() => setForgetState('idle'), 8000)
+  }
+
   const remove = async () => {
     if (removeState === 'busy') return
     setRemoveState('busy')
@@ -477,6 +549,62 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
               el token y olvida el estado. Solo con el agente sin pulso
               (equipo apagado o quitado de la red); si vuelve hay que
               re-enrolarlo. */}
+          {/* #1803: configuracion de la unidad, antes repartida entre
+              Settings > Flota y el detalle de la unidad. */}
+          {canRotate && (
+            <button
+              type="button"
+              onClick={() => setConfirmRotate(true)}
+              disabled={rotateState === 'busy'}
+              title={t('routers.agents.rotateTip')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
+                rotateState === 'done'
+                  ? 'border-ok/40 bg-ok/10 text-ok'
+                  : rotateState === 'fail'
+                    ? 'border-danger/40 bg-danger/10 text-danger'
+                    : 'border-border text-text-secondary hover:border-danger/40 hover:text-danger',
+              )}
+            >
+              {rotateState === 'busy' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+              ) : (
+                <KeyRound className="h-3.5 w-3.5" strokeWidth={1.75} />
+              )}
+              {rotateState === 'busy'
+                ? t('routers.agents.rotating')
+                : rotateState === 'done'
+                  ? t('routers.agents.rotated')
+                  : rotateState === 'fail'
+                    ? t('routers.agents.rotateRetry')
+                    : t('routers.agents.rotate')}
+            </button>
+          )}
+          {canForgetHostKey && (
+            <button
+              type="button"
+              onClick={() => setConfirmForget(true)}
+              disabled={forgetState === 'busy'}
+              title={t('routers.agents.forgetHostKeyTip')}
+              className={cn(
+                'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-semibold transition-colors disabled:opacity-50',
+                forgetState === 'done'
+                  ? 'border-ok/40 bg-ok/10 text-ok'
+                  : forgetState === 'fail'
+                    ? 'border-danger/40 bg-danger/10 text-danger'
+                    : 'border-border text-text-secondary hover:border-danger/40 hover:text-danger',
+              )}
+            >
+              <Fingerprint className={cn('h-3.5 w-3.5', forgetState === 'busy' && 'animate-pulse')} strokeWidth={1.75} />
+              {forgetState === 'busy'
+                ? t('routers.agents.forgetting')
+                : forgetState === 'done'
+                  ? t('routers.agents.forgotten')
+                  : forgetState === 'fail'
+                    ? t('routers.agents.forgetRetry')
+                    : t('routers.agents.forgetHostKey')}
+            </button>
+          )}
           {canRemove && (
             <button
               type="button"
@@ -516,6 +644,16 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
         {removeMsg && removeState !== 'idle' && (
           <p className={cn('mt-1.5 text-caption', removeState === 'fail' ? 'text-danger' : 'text-text-muted')}>
             {removeMsg}
+          </p>
+        )}
+        {rotateMsg && rotateState !== 'idle' && (
+          <p className={cn('mt-1.5 text-caption', rotateState === 'fail' ? 'text-danger' : 'text-text-muted')}>
+            {rotateMsg}
+          </p>
+        )}
+        {forgetMsg && forgetState !== 'idle' && (
+          <p className={cn('mt-1.5 text-caption', forgetState === 'fail' ? 'text-danger' : 'text-text-muted')}>
+            {forgetMsg}
           </p>
         )}
       </td>
@@ -594,6 +732,51 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
               className="bg-danger text-danger-foreground hover:bg-danger/90"
             >
               {t('routers.agents.remove')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* #1803: confirmaciones de las dos acciones de configuracion. */}
+      <AlertDialog open={confirmRotate} onOpenChange={setConfirmRotate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.routers.rotateTokenTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('settings.routers.rotateTokenCaption', { name: router?.name ?? slug })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('settings.users.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmRotate(false)
+                void rotateToken()
+              }}
+              className="bg-danger text-danger-foreground hover:bg-danger/90"
+            >
+              {t('settings.routers.regenerateToken')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={confirmForget} onOpenChange={setConfirmForget}>
+        <AlertDialogContent className="border-danger/40 bg-surface">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('routerDetail.hostKeyForgetDialogTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('routerDetail.hostKeyForgetDialogDesc', { name: router?.name ?? slug })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmForget(false)
+                void forgetHostKey()
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {t('routerDetail.hostKeyForgetConfirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

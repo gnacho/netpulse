@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Changed
 
+- The per-unit actions live together now (#1803). **Regenerate token** moved from Settings > Fleet to the Actions column of the agents card, and **Forget host key** moved from the unit detail to the same card, so a unit's configuration is not split across three screens. Both keep their confirmation dialog and only appear where they apply: the token for netpulse agents, the host key for units NetPulse polls over SSH.
+- The settings group goes back to its Integrations label and the section that hosts the vendor integrations manager is the one called Complementos (Add-ons in English), which is how the code comment already described it (#1784).
 - The rack picker names its groups the way the rest of the UI does (#1804): **Fleet units** instead of Routers and **Clients** instead of Devices.
 - A unit can be mounted at full width, half width or a third of the rack (#1804). Two or three devices now fit on the same shelf: the placement dialog asks for the width, and the slot search already worked in columns, so the free-space check and the drag respect it. Patch panels keep the width of their template.
 - A rack is created with any height you type instead of picking from six presets (#1804). Home-built racks are rarely 6, 9, 12, 18, 24 or 42 U; the field accepts 1 to 45 and keeps the same validation as before.
