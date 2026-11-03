@@ -227,6 +227,51 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 		writeJSON(w, http.StatusOK, firmware.CheckOwut(s.pool, host))
 	})))
 
+	// #1769: añadir a attendedsysupgrade.owut.remove los paquetes que ASU
+	// reporta como missing. Es una acción explícita del admin, con
+	// confirmación en la UI: abrir la tarjeta o lanzar el check no escribe
+	// nada en el router.
+	mux.Handle("POST /api/firmware-upgrades/{routerId}/owut-exclusions", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("routerId")
+		if s.pool == nil {
+			writeError(w, http.StatusServiceUnavailable, "no_ssh",
+				"SSH no configurado (modo demo o sin clave)")
+			return
+		}
+		upgradeable := false
+		for _, rt := range routerstore.ListRouters(s.db.DB) {
+			if rt.ID == id && agentUpgradeable(rt.Type) {
+				upgradeable = true
+				break
+			}
+		}
+		if !upgradeable {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		host := s.hostOfRouter(id)
+		if host == "" {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		var body struct {
+			Packages []string `json:"packages"`
+		}
+		if st := readJSONBody(w, r, &body); st != 0 {
+			return
+		}
+		list, err := firmware.AddOwutRemovePkgs(s.pool, host, body.Packages)
+		if errors.Is(err, firmware.ErrOwutInvalidPkg) {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"removeConfigured": list})
+	})))
+
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/target", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("routerId")
 		var body struct {
