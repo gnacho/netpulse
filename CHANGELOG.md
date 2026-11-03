@@ -10,6 +10,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Changed
 
 - The per-unit actions live together now (#1803). **Regenerate token** moved from Settings > Fleet to the Actions column of the agents card, and **Forget host key** moved from the unit detail to the same card, so a unit's configuration is not split across three screens. Both keep their confirmation dialog and only appear where they apply: the token for netpulse agents, the host key for units NetPulse polls over SSH.
+- The settings group goes back to its Integrations label and the section that hosts the vendor integrations manager is the one called Complementos (Add-ons in English), which is how the code comment already described it (#1784).
 
 ## [2.50.0] - 2026-10-31
 
