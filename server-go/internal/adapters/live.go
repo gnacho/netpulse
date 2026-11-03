@@ -3592,7 +3592,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
 			}
 		}
-		if randomMACs[mac] {
+		// #1818: el bit localmente administrado se calcula aquí. La lista del
+		// agente es una foto del escaneo de discovery, así que una MAC
+		// efímera (el NMRP de Netgear al reiniciar para actualizar firmware)
+		// vive en el FDB unos segundos y nunca entra en ella.
+		if randomMACs[mac] || isLocallyAdministeredMAC(mac) {
 			d.RandomMAC = true
 		}
 		// mDNS-based type refinement (#338): if the hostname/DHCP classification
