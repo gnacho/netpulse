@@ -508,6 +508,18 @@ fi
 chmod 600 "$ENV_FILE.tmp"
 # Swap atómico: el proceso vivo sigue leyendo el archivo íntegro.
 mv -f "$ENV_FILE.tmp" "$ENV_FILE"
+# #1816: el init del paquete lee UCI primero y solo cae al env si el token de
+# UCI está vacío. Rotar solo el env dejaba el token viejo en
+# /etc/config/netpulse-agent y el agente respondía 401 para siempre. Se
+# sincronizan también server y slug: si UCI apunta a un servidor antiguo, el
+# token nuevo tampoco sirve.
+UCI_CFG=/etc/config/netpulse-agent
+if [ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1; then
+	uci -q set netpulse-agent.main.server="$SERVER" || true
+	uci -q set netpulse-agent.main.slug="$SLUG" || true
+	uci -q set netpulse-agent.main.token=` + token + ` || true
+	uci -q commit netpulse-agent || true
+fi
 # procd rearma solito por el file (procd_set_param file), pero por
 # determinismo reiniciamos el servicio explícitamente.
 [ -x "$INIT" ] && "$INIT" restart >/dev/null 2>&1 || true

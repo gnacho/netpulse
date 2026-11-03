@@ -655,3 +655,31 @@ func TestEnvScriptDoesNotInstallPackage(t *testing.T) {
 		t.Fatal("el script ligero no debe instalar el paquete")
 	}
 }
+
+// #1816: la rotación en caliente del token escribía solo el env, y el init
+// del paquete lee UCI primero. El agente seguía con el token viejo y devolvía
+// 401 para siempre. El push debe dejar las dos copias coherentes.
+func TestTokenPushScriptSyncsUCIConfig(t *testing.T) {
+	token := strings.Repeat("ab", 32)
+	s := reinstall.TokenPushScript("test-router", token)
+	for _, want := range []string{
+		`UCI_CFG=/etc/config/netpulse-agent`,
+		`[ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1`,
+		`uci -q set netpulse-agent.main.server="$SERVER"`,
+		`uci -q set netpulse-agent.main.slug="$SLUG"`,
+		`uci -q set netpulse-agent.main.token=` + token,
+		`uci -q commit netpulse-agent`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("TokenPushScript no contiene %q", want)
+		}
+	}
+	// El bloque UCI va antes del restart para que el servicio arranque ya con
+	// el token nuevo en las dos fuentes.
+	if strings.Index(s, "uci -q commit netpulse-agent") > strings.Index(s, `"$INIT" restart`) {
+		t.Error("el bloque UCI debe ejecutarse antes del restart")
+	}
+	if err := exec.Command("sh", "-n", "-c", s).Run(); err != nil {
+		t.Fatalf("TokenPushScript no es shell válido: %v", err)
+	}
+}
