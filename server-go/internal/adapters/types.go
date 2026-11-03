@@ -180,9 +180,13 @@ type Router struct {
 	// Type: "glinet"|"openwrt"|"managed-switch"|"external". El frontend lo usa
 	// para NO ofrecer reinstall/upgrade de agentes en dispositivos que no usan
 	// el agente nativo (scrapers de switches, etc.).
-	Type   string `json:"type,omitempty"`
-	Status string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
-	Health int    `json:"health"`
+	Type string `json:"type,omitempty"`
+	// Vlans (#1757): bridge VLAN filtering por puerto (id, tagged, pvid y el
+	// nombre declarado en LuCI). La topología cruza el puerto del cliente con
+	// esta lista para etiquetar su VLAN. Ausente si la unidad no lo reporta.
+	Vlans  []VlanPort `json:"vlans,omitempty"`
+	Status string     `json:"status"` // "online"|"warn"|"offline"|"unreachable"
+	Health int        `json:"health"`
 	// LatencyMs (#1384): latencia sondeada de la unidad (ping unidad→gateway
 	// en no-gateway; latencia WAN en el gateway). Null cuando la fuente no la
 	// sondea (agent-only/external/SNMP) - la tabla de enlaces pinta "—".
@@ -267,18 +271,24 @@ type DeviceTotals struct {
 // (SPEC §2.9); el resto solo existe en demo (ausentes en live).
 // SignalDbm es null cuando no hay medida (nunca ausente).
 type Device struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Type         string    `json:"type"`
-	Manufacturer string    `json:"manufacturer"`
-	IP           string    `json:"ip"`
-	MAC          string    `json:"mac"`
-	RouterID     string    `json:"routerId"`
-	Band         string    `json:"band"` // "5 GHz"|"2.4 GHz"|"cable"|"—"
-	SignalDbm    *int      `json:"signalDbm"`
-	TrafficMbps  float64   `json:"trafficMbps"`
-	Online       bool      `json:"online"`
-	Sparkline    []float64 `json:"sparkline"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Manufacturer string `json:"manufacturer"`
+	IP           string `json:"ip"`
+	MAC          string `json:"mac"`
+	RouterID     string `json:"routerId"`
+	Band         string `json:"band"` // "5 GHz"|"2.4 GHz"|"cable"|"—"
+	// WifiIface/SSID (#1757): interfaz AP y red a la que esta asociado un
+	// cliente inalambrico. El agente los declara desde iw; vacios cuando la
+	// fuente no los expone. La topologia cruza WifiIface con el bridge VLAN
+	// filtering del router para etiquetar la VLAN de la estacion.
+	WifiIface   string    `json:"wifiIface,omitempty"`
+	SSID        string    `json:"ssid,omitempty"`
+	SignalDbm   *int      `json:"signalDbm"`
+	TrafficMbps float64   `json:"trafficMbps"`
+	Online      bool      `json:"online"`
+	Sparkline   []float64 `json:"sparkline"`
 	// --- topología v5 (FDB/LLDP; omitempty: ausentes si no hay datos) ---
 	// Port: puerto físico del bridge donde se aprende la MAC (cableados, FDB).
 	Port string `json:"port,omitempty"`

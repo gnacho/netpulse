@@ -1518,7 +1518,9 @@
       "pill": "VM",
       "note": "Virtual machine on the hypervisor · its traffic rides the host's cable",
       "noteIn": "Virtual machine on {{host}} · virtual bridge ({{port}}) · traffic rides the host's cable"
-    }
+    },
+    "defaultRoute": "Default route",
+    "vlan": "VLAN"
   },
   "settings": {
     "admin": {
@@ -2566,7 +2568,19 @@
     "tipUpgradeOwut": "Flashes the target version now with owut (keeping current packages)",
     "tipSchedule": "Schedule the upgrade for later or recurring",
     "tipSave": "Saves model and target for the classic flow (URL/image)",
-    "owutStepsGroup": "owut steps"
+    "owutStepsGroup": "owut steps",
+    "backupScheduleTitle": "Scheduled configuration backups",
+    "backupScheduleCaption": "Sends a weekly backup to connected agents. If none are online, it retries after reconnection.",
+    "backupScheduleEnabled": "Enable",
+    "backupScheduleDay": "Weekday",
+    "backupScheduleTime": "Time",
+    "backupScheduleSave": "Save",
+    "backupScheduleSaved": "Schedule saved",
+    "backupScheduleError": "Could not save the schedule",
+    "backupScheduleLastRun": "Last: {{when}}",
+    "backupScheduleNextRun": "Next: {{when}}",
+    "resetStale": "Reset state",
+    "resetStaleHint": "Clears the record of an attempt that has been stuck for more than 15 minutes (the router never came back or the SSH session died), so you can start it again."
   },
   "orchestration": {
     "title": "Orchestration",

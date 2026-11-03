@@ -4,12 +4,18 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
+
+// upgradeResetStaleAfter: antigüedad mínima de un intento en curso para que
+// el reset lo considere atascado (#1776). Por debajo de eso se respeta, para
+// no cancelar un upgrade que está trabajando.
+const upgradeResetStaleAfter = 15 * time.Minute
 
 // firmwareStatusResponse es la vista completa de un router para upgrades.
 type firmwareStatusResponse struct {
@@ -127,6 +133,24 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})))
+
+	// POST /api/firmware-upgrades/{routerId}/reset: desatasca el estado de
+	// upgrade del router (#1776). Borra un intento terminado (failed/done) y
+	// también un registro en curso que lleva más de upgradeResetStaleAfter sin
+	// avanzar; un upgrade vivo no se toca, para no cancelarlo por accidente.
+	mux.Handle("POST /api/firmware-upgrades/{routerId}/reset", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		routerID := r.PathValue("routerId")
+		if routerID == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "routerId requerido")
+			return
+		}
+		cleared, err := s.firmware.ResetLatest(routerID, time.Now(), upgradeResetStaleAfter)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "firmware_error")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "cleared": cleared})
 	})))
 
 	mux.Handle("GET /api/firmware-upgrades/{routerId}", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

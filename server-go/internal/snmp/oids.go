@@ -1,9 +1,10 @@
 package snmp
 
 const (
-	OidSysDescr  = ".1.3.6.1.2.1.1.1.0"
-	OidSysName   = ".1.3.6.1.2.1.1.5.0"
-	OidSysUpTime = ".1.3.6.1.2.1.1.3.0"
+	OidSysDescr    = ".1.3.6.1.2.1.1.1.0"
+	OidSysObjectID = ".1.3.6.1.2.1.1.2.0"
+	OidSysName     = ".1.3.6.1.2.1.1.5.0"
+	OidSysUpTime   = ".1.3.6.1.2.1.1.3.0"
 
 	OidIfNumber     = ".1.3.6.1.2.1.2.1.0"
 	OidIfTable      = ".1.3.6.1.2.1.2.2.1"

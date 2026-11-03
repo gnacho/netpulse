@@ -205,7 +205,15 @@ const (
 		`echo "==PORTS=="; for d in /sys/class/net/$BR/brif/*; do [ -r "$d/port_no" ] && echo "$(cat $d/port_no) $(basename $d)"; done; ` +
 		`echo "==MACS=="; (brctl showmacs $BR 2>/dev/null | awk 'NR>1 && $3=="no" {print $1, $2}') 2>/dev/null; ` +
 		`(bridge fdb show br $BR 2>/dev/null | awk 'NF>=3 && $1!="01:" && $1!="33:33:" && $1!="ff:ff:" && $1!="00:00:00:00:00:00" && $0 !~ /permanent/ {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1), $1}}') 2>/dev/null; true`
-	CmdBridgeMAC       = bridgeDetect + "cat /sys/class/net/$BR/address 2>/dev/null"
+	CmdBridgeMAC = bridgeDetect + "cat /sys/class/net/$BR/address 2>/dev/null"
+	// CmdIfaceMACs (#1765): "iface mac" de TODAS las interfaces del kernel.
+	// Un equipo responde por la MAC del bridge, la de cada VLAN, la del puerto
+	// CPU de un switch DSA y la de cada radio. Las que no son la MAC del router
+	// guardado en la flota se aprenden en la FDB de un vecino y salían como
+	// clientes desconocidos sin nombre ni IP. El equipo es la única fuente
+	// fiable de su propia lista.
+	CmdIfaceMACs = `for d in /sys/class/net/*; do i=$(basename "$d"); ` +
+		`[ -r "$d/address" ] && echo "$i $(cat "$d/address" 2>/dev/null)"; done`
 	CmdUbusSystemBoard = "ubus call system board"
 	CmdUbusSystemInfo  = "ubus call system info"
 	CmdUbusWireless    = "ubus call network.wireless status"
@@ -331,6 +339,12 @@ type WirelessClient struct {
 	Band      string `json:"band"`
 	RxBytes   uint64 `json:"rxBytes,omitempty"`
 	TxBytes   uint64 `json:"txBytes,omitempty"`
+	// Iface/SSID (#1757): interfaz AP y SSID con la que la estacion esta
+	// asociada. Permiten al servidor cruzar la estacion con el bridge VLAN
+	// filtering y saber en que segmento vive. Omitidos cuando la fuente no
+	// los expone (wl, iwinfo, drivers sin esa salida): el campo es opcional.
+	Iface string `json:"iface,omitempty"`
+	SSID  string `json:"ssid,omitempty"`
 }
 
 // PortState es {name, up, speed} de una interfaz (/sys operstate+speed).

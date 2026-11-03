@@ -244,6 +244,7 @@ function TooltipCard({
           </div>
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <MiniStat label={t('routerDetail.wan.publicIp')} value={wan.publicIp} />
+            <MiniStat label={t('topology.defaultRoute')} value={wan.gateway || '—'} />
             <MiniStat label={t('topology.plan')} value={wan.plan} />
             <MiniStat label={t('home.latency')} value={wan.latencyMs > 0 ? `${Math.round(wan.latencyMs)} ms` : '—'} />
             <MiniStat label={t('home.traffic.loss')} value={`${wan.lossPct} %`} />
@@ -449,6 +450,12 @@ function ChipTooltip({
           />
           <MiniStat label={t('topology.traffic')} value={`${d.trafficMbps >= 1 ? fmtEs(d.trafficMbps, 1) : fmtEs(d.trafficMbps, 2)} Mbps`} />
         </div>
+        {chip.vlan && (
+          <MiniStat
+            label={t('topology.vlan')}
+            value={`${chip.vlan.id}${chip.vlan.name ? ` · ${chip.vlan.name}` : ''}`}
+          />
+        )}
       </div>
       {d.lldp && (
         <div className="mt-2 text-caption font-semibold text-accent">
@@ -1917,6 +1924,12 @@ const DistNodeGroup = memo(function DistNodeGroup({
 // Chip de dispositivo (cliente wifi/cable, hub, host hipervisor o CT)
 // ---------------------------------------------------------------------------
 
+/** #1757: color estable por id de VLAN. Paleta corta y repetible: el objetivo
+ *  es distinguir segmentos de un vistazo, no codificar una semántica fija. */
+const VLAN_COLORS = ['#60A5FA', '#F472B6', '#FBBF24', '#34D399', '#A78BFA', '#FB923C'] as const
+const vlanColor = (id: number) =>
+  VLAN_COLORS[((Math.trunc(id) % VLAN_COLORS.length) + VLAN_COLORS.length) % VLAN_COLORS.length]!
+
 const ChipGroup = memo(function ChipGroup({
   chip,
   ctCount,
@@ -1953,7 +1966,15 @@ const ChipGroup = memo(function ChipGroup({
   const half = S / 2
   // #845: el icono elegido por el usuario manda sobre el tipo deducido.
   const Icon = deviceIcon(d)
-  const stroke = d.lldp ? COLOR.accent : chip.wired ? COLOR.ok : 'rgb(var(--border-strong))'
+  // #1757: la VLAN manda sobre el color del borde para que dos clientes del
+  // mismo puerto/VLAN se lean como el mismo segmento. LLDP sigue con su badge.
+  const stroke = chip.vlan
+    ? vlanColor(chip.vlan.id)
+    : d.lldp
+      ? COLOR.accent
+      : chip.wired
+        ? COLOR.ok
+        : 'rgb(var(--border-strong))'
   // Host hipervisor (Proxmox…): mini NODO redondo con sus CTs detrás, no un
   // chip cuadrado más (#656 feedback). Acento cuando viene de la API PVE.
   // #1446: un host sin invitados sigue siendo host (si no, caía a cliente).
@@ -1963,6 +1984,7 @@ const ChipGroup = memo(function ChipGroup({
     <g
       transform={`translate(${chip.x} ${chip.y})`}
       data-node-id={chip.id}
+      data-vlan-id={chip.vlan ? String(chip.vlan.id) : undefined}
       className={onDragStart ? 'cursor-grab' : undefined}
       onPointerDown={onDragStart}
     >

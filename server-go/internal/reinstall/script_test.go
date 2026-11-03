@@ -529,3 +529,129 @@ func TestInstallScriptPreflightAndAtomicBinary(t *testing.T) {
 		t.Error("install-agent.sh sigue copiando el binario directo al destino final")
 	}
 }
+
+// #1476 (paso 2): cuando el router ya lleva el paquete, la config vive en
+// /etc/config/netpulse-agent (conffile que sobrevive a sysupgrade) y el init
+// la lee por UCI. Un reinstall que solo reescribiera el env dejaba la config
+// nativa con el token viejo, asi que el script sincroniza las dos.
+func TestScriptSyncsUCIConfig(t *testing.T) {
+	slug, token, url, fp := "test-router", strings.Repeat("a1", 32), "https://192.168.1.226:3000", "sha256//AAAA"
+	digests := map[string]string{"arm64": "cafebabe"}
+	s := reinstall.ScriptWithTargets(slug, token, url, fp, digests, reinstall.WanTargets{
+		WanTarget: "1.1.1.1",
+		GwTarget:  "192.168.1.1",
+	})
+	for _, want := range []string{
+		`UCI_CFG=/etc/config/netpulse-agent`,
+		`[ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1`,
+		`uci -q set netpulse-agent.main.server="$SERVER"`,
+		`uci -q set netpulse-agent.main.slug="$SLUG"`,
+		`uci -q set netpulse-agent.main.token="$TOKEN"`,
+		`uci -q set netpulse-agent.main.server_fp="$SERVER_FP"`,
+		`uci -q set netpulse-agent.main.scan_interval="$SCAN_VALUE"`,
+		`uci -q set netpulse-agent.main.wan_target="1.1.1.1"`,
+		`uci -q set netpulse-agent.main.gw_target="192.168.1.1"`,
+		`uci -q commit netpulse-agent`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("falta en el script: %q", want)
+		}
+	}
+	// Los targets se inyectan entre comillas desde Go: un escapado roto
+	// dejaria el script invalido justo antes de tocar la config del router.
+	if out, err := exec.Command("sh", "-n", "-c", s).CombinedOutput(); err != nil {
+		t.Fatalf("not valid sh: %v\n%s", err, out)
+	}
+}
+
+// Sin objetivos resueltos, el bloque UCI borra las claves en vez de dejarlas
+// con el valor de un router anterior.
+func TestScriptUCIClearsEmptyTargets(t *testing.T) {
+	slug, token, url, fp := "test-router", strings.Repeat("a1", 32), "http://192.168.1.226:3000", ""
+	digests := map[string]string{"arm64": "cafebabe"}
+	s := reinstall.ScriptWithTargets(slug, token, url, fp, digests, reinstall.WanTargets{})
+	for _, want := range []string{
+		`uci -q delete netpulse-agent.main.wan_target`,
+		`uci -q delete netpulse-agent.main.gw_target`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("falta en el script: %q", want)
+		}
+	}
+	if strings.Contains(s, `uci -q set netpulse-agent.main.wan_target=""`) {
+		t.Error("un target vacío no debe escribirse como cadena vacía")
+	}
+	if out, err := exec.Command("sh", "-n", "-c", s).CombinedOutput(); err != nil {
+		t.Fatalf("not valid sh: %v\n%s", err, out)
+	}
+}
+
+// La variante ligera (#1294) migra HTTPS sin reinstalar binario, pero también
+// debe dejar la config UCI al día.
+func TestEnvScriptSyncsUCIConfig(t *testing.T) {
+	s := reinstall.EnvScript("test-router", strings.Repeat("a1", 32), "https://192.168.1.226:3000", "sha256//AAAA", reinstall.WanTargets{})
+	if !strings.Contains(s, `uci -q set netpulse-agent.main.token="$TOKEN"`) {
+		t.Error("EnvScript debe sincronizar el token en UCI")
+	}
+	if !strings.Contains(s, `uci -q delete netpulse-agent.main.server_fp`) {
+		t.Error("sin FP debe borrar la clave en UCI")
+	}
+	if out, err := exec.Command("sh", "-n", "-c", s).CombinedOutput(); err != nil {
+		t.Fatalf("not valid sh: %v\n%s", err, out)
+	}
+}
+
+// En una instalación por paquete la config UCI ya se conserva, pero un router
+// que recibió el paquete y luego un reinstall por SSH tiene que preservarla
+// igual que el resto de ficheros del agente.
+func TestScriptsPreserveUCIConfig(t *testing.T) {
+	for name, s := range map[string]string{
+		"full": reinstall.Script("test-router", strings.Repeat("a1", 32), "http://192.168.1.226:3000", "", map[string]string{"arm64": "cafebabe"}),
+		"env":  reinstall.EnvScript("test-router", strings.Repeat("a1", 32), "http://192.168.1.226:3000", "", reinstall.WanTargets{}),
+	} {
+		for _, want := range []string{
+			`for f in /etc/config/netpulse-agent /etc/uci-defaults/90-netpulse-agent; do`,
+			`ensure_sysupgrade "$f"`,
+		} {
+			if !strings.Contains(s, want) {
+				t.Errorf("%s: falta en el script: %q", name, want)
+			}
+		}
+	}
+}
+
+// #1476: el reinstall instala el paquete .ipk cuando el router tiene opkg, y
+// conserva el camino de ficheros sueltos como respaldo si el paquete falla.
+func TestScriptInstallsPackageWithFallback(t *testing.T) {
+	s := reinstall.ScriptWithTargets("test-router", strings.Repeat("a1", 32), "https://192.168.1.226:3000", "sha256//AAAA", map[string]string{"arm64": "cafebabe"}, reinstall.WanTargets{})
+	for _, want := range []string{
+		`if command -v opkg >/dev/null 2>&1; then`,
+		`"$SERVER/api/agents/$SLUG/package?arch=$GOARCH"`,
+		`opkg install --force-reinstall /tmp/netpulse-agent.ipk`,
+		`PKG_OK=1`,
+		`if [ "$PKG_OK" != "1" ]; then`,
+		`"$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("falta en el script: %q", want)
+		}
+	}
+	// El bloque del paquete va antes de la descarga del binario suelto: si
+	// instalase despues, pisaria el init del paquete con el de ficheros sueltos.
+	pkgIdx := strings.Index(s, `if command -v opkg >/dev/null 2>&1; then`)
+	binIdx := strings.Index(s, `"$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"`)
+	if pkgIdx < 0 || binIdx < 0 || pkgIdx > binIdx {
+		t.Fatalf("orden incorrecto: paquete en %d, binario en %d", pkgIdx, binIdx)
+	}
+	if out, err := exec.Command("sh", "-n", "-c", s).CombinedOutput(); err != nil {
+		t.Fatalf("sh -n: %v\n%s", err, out)
+	}
+}
+
+// El script ligero de entorno no instala paquetes: solo sincroniza config.
+func TestEnvScriptDoesNotInstallPackage(t *testing.T) {
+	s := reinstall.EnvScript("test-router", strings.Repeat("a1", 32), "https://192.168.1.226:3000", "sha256//AAAA", reinstall.WanTargets{})
+	if strings.Contains(s, "opkg install") {
+		t.Fatal("el script ligero no debe instalar el paquete")
+	}
+}

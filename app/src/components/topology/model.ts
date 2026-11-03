@@ -60,6 +60,9 @@ export interface ChipNode {
   hubId: string
   /** CT/VM anidado bajo un hipervisor (grid, sin enlace propio al router) */
   isCt: boolean
+  /** #1757: VLAN del puerto del cliente cableado (bridge VLAN filtering).
+   *  Ausente si la unidad no publica VLANs o el puerto no aparece. */
+  vlan?: { id: number; name?: string; pvid: boolean }
 }
 
 /** Vista de un DistributionNode kind=inferred (círculo dashed, sin IP). */
@@ -507,14 +510,15 @@ function ringLayoutCount<T extends { x: number; y: number; size?: number }>(
   const free = freeArcs(excludes)
   const totalFree = free.reduce((a, [s, e]) => a + (e - s), 0)
   if (totalFree <= 0) return 0
-  // #1416: unidad pegada a un borde lateral del lienzo → rellenar primero
-  // los arcos que apuntan hacia DENTRO (el lado con más sitio). Los chips de
-  // los arcos exteriores caen fuera del viewport y ensuciaban el centro del
-  // diagrama. El hint es el ángulo cardinal de ese lado; los arcos se
-  // reordenan por distancia angular de su punto medio al hint (los de su
-  // lado primero; orden estable en el resto). Unidades centradas: sin
-  // cambio (sideHint null conserva el orden documental 0°→360°).
-  const sideHint = node.x < VB_W / 3 ? 0 : node.x > (2 * VB_W) / 3 ? 180 : null
+  // #1416: unidad pegada al borde izquierdo → rellenar primero los arcos que
+  // apuntan hacia DENTRO (el lado con más sitio). #1791: en el borde derecho
+  // el abanico va hacia FUERA, a la derecha, para no amontonar los chips
+  // sobre los enlaces que llegan desde el centro del diagrama. El hint es el
+  // ángulo cardinal de ese lado; los arcos se reordenan por distancia
+  // angular de su punto medio al hint (los de su lado primero; orden estable
+  // en el resto). Unidades centradas: sin cambio (sideHint null conserva el
+  // orden documental 0°→360°).
+  const sideHint = node.x < VB_W / 3 ? 0 : node.x > (2 * VB_W) / 3 ? 0 : null
   const arcMid = ([s, e]: [number, number]) => norm(s + (e - s) / 2)
   const angDist = (a: number, b: number) => {
     const d = norm(a - b)
@@ -1046,6 +1050,27 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   // -- chips de dispositivos --------------------------------------------------
   const chips: ChipNode[] = []
+  // #1757: VLAN del puerto del cliente cableado. El bridge VLAN filtering del
+  // router dice qué VLANs lleva cada puerto; PVID es la nativa y manda, y sin
+  // PVID se toma la primera entrada. Solo cableado: la API no declara la VLAN
+  // de un cliente WiFi, y suponerla sería inventar el dato.
+  const vlanOf = (d: Device): ChipNode['vlan'] => {
+    // #1757: `bridge vlan show` lista también las interfaces AP (wlan0,
+    // wlan1) como puertos del bridge, así que la estación inalámbrica se
+    // resuelve por su interfaz igual que un cliente cableado por su puerto.
+    // Si el agente no declara ninguna de las dos cosas, no hay VLAN.
+    const port = isWired(d) ? d.port : d.wifiIface
+    if (!port) return undefined
+    const ports = routers.find((r) => r.id === d.routerId)?.vlans
+    if (!ports) return undefined
+    for (const entry of ports) {
+      if (entry.port !== port) continue
+      const hit = entry.vlans.find((v) => v.pvid) ?? entry.vlans[0]
+      if (hit) return { id: hit.id, name: hit.name, pvid: hit.pvid }
+    }
+    return undefined
+  }
+
   const mkChip = (d: Device, hubId: string, isCt = false): ChipNode => ({
     kind: 'chip',
     id: d.id,
@@ -1058,6 +1083,7 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     weak: d.signalDbm != null && d.signalDbm <= -65,
     hubId,
     isCt,
+    vlan: vlanOf(d),
   })
 
   // wifi: anillos con arcos prohibidos (uplink, etiqueta, WAN, fan cableado)
@@ -1392,6 +1418,73 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const my = (start.y + end.y) / 2 + sag
     return `M ${start.x} ${start.y} Q ${mx} ${my}, ${end.x} ${end.y}`
   }
+
+  // --- NORMA DE SEPARACIÓN DE CABLES (9-Ago-2026) ---
+  // Se recogen los segmentos hub→chip de todos los enlaces (uplinks, dist,
+  // wired, CTs). El resolver empuja cada chip fuera de los cables AJENOS (los
+  // que no le pertenecen) con un margen, para que ningún dispositivo quede
+  // encima de un cable de otro.
+  const repelSegments: { x1: number; y1: number; x2: number; y2: number; ownerId?: string }[] = []
+  for (const c of chips) {
+    if (!c.wired || c.isCt) continue
+    const hub = routerNodes.find(rn => rn.id === c.hubId) ?? distNodes.find(dn => dn.id === c.hubId)
+    if (!hub) continue
+    repelSegments.push({ x1: hub.x, y1: hub.y, x2: c.x, y2: c.y, ownerId: c.id })
+  }
+  for (const [hostId, cts] of ctsByHost) {
+    const hostChip = chips.find((c) => c.id === hostId)
+    if (!hostChip) continue
+    for (const ct of cts) repelSegments.push({ x1: hostChip.x, y1: hostChip.y, x2: ct.x, y2: ct.y, ownerId: ct.id })
+  }
+  for (const dn of distNodes) {
+    const from = dn.node.parent
+      ? distNodes.find((n) => n.id === dn.node.parent)
+      : routerById.get(dn.node.routerId)
+    if (from) repelSegments.push({ x1: from.x, y1: from.y, x2: dn.x, y2: dn.y })
+  }
+  for (const rn of routerNodes) {
+    if (rn.id === gatewayNode?.id || !gatewayNode) continue
+    repelSegments.push({ x1: gatewayNode.x, y1: gatewayNode.y, x2: rn.x, y2: rn.y })
+  }
+
+  // --- Resolución de colisiones ---
+  // Routers fijos (no se mueven); chips se empujan y atraen hacia su hub padre.
+  // restDist = distancia inicial hub→chip (la posición canónica del layout);
+  // el resolver la usa como radio objetivo para que los chips no se dispersen
+  // tras una colisión ni se amontonen sobre el hub.
+  // Los nodos fijos llevan MARGEN (norma de separación): un chip no puede
+  // quedar pegado al borde de un router/distnode/Internet — mínimo
+  // r_nodo + r_chip + margin + padding. El gateway (r40) usa margen mayor.
+  const collidables: { x: number; y: number; r: number; fixed?: boolean; margin?: number; hubX?: number; hubY?: number; restDist?: number; id?: string }[] = [
+    ...routerNodes.map((rn) => ({ x: rn.x, y: rn.y, r: rn.r, fixed: true, margin: rn.id === gatewayNode?.id ? 40 : 26 })),
+    { x: internetNode.x, y: internetNode.y, r: 30, fixed: true, margin: 30 },
+  ]
+  // chips: buscar coords del hub padre
+  for (const c of chips) {
+    const hub = routerNodes.find(rn => rn.id === c.hubId) ?? distNodes.find(dn => dn.id === c.hubId)
+    const isHost = hypervisorHosts.has(c.id)
+    if (hub) {
+      const restDist = Math.sqrt((c.x - hub.x) ** 2 + (c.y - hub.y) ** 2)
+      // Los hosts hipervisores son NODOS con hijos (CTs): fijos, como los
+      // distnodes — no deben ser desplazados por los cables ajenos (si no, el
+      // resolver los lanza a la esquina). Sus CTs sí se acomodan a su alrededor.
+      collidables.push({
+        id: c.id, x: c.x, y: c.y, r: c.size / 2,
+        fixed: isHost, margin: isHost ? 16 : undefined,
+        hubX: hub.x, hubY: hub.y, restDist,
+      })
+    } else {
+      collidables.push({ id: c.id, x: c.x, y: c.y, r: c.size / 2, fixed: isHost, margin: isHost ? 16 : undefined })
+    }
+  }
+  // distnodes fijos
+  for (const dn of distNodes) {
+    collidables.push({ x: dn.x, y: dn.y, r: dn.r, fixed: true, margin: 14 })
+  }
+  resolveCollisions(collidables, 80, 14, repelSegments)
+  // Escribir posiciones de vuelta (solo chips; routers y distnodes son fixed)
+  let ci = routerNodes.length + 1 // +1 = Internet (añadido tras los routers)
+  for (const c of chips) { const ref = collidables[ci]!; c.x = ref.x; c.y = ref.y; ci++ }
 
   // -- enlaces -----------------------------------------------------------------
   const links: TopoLink[] = []
@@ -1905,73 +1998,6 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   }
   const relatedTo = (nodeId: string) =>
     adjacency.get(nodeId) ?? { nodes: new Set([nodeId]), links: new Set<string>() }
-
-  // --- NORMA DE SEPARACIÓN DE CABLES (9-Ago-2026) ---
-  // Se recogen los segmentos hub→chip de todos los enlaces (uplinks, dist,
-  // wired, CTs). El resolver empuja cada chip fuera de los cables AJENOS (los
-  // que no le pertenecen) con un margen, para que ningún dispositivo quede
-  // encima de un cable de otro.
-  const repelSegments: { x1: number; y1: number; x2: number; y2: number; ownerId?: string }[] = []
-  for (const c of chips) {
-    if (!c.wired || c.isCt) continue
-    const hub = routerNodes.find(rn => rn.id === c.hubId) ?? distNodes.find(dn => dn.id === c.hubId)
-    if (!hub) continue
-    repelSegments.push({ x1: hub.x, y1: hub.y, x2: c.x, y2: c.y, ownerId: c.id })
-  }
-  for (const [hostId, cts] of ctsByHost) {
-    const hostChip = chips.find((c) => c.id === hostId)
-    if (!hostChip) continue
-    for (const ct of cts) repelSegments.push({ x1: hostChip.x, y1: hostChip.y, x2: ct.x, y2: ct.y, ownerId: ct.id })
-  }
-  for (const dn of distNodes) {
-    const from = dn.node.parent
-      ? distNodes.find((n) => n.id === dn.node.parent)
-      : routerById.get(dn.node.routerId)
-    if (from) repelSegments.push({ x1: from.x, y1: from.y, x2: dn.x, y2: dn.y })
-  }
-  for (const rn of routerNodes) {
-    if (rn.id === gatewayNode?.id || !gatewayNode) continue
-    repelSegments.push({ x1: gatewayNode.x, y1: gatewayNode.y, x2: rn.x, y2: rn.y })
-  }
-
-  // --- Resolución de colisiones ---
-  // Routers fijos (no se mueven); chips se empujan y atraen hacia su hub padre.
-  // restDist = distancia inicial hub→chip (la posición canónica del layout);
-  // el resolver la usa como radio objetivo para que los chips no se dispersen
-  // tras una colisión ni se amontonen sobre el hub.
-  // Los nodos fijos llevan MARGEN (norma de separación): un chip no puede
-  // quedar pegado al borde de un router/distnode/Internet — mínimo
-  // r_nodo + r_chip + margin + padding. El gateway (r40) usa margen mayor.
-  const collidables: { x: number; y: number; r: number; fixed?: boolean; margin?: number; hubX?: number; hubY?: number; restDist?: number; id?: string }[] = [
-    ...routerNodes.map((rn) => ({ x: rn.x, y: rn.y, r: rn.r, fixed: true, margin: rn.id === gatewayNode?.id ? 40 : 26 })),
-    { x: internetNode.x, y: internetNode.y, r: 30, fixed: true, margin: 30 },
-  ]
-  // chips: buscar coords del hub padre
-  for (const c of chips) {
-    const hub = routerNodes.find(rn => rn.id === c.hubId) ?? distNodes.find(dn => dn.id === c.hubId)
-    const isHost = hypervisorHosts.has(c.id)
-    if (hub) {
-      const restDist = Math.sqrt((c.x - hub.x) ** 2 + (c.y - hub.y) ** 2)
-      // Los hosts hipervisores son NODOS con hijos (CTs): fijos, como los
-      // distnodes — no deben ser desplazados por los cables ajenos (si no, el
-      // resolver los lanza a la esquina). Sus CTs sí se acomodan a su alrededor.
-      collidables.push({
-        id: c.id, x: c.x, y: c.y, r: c.size / 2,
-        fixed: isHost, margin: isHost ? 16 : undefined,
-        hubX: hub.x, hubY: hub.y, restDist,
-      })
-    } else {
-      collidables.push({ id: c.id, x: c.x, y: c.y, r: c.size / 2, fixed: isHost, margin: isHost ? 16 : undefined })
-    }
-  }
-  // distnodes fijos
-  for (const dn of distNodes) {
-    collidables.push({ x: dn.x, y: dn.y, r: dn.r, fixed: true, margin: 14 })
-  }
-  resolveCollisions(collidables, 80, 14, repelSegments)
-  // Escribir posiciones de vuelta (solo chips; routers y distnodes son fixed)
-  let ci = routerNodes.length + 1 // +1 = Internet (añadido tras los routers)
-  for (const c of chips) { const ref = collidables[ci]!; c.x = ref.x; c.y = ref.y; ci++ }
 
   return {
     gatewayNode,

@@ -184,6 +184,28 @@ func TestBuildRouterExposeSnmpEnabled(t *testing.T) {
 	}
 }
 
+// #1767: an SNMP switch shows the ENTITY-MIB firmware and short model while
+// keeping sysDescr as the full model.
+func TestBuildRouterUsesEntityIdentity(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	p := &routerPolled{
+		cfg:            RouterConfig{ID: "sw1", Host: "192.168.2.6", SnmpEnabled: true},
+		sysDescr:       "XS708T 8-Port 10-Gigabit Copper Smart Managed Pro Switch with 2 Copper/SFP+ Combo Ports",
+		snmpFirmware:   "7.0.0.24",
+		snmpModelShort: "XS708T",
+	}
+	r := l.buildRouter(p, nil)
+	if r.Firmware != "7.0.0.24" {
+		t.Errorf("firmware = %q, want 7.0.0.24", r.Firmware)
+	}
+	if r.ModelShort != "XS708T" {
+		t.Errorf("modelShort = %q, want XS708T", r.ModelShort)
+	}
+	if r.Model != p.sysDescr {
+		t.Errorf("model = %q, want full sysDescr", r.Model)
+	}
+}
+
 // #930: 3 fallos seguidos con ping OK emiten UNA alerta warn "snmp-failing";
 // la recuperación la resuelve y emite la ok; los contadores son correctos.
 func TestSnmpPollHealthAlertAndRecovery(t *testing.T) {

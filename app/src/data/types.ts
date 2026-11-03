@@ -38,6 +38,10 @@ export interface Router {
   disabled?: boolean
   /** Tipo de dispositivo: "glinet"|"openwrt"|"managed-switch"|"external". */
   type?: string
+  /** #1757: bridge VLAN filtering por puerto (id, tagged, pvid y nombre de
+   *  LuCI). La topología cruza el puerto del cliente con esta lista para
+   *  etiquetar su VLAN. Ausente si la unidad no lo reporta. */
+  vlans?: VlanPort[]
   status: Status
   /** Salud 0–100 */
   health: number
@@ -264,6 +268,15 @@ export interface Device {
    * nombre preferente sobre `port` cuando existe.
    */
   portLabel?: string
+  /**
+   * #1757: interfaz AP y red a la que está asociado un cliente inalámbrico.
+   * Las declara el agente desde `iw`. Vacías cuando la fuente no las expone.
+   * La topología cruza `wifiIface` con el bridge VLAN filtering del router
+   * para etiquetar la VLAN de la estación, igual que hace con `port` en los
+   * cableados.
+   */
+  wifiIface?: string
+  ssid?: string
   /** Datos LLDP cuando el vecino se anuncia (switch gestionado identificado). */
   lldp?: LldpInfo | null
   /**

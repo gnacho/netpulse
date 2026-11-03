@@ -5,6 +5,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -149,3 +151,27 @@ func TestUrgencyGateDefaultUrgentOnly(t *testing.T) {
 type spyN struct{ got []alerts.AlertEvent }
 
 func (s *spyN) Notify(ev alerts.AlertEvent) { s.got = append(s.got, ev) }
+
+func TestEnsureDataLayout(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "data")
+	if err := os.MkdirAll(filepath.Join(dataDir, "backups", "firmware"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureDataLayout(dataDir); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{
+		dataDir,
+		filepath.Join(dataDir, "backups"),
+		filepath.Join(dataDir, "backups", "firmware"),
+		filepath.Join(dataDir, "updates"),
+	} {
+		st, err := os.Stat(dir)
+		if err != nil {
+			t.Fatalf("%s: %v", dir, err)
+		}
+		if got := st.Mode().Perm(); got != 0o770 {
+			t.Fatalf("%s mode = %o want 770", dir, got)
+		}
+	}
+}

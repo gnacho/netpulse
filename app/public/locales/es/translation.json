@@ -1518,7 +1518,9 @@
       "pill": "VM",
       "note": "Máquina virtual en el hipervisor · su tráfico viaja por el cable del host",
       "noteIn": "Máquina virtual en {{host}} · bridge virtual ({{port}}) · tráfico por el cable del host"
-    }
+    },
+    "defaultRoute": "Ruta por defecto",
+    "vlan": "VLAN"
   },
   "settings": {
     "admin": {
@@ -2566,7 +2568,19 @@
     "tipUpgradeOwut": "Flashea ahora la versión de destino con owut (con los paquetes actuales)",
     "tipSchedule": "Programa la actualización para más tarde o de forma recurrente",
     "tipSave": "Guarda modelo y target para el flujo clásico (URL/imagen)",
-    "owutStepsGroup": "Pasos owut"
+    "owutStepsGroup": "Pasos owut",
+    "backupScheduleTitle": "Backups de configuración programados",
+    "backupScheduleCaption": "Envía un backup semanal a los agentes conectados. Si no hay ninguno, se reintenta al reconectar.",
+    "backupScheduleEnabled": "Activar",
+    "backupScheduleDay": "Día de la semana",
+    "backupScheduleTime": "Hora",
+    "backupScheduleSave": "Guardar",
+    "backupScheduleSaved": "Programación guardada",
+    "backupScheduleError": "No se pudo guardar la programación",
+    "backupScheduleLastRun": "Último: {{when}}",
+    "backupScheduleNextRun": "Próximo: {{when}}",
+    "resetStale": "Reiniciar estado",
+    "resetStaleHint": "Borra el registro de un intento que lleva más de 15 minutos sin avanzar (el router no volvió o el SSH murió), para poder lanzarlo otra vez."
   },
   "orchestration": {
     "title": "Orquestación",

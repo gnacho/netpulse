@@ -263,11 +263,12 @@ func TestInferTopologySwitchHojaTrasGestionado(t *testing.T) {
 	managedRoot := distSummary{id: "dist-flint2-lan3", kind: "managed", routerID: "flint2", port: "lan3", mac: macGS308E, name: "GS308E", ip: "192.168.8.13", macCount: 2}
 
 	tests := []struct {
-		name    string
-		swFdb   map[string]string
-		swLldp  []LldpNeighbor
-		devices []Device
-		want    []distSummary
+		name     string
+		swFdb    map[string]string
+		swLldp   []LldpNeighbor
+		devices  []Device
+		want     []distSummary
+		attachTo map[string]string
 	}{
 		{
 			name:  "hoja en puerto no-uplink",
@@ -279,6 +280,10 @@ func TestInferTopologySwitchHojaTrasGestionado(t *testing.T) {
 			want: []distSummary{
 				managedRoot,
 				{id: "dist-swA-ge3", kind: "inferred", routerID: "swA", port: "ge3", parent: "dist-flint2-lan3", macCount: 2},
+			},
+			attachTo: map[string]string{
+				"10:20:30:40:50:60": "dist-swA-ge3",
+				"10:20:30:40:50:61": "dist-swA-ge3",
 			},
 		},
 		{
@@ -329,10 +334,25 @@ func TestInferTopologySwitchHojaTrasGestionado(t *testing.T) {
 				polled["ap1"] = &routerPolled{cfg: RouterConfig{ID: "ap1"}, brMac: "94:83:C4:00:00:02", fdb: map[string]string{}}
 			}
 			devices := append(append([]Device{}, gwDevices...), tt.devices...)
-			_, dists := inferTopology(polled, devices)
+			gotDevices, dists := inferTopology(polled, devices)
 			got := summarizeDists(dists)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("dists:\n got: %+v\nwant: %+v", got, tt.want)
+			}
+			for mac, wantAttach := range tt.attachTo {
+				found := false
+				for _, d := range gotDevices {
+					if d.MAC != mac {
+						continue
+					}
+					found = true
+					if d.AttachTo != wantAttach {
+						t.Fatalf("%s AttachTo = %q, want %q", mac, d.AttachTo, wantAttach)
+					}
+				}
+				if !found {
+					t.Fatalf("%s no aparece en los devices", mac)
+				}
 			}
 		})
 	}

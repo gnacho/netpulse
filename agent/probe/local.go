@@ -498,6 +498,12 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 		sd.BridgeMAC = strings.ToUpper(strings.TrimSpace(out))
 		any = true
 	}
+	if out := p.runBest(ctx, CmdIfaceMACs, 0); out != "" {
+		if macs := ParseIfaceMACs(out); len(macs) > 0 {
+			sd.IfaceMACs = macs
+			any = true
+		}
+	}
 
 	if !any {
 		return nil

@@ -809,6 +809,11 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		out.lossPct = sd.LossPct
 		out.backhaul = sd.Backhaul
 		out.brMac = sd.BridgeMAC
+		// #1765: identidades propias del equipo. El agente manda las MACs de
+		// todas sus interfaces; sin esto solo se absorbía la del bridge y el
+		// resto (VLANs, puerto CPU de un switch DSA, radios) aparecía como
+		// cliente desconocido cuando un vecino las aprendía en su FDB.
+		out.selfMacs = sd.IfaceMACs
 		out.flash = sd.Flash
 		out.firmwareAvailable = sd.FirmwareAvailable
 	} else if cached != nil && cached.system != nil && cached.systemKind == agentSourceClass(p.Kind) {

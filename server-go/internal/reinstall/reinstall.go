@@ -158,6 +158,45 @@ chmod 600 "$ENV_FILE"
 `
 }
 
+// uciConfigBlock (#1476) sincroniza la configuración nativa del paquete con
+// el env que acaba de escribir envRewriteBlock. /etc/config/netpulse-agent es
+// un conffile, así que sobrevive a sysupgrade, y el init procd del paquete lee
+// UCI (#1772): sin este bloque un reinstall dejaba el env al día y la config
+// nativa con el token viejo. Solo actúa si el fichero existe, es decir, si el
+// router tiene el paquete instalado; una instalación por ficheros sueltos
+// sigue funcionando con el env. No toca `interval`: no lo gestiona el
+// reinstall y pisarlo borraría un ajuste del usuario. Los campos opcionales
+// vacíos se borran para no dejar un target falso.
+func uciConfigBlock(targets WanTargets) string {
+	return `UCI_CFG=/etc/config/netpulse-agent
+if [ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1; then
+	uci -q set netpulse-agent.main.server="$SERVER" || true
+	uci -q set netpulse-agent.main.slug="$SLUG" || true
+	uci -q set netpulse-agent.main.token="$TOKEN" || true
+	if [ -n "$SERVER_FP" ]; then
+		uci -q set netpulse-agent.main.server_fp="$SERVER_FP" || true
+	else
+		uci -q delete netpulse-agent.main.server_fp || true
+	fi
+	uci -q set netpulse-agent.main.scan_interval="$SCAN_VALUE" || true
+` + func() string {
+		out := ""
+		if targets.WanTarget != "" {
+			out += "\tuci -q set netpulse-agent.main.wan_target=\"" + targets.WanTarget + "\" || true\n"
+		} else {
+			out += "\tuci -q delete netpulse-agent.main.wan_target || true\n"
+		}
+		if targets.GwTarget != "" {
+			out += "\tuci -q set netpulse-agent.main.gw_target=\"" + targets.GwTarget + "\" || true\n"
+		} else {
+			out += "\tuci -q delete netpulse-agent.main.gw_target || true\n"
+		}
+		return out
+	}() + `	uci -q commit netpulse-agent || true
+fi
+`
+}
+
 // preserveOnSysupgrade (#1476) añade los ficheros del agente a
 // /etc/sysupgrade.conf. OpenWrt solo conserva en una actualización de imagen los
 // conffiles declarados por los paquetes instalados, lo listado en ese fichero y
@@ -174,6 +213,12 @@ ensure_sysupgrade /usr/sbin/netpulse-agent
 ensure_sysupgrade /etc/netpulse-agent.env
 ensure_sysupgrade /etc/init.d/netpulse-agent
 for f in /etc/rc.d/*netpulse-agent*; do [ -e "$f" ] && ensure_sysupgrade "$f"; done
+# Conffile y defaults del paquete: en una instalación por paquete OpenWrt los
+# conserva por sí solo, pero declararlos aquí cubre el caso de un router que
+# recibió el paquete y luego un reinstall por SSH.
+for f in /etc/config/netpulse-agent /etc/uci-defaults/90-netpulse-agent; do
+	[ -e "$f" ] && ensure_sysupgrade "$f"
+done
 true
 `
 
@@ -202,7 +247,7 @@ SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
 SERVER_FP="` + serverFP + `"
-` + caSetupBlock(tr) + envRewriteBlock(targets) + preserveOnSysupgrade + `
+` + caSetupBlock(tr) + envRewriteBlock(targets) + uciConfigBlock(targets) + preserveOnSysupgrade + `
 # Releer el env: el agente lo lee del fichero en cada arranque (#1287), así
 # que basta un restart del init procd (respawn inmediato).
 if [ -f "$INIT" ]; then
@@ -254,9 +299,40 @@ case "$ARCH" in
 	*) echo "arch no soportado: $ARCH"; exit 20 ;;
 esac
 
+# #1476: si el router habla opkg o apk, instala el paquete que sirve el propio
+# servidor. Deja binario, init y /etc/config/netpulse-agent, que es conffile y
+# sobrevive a un sysupgrade. El .ipk lo compone el servidor al vuelo desde el
+# binario embebido; el .apk lo firma el CI y solo esta si el operador lo dejo
+# junto al binario. Cualquier fallo (sin gestor, descarga rota, paquete
+# rechazado) cae al camino de ficheros sueltos de abajo: el paquete es una
+# mejora, no un requisito.
+PKG_OK=0
+PKG_URL="$SERVER/api/agents/$SLUG/package?arch=$GOARCH"
+pkg_fetch() {
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$1" -o "$2" 2>/dev/null
+	else
+		wget -q $WGET_TLS -T 60 -O "$2" --header="Authorization: Bearer $TOKEN" "$1" 2>/dev/null
+	fi
+}
+if command -v opkg >/dev/null 2>&1; then
+	pkg_fetch "$PKG_URL&format=ipk" /tmp/netpulse-agent.ipk || rm -f /tmp/netpulse-agent.ipk
+	if [ -s /tmp/netpulse-agent.ipk ] && opkg install --force-reinstall /tmp/netpulse-agent.ipk >/dev/null 2>&1; then
+		PKG_OK=1
+	fi
+	rm -f /tmp/netpulse-agent.ipk
+elif command -v apk >/dev/null 2>&1; then
+	pkg_fetch "$PKG_URL&format=apk" /tmp/netpulse-agent.apk || rm -f /tmp/netpulse-agent.apk
+	if [ -s /tmp/netpulse-agent.apk ] && apk add --allow-untrusted /tmp/netpulse-agent.apk >/dev/null 2>&1; then
+		PKG_OK=1
+	fi
+	rm -f /tmp/netpulse-agent.apk
+fi
+
 # Parar servicio previo si existe (el proceso vivo mantiene el binario abierto)
 [ -f "$INIT" ] && "$INIT" stop >/dev/null 2>&1 || true
 
+if [ "$PKG_OK" != "1" ]; then
 # Descargar el binario del propio server (auth por token)
 if command -v curl >/dev/null 2>&1; then
 	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new
@@ -271,11 +347,13 @@ if [ -n "$SHA256" ]; then
 fi
 chmod 0755 /tmp/netpulse-agent.new
 mv -f /tmp/netpulse-agent.new "$BIN"
+fi
 
 # Config (chmod 600). El rewrite toca SOLO las vars gestionadas (SERVER,
 # SLUG, TOKEN, SERVER_FP, WAN_TARGET, GW_TARGET): las NETPULSE_* del usuario
 # (p. ej. NETPULSE_SCAN_INTERVAL=0) se conservan tal cual (#851).
-` + envRewriteBlock(targets) + `
+` + envRewriteBlock(targets) + uciConfigBlock(targets) + `
+if [ "$PKG_OK" != "1" ]; then
 # Init procd con self-heal (#457): un sysupgrade no conserva los ficheros
 # sueltos, así que el binario, el init y el env se añaden a
 # /etc/sysupgrade.conf (#1476); si aun así falta el binario al arrancar se
@@ -375,6 +453,7 @@ selfheal_binary() {
 }
 INITEOF
 chmod 0755 "$INIT"
+fi
 
 # #851: el watchdog cron YA NO se instala (un reinicio a ciegas de un crash
 # loop no arregla nada y ensucia el log; la detección es el dead-man del

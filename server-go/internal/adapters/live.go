@@ -114,7 +114,11 @@ type routerPolled struct {
 	sysDescr string
 	// sysName (#1256): hostname que el usuario define en el equipo; para
 	// SNMP alimenta el Name visible de la unidad en flota.
-	sysName           string
+	sysName string
+	// snmpFirmware/snmpModelShort (#1767): identity read from ENTITY-MIB.
+	// Empty when the unit has no table, so the sysDescr fallback stays.
+	snmpFirmware      string
+	snmpModelShort    string
 	flash             string
 	firmwareAvailable string
 	uptimeSec         float64
@@ -1638,6 +1642,11 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.brMac != "" {
 		r.MAC = p.brMac
 	}
+	// #1757: bridge VLAN filtering por puerto. nil cuando la unidad no lo
+	// reporta, para no publicar una lista vacía como si no hubiera VLANs.
+	if len(p.vlans) > 0 {
+		r.Vlans = vlanPortsWithNames(p.vlans, p.luci)
+	}
 	if p.backhaul != "" {
 		r.Backhaul = p.backhaul
 	}
@@ -1652,6 +1661,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	}
 	if p.board != nil {
 		r.Firmware = p.board.Release.Description
+	}
+	// #1767: an SNMP switch has no board; ENTITY-MIB is its own declaration.
+	if p.snmpFirmware != "" {
+		r.Firmware = p.snmpFirmware
+	}
+	if p.snmpModelShort != "" {
+		r.ModelShort = p.snmpModelShort
 	}
 	if p.cfg.FirmwareTarget != "" {
 		r.FirmwareTarget = p.cfg.FirmwareTarget
@@ -3042,9 +3058,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	now := time.Now().UnixMilli()
 
 	type seenInfo struct {
-		routerID string
-		band     string
-		signal   *int
+		routerID  string
+		band      string
+		wifiIface string
+		ssid      string
+		signal    *int
 	}
 	seen := map[string]seenInfo{}
 	// assocSeen (#1740): en qué routers vio ESTE ciclo a cada MAC. Solo se usa
@@ -3055,8 +3073,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	for routerID, p := range polled {
 		for mac, w := range p.wireless {
 			sig := w.SignalDbm
-			seen[mac] = seenInfo{routerID, w.Band, &sig}
-			assocSeen[mac] = append(assocSeen[mac], seenInfo{routerID, w.Band, &sig})
+			seen[mac] = seenInfo{routerID: routerID, band: w.Band, wifiIface: w.Iface, ssid: w.SSID, signal: &sig}
+			assocSeen[mac] = append(assocSeen[mac], seenInfo{routerID: routerID, band: w.Band, wifiIface: w.Iface, ssid: w.SSID, signal: &sig})
 			if l.db != nil {
 				_, _ = l.db.Exec(
 					`INSERT INTO device_attrib (mac, router_id, band, signal_dbm, last_seen) VALUES (?, ?, ?, ?, ?)
@@ -3129,7 +3147,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if _, ok := seen[mac]; ok {
 					continue
 				}
-				seen[mac] = seenInfo{routerID, band, nil}
+				seen[mac] = seenInfo{routerID: routerID, band: band}
 				if l.db != nil {
 					// Sin signal_dbm en el DO UPDATE: el hint no trae RSSI y
 					// pisar con NULL el último bueno de una asociación real
@@ -3205,7 +3223,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				continue // uplink: MACs en tránsito, no clientes de este equipo
 			}
 			if _, ok := seen[mac]; !ok {
-				seen[mac] = seenInfo{routerID, "cable", nil}
+				seen[mac] = seenInfo{routerID: routerID, band: "cable"}
 			}
 		}
 	}
@@ -3215,7 +3233,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			for mac := range gwPolled.fdb {
 				if _, ok := seen[mac]; !ok {
 					if _, ok := known[mac]; !ok {
-						seen[mac] = seenInfo{gwID, "cable", nil}
+						seen[mac] = seenInfo{routerID: gwID, band: "cable"}
 					}
 				}
 			}
@@ -3256,7 +3274,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if _, ok := seen[mac]; ok {
 					continue
 				}
-				seen[mac] = seenInfo{gwID, "cable", nil}
+				seen[mac] = seenInfo{routerID: gwID, band: "cable"}
 				wanSide[mac] = true
 			}
 		}
@@ -3285,7 +3303,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			if !arpConfirmed[mac] {
 				continue
 			}
-			seen[mac] = seenInfo{routerID, "cable", nil}
+			seen[mac] = seenInfo{routerID: routerID, band: "cable"}
 		}
 	}
 	// (5) Atribución sticky (#678): un cableado que este tick solo aparece en el
@@ -3320,7 +3338,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 					continue // boca local del gateway: evidencia fresca, no tocar
 				}
 			}
-			seen[mac] = seenInfo{m.routerID, "cable", nil}
+			seen[mac] = seenInfo{routerID: m.routerID, band: "cable"}
 		}
 	}
 
@@ -3394,6 +3412,23 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			}
 		}
 	}
+	// #1791: el vecino de la ruta por defecto del gateway (su siguiente salto
+	// WAN) no es un cliente de la LAN. Aparecía en la lista porque su MAC está
+	// en la tabla ARP y ninguna otra evidencia lo reclamaba. Se absorbe por la
+	// IP de la puerta de enlace WAN, no por un prefijo de MAC ni por un puerto,
+	// que en PPPoE no existe.
+	defaultRouteMacs := map[string]bool{}
+	for _, p := range polled {
+		gwIP := strings.TrimSpace(p.wanInfo.Gateway)
+		if gwIP == "" {
+			continue
+		}
+		for mac, ip := range p.arp {
+			if strings.TrimSpace(ip) == gwIP {
+				defaultRouteMacs[strings.ToUpper(mac)] = true
+			}
+		}
+	}
 	// issue #196: allowlist de dispositivos confiables (mac → alias).
 	knownMacs := map[string]string{}
 	if l.db != nil {
@@ -3443,8 +3478,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	}
 	devices := []Device{}
 	for mac := range allMacs {
-		if routerMacs[mac] {
-			continue // los routers no son clientes
+		if routerMacs[mac] || defaultRouteMacs[strings.ToUpper(mac)] {
+			continue // los routers y la ruta por defecto no son clientes
 		}
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
@@ -3578,6 +3613,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		if isSeen {
 			d.RouterID = s.routerID
 			d.Band = s.band
+			d.WifiIface = s.wifiIface
+			d.SSID = s.ssid
 			d.SignalDbm = s.signal
 		} else if k, ok := known[mac]; ok {
 			d.RouterID = k.routerID

@@ -10,12 +10,13 @@ import (
 
 type SystemInfo struct {
 	Descr     string
+	ObjectID  string
 	Name      string
 	UpTimeSec uint64
 }
 
 func PollSystem(s *gosnmp.GoSNMP) (*SystemInfo, error) {
-	oids := []string{OidSysDescr, OidSysName, OidSysUpTime}
+	oids := []string{OidSysDescr, OidSysObjectID, OidSysName, OidSysUpTime}
 	result, err := s.Get(oids)
 	if err != nil {
 		return nil, fmt.Errorf("snmp system get: %w", err)
@@ -25,6 +26,8 @@ func PollSystem(s *gosnmp.GoSNMP) (*SystemInfo, error) {
 		switch v.Name {
 		case OidSysDescr:
 			info.Descr = stringVal(v)
+		case OidSysObjectID:
+			info.ObjectID = stringVal(v)
 		case OidSysName:
 			info.Name = stringVal(v)
 		case OidSysUpTime:

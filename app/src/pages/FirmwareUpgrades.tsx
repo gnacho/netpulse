@@ -6,6 +6,8 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { AlertCircle, CalendarClock, Cpu, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relTimeFromTs } from '@/i18n'
+import { findAgentFor } from '@/lib/agentMatch'
+import { AgentBackupButton } from '@/components/routers/AgentBackupButton'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Switch } from '@/components/ui/switch'
 
 interface FirmwareUpgrade {
   id: number
@@ -126,7 +129,7 @@ function dowLabel(lang: string, dow: number): string {
 export default function FirmwareUpgrades() {
   const { t, i18n } = useTranslation()
   const auth = useAuth()
-  const { routers } = useNetPulse()
+  const { routers, agents } = useNetPulse()
   // #1146: la visibilidad de la página la controla el toggle de Servicios.
   const [services] = useServicesVisibility()
   const isAdmin = auth?.role === 'admin'
@@ -435,6 +438,29 @@ export default function FirmwareUpgrades() {
     }
   }
 
+  // #1776: un intento que lleva mas de 15 min en requested/running/rebooting
+  // esta atascado (el router no volvio, el SSH murio y nadie cerro el
+  // registro). El reset lo borra para poder relanzar sin llamar a la API a
+  // mano. Un intento reciente se respeta: puede estar trabajando de verdad.
+  const STALE_UPGRADE_MS = 15 * 60 * 1000
+  const isStaleUpgrade = (item: FirmwareItem) => {
+    const s = item.upgrade?.status
+    if (s !== 'requested' && s !== 'running' && s !== 'rebooting') return false
+    return Date.now() - (item.upgrade?.startedAt ?? 0) * 1000 > STALE_UPGRADE_MS
+  }
+  const resetUpgrade = async (id: string) => {
+    setBusy((prev) => ({ ...prev, [id]: 'reset' }))
+    try {
+      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/reset`, { method: 'POST' })
+      if (!res.ok) throw new Error(await res.text())
+      await fetchItems()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy((prev) => ({ ...prev, [id]: '' }))
+    }
+  }
+
   const startUpgrade = async (id: string) => {
     setBusy((prev) => ({ ...prev, [id]: 'upgrade' }))
     try {
@@ -688,6 +714,8 @@ export default function FirmwareUpgrades() {
       {/* #1444: estado del chequeo periódico de releases (cadencia + último chequeo). */}
       <ReleasesCheckCard />
 
+      <ConfigBackupScheduleCard />
+
       {error && (
         <div className="flex items-start gap-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
@@ -904,6 +932,16 @@ export default function FirmwareUpgrades() {
                   >
                     {t(`firmwareUpgrades.status.${item.upgrade.status}`, { defaultValue: item.upgrade.status })}
                   </span>
+                )}
+                {isAdmin && isStaleUpgrade(item) && (
+                  <button
+                    onClick={() => void resetUpgrade(item.routerId)}
+                    disabled={busy[item.routerId] === 'reset'}
+                    title={t('firmwareUpgrades.resetStaleHint')}
+                    className="rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
+                  >
+                    {busy[item.routerId] === 'reset' ? t('common.loading') : t('firmwareUpgrades.resetStale')}
+                  </button>
                 )}
               </div>
 
@@ -1163,6 +1201,10 @@ export default function FirmwareUpgrades() {
                   )}
                 </div>
               )}
+
+              <div className="mt-3 flex justify-end">
+                <AgentBackupButton agent={findAgentFor(agents, item.routerId)} routerId={item.routerId} />
+              </div>
 
               <details
                 className="mt-3 rounded-lg border border-border bg-canvas px-3 py-2"
@@ -1784,6 +1826,144 @@ function ReleasesCheckCard() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+
+function ConfigBackupScheduleCard() {
+  const { t, i18n } = useTranslation()
+  const { isDemo } = useNetPulse()
+  const auth = useAuth()
+  const isAdmin = auth?.role === 'admin'
+  const [schedule, setSchedule] = useState<{
+    enabled: boolean
+    dayOfWeek: number
+    time: string
+    lastRunMs?: number
+    nextRunMs?: number
+  } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null)
+
+  useEffect(() => {
+    if (!isAdmin || isDemo) return
+    let cancelled = false
+    fetch('/api/settings/config-backup-schedule')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setSchedule(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isAdmin, isDemo])
+
+  if (isDemo || !isAdmin) return null
+  if (!schedule) return null
+
+  const locale = i18n.language.startsWith('en') ? 'en-GB' : 'es-ES'
+  const days = Array.from({ length: 7 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(new Date(2026, 8, 6 + i)),
+  )
+  const lastRun = relTimeFromTs(schedule.lastRunMs)
+  const nextRun = relTimeFromTs(schedule.nextRunMs)
+
+  const save = async () => {
+    setSaving(true)
+    setFeedback(null)
+    try {
+      const res = await fetch('/api/settings/config-backup-schedule', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: schedule.enabled,
+          dayOfWeek: schedule.dayOfWeek,
+          time: schedule.time,
+        }),
+      })
+      if (!res.ok) throw new Error('save failed')
+      const saved = await res.json()
+      setSchedule(saved)
+      setFeedback('saved')
+    } catch {
+      setFeedback('error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-text-primary">{t('firmwareUpgrades.backupScheduleTitle')}</p>
+          <p className="mt-0.5 text-caption text-text-muted">{t('firmwareUpgrades.backupScheduleCaption')}</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-text-primary">
+          <Switch
+            checked={schedule.enabled}
+            onCheckedChange={(enabled) => {
+              setSchedule({ ...schedule, enabled })
+              setFeedback(null)
+            }}
+            aria-label={t('firmwareUpgrades.backupScheduleEnabled')}
+          />
+          {t('firmwareUpgrades.backupScheduleEnabled')}
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text-muted">
+          {t('firmwareUpgrades.backupScheduleDay')}
+          <select
+            className="rounded-lg border border-border bg-canvas px-2 py-1 text-sm text-text-primary disabled:opacity-50"
+            value={schedule.dayOfWeek}
+            disabled={!schedule.enabled}
+            onChange={(e) => {
+              setSchedule({ ...schedule, dayOfWeek: Number(e.target.value) })
+              setFeedback(null)
+            }}
+          >
+            {days.map((day, i) => (
+              <option key={i} value={i}>
+                {day}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text-muted">
+          {t('firmwareUpgrades.backupScheduleTime')}
+          <input
+            type="time"
+            className="rounded-lg border border-border bg-canvas px-2 py-1 text-sm text-text-primary disabled:opacity-50"
+            value={schedule.time}
+            disabled={!schedule.enabled}
+            onChange={(e) => {
+              setSchedule({ ...schedule, time: e.target.value })
+              setFeedback(null)
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          onClick={() => void save()}
+          disabled={saving}
+        >
+          {t('firmwareUpgrades.backupScheduleSave')}
+        </button>
+      </div>
+      {(lastRun || nextRun) && (
+        <p className="mt-2 text-caption text-text-muted">
+          {lastRun && t('firmwareUpgrades.backupScheduleLastRun', { when: lastRun })}
+          {lastRun && nextRun ? ' · ' : ''}
+          {nextRun && t('firmwareUpgrades.backupScheduleNextRun', { when: nextRun })}
+        </p>
+      )}
+      {feedback && (
+        <p className={cn('mt-2 text-caption', feedback === 'saved' ? 'text-emerald-500' : 'text-rose-400')}>
+          {t(feedback === 'saved' ? 'firmwareUpgrades.backupScheduleSaved' : 'firmwareUpgrades.backupScheduleError')}
+        </p>
+      )}
     </div>
   )
 }
