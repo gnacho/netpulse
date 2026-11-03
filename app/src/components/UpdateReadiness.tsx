@@ -9,7 +9,11 @@ import { cn } from '@/lib/utils'
 
 export interface ReadinessCheck {
   ok: boolean
+  /** Respaldo en el idioma del servidor, para clientes sin traducción. */
   detail?: string
+  /** #1811: slug estable del check y sus números. La UI los traduce. */
+  code?: string
+  vars?: Record<string, string>
 }
 
 export interface UpdateReadiness {
@@ -69,11 +73,20 @@ export function ReadinessPanel({
                 <CircleX className="h-3.5 w-3.5 shrink-0 text-rose-500" strokeWidth={2} aria-hidden="true" />
               )}
               <span className="text-text-secondary">{t(`update.checks.${k}`)}</span>
-              {c.detail && (
-                <span className="truncate text-text-muted" title={c.detail}>
-                  {c.detail}
-                </span>
-              )}
+              {(() => {
+                // #1811: el servidor manda código y variables, el idioma lo
+                // pone el cliente. `detail` queda como respaldo si el código
+                // es desconocido (servidor más nuevo que la UI).
+                const detail = c.code
+                  ? t(`update.checks.detail.${c.code}`, { ...c.vars, defaultValue: c.detail ?? '' })
+                  : c.detail
+                if (!detail) return null
+                return (
+                  <span className="truncate text-text-muted" title={detail}>
+                    {detail}
+                  </span>
+                )
+              })()}
             </li>
           )
         })}

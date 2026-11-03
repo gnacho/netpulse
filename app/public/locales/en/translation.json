@@ -2284,7 +2284,19 @@
       "network": "GitHub reachable",
       "concurrent": "No update in progress",
       "ok": "OK",
-      "fail": "Failed"
+      "fail": "Failed",
+      "detail": {
+        "diskOk": "{{free}} MB free",
+        "diskLow": "{{free}} MB free, {{need}} MB needed",
+        "diskError": "Could not read the free disk space",
+        "gitStable": "not applicable (stable layout)",
+        "gitNoClone": "not applicable (no git clone)",
+        "gitError": "Could not read the git status",
+        "gitDirty": "There are uncommitted changes",
+        "netUrl": "Invalid API URL",
+        "netUnreachable": "Could not reach GitHub",
+        "busy": "An update is already in progress"
+      }
     },
     "confirmed": "Updated to {{sha}}",
     "history": {

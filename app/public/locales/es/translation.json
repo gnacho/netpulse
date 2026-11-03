@@ -2284,7 +2284,19 @@
       "network": "Conexión con GitHub",
       "concurrent": "Sin actualización en curso",
       "ok": "OK",
-      "fail": "Fallo"
+      "fail": "Fallo",
+      "detail": {
+        "diskOk": "{{free}} MB libres",
+        "diskLow": "{{free}} MB libres, se necesitan {{need}}",
+        "diskError": "No se pudo leer el espacio en disco",
+        "gitStable": "no aplica (layout estable)",
+        "gitNoClone": "no aplica (sin clone git)",
+        "gitError": "No se pudo leer el estado de git",
+        "gitDirty": "Hay cambios sin commitear",
+        "netUrl": "URL de API inválida",
+        "netUnreachable": "No se pudo contactar con GitHub",
+        "busy": "Hay una actualización en curso"
+      }
     },
     "confirmed": "Actualizado a {{sha}}",
     "history": {

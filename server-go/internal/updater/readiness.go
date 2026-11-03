@@ -41,9 +41,16 @@ var probeURL = "https://github.com"
 var minDiskFreeBytes int64 = 500 * 1024 * 1024
 
 // CheckResult es el resultado de un check individual.
+//
+// Detail lo escribe el servidor en castellano y se mantiene como respaldo para
+// clientes antiguos. La UI actual usa Code y Vars: el servidor no pre-formatea
+// texto traducible (#1036), así que cada check publica un slug estable y sus
+// números, y el idioma lo pone el frontend (#1811).
 type CheckResult struct {
-	OK     bool   `json:"ok"`
-	Detail string `json:"detail,omitempty"`
+	OK     bool              `json:"ok"`
+	Detail string            `json:"detail,omitempty"`
+	Code   string            `json:"code,omitempty"`
+	Vars   map[string]string `json:"vars,omitempty"`
 }
 
 // Readiness agrupa los pre-flight checks del apply (issue #160).
@@ -100,16 +107,26 @@ func (u *Updater) checkDisk() CheckResult {
 	}
 	var st syscall.Statfs_t
 	if err := syscall.Statfs(path, &st); err != nil {
-		return CheckResult{OK: false, Detail: "no se pudo leer el espacio en disco"}
+		return CheckResult{OK: false, Detail: "no se pudo leer el espacio en disco", Code: "diskError"}
 	}
 	free := int64(st.Bavail) * int64(st.Bsize)
 	if free < minDiskFreeBytes {
 		return CheckResult{
 			OK:     false,
 			Detail: fmt.Sprintf("%d MB libres, se necesitan %d", free/(1<<20), minDiskFreeBytes/(1<<20)),
+			Code:   "diskLow",
+			Vars: map[string]string{
+				"free": fmt.Sprintf("%d", free/(1<<20)),
+				"need": fmt.Sprintf("%d", minDiskFreeBytes/(1<<20)),
+			},
 		}
 	}
-	return CheckResult{OK: true, Detail: fmt.Sprintf("%d MB libres", free/(1<<20))}
+	return CheckResult{
+		OK:     true,
+		Detail: fmt.Sprintf("%d MB libres", free/(1<<20)),
+		Code:   "diskOk",
+		Vars:   map[string]string{"free": fmt.Sprintf("%d", free/(1<<20))},
+	}
 }
 
 // checkGit verifica que el working tree está limpio (update.sh hace
@@ -119,7 +136,7 @@ func (u *Updater) checkDisk() CheckResult {
 // los toca — de otro modo el apply quedaría bloqueado para siempre.
 func (u *Updater) checkGit() CheckResult {
 	if u.mode != "rolling" {
-		return CheckResult{OK: true, Detail: "no aplica (layout estable)"}
+		return CheckResult{OK: true, Detail: "no aplica (layout estable)", Code: "gitStable"}
 	}
 	// Rolling sin clone (.git ausente, p.ej. el layout estable actualizado
 	// in place con deploy/update.sh copiado): update.sh resuelve el SHA de
@@ -128,14 +145,14 @@ func (u *Updater) checkGit() CheckResult {
 	// se pudo leer el estado de git" y bloqueaba el apply para siempre
 	// (issue #955).
 	if !fileExists(filepath.Join(u.repoRoot, ".git")) {
-		return CheckResult{OK: true, Detail: "no aplica (sin clone git)"}
+		return CheckResult{OK: true, Detail: "no aplica (sin clone git)", Code: "gitNoClone"}
 	}
 	out, err := exec.Command("git", "-C", u.repoRoot, "status", "--porcelain", "--untracked-files=no").Output()
 	if err != nil {
-		return CheckResult{OK: false, Detail: "no se pudo leer el estado de git"}
+		return CheckResult{OK: false, Detail: "no se pudo leer el estado de git", Code: "gitError"}
 	}
 	if len(strings.TrimSpace(string(out))) > 0 {
-		return CheckResult{OK: false, Detail: "hay cambios sin commitear"}
+		return CheckResult{OK: false, Detail: "hay cambios sin commitear", Code: "gitDirty"}
 	}
 	return CheckResult{OK: true}
 }
@@ -148,13 +165,13 @@ func (u *Updater) checkNetwork() CheckResult {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, "GET", probeURL, nil)
 	if err != nil {
-		return CheckResult{OK: false, Detail: "URL de API inválida"}
+		return CheckResult{OK: false, Detail: "URL de API inválida", Code: "netUrl"}
 	}
 	req.Header.Set("User-Agent", "netpulse-updater")
 	client := &http.Client{Timeout: readinessNetTimeout}
 	res, err := client.Do(req)
 	if err != nil {
-		return CheckResult{OK: false, Detail: "no se pudo contactar con GitHub"}
+		return CheckResult{OK: false, Detail: "no se pudo contactar con GitHub", Code: "netUnreachable"}
 	}
 	res.Body.Close()
 	return CheckResult{OK: true}
@@ -166,7 +183,7 @@ func (u *Updater) checkConcurrent() CheckResult {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	if u.updatingStep != nil {
-		return CheckResult{OK: false, Detail: "hay una actualización en curso"}
+		return CheckResult{OK: false, Detail: "hay una actualización en curso", Code: "busy"}
 	}
 	return CheckResult{OK: true}
 }

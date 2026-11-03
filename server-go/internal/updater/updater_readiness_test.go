@@ -171,3 +171,28 @@ func TestStatusExponeReadiness(t *testing.T) {
 		t.Errorf("ready esperado: %+v", st.Readiness)
 	}
 }
+
+// #1811: cada check publica un slug estable y sus números para que la UI lo
+// traduzca. `Detail` sigue ahí como respaldo, pero el frontend no lo usa
+// cuando hay código.
+func TestReadinessPublishesTranslationCodes(t *testing.T) {
+	root := t.TempDir()
+	u := New(root, "owner/netpulse", "", "2.0.0", nil)
+
+	if got := u.checkDisk(); got.Code != "diskOk" && got.Code != "diskLow" {
+		t.Fatalf("checkDisk code = %q, esperaba diskOk o diskLow", got.Code)
+	}
+	if got := u.checkDisk(); got.Code == "diskOk" && got.Vars["free"] == "" {
+		t.Fatalf("diskOk sin la variable free: %+v", got)
+	}
+
+	// Layout sin clone git: el check no aplica y lo dice con su código.
+	u.mode = "rolling"
+	if got := u.checkGit(); got.Code != "gitNoClone" {
+		t.Fatalf("checkGit code = %q, esperaba gitNoClone", got.Code)
+	}
+
+	if got := u.checkConcurrent(); got.Code != "" {
+		t.Fatalf("checkConcurrent code = %q, esperaba vacío cuando no hay update", got.Code)
+	}
+}
