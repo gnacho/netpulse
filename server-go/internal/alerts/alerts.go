@@ -904,6 +904,7 @@ func (e *Engine) List() []AlertEvent {
 		ev.Read = e.readSet[ev.ID]
 		if len(ev.Resolves) > 0 {
 			ev.Resolved = make([]ResolvedEvent, 0, len(ev.Resolves))
+			var missing []int
 			for _, rid := range ev.Resolves {
 				ref := ResolvedEvent{ID: rid}
 				if orig, ok := byID[rid]; ok {
@@ -911,13 +912,62 @@ func (e *Engine) List() []AlertEvent {
 					ref.Ts = orig.Ts
 					ref.Type = orig.Type
 					ref.Vars = orig.Vars
+				} else {
+					missing = append(missing, len(ev.Resolved))
 				}
 				ev.Resolved = append(ev.Resolved, ref)
 			}
+			// #1466: el evento resuelto casi nunca está en la lista viva,
+			// porque Resolve() lo retira de ella. Sin este respaldo el cierre
+			// se quedaba con el id suelto, que es lo que se reportaba.
+			e.fillResolvedFromDBLocked(ev.Resolved, missing)
 		}
 		out = append(out, ev)
 	}
 	return out
+}
+
+// fillResolvedFromDBLocked completa los datos de los eventos resueltos que ya
+// no están en memoria (#1466). Resolve() retira el evento de la lista viva y
+// lo conserva en alert_log marcado con resolved_ts, así que la fila sigue
+// teniendo título, instante, tipo y vars. Sin esto, el cierre mostraba solo
+// el id interno. Se llama con e.mu tomado.
+func (e *Engine) fillResolvedFromDBLocked(refs []ResolvedEvent, missing []int) {
+	if e.db == nil || len(missing) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(missing))
+	for _, i := range missing {
+		ids = append(ids, refs[i].ID)
+	}
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	marks := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
+	rows, err := e.db.Query(
+		"SELECT id, title, ts, type, vars FROM alert_log WHERE id IN ("+marks+")", args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	byID := make(map[string]ResolvedEvent, len(ids))
+	for rows.Next() {
+		var ref ResolvedEvent
+		var varsRaw string
+		if rows.Scan(&ref.ID, &ref.Title, &ref.Ts, &ref.Type, &varsRaw) != nil {
+			continue
+		}
+		if varsRaw != "" {
+			_ = json.Unmarshal([]byte(varsRaw), &ref.Vars)
+		}
+		byID[ref.ID] = ref
+	}
+	for _, i := range missing {
+		if got, ok := byID[refs[i].ID]; ok {
+			refs[i] = got
+		}
+	}
 }
 
 // UnreadCount cuenta eventos almacenados (ya pasaron config) no leídos.
