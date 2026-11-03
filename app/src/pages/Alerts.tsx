@@ -869,7 +869,7 @@ export default function Alerts() {
             onClick={() => setConfigOpen((v) => !v)}
             aria-expanded={configOpen}
             className={cn(
-              'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-medium transition-colors duration-150',
+              'inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors duration-150',
               configOpen
                 ? 'border-accent/40 bg-accent-soft text-accent'
                 : 'border-border bg-elevated text-text-secondary hover:border-accent/40 hover:text-accent',
@@ -882,7 +882,7 @@ export default function Alerts() {
             type="button"
             onClick={markAllRead}
             disabled={alertFeed.length === 0}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             <motion.span key={burst} animate={reduce ? undefined : { scale: [1, 1.2, 1] }} transition={{ duration: 0.35 }}>
               <CheckCheck className="h-4 w-4" strokeWidth={1.75} />
@@ -893,7 +893,7 @@ export default function Alerts() {
             type="button"
             onClick={() => setConfirmClear(true)}
             disabled={alertFeed.length === 0}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 text-xs font-medium text-danger transition-colors duration-150 hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 text-sm font-medium text-danger transition-colors duration-150 hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" strokeWidth={1.75} />
             {t('alerts.clearLog')}
@@ -1125,7 +1125,7 @@ export default function Alerts() {
             return !v
           })}
           className={cn(
-            'inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-medium transition-colors duration-150',
+            'inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors duration-150',
             onlyUnread
               ? 'border-accent/40 bg-accent-soft text-accent'
               : 'border-border bg-elevated text-text-secondary hover:text-text-primary',
