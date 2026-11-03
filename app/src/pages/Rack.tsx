@@ -763,8 +763,15 @@ function RackCanvas() {
         const res = await fetch(`/api/routers/${encodeURIComponent(router.id)}`)
         if (res.ok) {
           const detail = await res.json()
-          const eth: { id?: string; iface?: string; name?: string; label?: string }[] = detail?.extras?.ethPorts ?? []
+          const eth: { id?: string; iface?: string; name?: string; label?: string; family?: string }[] =
+            detail?.extras?.ethPorts ?? []
           physical = eth
+            // #1804: `family` sale del ifType IANA del sondeo. vlan, lag,
+            // bridge, tunnel y virtual no son bocas del frontal: un Omada
+            // declara vlan1 (ifIndex 1) y el port-channel (32769) como
+            // ethernet y ocupaban sitio en el panel. Las bocas físicas llegan
+            // sin familia.
+            .filter((p) => !p.family)
             .map((p) => ({ id: p.id || p.iface || p.name || '', label: p.label || p.iface || '' }))
             .filter((p) => p.id && !p.id.startsWith('wlan'))
             .map((p) => {
