@@ -88,16 +88,15 @@ function PeerRow({ peer, index }: { peer: WGPeer; index: number }) {
   )
 }
 
-/** ③a Tarjeta AdGuard Home (home.md §③) */
+/** ③a Tarjeta AdGuard Home (home.md §③). Si el gateway no tiene AdGuard
+ * configurado no se pinta, y quien decide eso es Home (#1834), que es el
+ * mismo sitio que reparte el ancho de la fila: una sola fuente para las dos
+ * cosas. Antes la tarjeta se ocultaba sola (#813) y el ancho no se enteraba. */
 export function AdGuardCard({ index = 0 }: { index?: number }) {
   const { t } = useTranslation()
   const { refreshKey } = useDashboard()
   const { adguard } = useNetPulse()
   const maxBlocked = Math.max(...adguard.topBlocked.map((d) => d.count))
-
-  // Sin config (host vacío) la tarjeta no aplica: al desactivar AdGuard (#813)
-  // desaparece en vez de quedarse en "inactivo".
-  if (!adguard.host) return null
 
   return (
       <ServicePanel
