@@ -14,14 +14,20 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
  *  tráfico WAN a todo lo ancho, flota, collector, SLEs y los servicios del
  *  gateway (AdGuard/WireGuard) AL FINAL. */
 export default function Home() {
-  const { isDemo } = useNetPulse()
+  const { isDemo, adguard, wireguard } = useNetPulse()
   const [services] = useServicesVisibility()
   // Clave ESTABLE por tarjeta (#223): si AdGuard/WireGuard se deshabilitan en
   // Ajustes la lista se reordena y, con key={i}, React remontaría los paneles.
   // Cada id identifica al hijo, no su posición. Orden #983: AdGuard primero.
+  // La lista lleva solo lo que de verdad se pinta (#1834): el checkbox dice
+  // que el servicio interesa, los datos dicen si existe. Contar checkboxes
+  // dejaba media fila vacía en un gateway sin AdGuard, porque la tarjeta se
+  // ocultaba sola (#813) y el ancho ya estaba repartido.
   const serviceCards: { id: string; node: ReactNode }[] = []
-  if (services.adguard) serviceCards.push({ id: 'adguard', node: <AdGuardCard /> })
-  if (services.wireguard) serviceCards.push({ id: 'wireguard', node: <WireGuardCard /> })
+  if (services.adguard && adguard.host) serviceCards.push({ id: 'adguard', node: <AdGuardCard /> })
+  if (services.wireguard && wireguard.interface) {
+    serviceCards.push({ id: 'wireguard', node: <WireGuardCard /> })
+  }
   const serviceSpan = serviceCards.length >= 2 ? 'lg:col-span-6' : 'lg:col-span-12'
   return (
     <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-12">
