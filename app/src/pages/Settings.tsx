@@ -2751,6 +2751,7 @@ function BackupsPanel() {
           ? t('settings.admin.backup.lastRun', { date: fmtDate(cfg.last_run) })
           : t('settings.admin.backup.noBackups')}
       </p>
+      <p className="text-caption text-text-muted">{t('settings.admin.backup.scope')}</p>
 
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       {okMsg && <p role="status" className="text-xs text-ok">{okMsg}</p>}

@@ -1540,7 +1540,8 @@
         "timeHint": "Vacío = cada N horas; con hora, diario a esa hora",
         "saveError": "No se pudieron guardar los ajustes",
         "error": "No se pudo hacer el respaldo",
-        "done": "Respaldo creado correctamente"
+        "done": "Respaldo creado correctamente",
+        "scope": "Cada respaldo incluye la base de datos, la clave SSH y el material TLS, para poder restaurarlo en otro equipo"
       },
       "orchestration": "Orquestación de red"
     },

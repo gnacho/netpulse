@@ -7,6 +7,7 @@
 package httpapi
 
 import (
+	"archive/tar"
 	"compress/gzip"
 	"context"
 	"database/sql"
@@ -112,11 +113,13 @@ func (s *server) runBackup() (string, error) {
 	}
 
 	ts := time.Now().UTC().Format("20060102-150405")
-	// #818: los backups automáticos se guardan comprimidos (~4x menos en
-	// disco). El nombre .db.gz deja claro que hay que descomprimir para
-	// restaurar; purgeOldBackups reconoce ambos formatos.
-	dst := filepath.Join(backupDir, "netpulse-"+ts+".db.gz")
-	if err := gzipFile(s.db.Path, dst); err != nil {
+	// #1864: un backup es más que la BD. Una instalación nueva restaurada solo
+	// con el .db tiene datos y ajustes pero no puede entrar por SSH en los
+	// routers (la clave vive en .ssh) ni sirve TLS sin volver a generarlo, así
+	// que el archivo lleva el conjunto: netpulse.db, .ssh y tls. Va en tar.gz
+	// para que sea un único fichero, con la purga tratándolo como uno solo.
+	dst := filepath.Join(backupDir, "netpulse-"+ts+".tar.gz")
+	if err := writeBackupArchive(filepath.Dir(s.db.Path), s.db.Path, dst); err != nil {
 		return "", err
 	}
 
@@ -294,36 +297,129 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// gzipFile comprime src en dst con gzip (#818). Se usa para los backups
-// automáticos: mismo contenido que copyFile pero ~4x menos en disco. Limpia
-// el fichero destino parcial si falla.
-func gzipFile(src, dst string) error {
-	in, err := os.Open(src)
+// writeBackupArchive escribe el backup completo (#1864) en un único tar.gz:
+// la BD más .ssh y tls, que son lo que hace falta para que una restauración en
+// otro host pueda entrar por SSH en los routers y servir TLS sin regenerar
+// nada. Un directorio que no exista (instalación sin clave todavía) se omite
+// sin fallar: el backup sigue siendo válido.
+func writeBackupArchive(dataDir, dbPath, dst string) error {
+	tmp := dst + ".tmp"
+	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
-	if err != nil {
+	fail := func(err error) error {
+		out.Close()
+		os.Remove(tmp)
 		return err
 	}
-	defer out.Close()
 	if err := out.Chmod(backupFileMode); err != nil {
-		return err
+		return fail(err)
 	}
 
 	zw := gzip.NewWriter(out)
-	if _, err := io.Copy(zw, in); err != nil {
-		zw.Close()
-		os.Remove(dst)
-		return err
+	tw := tar.NewWriter(zw)
+
+	if err := addTarFile(tw, dbPath, filepath.Base(dbPath)); err != nil {
+		return fail(err)
+	}
+	for _, name := range []string{".ssh", "tls"} {
+		p := filepath.Join(dataDir, name)
+		if _, statErr := os.Stat(p); statErr != nil {
+			continue
+		}
+		if err := addTarTree(tw, p, name); err != nil {
+			return fail(err)
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		return fail(err)
 	}
 	if err := zw.Close(); err != nil {
-		os.Remove(dst)
+		return fail(err)
+	}
+	if err := out.Close(); err != nil {
+		os.Remove(tmp)
 		return err
 	}
-	return nil
+	return os.Rename(tmp, dst)
+}
+
+// addTarFile mete un fichero suelto en el archivo con su modo (la clave SSH va
+// en 0600 y tiene que seguir así al restaurar).
+func addTarFile(tw *tar.Writer, src, name string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	hdr, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return err
+	}
+	hdr.Name = name
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	f, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = io.Copy(tw, f)
+	return err
+}
+
+// addTarTree mete un directorio entero (permisos incluidos) con rutas
+// relativas a root.
+func addTarTree(tw *tar.Writer, src, root string) error {
+	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, relErr := filepath.Rel(src, p)
+		if relErr != nil {
+			return relErr
+		}
+		name := root
+		if rel != "." {
+			name = filepath.ToSlash(filepath.Join(root, rel))
+		}
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return infoErr
+		}
+		hdr, hdrErr := tar.FileInfoHeader(info, "")
+		if hdrErr != nil {
+			return hdrErr
+		}
+		hdr.Name = name
+		if d.IsDir() {
+			hdr.Name = name + "/"
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		f, openErr := os.Open(p)
+		if openErr != nil {
+			return openErr
+		}
+		defer f.Close()
+		_, copyErr := io.Copy(tw, f)
+		return copyErr
+	})
+}
+
+// isBackupFile decide qué ficheros de backups/ son backups. Reconoce el
+// archivo completo de hoy (.tar.gz) y los formatos anteriores (#818, #741)
+// para que la retención siga limpiando lo que dejaron versiones viejas.
+func isBackupFile(name string) bool {
+	return strings.HasSuffix(name, ".tar.gz") ||
+		strings.HasSuffix(name, ".db.gz") ||
+		strings.HasSuffix(name, ".db")
 }
 
 func purgeOldBackups(dir string, retentionDays int) {
@@ -337,8 +433,9 @@ func purgeOldBackups(dir string, retentionDays int) {
 			continue
 		}
 		// #818: reconoce backups comprimidos (.db.gz) y los antiguos sin
-		// comprimir (.db); cualquier otro fichero se ignora.
-		if !strings.HasSuffix(e.Name(), ".db") && !strings.HasSuffix(e.Name(), ".db.gz") {
+		// comprimir (.db); #1864 añade el archivo completo (.tar.gz).
+		// Cualquier otro fichero se ignora.
+		if !isBackupFile(e.Name()) {
 			continue
 		}
 		info, err := e.Info()
