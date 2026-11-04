@@ -300,3 +300,20 @@ func TestSSHPoolCloseDuringDialReleasesClient(t *testing.T) {
 		t.Fatal("el cliente SSH no se cerró al detectar el pool cerrado")
 	}
 }
+
+// #1737: el stderr remoto es lo unico que explica un reinstall fallido; el
+// error de ssh solo trae el codigo de salida.
+func TestSSHErrDetail(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"sin stderr", "", ""},
+		{"una linea", "curl: (6) Could not resolve host\n", "curl: (6) Could not resolve host"},
+		{"ultima no vacia", "wget: descargando\n\nopkg: no space left on device\n\n", "opkg: no space left on device"},
+		{"solo espacios", " \n\t\n", ""},
+		{"recorta", strings.Repeat("x", 400), strings.Repeat("x", 300) + "..."},
+	}
+	for _, c := range cases {
+		if got := sshErrDetail(c.in); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
