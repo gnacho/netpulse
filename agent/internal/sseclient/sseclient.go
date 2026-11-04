@@ -58,14 +58,14 @@ func (c *Client) SetLogger(f func(string, ...any)) { c.logf = f }
 func (c *Client) Run(ctx context.Context) {
 	retry := c.minRetry
 	for {
-		err := c.connect(ctx)
+		established, err := c.connect(ctx)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil {
 			c.logf("[netpulse-agent] SSE desconectado (%v), reintentando en %s", err, retry)
 		}
-		delay, next := c.retryDelay(retry, err == nil)
+		delay, next := c.retryDelay(retry, established)
 		retry = next
 		select {
 		case <-ctx.Done():
@@ -80,6 +80,10 @@ func (c *Client) Run(ctx context.Context) {
 // reinicia el backoff (#284); solo los fallos consecutivos lo hacen crecer
 // hasta maxRetry (#1563: el `retry *= 2` anterior también corría tras una
 // conexión limpia, así que el reinicio no servía de nada).
+// #1859: "establecerse" lo decide connect(), que devuelve si el stream llegó
+// a traer datos, no si terminó sin error. Un reinicio del servidor corta la
+// lectura con EOF inesperado, y antes eso contaba como fallo: cada despliegue
+// doblaba la espera hasta los cinco minutos.
 func (c *Client) retryDelay(current time.Duration, established bool) (delay, next time.Duration) {
 	if established {
 		return c.minRetry, c.minRetry
@@ -91,10 +95,13 @@ func (c *Client) retryDelay(current time.Duration, established bool) (delay, nex
 	return current, next
 }
 
-func (c *Client) connect(ctx context.Context) error {
+// connect abre el stream y lo consume hasta que se corta. Devuelve si llegó a
+// establecerse (respuesta 200 y al menos una línea leída) junto al error de
+// lectura, que es nil cuando el corte fue limpio.
+func (c *Client) connect(ctx context.Context) (bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.url, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "text/event-stream")
@@ -102,19 +109,21 @@ func (c *Client) connect(ctx context.Context) error {
 
 	res, err := c.hc.Do(req)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return &httpError{res.StatusCode}
+		return false, &httpError{res.StatusCode}
 	}
 
 	scanner := bufio.NewScanner(res.Body)
 	scanner.Buffer(nil, 64<<10)
 
 	var ev Event
+	established := false
 	for scanner.Scan() {
+		established = true
 		line := scanner.Text()
 
 		// Comentario (heartbeat) — ignorar
@@ -140,7 +149,7 @@ func (c *Client) connect(ctx context.Context) error {
 			continue
 		}
 	}
-	return scanner.Err()
+	return established, scanner.Err()
 }
 
 type httpError struct{ code int }
