@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
 )
 
@@ -87,6 +88,73 @@ func TestAgentBinaryUnknownArch(t *testing.T) {
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("?arch=sparc quiero 404, tengo %d", res.StatusCode)
+	}
+}
+
+// #1840: el servidor no debe servir su binario embebido a un agente que ya
+// corre una versión más nueva: sería un downgrade silencioso que revierte
+// fixes. El operador puede forzarlo con ?force=1.
+func TestAgentBinaryRefusesDowngrade(t *testing.T) {
+	prev := agentbin.EmbeddedAgentVersion
+	agentbin.EmbeddedAgentVersion = "3.0.31"
+	t.Cleanup(func() { agentbin.EmbeddedAgentVersion = prev })
+
+	ts := makeAgentTestServer(t)
+	token := createTokenFor(t, ts, "rt1")
+	ts.agents.Ingest(&probe.Payload{Router: "rt1", Kind: "native", Version: "3.0.32"})
+
+	res := getBinary(t, ts, "rt1", token, "?arch=arm64")
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusConflict {
+		body, _ := io.ReadAll(res.Body)
+		t.Fatalf("agente más nuevo: quiero 409, tengo %d: %s", res.StatusCode, body)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "3.0.32") {
+		t.Fatalf("el error debe decir la versión reportada: %s", body)
+	}
+}
+
+// ?force=1 es la confirmación explícita: sirve el binario aunque el router
+// reporte una versión más nueva (reinstall de un agente roto).
+func TestAgentBinaryForceSkipsDowngradeGuard(t *testing.T) {
+	prev := agentbin.EmbeddedAgentVersion
+	agentbin.EmbeddedAgentVersion = "3.0.31"
+	t.Cleanup(func() { agentbin.EmbeddedAgentVersion = prev })
+
+	ts := makeAgentTestServer(t)
+	token := createTokenFor(t, ts, "rt1")
+	ts.agents.Ingest(&probe.Payload{Router: "rt1", Kind: "native", Version: "3.0.32"})
+
+	res := getBinary(t, ts, "rt1", token, "?arch=arm64&force=1")
+	defer res.Body.Close()
+	// 404 si el árbol no tiene binarios embebidos: el guard ya no bloquea.
+	if res.StatusCode == http.StatusConflict {
+		t.Fatal("?force=1 no debe devolver 409")
+	}
+}
+
+// Sin estado del agente (recién instalado o caído) no se bloquea: hay que
+// poder curarlo. Un agente más viejo que el embebido tampoco se bloquea.
+func TestAgentBinaryDowngradeGuardOnlyForNewerAgents(t *testing.T) {
+	prev := agentbin.EmbeddedAgentVersion
+	agentbin.EmbeddedAgentVersion = "3.0.31"
+	t.Cleanup(func() { agentbin.EmbeddedAgentVersion = prev })
+
+	ts := makeAgentTestServer(t)
+	token := createTokenFor(t, ts, "rt1")
+
+	res := getBinary(t, ts, "rt1", token, "?arch=arm64")
+	res.Body.Close()
+	if res.StatusCode == http.StatusConflict {
+		t.Fatal("sin estado del agente no debe bloquear")
+	}
+
+	ts.agents.Ingest(&probe.Payload{Router: "rt1", Kind: "native", Version: "3.0.30"})
+	res = getBinary(t, ts, "rt1", token, "?arch=arm64")
+	res.Body.Close()
+	if res.StatusCode == http.StatusConflict {
+		t.Fatal("un agente más viejo no debe bloquearse")
 	}
 }
 
