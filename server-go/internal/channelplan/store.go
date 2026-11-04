@@ -323,13 +323,28 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 			rec.Iface = ifaceForBand(band) // placeholder; el agente no reporta iface por radio
 		}
 		blocks := bandBlocks(band, r.WidthMhz)
+		// #1844: el bloque actual se identifica por COBERTURA, no por igualdad.
+		// A 80 MHz el bloque que cubre 36-48 se llama 36, asi que un radio en
+		// 48 no coincidia con ninguno y acababa en la rama de DFS, que mueve el
+		// canal sin mirar vecinas y encima dentro del mismo bloque.
+		blockSpan := 0
+		if band != "2.4 GHz" {
+			blockSpan = r.WidthMhz/20 - 1
+			if blockSpan < 0 {
+				blockSpan = 0
+			}
+		}
 		bestCh, bestScore := 0, math.MaxInt
 		currentScore := math.MaxInt
+		currentRecommendable := false
+		currentBlockCh := 0
 		scores := make([]ChannelScore, 0, len(blocks))
 		for _, b := range blocks {
 			b.Score, b.Neighbors, b.Strongest = channelScoreDetailed(byBand[band], b.Channel)
-			if b.Channel == r.Channel {
+			if r.Channel >= b.Channel && r.Channel <= b.Channel+blockSpan*4 {
 				currentScore = b.Score
+				currentRecommendable = b.Recommendable
+				currentBlockCh = b.Channel
 			}
 			// El motor recomienda solo el mejor bloque no-DFS (#518/#631).
 			if b.Recommendable && b.Score < bestScore {
@@ -370,19 +385,15 @@ func (s *Store) Recommend(routerID string, radios []probe.Radio, within time.Dur
 		// el criterio legacy: si no es primario de ningún bloque puntuable se
 		// asume que hay que moverlo.
 		currentKnown := channelInBand(band, r.Channel)
-		currentNotRecommendable := currentKnown
-		for _, b := range scores {
-			if b.Channel == r.Channel {
-				currentNotRecommendable = !b.Recommendable
-				break
-			}
-		}
 		switch {
 		case !currentKnown:
 			// 0 es el centinela de "sin datos" que la UI ya distingue de
 			// "mantén el actual".
 			rec.Recommended = 0
-		case currentNotRecommendable && bestCh != 0:
+		case !currentRecommendable && bestCh != 0 && bestCh != currentBlockCh:
+			// Bloque actual DFS (o solapado en 2.4): se sugiere salir aunque no
+			// haya vecinas. #1844: nunca el primario del bloque en el que ya
+			// esta, que a 40/80 MHz es el mismo canal de radio.
 			rec.Recommended = bestCh
 		case bestCh != 0 && bandNeighbors > 0 && bestScore < currentScore && bestScore*100 <= currentScore*70:
 			rec.Recommended = bestCh

@@ -460,9 +460,12 @@ func TestRecommendExcluyeMallaPropia(t *testing.T) {
 	}
 }
 
-// TestRecommendAnchura80NoCruzaDfs (#631): a 80 MHz el canal 44 ocupa el
-// bloque 44-56 que entra en canales DFS (52+), así que no debe ofrecerse como
-// candidato; se recomienda el 36, único bloque UNII-1 no-DFS a ese ancho.
+// TestRecommendAnchura80NoCruzaDfs (#631): un bloque de 80 MHz que entra en
+// canales DFS (52-64, 100-144) no puede recomendarse. El bloque se identifica
+// por cobertura (#1844): el 52/80 ocupa 52-64, así que se ofrece el 36, único
+// UNII-1 no-DFS a ese ancho. El 44/80, en cambio, ocupa 36-48 y es no-DFS: el
+// motor debe dejarlo donde está en vez de mandarlo al 36, que es el mismo
+// bloque.
 func TestRecommendAnchura80NoCruzaDfs(t *testing.T) {
 	d, err := db.Open(t.TempDir())
 	if err != nil {
@@ -471,18 +474,23 @@ func TestRecommendAnchura80NoCruzaDfs(t *testing.T) {
 	defer d.Close()
 
 	st := channelplan.NewStore(d.DB)
-	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "5 GHz", Channel: 44, WidthMhz: 80}}, time.Hour)
+	recs, err := st.Recommend("rt1", []probe.Radio{{Name: "5 GHz", Channel: 52, WidthMhz: 80}}, time.Hour)
 	if err != nil {
 		t.Fatalf("recommend: %v", err)
 	}
 	if len(recs) != 1 {
 		t.Fatalf("esperaba 1 radio, got %d", len(recs))
 	}
-	if recs[0].Recommended == 44 {
-		t.Fatalf("a 80 MHz el 44 cruza a DFS y no debe recomendarse: %+v", recs[0])
-	}
 	if recs[0].Recommended != 36 {
-		t.Fatalf("a 80 MHz solo el bloque 36-48 es no-DFS: got %d", recs[0].Recommended)
+		t.Fatalf("a 80 MHz el bloque 52-64 es DFS y solo el 36-48 es no-DFS: got %d", recs[0].Recommended)
+	}
+
+	keep, err := st.Recommend("rt1", []probe.Radio{{Name: "5 GHz", Channel: 44, WidthMhz: 80}}, time.Hour)
+	if err != nil {
+		t.Fatalf("recommend: %v", err)
+	}
+	if keep[0].Recommended != 44 {
+		t.Fatalf("el 44/80 ocupa el bloque 36-48, no cruza DFS y no hay motivo para moverlo: got %d", keep[0].Recommended)
 	}
 }
 
