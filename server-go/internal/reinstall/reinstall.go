@@ -308,9 +308,9 @@ case "$ARCH" in
 		case "$(head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12')" in
 			1) GOARCH=mipsle; SHA256="` + digests["mipsle"] + `" ;;
 			2) GOARCH=mips;  SHA256="` + digests["mips"] + `" ;;
-			*) echo "no pude detectar el endianness de $ARCH"; exit 20 ;;
+			*) echo "no pude detectar el endianness de $ARCH" >&2; exit 20 ;;
 		esac ;;
-	*) echo "arch no soportado: $ARCH"; exit 20 ;;
+	*) echo "arch no soportado: $ARCH" >&2; exit 20 ;;
 esac
 
 # #1476: si el router habla opkg o apk, instala el paquete que sirve el propio
@@ -347,9 +347,6 @@ elif command -v apk >/dev/null 2>&1; then
 	rm -f /tmp/netpulse-agent.apk
 fi
 
-# Parar servicio previo si existe (el proceso vivo mantiene el binario abierto)
-[ -f "$INIT" ] && "$INIT" stop >/dev/null 2>&1 || true
-
 if [ "$PKG_OK" != "1" ]; then
 # Descargar el binario del propio server (auth por token)
 # #1737: sin estos mensajes el fallo llega como "Process exited with status
@@ -364,10 +361,20 @@ fi
 # Verificación sha256 contra el digest embebido (#463); vacío = sin verificar
 if [ -n "$SHA256" ]; then
 	GOT=$(sha256sum /tmp/netpulse-agent.new | awk '{print $1}')
-	[ "$GOT" = "$SHA256" ] || { echo "sha256 no coincide (esperado $SHA256, obtenido $GOT)"; exit 21; }
+	[ "$GOT" = "$SHA256" ] || { echo "sha256 no coincide (esperado $SHA256, obtenido $GOT)" >&2; exit 21; }
 fi
 chmod 0755 /tmp/netpulse-agent.new
-mv -f /tmp/netpulse-agent.new "$BIN"
+# #1853: el servicio se para AQUI, con el binario ya descargado y verificado.
+# Pararlo antes dejaba el router sin agente si la descarga fallaba. Hay que
+# pararlo igualmente: /tmp es tmpfs y /usr es overlay, asi que mv escribe el
+# destino y un binario en ejecucion da ETXTBSY. Si el reemplazo falla, se
+# vuelve a arrancar el anterior en vez de dejarlo caido.
+[ -f "$INIT" ] && "$INIT" stop >/dev/null 2>&1 || true
+if ! mv -f /tmp/netpulse-agent.new "$BIN"; then
+	echo "netpulse-agent: no pude reemplazar $BIN; vuelvo a arrancar el agente anterior" >&2
+	[ -f "$INIT" ] && "$INIT" start >/dev/null 2>&1 || true
+	exit 23
+fi
 fi
 
 # Config (chmod 600). El rewrite toca SOLO las vars gestionadas (SERVER,
@@ -502,7 +509,7 @@ set -e
 ENV_FILE=/etc/netpulse-agent.env
 INIT=/etc/init.d/netpulse-agent
 # El env debe existir: el router ya tenía el agente instalado.
-[ -f "$ENV_FILE" ] || { echo "netpulse-agent.env no existe; token no actualizado"; exit 30; }
+[ -f "$ENV_FILE" ] || { echo "netpulse-agent.env no existe; token no actualizado" >&2; exit 30; }
 # Conservar el server y el slug del env existente para no romper la config.
 SERVER=$(sed -n 's/^NETPULSE_SERVER=//p' "$ENV_FILE" | head -n1)
 SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
@@ -513,7 +520,7 @@ SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
 # aplica una vez emparejado.
 FP=$(sed -n 's/^NETPULSE_SERVER_FP=//p' "$ENV_FILE" | head -n1)
 USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)=') || true
-[ -n "$SLUG" ] || { echo "netpulse-agent.env sin NETPULSE_SLUG"; exit 31; }
+[ -n "$SLUG" ] || { echo "netpulse-agent.env sin NETPULSE_SLUG" >&2; exit 31; }
 umask 077
 cat > "$ENV_FILE.tmp" <<EOF
 NETPULSE_SERVER=$SERVER
