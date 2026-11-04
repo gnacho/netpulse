@@ -76,12 +76,15 @@ function fixHead(html, lang, slug, esSlug) {
 function fixLinks(html, lang) {
   return html
     .replace(/href="\/home-assistant/g, `href="/${lang}/home-assistant`)
+    .replace(/href="\/integrations/g, `href="/${lang}/integrations`)
     .replace(/href="\/features/g, `href="/${lang}/features`)
     .replace(/href="\/"\/?/g, `href="/${lang}/"`)
+    .replace(/href="\/#how/g, `href="/${lang}/#how`)
     .replace(/href="\/#faq/g, `href="/${lang}/#faq`)
     .replace(/href="\/#free/g, `href="/${lang}/#free`)
     .replace(/href="\/#install/g, `href="/${lang}/#install`)
     .replace(new RegExp(`href="/${lang}/features"`, 'g'), `href="/${lang}/features/"`)
+    .replace(new RegExp(`href="/${lang}/integrations"`, 'g'), `href="/${lang}/integrations/"`)
     .replace(new RegExp(`href="/${lang}/home-assistant"`, 'g'), `href="/${lang}/home-assistant/"`)
 }
 

@@ -81,14 +81,13 @@
         </svg>
         NetPulse
       </a>
-      <div class="nav-links">
+      <div class="nav-links" id="navLinks">
         <a href="/features" data-i18n="featuresPage.navActive" class="active">Funciones</a>
         <a href="/home-assistant" data-i18n="haPage.navActive">Home Assistant</a>
         <a href="/integrations" data-i18n="integrationsPage.navActive">Integraciones</a>
-        <a href="/" data-i18n="nav.how">Cómo funciona</a>
+        <a href="/#how" data-i18n="nav.how">Cómo funciona</a>
         <a href="/#free" data-i18n="nav.free">Gratis</a>
         <a href="/#faq" data-i18n="nav.faq">FAQ</a>
-        <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
       </div>
       <a class="nav-star" id="navStar" href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n-aria="nav.starAria" aria-label="Star NetPulse on GitHub">
         <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -96,6 +95,10 @@
       </a>
       <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
       <a class="nav-cta" href="/#install" data-i18n="featuresPage.cta">Instalar en tu red</a>
+      <button class="nav-burger" id="navBurger" type="button" aria-expanded="false" aria-controls="navLinks" data-i18n-aria="nav.menu" aria-label="Navigation menu">
+        <svg class="icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
   </nav>
 
