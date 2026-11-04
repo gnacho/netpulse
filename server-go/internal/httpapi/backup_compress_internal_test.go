@@ -1,9 +1,10 @@
 // backup_compress_internal_test.go — #818: los backups automáticos se guardan
-// comprimidos (.db.gz) y la purga por retención reconoce .db y .db.gz.
+// comprimidos; #1864: en un único tar.gz con la BD, .ssh y tls, y la purga por
+// retención reconoce también los formatos anteriores (.db, .db.gz).
 package httpapi
 
 import (
-	"bytes"
+	"archive/tar"
 	"compress/gzip"
 	"io"
 	"os"
@@ -13,7 +14,8 @@ import (
 	"time"
 )
 
-func gunzipBytes(t *testing.T, path string) []byte {
+// readTarEntries vuelca un .tar.gz a nombre -> contenido + cabecera.
+func readTarEntries(t *testing.T, path string) (map[string][]byte, map[string]*tar.Header) {
 	t.Helper()
 	f, err := os.Open(path)
 	if err != nil {
@@ -25,15 +27,51 @@ func gunzipBytes(t *testing.T, path string) []byte {
 		t.Fatalf("gzip.NewReader: %v", err)
 	}
 	defer zr.Close()
-	raw, err := io.ReadAll(zr)
-	if err != nil {
-		t.Fatalf("descomprimir: %v", err)
+	tr := tar.NewReader(zr)
+	bodies := map[string][]byte{}
+	headers := map[string]*tar.Header{}
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("leer tar: %v", err)
+		}
+		body, err := io.ReadAll(tr)
+		if err != nil {
+			t.Fatalf("leer %s: %v", name(hdr), err)
+		}
+		bodies[name(hdr)] = body
+		headers[name(hdr)] = hdr
 	}
-	return raw
+	return bodies, headers
 }
 
-func TestRunBackupWritesCompressedDB(t *testing.T) {
-	s, _ := newBackupTestServer(t)
+func name(hdr *tar.Header) string {
+	return strings.TrimSuffix(hdr.Name, "/")
+}
+
+func TestRunBackupWritesCompleteArchive(t *testing.T) {
+	s, dataDir := newBackupTestServer(t)
+
+	// El material que faltaba (#1864): la clave con la que el servidor entra
+	// en los routers y el certificado TLS.
+	sshDir := filepath.Join(dataDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatalf("mkdir .ssh: %v", err)
+	}
+	keyPath := filepath.Join(sshDir, "id_ed25519")
+	if err := os.WriteFile(keyPath, []byte("PRIVATE-KEY-BYTES"), 0o600); err != nil {
+		t.Fatalf("escribir clave: %v", err)
+	}
+	tlsDir := filepath.Join(dataDir, "tls")
+	if err := os.MkdirAll(tlsDir, 0o700); err != nil {
+		t.Fatalf("mkdir tls: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tlsDir, "cert.pem"), []byte("CERT"), 0o600); err != nil {
+		t.Fatalf("escribir cert: %v", err)
+	}
 
 	// Datos comprimibles + checkpoint para que el fichero principal crezca
 	// (con WAL lo insertado vive en el -wal hasta el checkpoint).
@@ -56,35 +94,80 @@ func TestRunBackupWritesCompressedDB(t *testing.T) {
 	if _, err := s.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatalf("checkpoint: %v", err)
 	}
+
 	dst, err := s.runBackup()
 	if err != nil {
 		t.Fatalf("runBackup: %v", err)
 	}
-	if !strings.HasSuffix(dst, ".db.gz") {
-		t.Fatalf("esperaba un nombre .db.gz, obtuve %s", dst)
+	if !strings.HasSuffix(dst, ".tar.gz") {
+		t.Fatalf("esperaba un nombre .tar.gz, obtuve %s", dst)
 	}
 
-	raw := gunzipBytes(t, dst)
-	if !bytes.HasPrefix(raw, []byte("SQLite format 3\x00")) {
-		t.Fatalf("lo descomprimido no es una DB SQLite válida")
+	bodies, headers := readTarEntries(t, dst)
+
+	dbBody, ok := bodies["netpulse.db"]
+	if !ok {
+		t.Fatalf("el archivo no lleva netpulse.db: %v", keysOf(bodies))
+	}
+	if !strings.HasPrefix(string(dbBody), "SQLite format 3\x00") {
+		t.Fatal("netpulse.db del archivo no es una DB SQLite válida")
 	}
 	dbInfo, err := os.Stat(s.db.Path)
 	if err != nil {
 		t.Fatalf("stat db: %v", err)
 	}
-	if int64(len(raw)) != dbInfo.Size() {
-		t.Fatalf("el backup descomprimido (%d) no coincide con la BD (%d)", len(raw), dbInfo.Size())
+	if int64(len(dbBody)) != dbInfo.Size() {
+		t.Fatalf("netpulse.db del archivo (%d) no coincide con la BD (%d)", len(dbBody), dbInfo.Size())
 	}
-	gzInfo, err := os.Stat(dst)
+
+	keyBody, ok := bodies[".ssh/id_ed25519"]
+	if !ok {
+		t.Fatalf("el archivo no lleva la clave SSH: %v", keysOf(bodies))
+	}
+	if string(keyBody) != "PRIVATE-KEY-BYTES" {
+		t.Fatalf("la clave del archivo no coincide: %q", keyBody)
+	}
+	if mode := headers[".ssh/id_ed25519"].Mode; mode != 0o600 {
+		t.Fatalf("la clave debería viajar en 0600, va en %o", mode)
+	}
+	if _, ok := bodies["tls/cert.pem"]; !ok {
+		t.Fatalf("el archivo no lleva tls: %v", keysOf(bodies))
+	}
+
+	arcInfo, err := os.Stat(dst)
 	if err != nil {
 		t.Fatalf("stat backup: %v", err)
 	}
-	if gzInfo.Size() >= dbInfo.Size() {
-		t.Fatalf("el backup comprimido (%d B) no es menor que la BD (%d B)", gzInfo.Size(), dbInfo.Size())
+	if arcInfo.Size() >= dbInfo.Size() {
+		t.Fatalf("el archivo (%d B) no es menor que la BD (%d B)", arcInfo.Size(), dbInfo.Size())
 	}
 }
 
-func TestPurgeOldBackupsHandlesBothFormats(t *testing.T) {
+func keysOf(m map[string][]byte) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+func TestBackupArchiveWithoutSSHOrTLS(t *testing.T) {
+	s, _ := newBackupTestServer(t)
+
+	dst, err := s.runBackup()
+	if err != nil {
+		t.Fatalf("runBackup: %v", err)
+	}
+	bodies, _ := readTarEntries(t, dst)
+	if _, ok := bodies["netpulse.db"]; !ok {
+		t.Fatalf("un backup sin .ssh ni tls debe llevar igualmente la BD: %v", keysOf(bodies))
+	}
+	if len(bodies) != 1 {
+		t.Fatalf("esperaba solo netpulse.db, hay %v", keysOf(bodies))
+	}
+}
+
+func TestPurgeOldBackupsHandlesAllFormats(t *testing.T) {
 	dir := t.TempDir()
 	old := time.Now().AddDate(0, 0, -10)
 	recent := time.Now()
@@ -98,8 +181,10 @@ func TestPurgeOldBackupsHandlesBothFormats(t *testing.T) {
 			t.Fatalf("chtimes %s: %v", name, err)
 		}
 	}
+	write("netpulse-old.tar.gz", old)
 	write("netpulse-old.db.gz", old)
 	write("netpulse-old.db", old)
+	write("netpulse-new.tar.gz", recent)
 	write("netpulse-new.db.gz", recent)
 	write("netpulse-new.db", recent)
 	write("notes.txt", old)
@@ -110,16 +195,14 @@ func TestPurgeOldBackupsHandlesBothFormats(t *testing.T) {
 		_, err := os.Stat(filepath.Join(dir, name))
 		return err == nil
 	}
-	if exists("netpulse-old.db.gz") {
-		t.Fatal("el backup .db.gz viejo debería haberse purgado")
+	for _, name := range []string{"netpulse-old.tar.gz", "netpulse-old.db.gz", "netpulse-old.db"} {
+		if exists(name) {
+			t.Fatalf("el backup viejo %s debería haberse purgado", name)
+		}
 	}
-	if exists("netpulse-old.db") {
-		t.Fatal("el backup .db viejo (legacy) debería haberse purgado")
-	}
-	if !exists("netpulse-new.db.gz") || !exists("netpulse-new.db") {
-		t.Fatal("los backups recientes no deberían purgarse")
-	}
-	if !exists("notes.txt") {
-		t.Fatal("un fichero que no es backup no debería purgarse")
+	for _, name := range []string{"netpulse-new.tar.gz", "netpulse-new.db.gz", "netpulse-new.db", "notes.txt"} {
+		if !exists(name) {
+			t.Fatalf("%s no debería purgarse", name)
+		}
 	}
 }

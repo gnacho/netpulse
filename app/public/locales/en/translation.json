@@ -1540,7 +1540,8 @@
         "timeHint": "Empty = every N hours; with a time, daily at that time",
         "saveError": "Could not save settings",
         "error": "Could not create backup",
-        "done": "Backup created successfully"
+        "done": "Backup created successfully",
+        "scope": "Each backup holds the database, the SSH key and the TLS material, so it can be restored on another host"
       },
       "orchestration": "Network orchestration"
     },
