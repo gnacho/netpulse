@@ -225,7 +225,13 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 		if name == "" && d.Name != "" && !isMACLike(d.Name) {
 			name = d.Name
 		}
-		if _, err := stmt.Exec(mac, nowMs, nowMs, name, saneIP(d.IP), inferredDeviceType(d)); err != nil {
+		// #1818: el alta guarda el primer avistamiento real, no el del ciclo en
+		// que el cliente supero el minuto de permanencia.
+		first := nowMs
+		if d.FirstSeenMs > 0 && d.FirstSeenMs < nowMs {
+			first = d.FirstSeenMs
+		}
+		if _, err := stmt.Exec(mac, first, nowMs, name, saneIP(d.IP), inferredDeviceType(d)); err != nil {
 			return nil
 		}
 		// #1323: primera vez CON nombre (los sin nombre los cubre
