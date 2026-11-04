@@ -55,6 +55,74 @@ func (s *Store) SaveScan(routerID string, ts int64, scans []probe.ScanResult) er
 	return tx.Commit()
 }
 
+// ScanOutcomeRow es el ultimo resultado del scan de una interfaz (#1848).
+// Error vacio con BSS 0 significa "escaneo y no habia nada"; Error con el
+// texto del driver significa que el scan se rechazo.
+type ScanOutcomeRow struct {
+	Iface string `json:"iface"`
+	Phy   int    `json:"phy"`
+	BSS   int    `json:"bss"`
+	Error string `json:"error,omitempty"`
+	Ts    int64  `json:"ts"`
+}
+
+// SaveScanOutcomes guarda el resultado del ultimo scan por interfaz. Se llama
+// en cada push que escanea, haya o no vecinos: un rechazo del driver tambien
+// es informacion (#1848). El payload lo manda el agente desde 3.0.34.
+func (s *Store) SaveScanOutcomes(routerID string, ts int64, outcomes []probe.ScanOutcome) error {
+	if len(outcomes) == 0 {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO wifi_scan_outcomes (router_id, iface, phy, bss, err, ts)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(router_id, iface) DO UPDATE SET
+			phy = excluded.phy, bss = excluded.bss, err = excluded.err, ts = excluded.ts
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, oc := range outcomes {
+		if oc.Iface == "" {
+			continue
+		}
+		if _, err := stmt.Exec(routerID, oc.Iface, oc.Phy, oc.BSS, oc.Error, ts); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ScanOutcomes devuelve el ultimo resultado por interfaz, el mas reciente
+// primero. Un agente anterior a 3.0.34 no manda el campo y esto sale vacio.
+func (s *Store) ScanOutcomes(routerID string) ([]ScanOutcomeRow, error) {
+	rows, err := s.db.Query(`
+		SELECT iface, phy, bss, err, ts FROM wifi_scan_outcomes
+		WHERE router_id = ? ORDER BY ts DESC, iface`, routerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []ScanOutcomeRow{}
+	for rows.Next() {
+		var oc ScanOutcomeRow
+		if err := rows.Scan(&oc.Iface, &oc.Phy, &oc.BSS, &oc.Error, &oc.Ts); err != nil {
+			return nil, err
+		}
+		out = append(out, oc)
+	}
+	return out, rows.Err()
+}
+
 // ScanRow es un vecino persistido (forma plana para la UI/API).
 type ScanRow struct {
 	Iface   string `json:"iface"`
@@ -161,11 +229,14 @@ func (s *Store) RecentScans(routerID string, within time.Duration) ([]ScanRow, e
 
 // Radio es un resumen de una radio propia con su canal actual y recomendación.
 type Radio struct {
-	Iface        string `json:"iface"`
-	Name         string `json:"name"`    // "2.4 GHz" | "5 GHz" | "6 GHz"
-	Channel      int    `json:"channel"` // canal actual
-	WidthMhz     int    `json:"widthMhz"`
-	Recommended  int    `json:"recommended"` // canal recomendado; 0 = sin datos
+	Iface       string `json:"iface"`
+	Name        string `json:"name"`    // "2.4 GHz" | "5 GHz" | "6 GHz"
+	Channel     int    `json:"channel"` // canal actual
+	WidthMhz    int    `json:"widthMhz"`
+	Recommended int    `json:"recommended"` // canal recomendado; 0 = sin datos
+	// ScanError (#1848) lleva el motivo del ultimo intento cuando el driver
+	// rechazo el scan. Vacio con medidas o cuando la banda estaba vacia.
+	ScanError    string `json:"scanError,omitempty"`
 	CurrentScore int    `json:"currentScore"`
 	BestScore    int    `json:"bestScore"`
 	// Scores puntúa TODOS los canales/bloques de la banda (no solo los

@@ -2379,6 +2379,7 @@
     "noScans": "Sin escaneos recientes para este equipo. Los que corren NetGrip (puerta de enlace y APs gestionados) no escanean vecinos; los que llevan agente NetPulse sí. Prueba con rt2 o rt4.",
     "noRadios": "Este equipo no reporta radios WiFi.",
     "noBandScans": "Esta radio no ve redes en esta banda.",
+    "scanRefused": "Esta radio rechazó el escaneo: {{reason}}",
     "noNeighborsBlock": "Sin redes vecinas en todo el bloque.",
     "neighborsBlock": "{{count}} redes vecinas · la más fuerte a {{dbm}} dBm.",
     "alreadyOptimal": "Es el que ya estás usando.",

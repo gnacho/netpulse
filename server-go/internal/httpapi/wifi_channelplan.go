@@ -127,10 +127,31 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 			return
 		}
 
+		// #1848: motivo del ultimo scan por interfaz. Va en la respuesta y,
+		// cuando la interfaz coincide, pegado al radio: es lo que explica una
+		// banda a cero sin inventar datos.
+		outcomes, err := s.channelPlan.ScanOutcomes(slug)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "channel_plan_error")
+			return
+		}
+		reasonByIface := map[string]string{}
+		for _, oc := range outcomes {
+			if oc.Error != "" {
+				reasonByIface[oc.Iface] = oc.Error
+			}
+		}
+		for i := range recommendations {
+			if reason := reasonByIface[recommendations[i].Iface]; reason != "" {
+				recommendations[i].ScanError = reason
+			}
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{
-			"routerId": routerID,
-			"radios":   recommendations,
-			"scans":    scans,
+			"routerId":     routerID,
+			"radios":       recommendations,
+			"scans":        scans,
+			"scanOutcomes": outcomes,
 		})
 	})))
 

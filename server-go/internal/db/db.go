@@ -363,6 +363,20 @@ CREATE TABLE IF NOT EXISTS wifi_scans (
 CREATE INDEX IF NOT EXISTS idx_wifi_scans_router_ts ON wifi_scans(router_id, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_wifi_scans_channel ON wifi_scans(channel, freq);
 
+-- wifi_scan_outcomes (#1848): ultimo resultado del scan de vecinos por
+-- interfaz. Guarda el motivo cuando el driver lo rechaza, para que la vista
+-- de canales no muestre una banda vacia sin explicacion. Es el ultimo estado
+-- conocido, no un historico: una fila por router e interfaz.
+CREATE TABLE IF NOT EXISTS wifi_scan_outcomes (
+  router_id TEXT NOT NULL,
+  iface     TEXT NOT NULL,
+  phy       INTEGER NOT NULL DEFAULT -1,
+  bss       INTEGER NOT NULL DEFAULT 0,
+  err       TEXT NOT NULL DEFAULT '',
+  ts        INTEGER NOT NULL,
+  PRIMARY KEY (router_id, iface)
+);
+
 -- Firmware upgrades de routers OpenWrt (#453).
 -- firmware_targets: información de firmware soportado por router.
 CREATE TABLE IF NOT EXISTS firmware_targets (

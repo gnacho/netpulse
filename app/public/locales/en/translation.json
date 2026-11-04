@@ -2379,6 +2379,7 @@
     "noScans": "No recent scans for this router. Routers running NetGrip (gateway and managed APs) do not scan neighbors; routers with the NetPulse agent do. Try rt2 or rt4.",
     "noRadios": "This router does not report WiFi radios.",
     "noBandScans": "This radio sees no networks on this band.",
+    "scanRefused": "This radio refused the scan: {{reason}}",
     "noNeighborsBlock": "No neighbor networks in the whole block.",
     "neighborsBlock": "{{count}} neighbor networks · strongest at {{dbm}} dBm.",
     "alreadyOptimal": "Already the one you use.",

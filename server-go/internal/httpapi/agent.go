@@ -312,6 +312,15 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 			ev.EvalNewNeighborSsids()
 		}
 	}
+	// #1848: el resultado del scan tambien llega en los pushes que escanean
+	// sin encontrar nada, asi que se guarda aparte de los vecinos. Sin esto la
+	// vista de canales no puede distinguir "el driver lo rechazo" de "banda
+	// vacia".
+	if s.channelPlan != nil && p.Data.Wireless != nil && len(p.Data.Wireless.ScanOutcomes) > 0 {
+		if err := s.channelPlan.SaveScanOutcomes(p.Router, p.Ts, p.Data.Wireless.ScanOutcomes); err != nil {
+			log.Printf("[netpulse] error guardando scanOutcomes de %s: %v", p.Router, err)
+		}
+	}
 	// #1214: survey crudo del agente para la lente "Ahora" en unidades
 	// agent-only. El adaptador Live lo cachea en memoria con TTL; los
 	// adaptadores sin survey (demo) no implementan la interfaz y se omiten.
