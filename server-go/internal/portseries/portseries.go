@@ -1,5 +1,5 @@
 // Package portseries: per-port time series with tiered retention (issue #302).
-// raw (7d) -> buckets 5m (1 year) -> daily (forever).
+// raw (7d) -> buckets 5m (90d, #1862) -> daily (forever).
 package portseries
 
 import (
@@ -10,8 +10,11 @@ import (
 )
 
 const (
-	RawRetentionMS    = 7 * 24 * 60 * 60 * 1000
-	BucketRetentionMS = 365 * 24 * 60 * 60 * 1000
+	RawRetentionMS = 7 * 24 * 60 * 60 * 1000
+	// BucketRetentionMS (#1862): un trimestre, igual que en clientbw. Los 5m
+	// de puerto crecían al mismo ritmo y con un año llenaban el disco del
+	// contenedor.
+	BucketRetentionMS = 90 * 24 * 60 * 60 * 1000
 	BucketMS          = 5 * 60 * 1000
 )
 
