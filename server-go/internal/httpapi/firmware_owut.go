@@ -429,6 +429,13 @@ func (s *server) awaitReboot(id int64, routerID, target, origin, from string) {
 		time.Sleep(owutRebootPoll)
 		if v := s.detectedFirmwareVersion(routerID); (target != "" && v == target) || (target == "" && v != "" && v != from) {
 			_ = s.firmware.SetStatus(id, "done", "", "")
+			// #1825: el flujo owut no pasa por el callback del agente, así
+			// que el target guardado se quedaba con la versión anterior. Se
+			// actualiza aquí, con la que acaba de confirmar el board.
+			if t, _ := s.firmware.GetTarget(routerID); t != nil && v != "" {
+				t.CurrentVersion = v
+				_ = s.firmware.SetTarget(*t)
+			}
 			s.emitFirmwareResult(routerID, from, target, origin, true, "")
 			return
 		}
