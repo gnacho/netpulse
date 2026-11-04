@@ -1419,19 +1419,20 @@ function initAppearance() {
         applyTheme(); });
 }
 /* ---------- copiar comando ---------- */
+// #1631 F-30: el comando es una constante del bundle, no texto leído del DOM.
+const INSTALL_CMD = 'curl -fsSL https://raw.githubusercontent.com/gnacho/netpulse/main/install.sh | sh';
+const AGENT_CMD = 'opkg install netpulse-agent';
 function initCopy() {
     const btn = document.getElementById('copyBtn');
     if (!btn)
         return;
     btn.addEventListener('click', async () => {
-        const cmd = document.getElementById('installCmd').textContent;
-        copyText(cmd, btn);
+        copyText(INSTALL_CMD, btn);
     });
     const agentBtn = document.getElementById('agentCopyBtn');
     if (agentBtn) {
         agentBtn.addEventListener('click', async () => {
-            const cmd = document.getElementById('agentCmd').textContent;
-            copyText(cmd, agentBtn);
+            copyText(AGENT_CMD, agentBtn);
         });
     }
 }
@@ -1616,8 +1617,41 @@ async function initGhMeta() {
     }
     catch { /* sin red */ }
 }
+/* ---------- menú de navegación en móvil ---------- */
+function initNav() {
+    const btn = document.getElementById('navBurger');
+    const links = document.getElementById('navLinks');
+    if (!btn || !links)
+        return;
+    const setOpen = (open) => {
+        links.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    const isOpen = () => links.classList.contains('open');
+    btn.addEventListener('click', () => setOpen(!isOpen()));
+    links.addEventListener('click', (e) => {
+        if (e.target.closest('a'))
+            setOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen()) {
+            setOpen(false);
+            btn.focus();
+        }
+    });
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        if (isOpen() && !links.contains(t) && !btn.contains(t))
+            setOpen(false);
+    });
+    window.matchMedia('(min-width: 861px)').addEventListener('change', (e) => {
+        if (e.matches)
+            setOpen(false);
+    });
+}
 document.addEventListener('DOMContentLoaded', () => {
     initAppearance();
+    initNav();
     initBackgroundCanvas();
     renderTicker();
     renderAlerts();

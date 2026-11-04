@@ -1482,8 +1482,35 @@ async function initGhMeta() {
   } catch { /* sin red */ }
 }
 
+/* ---------- menú de navegación en móvil ---------- */
+function initNav() {
+  const btn = document.getElementById('navBurger') as HTMLButtonElement | null
+  const links = document.getElementById('navLinks')
+  if (!btn || !links) return
+  const setOpen = (open: boolean) => {
+    links.classList.toggle('open', open)
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+  }
+  const isOpen = () => links.classList.contains('open')
+  btn.addEventListener('click', () => setOpen(!isOpen()))
+  links.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('a')) setOpen(false)
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen()) { setOpen(false); btn.focus() }
+  })
+  document.addEventListener('click', (e) => {
+    const t = e.target as Node
+    if (isOpen() && !links.contains(t) && !btn.contains(t)) setOpen(false)
+  })
+  window.matchMedia('(min-width: 861px)').addEventListener('change', (e) => {
+    if (e.matches) setOpen(false)
+  })
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initAppearance()
+  initNav()
   initBackgroundCanvas()
   renderTicker()
   renderAlerts()

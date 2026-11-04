@@ -28,7 +28,7 @@ const DEMO = {
 const I18N = {
   /* ---------------- ENGLISH ---------------- */
   en: {
-    nav: { features: 'Features', club: 'The club', install: 'Install', github: 'GitHub', star: 'Star', starAria: 'Star NetPulse on GitHub' },
+    nav: { menu: 'Navigation menu', features: 'Features', club: 'The club', install: 'Install', github: 'GitHub', star: 'Star', starAria: 'Star NetPulse on GitHub' },
     haPage: {
       navActive: 'Home Assistant',
       metaTitle: 'NetPulse and Home Assistant',
@@ -211,7 +211,7 @@ const I18N = {
 
   /* ---------------- ESPAÑOL ---------------- */
   es: {
-    nav: { features: 'Funciones', club: 'El club', install: 'Instalar', github: 'GitHub', star: 'Star', starAria: 'Dale una estrella a NetPulse en GitHub' },
+    nav: { menu: 'Menú de navegación', features: 'Funciones', club: 'El club', install: 'Instalar', github: 'GitHub', star: 'Star', starAria: 'Dale una estrella a NetPulse en GitHub' },
     haPage: {
       navActive: 'Home Assistant',
       metaTitle: 'NetPulse y Home Assistant',
@@ -382,7 +382,7 @@ const I18N = {
 
   /* ---------------- 中文 (简体) ---------------- */
   zh: {
-    nav: { features: '功能', install: '安装', github: 'GitHub' },
+    nav: { menu: '导航菜单', features: '功能', install: '安装', github: 'GitHub' },
     hero: {
       eyebrow: 'OpenWrt 家庭网络的实时监控',
       t1: '你网络的脉搏。',
@@ -472,7 +472,7 @@ const I18N = {
 
   /* ---------------- العربية ---------------- */
   ar: {
-    nav: { features: 'المزايا', install: 'التثبيت', github: 'GitHub' },
+    nav: { menu: 'قائمة التنقل', features: 'المزايا', install: 'التثبيت', github: 'GitHub' },
     hero: {
       eyebrow: 'مراقبة مباشرة لشبكة منزلك على OpenWrt',
       t1: 'نبض شبكتك.',
@@ -562,7 +562,7 @@ const I18N = {
 
   /* ---------------- हिन्दी ---------------- */
   hi: {
-    nav: { features: 'फ़ीचर', install: 'इंस्टॉल', github: 'GitHub' },
+    nav: { menu: 'नेविगेशन मेन्यू', features: 'फ़ीचर', install: 'इंस्टॉल', github: 'GitHub' },
     hero: {
       eyebrow: 'आपके OpenWrt होम नेटवर्क के लिए लाइव मॉनिटरिंग',
       t1: 'आपके नेटवर्क की धड़कन।',
@@ -652,7 +652,7 @@ const I18N = {
 
   /* ---------------- PORTUGUÊS ---------------- */
   pt: {
-    nav: { features: 'Recursos', install: 'Instalar', github: 'GitHub' },
+    nav: { menu: 'Menu de navegação', features: 'Recursos', install: 'Instalar', github: 'GitHub' },
     hero: {
       eyebrow: 'Monitorização em direto da tua rede doméstica OpenWrt',
       t1: 'O pulso da sua rede.',
@@ -742,7 +742,7 @@ const I18N = {
 
   /* ---------------- FRANÇAIS ---------------- */
   fr: {
-    nav: { features: 'Fonctions', install: 'Installer', github: 'GitHub' },
+    nav: { menu: 'Menu de navigation', features: 'Fonctions', install: 'Installer', github: 'GitHub' },
     hero: {
       eyebrow: 'Supervision en direct de votre réseau domestique OpenWrt',
       t1: 'Le pouls de votre réseau.',
@@ -832,7 +832,7 @@ const I18N = {
 
   /* ---------------- 日本語 ---------------- */
   ja: {
-    nav: { features: '機能', install: 'インストール', github: 'GitHub' },
+    nav: { menu: 'ナビゲーションメニュー', features: '機能', install: 'インストール', github: 'GitHub' },
     hero: {
       eyebrow: 'OpenWrtホームネットワークのライブ監視',
       t1: 'あなたのネットワークの鼓動。',
@@ -922,7 +922,7 @@ const I18N = {
 
   /* ---------------- РУССКИЙ ---------------- */
   ru: {
-    nav: { features: 'Возможности', install: 'Установка', github: 'GitHub' },
+    nav: { menu: 'Меню навигации', features: 'Возможности', install: 'Установка', github: 'GitHub' },
     hero: {
       eyebrow: 'Мониторинг вашей домашней сети OpenWrt в реальном времени',
       t1: 'Пульс вашей сети.',
@@ -1012,7 +1012,7 @@ const I18N = {
 
   /* ---------------- DEUTSCH ---------------- */
   de: {
-    nav: { features: 'Funktionen', install: 'Installieren', github: 'GitHub' },
+    nav: { menu: 'Navigationsmenü', features: 'Funktionen', install: 'Installieren', github: 'GitHub' },
     hero: {
       eyebrow: 'Live-Monitoring für dein OpenWrt-Heimnetz',
       t1: 'Der Puls deines Netzwerks.',
