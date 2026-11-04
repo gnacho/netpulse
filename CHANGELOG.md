@@ -80,6 +80,16 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - The packaged OpenWrt agent now receives its UCI configuration (#1772): the procd service passes server, token, slug, interval, scan interval, ping targets and SPKI fingerprint in a single `procd_set_param env` call. Bare `export`s never reached the daemon, so setting the ping targets in LuCI left the latency cards empty.
 - Opening the Channels page no longer starts a WiFi scan (#1794): with the periodic scan off, stale data used to trigger one automatically after six hours. Scanning happens only when you press **Scan now**, so beacon-sensitive clients keep their association.
 
+### Thanks
+
+This release exists because people filed good issues, attached logs and tested builds until the fix held.
+
+- @Bann-DEV for ten issues and five pull requests, including the Netgear FastPath chip and identity read from its enterprise MIB (#1835), plus the interface MACs a unit reports, the MikroTik health table, the UCI configuration that never reached the process and the CRLF installer.
+- @crowedavid for eight issues that shaped the release: the resolved alerts that lost their detail (#1466), the traffic peaks (#1786), the topology work (#1791), the Channels page that scanned on its own (#1794), the backup configuration (#1795), the SNMP vendor quirks (#1802), the fleet review (#1803) and the rack diagram (#1804).
+- @MassiPi for the custom certificates and the interface, VLAN and MQTT reports behind the VLAN chips (#1756, #1757, #1764).
+- @jeffarndt for catching the pre-flight checks answering in Spanish while the UI was in English (#1811).
+- @edwardally for the question about the temperature alert threshold that led to reviewing that path (#1736).
+
 ## [2.50.0] - 2026-10-31
 
 **Router integrations are here.** This release completes the Integrations section that deploys, runs, updates and edits vendor pushers for you: MikroTik RouterOS, Asuswrt and Asuswrt-Merlin (installed on the router itself over SSH, the Merlin way under `/jffs` or with a password sign-in on stock dropbear), UniFi controllers, and a vendor catalog that grows without touching the core. The integration code lives in a separate repository, [netpulse-integrations](https://github.com/gnacho/netpulse-integrations), and each vendor ships as its own standalone binary speaking the same signed ingest contract as the native agent. You only ever download and run the code for hardware you actually own: no UniFi controller, no UniFi code on your box. That is the deal that makes NetPulse compatible with more platforms every release while the server binary carries no vendor code inside and the shared code stays a small contract anyone can review.
