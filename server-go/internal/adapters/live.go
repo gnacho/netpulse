@@ -2323,6 +2323,19 @@ func (l *Live) emitUplinkChange(cfg RouterConfig, mw *MultiWanInfo, from, to str
 // NO alerta (evita la avalancha de arranque: todo lo ya conectado sería
 // "nuevo"). Las MAC de la allowlist known_macs (issue #196) nunca alertan,
 // haya alias o no. Toma l.mu internamente.
+// unknownDeviceHasEvidence reports whether an unnamed MAC carries at least
+// one sign that a real host is present: an address resolved by DHCP, ARP, ND
+// or mDNS, a wireless association, or an LLDP neighbour. A row that only
+// exists in a bridge or switch FDB is not enough on its own (#1818): firmware
+// recovery protocols such as Netgear NMRP announce short-lived addresses that
+// way while a unit reboots to flash.
+func unknownDeviceHasEvidence(d Device) bool {
+	if d.IP != "" || d.Lldp != nil {
+		return true
+	}
+	return d.Band != "" && d.Band != "cable" && d.Band != "—"
+}
+
 func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -2352,6 +2365,15 @@ func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 		// issue #234: con hostname (lease resuelto) el dispositivo es
 		// conocido; se resetea su gracia y nunca alerta.
 		if d.Name != d.MAC {
+			delete(l.unknownGrace, d.MAC)
+			continue
+		}
+		// issue #1818: una MAC sin ninguna prueba de que hay un host real
+		// solo está en una FDB (bridge, AP o switch). Los protocolos de
+		// recuperación de firmware (NMRP de Netgear) publican direcciones
+		// así durante un reinicio, y alertar de ellas convierte cada
+		// actualización en un "dispositivo desconocido".
+		if !unknownDeviceHasEvidence(d) {
 			delete(l.unknownGrace, d.MAC)
 			continue
 		}
