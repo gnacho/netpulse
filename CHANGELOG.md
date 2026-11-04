@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.51.0] - 2026-11-04
+
 ### Added
 
 - A radio with no neighbour scan now says why (#1848). A scan can end in three ways and the plan used to show the same empty table for all of them: the radio answered and found nothing, the radio refused the scan, or the agent never ran it. The agent already knew the reason, since `iw` writes it to standard error and the shell runner used to drop it, so it now keeps the last line and sends one outcome per radio with the interface it ended up using and the number of BSSes it saw. The server stores the last outcome per interface and the channel plan shows it under the radio, which turns an empty table into a sentence that names the errno.
