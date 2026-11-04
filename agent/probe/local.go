@@ -8,6 +8,7 @@ package probe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -42,9 +43,29 @@ func (s ShellRunner) Run(ctx context.Context, cmd string, timeout time.Duration)
 	defer cancel()
 	out, err := exec.CommandContext(cctx, "/bin/sh", "-c", cmd).Output()
 	if err != nil {
+		// #1839: iw escribe el motivo en stderr ("command failed: Operation
+		// not supported (-95)") y Output() lo tira. Sin el, un scan rechazado
+		// y un scan vacio llegan al servidor exactamente igual.
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			if msg := lastLine(ee.Stderr); msg != "" {
+				return "", fmt.Errorf("%w: %s", err, msg)
+			}
+		}
 		return "", err
 	}
 	return string(out), nil
+}
+
+// lastLine devuelve la ultima linea no vacia de b.
+func lastLine(b []byte) string {
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if line := strings.TrimSpace(lines[i]); line != "" {
+			return line
+		}
+	}
+	return ""
 }
 
 // Options configura las sondas opcionales del prober.
@@ -254,10 +275,11 @@ func (p *Prober) scanDue() bool {
 // the log, which made that correlation impossible from a router: the log line
 // carries the interfaces, per-radio duration and BSS count to line a drop up
 // against the scan that caused it.
-func (p *Prober) scanNeighbours(ctx context.Context, iwDev string) []ScanResult {
-	targets := IwDevScanTargets(ParseIwDevDetailed(iwDev))
+func (p *Prober) scanNeighbours(ctx context.Context, iwDev string) ([]ScanResult, []ScanOutcome) {
+	ifaces := ParseIwDevDetailed(iwDev)
+	targets := IwDevScanTargets(ifaces)
 	if len(targets) == 0 {
-		return nil
+		return nil, nil
 	}
 	names := make([]string, len(targets))
 	for i, t := range targets {
@@ -266,17 +288,49 @@ func (p *Prober) scanNeighbours(ctx context.Context, iwDev string) []ScanResult 
 	start := time.Now()
 	slog.Info("neighbor scan start", "radios", len(targets), "ifaces", strings.Join(names, ","))
 	var scans []ScanResult
+	outcomes := make([]ScanOutcome, 0, len(targets))
 	for _, t := range targets {
 		at := time.Now()
-		out := p.runBest(ctx, CmdScanIface(t.Iface), scanIfaceTimeout)
-		got := ParseScan("==IFACE==" + t.Iface + "\n" + out)
+		used, out, err := p.scanWithFallback(ctx, ifaces, t)
+		got := ParseScan("==IFACE==" + used.Iface + "\n" + out)
 		scans = append(scans, got...)
-		slog.Info("neighbor scan radio", "iface", t.Iface, "phy", t.Phy,
-			"bss", len(got), "duration_ms", time.Since(at).Milliseconds())
+		oc := ScanOutcome{Iface: used.Iface, Phy: used.Phy, BSS: len(got)}
+		if err != nil {
+			oc.Error = err.Error()
+		}
+		outcomes = append(outcomes, oc)
+		slog.Info("neighbor scan radio", "iface", used.Iface, "phy", used.Phy,
+			"bss", len(got), "duration_ms", time.Since(at).Milliseconds(), "error", oc.Error)
 	}
 	slog.Info("neighbor scan done", "bss", len(scans),
 		"duration_ms", time.Since(start).Milliseconds(), "empty", len(scans) == 0)
-	return scans
+	return scans, outcomes
+}
+
+// scanWithFallback scans the interface chosen for the radio and, when it
+// refuses (#1839: on Asuswrt/dhd the AP VAP answers NL80211_CMD_TRIGGER_SCAN
+// with "Operation not supported"), tries the other interfaces of the same phy
+// in the same cycle. Nothing is remembered between cycles: caching a failure
+// would turn one bad scan into a permanent choice.
+func (p *Prober) scanWithFallback(ctx context.Context, ifaces []IwDevIface, chosen IwDevIface) (IwDevIface, string, error) {
+	out, err := p.run.Run(ctx, CmdScanIface(chosen.Iface), scanIfaceTimeout)
+	if err == nil {
+		return chosen, out, nil
+	}
+	used, lastErr := chosen, err
+	for i, alt := range IwDevScanAlternates(ifaces, chosen) {
+		if i >= maxScanFallbacks {
+			break
+		}
+		out, err = p.run.Run(ctx, CmdScanIface(alt.Iface), scanIfaceTimeout)
+		if err == nil {
+			slog.Info("neighbor scan fallback", "from", chosen.Iface, "to", alt.Iface,
+				"phy", alt.Phy, "reason", lastErr.Error())
+			return alt, out, nil
+		}
+		used, lastErr = alt, err
+	}
+	return used, "", lastErr
 }
 
 // probeVlans reports the bridge VLANs, preferring what the kernel says over
@@ -644,8 +698,12 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 		// sin NINGÚN vecino aunque las demás interfaces sí hubieran
 		// escaneado con éxito.
 		if p.scanDue() && iwDev != "" {
-			if scans := p.scanNeighbours(ctx, iwDev); len(scans) > 0 {
+			scans, outcomes := p.scanNeighbours(ctx, iwDev)
+			if len(scans) > 0 {
 				wd.Scans = scans
+			}
+			if len(outcomes) > 0 {
+				wd.ScanOutcomes = outcomes
 			}
 		}
 		// BSSIDs propios (#1087), del mismo `iw dev` de arriba.

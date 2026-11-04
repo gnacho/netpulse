@@ -122,6 +122,15 @@ type SystemData struct {
 	FirmwareAvailable string `json:"firmwareAvailable,omitempty"`
 }
 
+// ScanOutcome (#1839) is the result of the neighbour scan on one radio: the
+// interface that answered (or was tried last) and the reason when none did.
+type ScanOutcome struct {
+	Iface string `json:"iface"`
+	Phy   int    `json:"phy"`
+	BSS   int    `json:"bss"`
+	Error string `json:"error,omitempty"`
+}
+
 // WirelessData: clientes asociados + radios agregadas por banda.
 type WirelessData struct {
 	Clients map[string]WirelessClient `json:"clients"` // {} = sin clientes; sección ausente = sonda fallida
@@ -129,6 +138,10 @@ type WirelessData struct {
 	// Scans: redes vecinas vistas por cada interfaz WiFi (Fase 18/#452).
 	// nil/ausente = el scan no se pudo realizar en este push.
 	Scans []ScanResult `json:"scans,omitempty"`
+	// ScanOutcomes (#1839): que paso en el scan de cada radio. "Se nego" y
+	// "acepto sin ver nada" llegan igual en Scans (vacio), y el motivo solo
+	// lo ve el agente, asi que viaja aqui. nil con agentes antiguos.
+	ScanOutcomes []ScanOutcome `json:"scanOutcomes,omitempty"`
 	// OwnBssids: BSSIDs de las interfaces AP de ESTE equipo (#1087), de
 	// `iw dev`. El server los usa de semilla exacta para no contar las
 	// propias redes como vecinas (casos con MAC aleatorizada o guest cuya
