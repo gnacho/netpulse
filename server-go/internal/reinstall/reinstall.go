@@ -333,12 +333,16 @@ if command -v opkg >/dev/null 2>&1; then
 	pkg_fetch "$PKG_URL&format=ipk" /tmp/netpulse-agent.ipk || rm -f /tmp/netpulse-agent.ipk
 	if [ -s /tmp/netpulse-agent.ipk ] && opkg install --force-reinstall /tmp/netpulse-agent.ipk >/dev/null 2>&1; then
 		PKG_OK=1
+	else
+		echo "netpulse-agent: el paquete .ipk no se pudo instalar; sigo con los ficheros sueltos" >&2
 	fi
 	rm -f /tmp/netpulse-agent.ipk
 elif command -v apk >/dev/null 2>&1; then
 	pkg_fetch "$PKG_URL&format=apk" /tmp/netpulse-agent.apk || rm -f /tmp/netpulse-agent.apk
 	if [ -s /tmp/netpulse-agent.apk ] && apk add --allow-untrusted /tmp/netpulse-agent.apk >/dev/null 2>&1; then
 		PKG_OK=1
+	else
+		echo "netpulse-agent: el paquete .apk no se pudo instalar; sigo con los ficheros sueltos" >&2
 	fi
 	rm -f /tmp/netpulse-agent.apk
 fi
@@ -348,10 +352,13 @@ fi
 
 if [ "$PKG_OK" != "1" ]; then
 # Descargar el binario del propio server (auth por token)
+# #1737: sin estos mensajes el fallo llega como "Process exited with status
+# 1" y nada mas. wget -q no imprime su motivo, asi que la descarga fallida
+# por wget era completamente muda.
 if command -v curl >/dev/null 2>&1; then
-	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new
+	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new || { echo "netpulse-agent: no pude descargar el binario de $SERVER (curl)" >&2; exit 22; }
 else
-	wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH"
+	wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" || { echo "netpulse-agent: no pude descargar el binario de $SERVER (wget)" >&2; exit 22; }
 fi
 
 # Verificación sha256 contra el digest embebido (#463); vacío = sin verificar
