@@ -1018,6 +1018,10 @@ type RouterConfig struct {
 	SnmpCommunity    string `json:"snmp_community,omitempty"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	// AgentInterval (#1476): cadencia de push del agente en segundos. 0 = el
+	// default del agente (30 s). Se escribe en la config UCI del paquete, que
+	// es el conffile que sobrevive a un sysupgrade.
+	AgentInterval int `json:"agent_interval,omitempty"`
 	// Disabled (issue #1085): unidad pausada. No se sondea (SSH/SNMP/agente),
 	// no alerta y queda fuera de los desplegables de la UI; el histórico se
 	// conserva y la insignia "paused" la distingue en la lista de flota.

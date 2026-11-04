@@ -682,6 +682,7 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
 	// issue #414: intervalo de polling SNMP configurable (segundos; default 60).
 	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
+	migrate(sqldb, "routers", "agent_interval", "ALTER TABLE routers ADD COLUMN agent_interval INTEGER NOT NULL DEFAULT 0")
 	// issue #605: puerto SSH por router (dropbear en puerto no estándar).
 	migrate(sqldb, "routers", "ssh_port", "ALTER TABLE routers ADD COLUMN ssh_port INTEGER NOT NULL DEFAULT 22")
 	// issue #1085: pausa de una unidad de flota (sin sondeo ni alertas, con
