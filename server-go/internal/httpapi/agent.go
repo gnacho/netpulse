@@ -1055,7 +1055,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		rows := routerstore.ListRouters(s.db.DB)
 		trows := make([]reinstall.RouterRow, 0, len(rows))
 		for _, rc := range rows {
-			trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway})
+			trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway, AgentInterval: rc.AgentInterval})
 		}
 		targets = reinstall.TargetsFor(trows, slug)
 	}
@@ -1146,7 +1146,7 @@ func (s *server) handleAgentsReemit(w http.ResponseWriter, r *http.Request) {
 	trows := make([]reinstall.RouterRow, 0, len(rows))
 	hostOf := map[string]string{}
 	for _, rc := range rows {
-		trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway})
+		trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway, AgentInterval: rc.AgentInterval})
 		hostOf[rc.ID] = rc.SSHAddr()
 	}
 

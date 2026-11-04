@@ -6,6 +6,7 @@
 package reinstall
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/agentbin"
@@ -51,6 +52,9 @@ type RouterRow struct {
 	ID        string
 	Host      string
 	IsGateway bool
+	// AgentInterval (#1476): cadencia de push del agente en segundos. 0 =
+	// default del agente.
+	AgentInterval int
 }
 
 func TargetsFor(routers []RouterRow, slug string) WanTargets {
@@ -65,10 +69,10 @@ func TargetsFor(routers []RouterRow, slug string) WanTargets {
 			continue
 		}
 		if rc.IsGateway {
-			return WanTargets{WanTarget: "1.1.1.1"}
+			return WanTargets{WanTarget: "1.1.1.1", Interval: rc.AgentInterval}
 		}
 		if gwIP != "" {
-			return WanTargets{GwTarget: gwIP}
+			return WanTargets{GwTarget: gwIP, Interval: rc.AgentInterval}
 		}
 	}
 	return WanTargets{}
@@ -88,6 +92,9 @@ func Script(slug, token, serverURL, serverFP string, digests map[string]string, 
 type WanTargets struct {
 	WanTarget string // gateway: ping a internet (p. ej. "1.1.1.1"); vacío = comentada
 	GwTarget  string // APs: IP del gateway para el ping; vacío = comentada
+	// Interval (#1476): cadencia de push del agente en segundos. 0 deja el
+	// default del agente (30 s) y borra la clave de la config UCI.
+	Interval int
 }
 
 // caSetupBlock escribe (o borra) la raíz de la CA en el router. Without a
@@ -190,6 +197,13 @@ if [ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1; then
 			out += "\tuci -q set netpulse-agent.main.gw_target=\"" + targets.GwTarget + "\" || true\n"
 		} else {
 			out += "\tuci -q delete netpulse-agent.main.gw_target || true\n"
+		}
+		// #1476: el intervalo es un ajuste por router. 0 vuelve al default
+		// del agente, así que se borra la clave en vez de escribir un cero.
+		if targets.Interval > 0 {
+			out += "\tuci -q set netpulse-agent.main.interval=\"" + strconv.Itoa(targets.Interval) + "\" || true\n"
+		} else {
+			out += "\tuci -q delete netpulse-agent.main.interval || true\n"
 		}
 		return out
 	}() + `	uci -q commit netpulse-agent || true

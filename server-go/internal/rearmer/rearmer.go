@@ -392,7 +392,7 @@ func (r *Rearmer) Reinstall(slug, agentURL string) (Result, error) {
 	rows := routerstore.ListRouters(r.db)
 	trows := make([]reinstall.RouterRow, 0, len(rows))
 	for _, rc := range rows {
-		trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway})
+		trows = append(trows, reinstall.RouterRow{ID: rc.ID, Host: rc.Host, IsGateway: rc.IsGateway, AgentInterval: rc.AgentInterval})
 	}
 	targets := reinstall.TargetsFor(trows, slug)
 	if err := r.rotateTokenAtomic(slug, func(t string) error {
