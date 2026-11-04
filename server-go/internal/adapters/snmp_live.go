@@ -95,6 +95,15 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	if sysInfo != nil && npsnmp.IsTpLink(sysInfo.ObjectID) {
 		tpLink = npsnmp.PollTpLinkInfo(session)
 	}
+	// Netgear FastPath publica además el chip del switch en su subtree
+	// (BCM53412 / BCM53346). Ninguna otra fuente SNMP lo da: las unidades
+	// OpenWrt lo leen por agente, y un gestionado sin agente no tiene dónde
+	// decirlo. El firmware y el modelo corto también están aquí, pero ENTITY-MIB
+	// ya los responde en esta familia, así que se usan solo de respaldo.
+	netgear := npsnmp.NetgearIdentity{}
+	if sysInfo != nil && npsnmp.IsNetgear(sysInfo.ObjectID) {
+		netgear = npsnmp.PollNetgearIdentity(session)
+	}
 	ports, ifErr := npsnmp.PollIfTable(session)
 	if ifErr != nil {
 		log.Printf("[netpulse] SNMP ifTable %s: %v", cfg.LogLabel(), ifErr)
@@ -240,6 +249,18 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	}
 	if p.snmpModelShort == "" {
 		p.snmpModelShort = tpLink.Hardware
+	}
+	if p.snmpFirmware == "" {
+		p.snmpFirmware = netgear.Firmware
+	}
+	if p.snmpModelShort == "" {
+		p.snmpModelShort = netgear.ModelShort
+	}
+	// El chip no tiene equivalente genérico: lo que dice el firmware del
+	// switch es la única fuente, y se conserva tal cual (sin recorte ni
+	// sustituto por arquitectura, que es lo que #43 y #45 retiraron).
+	if netgear.SoC != "" {
+		p.snmpSoC = netgear.SoC
 	}
 	if tpLink.HasCPU {
 		p.cpu, p.hasCpu = tpLink.CPU, true
