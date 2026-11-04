@@ -56,6 +56,8 @@ interface RadioRec {
   currentScore: number
   bestScore: number
   scores?: Score[]
+  // #1848: motivo por el que el agente no pudo escanear esta radio.
+  scanError?: string
 }
 
 interface ChannelPlanData {
@@ -752,6 +754,9 @@ export default function ChannelPlan() {
                   const cur = scored.find((s) => s.isCurrent)
                   if (cur) {
                     return cur.neighbors === 0 ? t('channelPlan.noOverlap') : t('channelPlan.neighborsInBlock', { count: cur.neighbors })
+                  }
+                  if (!currentScoreValid && active?.scanError) {
+                    return t('channelPlan.scanRefused', { reason: active.scanError })
                   }
                   return currentScoreValid ? t('channelPlan.noOverlap') : t('channelPlan.noBandScans')
                 })()}
