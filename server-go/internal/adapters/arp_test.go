@@ -255,6 +255,13 @@ func TestGetRoutersCountsClientsNotLeases(t *testing.T) {
 	cfg := RouterConfig{ID: "gateway", Name: "Gateway", Host: "192.0.2.1", IsGateway: true, AgentOnly: true}
 	l.SetRouters([]RouterConfig{cfg})
 
+	// #1818: un cliente nuevo se retiene un minuto antes de listarse. Estos dos
+	// ya estaban vistos, que es lo que este test mide (leases vs asociados).
+	l.noteDevicesSeen([]Device{
+		{MAC: "02:00:00:00:00:01", Online: true, Hostname: "one"},
+		{MAC: "02:00:00:00:00:02", Online: true, Hostname: "two"},
+	}, 1000)
+
 	// Three leases, but only two of those hosts are associated right now.
 	l.mu.Lock()
 	l.lastPolled = map[string]*routerPolled{"gateway": {

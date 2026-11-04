@@ -289,6 +289,9 @@ type Live struct {
 	routers    []RouterConfig
 	gatewayCfg *RouterConfig
 	clients    map[string]*OpenWrtClient
+	// #1818: MAC nuevas que aun no han demostrado permanencia (60 s).
+	transientMu sync.Mutex
+	transient   map[string]transientSeen
 
 	lastGood    map[string]*Router
 	lastStatus  map[string]string
@@ -4052,6 +4055,9 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// #1292: lápidas filtradas de la lista final (una estación stale del AP
 	// re-emite la MAC en cada ciclo sin pasar por device_seen).
 	devices = l.filterTombstoned(devices)
+	// #1818: fuera los MAC que duran menos de un minuto, ANTES de alertar de
+	// desconocidos y de escribir en device_seen.
+	devices = l.settleTransient(devices, time.Now().UnixMilli())
 	l.trackUnknownDevices(devices, distNodes)
 	l.trackOfflineDevices(devices)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
@@ -4518,6 +4524,8 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	clients := []Device{}
 	detDevices, _ := inferTopology(polledAll, l.buildDevices(polledAll, ""))
 	// #954: first/last seen también en los clientes del detalle del router.
+	// #1818: mismo gate de permanencia que el overview.
+	detDevices = l.settleTransient(detDevices, time.Now().UnixMilli())
 	l.applyDeviceSeen(detDevices)
 	for _, d := range detDevices {
 		if d.RouterID == id {
@@ -4708,6 +4716,8 @@ func (l *Live) attributedDevices() []Device {
 	// nunca se persistía y aquí se mostraba "—" para siempre. Escribir también
 	// desde la lista que la UI realmente consume hace el write-through
 	// inevitable; el upsert es idempotente y barato.
+	// #1818: mismo gate de permanencia antes de persistir.
+	devices = l.settleTransient(devices, time.Now().UnixMilli())
 	l.noteDevicesSeen(devices, time.Now().UnixMilli())
 	l.applyDeviceSeen(devices)
 	// #1145: retención indefinida - clientes del registro que ya no se ven
