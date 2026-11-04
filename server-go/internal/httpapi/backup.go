@@ -119,7 +119,7 @@ func (s *server) runBackup() (string, error) {
 	// que el archivo lleva el conjunto: netpulse.db, .ssh y tls. Va en tar.gz
 	// para que sea un único fichero, con la purga tratándolo como uno solo.
 	dst := filepath.Join(backupDir, "netpulse-"+ts+".tar.gz")
-	if err := writeBackupArchive(filepath.Dir(s.db.Path), s.db.Path, dst); err != nil {
+	if err := writeBackupArchive(s.db.DB, filepath.Dir(s.db.Path), s.db.Path, dst); err != nil {
 		return "", err
 	}
 
@@ -302,7 +302,7 @@ func copyFile(src, dst string) error {
 // otro host pueda entrar por SSH en los routers y servir TLS sin regenerar
 // nada. Un directorio que no exista (instalación sin clave todavía) se omite
 // sin fallar: el backup sigue siendo válido.
-func writeBackupArchive(dataDir, dbPath, dst string) error {
+func writeBackupArchive(d *sql.DB, dataDir, dbPath, dst string) error {
 	tmp := dst + ".tmp"
 	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
 	if err != nil {
@@ -317,10 +317,24 @@ func writeBackupArchive(dataDir, dbPath, dst string) error {
 		return fail(err)
 	}
 
+	// #1866: la copia se hace con VACUUM INTO, no copiando el fichero vivo.
+	// Leer el fichero mientras SQLite escribe daba una cabecera con un tamaño
+	// que ya no cuadraba (archive/tar: write too long) y, aunque cuadrara, el
+	// .db solo puede venir sin transacciones que aún viven en el WAL. El
+	// snapshot tiene tamaño fijo y es una base válida por sí sola.
+	snapshot := tmp + ".db"
+	if err := os.Remove(snapshot); err != nil && !os.IsNotExist(err) {
+		return fail(err)
+	}
+	if _, err := d.Exec("VACUUM INTO ?", snapshot); err != nil {
+		return fail(err)
+	}
+	defer os.Remove(snapshot)
+
 	zw := gzip.NewWriter(out)
 	tw := tar.NewWriter(zw)
 
-	if err := addTarFile(tw, dbPath, filepath.Base(dbPath)); err != nil {
+	if err := addTarFile(tw, snapshot, filepath.Base(dbPath)); err != nil {
 		return fail(err)
 	}
 	for _, name := range []string{".ssh", "tls"} {
@@ -349,7 +363,15 @@ func writeBackupArchive(dataDir, dbPath, dst string) error {
 // addTarFile mete un fichero suelto en el archivo con su modo (la clave SSH va
 // en 0600 y tiene que seguir así al restaurar).
 func addTarFile(tw *tar.Writer, src, name string) error {
-	info, err := os.Stat(src)
+	f, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	// #1866: el tamaño sale del descriptor abierto y la copia se corta en él.
+	// Con os.Stat antes de abrir, un fichero que crece entre las dos llamadas
+	// desborda la cabecera y archive/tar aborta con "write too long".
+	info, err := f.Stat()
 	if err != nil {
 		return err
 	}
@@ -361,12 +383,7 @@ func addTarFile(tw *tar.Writer, src, name string) error {
 	if err := tw.WriteHeader(hdr); err != nil {
 		return err
 	}
-	f, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = io.Copy(tw, f)
+	_, err = io.CopyN(tw, f, hdr.Size)
 	return err
 }
 
