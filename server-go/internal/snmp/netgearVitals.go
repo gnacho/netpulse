@@ -13,11 +13,22 @@
 //
 // No hay escalar de memoria TOTAL en la MIB (solo MemFree/MemAvailable), así
 // que el RAM queda a null antes que inventar un porcentaje.
+//
+// El mismo subtree publica la identidad que ENTITY-MIB no da (#1802):
+//
+//   - 1.3.6.1.4.1.4526.11.1.1.1.3.0   modelo corto  "XS708T"
+//   - 1.3.6.1.4.1.4526.11.1.1.1.7.0   chip          "BCM53412"
+//   - 1.3.6.1.4.1.4526.11.1.1.1.13.0  firmware      "7.0.0.24"
+//
+// El chip no existe en ninguna otra fuente SNMP: las unidades OpenWrt lo
+// leen de /proc/cpuinfo por agente, y un switch gestionado sin agente no
+// tiene dónde decirlo.
 package snmp
 
 import (
 	"regexp"
 	"strconv"
+	"strings"
 
 	g "github.com/gosnmp/gosnmp"
 )
@@ -27,6 +38,16 @@ const (
 	OidNetgearCpuUtil = ".1.3.6.1.4.1.4526.11.1.1.4.8.1.3"
 	// OidNetgearTempSensor: columna de temperatura por sensor (°C).
 	OidNetgearTempSensor = ".1.3.6.1.4.1.4526.11.43.1.8.1.5"
+
+	// EnterpriseNetgear: número enterprise de NETGEAR en sysObjectID.
+	EnterpriseNetgear = 4526
+
+	// OidNetgearModelName: modelo corto declarado por el firmware.
+	OidNetgearModelName = ".1.3.6.1.4.1.4526.11.1.1.1.3.0"
+	// OidNetgearSoC: chip del switch (BCM53412 en XS708T, BCM53346 en S3300).
+	OidNetgearSoC = ".1.3.6.1.4.1.4526.11.1.1.1.7.0"
+	// OidNetgearFirmware: versión de firmware, sin el resto del sysDescr.
+	OidNetgearFirmware = ".1.3.6.1.4.1.4526.11.1.1.1.13.0"
 )
 
 // cpuUtilRe casa la primera ventana ("5 Sec (  0.19%)") del string por
@@ -101,4 +122,48 @@ func PollNetgearVitals(s *g.GoSNMP) (cpu int, okCpu bool, temp int, okTemp bool)
 		temp, okTemp = ParseNetgearTemps(vals)
 	}
 	return cpu, okCpu, temp, okTemp
+}
+
+// IsNetgear reports whether sysObjectID belongs to the NETGEAR enterprise
+// subtree, by the same rule as IsTpLink: the MIB-2 object ID is the stable
+// vendor signal, sysDescr is not.
+func IsNetgear(sysObjectID string) bool {
+	id := strings.TrimSpace(sysObjectID)
+	if id != "" && !strings.HasPrefix(id, ".") {
+		id = "." + id
+	}
+	return strings.HasPrefix(id, ".1.3.6.1.4.1.4526.")
+}
+
+// NetgearIdentity carries the vendor-declared identity of a FastPath switch.
+// Empty fields mean the agent did not answer that scalar.
+type NetgearIdentity struct {
+	ModelShort string
+	SoC        string
+	Firmware   string
+}
+
+// PollNetgearIdentity reads the three identity scalars in one Get. A family
+// without them (or a unit that answers NoSuchObject) leaves the fields empty
+// and the caller keeps whatever the generic readers found.
+func PollNetgearIdentity(s *g.GoSNMP) NetgearIdentity {
+	if s == nil {
+		return NetgearIdentity{}
+	}
+	var id NetgearIdentity
+	result, err := s.Get([]string{OidNetgearModelName, OidNetgearSoC, OidNetgearFirmware})
+	if err != nil {
+		return id
+	}
+	for _, v := range result.Variables {
+		switch v.Name {
+		case OidNetgearModelName:
+			id.ModelShort = strings.TrimSpace(stringVal(v))
+		case OidNetgearSoC:
+			id.SoC = strings.TrimSpace(stringVal(v))
+		case OidNetgearFirmware:
+			id.Firmware = strings.TrimSpace(stringVal(v))
+		}
+	}
+	return id
 }

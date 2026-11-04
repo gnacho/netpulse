@@ -117,8 +117,11 @@ type routerPolled struct {
 	sysName string
 	// snmpFirmware/snmpModelShort (#1767): identity read from ENTITY-MIB.
 	// Empty when the unit has no table, so the sysDescr fallback stays.
-	snmpFirmware      string
-	snmpModelShort    string
+	snmpFirmware   string
+	snmpModelShort string
+	// snmpSoC: chip declarado por la MIB privada del fabricante (#1802). No
+	// tiene equivalente genérico en SNMP; nil board = sin chip hasta ahora.
+	snmpSoC           string
 	flash             string
 	firmwareAvailable string
 	uptimeSec         float64
@@ -4549,6 +4552,11 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 			if extras.Soc == "" {
 				extras.Soc = "—"
 			}
+		}
+		// Unidad SNMP sin board (gestionado sin agente): el chip lo declara la
+		// MIB privada del fabricante, que es la única fuente posible aquí.
+		if extras.Soc == "—" && p.snmpSoC != "" {
+			extras.Soc = p.snmpSoC
 		}
 		if p.firmwareAvailable != "" {
 			extras.FirmwareAvailable = p.firmwareAvailable

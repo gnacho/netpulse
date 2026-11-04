@@ -45,3 +45,21 @@ func TestParseNetgearTemps(t *testing.T) {
 		t.Fatal("sin sensores ok debe ser false")
 	}
 }
+
+func TestIsNetgear(t *testing.T) {
+	tests := []struct {
+		oid  string
+		want bool
+	}{
+		{".1.3.6.1.4.1.4526.11.1", true},
+		{"1.3.6.1.4.1.4526.11.1", true},
+		{".1.3.6.1.4.1.14988.1.1", false},
+		{".1.3.6.1.4.1.45260.1", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		if got := IsNetgear(tt.oid); got != tt.want {
+			t.Errorf("IsNetgear(%q) = %v; want %v", tt.oid, got, tt.want)
+		}
+	}
+}
