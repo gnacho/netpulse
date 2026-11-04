@@ -360,6 +360,30 @@ func (p *SSHPool) drop(host string) {
 	}
 }
 
+// sshErrDetail (#1737) saca el motivo real de un comando remoto fallido.
+// session.Output descarta el stderr salvo que se le de un destino, y antes se
+// tiraba: un reinstall fallido solo decia "Process exited with status 1" y el
+// motivo (curl, wget, uci) se quedaba en el router. Se devuelve la ULTIMA
+// linea no vacia y recortada, que es la que explica el fallo sin arrastrar el
+// ruido del script entero.
+func sshErrDetail(stderr string) string {
+	if stderr == "" {
+		return ""
+	}
+	lines := strings.Split(strings.TrimRight(stderr, "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		if len(line) > 300 {
+			line = line[:300] + "..."
+		}
+		return line
+	}
+	return ""
+}
+
 // Run ejecuta cmd en host con timeout (por defecto 5 s, como el JS).
 // Una sesión fallida por canal roto invalida la conexión (reconexión).
 func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
@@ -378,13 +402,16 @@ func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
 	defer session.Close()
 
 	type result struct {
-		out []byte
-		err error
+		out    []byte
+		err    error
+		stderr string
 	}
 	ch := make(chan result, 1)
 	go func() {
+		var errBuf strings.Builder
+		session.Stderr = &errBuf
 		out, err := session.Output(cmd)
-		ch <- result{out, err}
+		ch <- result{out, err, errBuf.String()}
 	}()
 	select {
 	case res := <-ch:
@@ -392,6 +419,9 @@ func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
 			var ee *ssh.ExitError
 			if !errors.As(res.err, &ee) {
 				p.drop(host) // canal roto, no exit status
+			}
+			if msg := sshErrDetail(res.stderr); msg != "" {
+				return "", fmt.Errorf("ssh %s: %w: %s", host, res.err, msg)
 			}
 			return "", fmt.Errorf("ssh %s: %w", host, res.err)
 		}
@@ -422,13 +452,16 @@ func (p *SSHPool) RunCtx(ctx context.Context, host, cmd string, timeout time.Dur
 	defer session.Close()
 
 	type result struct {
-		out []byte
-		err error
+		out    []byte
+		err    error
+		stderr string
 	}
 	ch := make(chan result, 1)
 	go func() {
+		var errBuf strings.Builder
+		session.Stderr = &errBuf
 		out, err := session.Output(cmd)
-		ch <- result{out, err}
+		ch <- result{out, err, errBuf.String()}
 	}()
 	select {
 	case res := <-ch:
@@ -436,6 +469,9 @@ func (p *SSHPool) RunCtx(ctx context.Context, host, cmd string, timeout time.Dur
 			var ee *ssh.ExitError
 			if !errors.As(res.err, &ee) {
 				p.drop(host) // canal roto, no exit status
+			}
+			if msg := sshErrDetail(res.stderr); msg != "" {
+				return "", fmt.Errorf("ssh %s: %w: %s", host, res.err, msg)
 			}
 			return "", fmt.Errorf("ssh %s: %w", host, res.err)
 		}
