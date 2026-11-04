@@ -7,8 +7,13 @@ import (
 )
 
 const (
-	RawRetentionMS    = 7 * 24 * 60 * 60 * 1000
-	BucketRetentionMS = 365 * 24 * 60 * 60 * 1000
+	RawRetentionMS = 7 * 24 * 60 * 60 * 1000
+	// BucketRetentionMS (#1862): un trimestre de buckets de 5m. Con un año la
+	// BD llegaba a ~1,3 GB en este despliegue (los 5m ya ocupaban 182 MB con
+	// 64 días), demasiado para el disco del contenedor junto con las copias
+	// del updater. Noventa días cubren las vistas de trimestre y dejan el
+	// histórico largo a los buckets de más granularidad.
+	BucketRetentionMS = 90 * 24 * 60 * 60 * 1000
 	BucketMS          = 5 * 60 * 1000
 )
 

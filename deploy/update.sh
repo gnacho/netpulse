@@ -58,7 +58,14 @@ PYEOF
   else
     cp -a "$DB_FILE" "$BACKUP_DIR/netpulse.db"
   fi
-  echo "copia de seguridad de BD en $BACKUP_DIR/netpulse.db"
+  # La BD con las series comprime a un tercio y con KEEP=3 son cientos de MB
+  # en un disco pequeño (#1862). Sin gzip se queda sin comprimir.
+  if command -v gzip >/dev/null 2>&1 && gzip -9 "$BACKUP_DIR/netpulse.db" 2>/dev/null; then
+    echo "copia de seguridad de BD comprimida en $BACKUP_DIR/netpulse.db.gz"
+  else
+    rm -f "$BACKUP_DIR/netpulse.db.gz"
+    echo "copia de seguridad de BD en $BACKUP_DIR/netpulse.db"
+  fi
 fi
 
 echo "STEP:fetch"
@@ -204,7 +211,20 @@ if [ -f "$SERVER_BIN" ]; then
       chmod 600 "$SSH_DIR/id_ed25519" 2>/dev/null || true
       chmod 644 "$SSH_DIR/id_ed25519.pub" "$SSH_DIR/known_hosts" 2>/dev/null || true
     fi
-    if [ -f "$BACKUP_DIR/netpulse.db" ]; then
+    if [ -f "$BACKUP_DIR/netpulse.db.gz" ]; then
+      # Se descomprime a un temporal y se renombra, para no dejar la BD a
+      # medias si el disco se llena. Los -wal/-shm viejos se tiran: aplicarían
+      # escrituras de la versión anterior sobre la BD restaurada (#1862).
+      if gunzip -c "$BACKUP_DIR/netpulse.db.gz" > "$DB_FILE.restore" 2>/dev/null; then
+        rm -f "$DB_FILE-wal" "$DB_FILE-shm"
+        mv -f "$DB_FILE.restore" "$DB_FILE"
+        echo "BD restaurada desde $BACKUP_DIR/netpulse.db.gz"
+      else
+        rm -f "$DB_FILE.restore"
+        echo "ERROR: no pude restaurar la BD desde $BACKUP_DIR/netpulse.db.gz" >&2
+      fi
+    elif [ -f "$BACKUP_DIR/netpulse.db" ]; then
+      rm -f "$DB_FILE-wal" "$DB_FILE-shm"
       cp -a "$BACKUP_DIR/netpulse.db" "$DB_FILE"
     fi
     # Forzamos un nuevo reinicio para levantar con la versión anterior.
