@@ -18,15 +18,16 @@ import (
 func envBlockForTest(t *testing.T) string {
 	t.Helper()
 	s := scriptForTest()
-	start := strings.Index(s, `USER_VARS=""`)
+	start := strings.Index(s, `warn() { echo "netpulse-agent: $*" >&2; }`)
 	if start < 0 {
 		t.Fatal("no encuentro el bloque de env en el script")
 	}
-	end := strings.Index(s[start:], `chmod 600 "$ENV_FILE"`)
+	marker := "warn \"no pude escribir $ENV_FILE; se queda el anterior\"\nfi"
+	end := strings.Index(s[start:], marker)
 	if end < 0 {
-		t.Fatal("el bloque de env no termina con chmod")
+		t.Fatal("el bloque de env no termina con el guard de write_env")
 	}
-	return s[start : start+end+len(`chmod 600 "$ENV_FILE"`)]
+	return s[start : start+end+len(marker)]
 }
 
 func runEnvBlock(t *testing.T, prev string) string {

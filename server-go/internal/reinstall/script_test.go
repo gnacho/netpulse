@@ -36,7 +36,7 @@ func TestScriptConfig(t *testing.T) {
 		`NETPULSE_SERVER=$SERVER`,
 		`NETPULSE_SLUG=$SLUG`,
 		`NETPULSE_TOKEN=$TOKEN`,
-		"chmod 600 \"$ENV_FILE\"",
+		"chmod 600 \"$ENV_TMP\"",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("script sin %q", want)
@@ -95,7 +95,7 @@ func TestScriptPreservesUserVars(t *testing.T) {
 	for _, want := range []string{
 		`USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE"`,
 		`grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET|SCAN_INTERVAL)='`,
-		`printf '%s\n' "$USER_VARS" >> "$ENV_FILE"`,
+		`printf '%s\n' "$USER_VARS" >> "$ENV_TMP"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("script sin preservación de vars de usuario: falta %q", want)
@@ -204,11 +204,13 @@ func TestScriptFinishesWithStart(t *testing.T) {
 	s := scriptForTest()
 	// #1476: entre enable y restart va la preservación en sysupgrade.conf, así
 	// que el final ya no es la pareja literal; lo que importa es que el último
-	// gesto sea arrancar el servicio y que el enable vaya antes.
-	if !strings.HasSuffix(strings.TrimSpace(s), "\"$INIT\" restart") {
-		t.Error("el script debe terminar con el restart del servicio")
+	// gesto sea arrancar el servicio y que el enable vaya antes. #1855: el
+	// restart va dentro de un guard que avisa y sale 24 si el agente no arranca.
+	restart := strings.LastIndex(s, `"$INIT" restart`)
+	if restart < 0 || !strings.Contains(s[restart:], "exit 24") {
+		t.Error("el script debe terminar arrancando el servicio y avisar si no arranca")
 	}
-	if strings.Index(s, `"$INIT" enable`) > strings.LastIndex(s, `"$INIT" restart`) {
+	if strings.Index(s, `"$INIT" enable`) > restart {
 		t.Error("el script debe habilitar el servicio antes de reiniciarlo")
 	}
 }
@@ -312,7 +314,7 @@ func TestScriptIncludesServerFP(t *testing.T) {
 	for _, want := range []string{
 		`SERVER="https://np.example.org:3443"`,
 		`SERVER_FP="` + fp + `"`,
-		`echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"`,
+		`echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_TMP"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("script con FP sin %q", want)
@@ -411,7 +413,7 @@ func TestEnvScriptIsLightweight(t *testing.T) {
 		`SERVER="http://192.168.1.226:3000"`,
 		"NETPULSE_SERVER=$SERVER",
 		"NETPULSE_TOKEN=$TOKEN",
-		`chmod 600 "$ENV_FILE"`,
+		`chmod 600 "$ENV_TMP"`,
 		// conserva las NETPULSE_* del usuario (#851)
 		`USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+='`,
 		// restart para que el agente relea el env
@@ -469,7 +471,7 @@ func TestScriptPreservesOnSysupgrade(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
 		"P=/etc/sysupgrade.conf",
-		`ensure_sysupgrade() { grep -qxF "$1" "$P" 2>/dev/null || echo "$1" >> "$P"; }`,
+		`ensure_sysupgrade() { grep -qxF "$1" "$P" 2>/dev/null || echo "$1" >> "$P" 2>/dev/null || true; }`,
 		"ensure_sysupgrade /usr/sbin/netpulse-agent",
 		"ensure_sysupgrade /etc/netpulse-agent.env",
 		"ensure_sysupgrade /etc/init.d/netpulse-agent",

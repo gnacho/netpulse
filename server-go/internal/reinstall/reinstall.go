@@ -123,14 +123,20 @@ chmod 644 ` + caPath + `
 // beacons (#1557); la vista de canales pide el scan bajo demanda (#1561). Un
 // valor que ya esté en el env gana, para no pisar un override manual (#851).
 func envRewriteBlock(targets WanTargets) string {
-	return `USER_VARS=""
+	return `# #1853: escribir la config no puede abortar el reinstall. El env se
+# compone en un temporal y solo se pone en su sitio si salio entero, asi que un
+# /etc lleno o de solo lectura conserva el anterior en vez de dejarlo a medias.
+warn() { echo "netpulse-agent: $*" >&2; }
+USER_VARS=""
 SCAN_VALUE="0"
 if [ -f "$ENV_FILE" ]; then
 	prev_scan=$(grep -E '^NETPULSE_SCAN_INTERVAL=' "$ENV_FILE" | tail -n 1) || prev_scan=""
 	if [ -n "$prev_scan" ]; then SCAN_VALUE=${prev_scan#NETPULSE_SCAN_INTERVAL=}; fi
 	USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN|WAN_TARGET|GW_TARGET|SCAN_INTERVAL)=') || true
 fi
-cat > "$ENV_FILE" <<EOF
+ENV_TMP="$ENV_FILE.new.$$"
+write_env() {
+	cat > "$ENV_TMP" <<EOF
 # netpulse-agent — config (generado por reinstall)
 NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
@@ -156,12 +162,18 @@ EOF
 # #851: con server https el agente exige el SPKI pin; vacío = http plano o
 # el server no pudo derivarlo (se comporta como antes).
 if [ -n "$SERVER_FP" ]; then
-	echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_FILE"
+	echo "NETPULSE_SERVER_FP=$SERVER_FP" >> "$ENV_TMP" || return 1
 fi
 if [ -n "$USER_VARS" ]; then
-	printf '%s\n' "$USER_VARS" >> "$ENV_FILE"
+	printf '%s\n' "$USER_VARS" >> "$ENV_TMP" || return 1
 fi
-chmod 600 "$ENV_FILE"
+chmod 600 "$ENV_TMP" || return 1
+mv -f "$ENV_TMP" "$ENV_FILE" || return 1
+}
+if ! write_env; then
+	rm -f "$ENV_TMP"
+	warn "no pude escribir $ENV_FILE; se queda el anterior"
+fi
 `
 }
 
@@ -221,8 +233,8 @@ fi
 const preserveOnSysupgrade = `
 # Preservar el agente en sysupgrade (#1476): mismo gesto que el flujo owut.
 P=/etc/sysupgrade.conf
-touch "$P"
-ensure_sysupgrade() { grep -qxF "$1" "$P" 2>/dev/null || echo "$1" >> "$P"; }
+touch "$P" 2>/dev/null || true
+ensure_sysupgrade() { grep -qxF "$1" "$P" 2>/dev/null || echo "$1" >> "$P" 2>/dev/null || true; }
 ensure_sysupgrade /usr/sbin/netpulse-agent
 ensure_sysupgrade /etc/netpulse-agent.env
 ensure_sysupgrade /etc/init.d/netpulse-agent
@@ -386,7 +398,10 @@ if [ "$PKG_OK" != "1" ]; then
 # sueltos, así que el binario, el init y el env se añaden a
 # /etc/sysupgrade.conf (#1476); si aun así falta el binario al arrancar se
 # descarga del server con este env.
-cat > "$INIT" <<'INITEOF'
+INIT_TMP="/tmp/netpulse-agent.init.$$"
+# #1853: el init se escribe en un temporal y se mueve solo si salio entero, para
+# no dejar /etc/init.d a medias si el disco esta lleno.
+if cat > "$INIT_TMP" <<'INITEOF'
 #!/bin/sh /etc/rc.common
 # netpulse-agent — agente nativo NetPulse para OpenWrt, con self-heal.
 # Config en /etc/netpulse-agent.env (chmod 600); procd reinicia si cambia.
@@ -480,20 +495,30 @@ selfheal_binary() {
 	procd_close_instance
 }
 INITEOF
-chmod 0755 "$INIT"
+then
+	chmod 0755 "$INIT_TMP" && mv -f "$INIT_TMP" "$INIT" || { rm -f "$INIT_TMP"; warn "no pude instalar $INIT"; }
+else
+	rm -f "$INIT_TMP"
+	warn "no pude preparar $INIT"
+fi
 fi
 
 # #851: el watchdog cron YA NO se instala (un reinicio a ciegas de un crash
 # loop no arregla nada y ensucia el log; la detección es el dead-man del
 # servidor). Si el router viene de una instalación que sí lo tenía, limpiarlo.
-rm -f /usr/sbin/netpulse-watchdog
+rm -f /usr/sbin/netpulse-watchdog || warn "no pude borrar /usr/sbin/netpulse-watchdog"
 if [ -f /etc/crontabs/root ]; then
-	sed -i '/netpulse-watchdog/d' /etc/crontabs/root
+	sed -i '/netpulse-watchdog/d' /etc/crontabs/root || warn "no pude limpiar el cron del watchdog"
 fi
 
-"$INIT" enable
+# #1853: de aqui al final nada puede abortar en silencio: el binario nuevo ya
+# esta en su sitio y el servicio sigue parado, asi que se avisa y se arranca.
+"$INIT" enable >/dev/null 2>&1 || warn "no pude habilitar $INIT"
 ` + preserveOnSysupgrade + `
-"$INIT" restart
+if ! "$INIT" restart >/dev/null 2>&1; then
+	warn "el agente no arranco tras el reinstall; revisa $INIT"
+	exit 24
+fi
 `
 }
 
