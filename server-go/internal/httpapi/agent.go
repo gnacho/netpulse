@@ -338,6 +338,34 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 // instalación incluye el token y se ejecuta en el router.
 // ---------------------------------------------------------------------------
 
+// agentDowngradeBlocked (#1840) decide si el servidor debe negarse a servir su
+// binario embebido a un router que ya corre una versión más nueva. Sin esto,
+// un reinstall, un self-heal o la descarga del paquete .ipk revertían fixes en
+// silencio cuando el servidor se construyó con un agente más viejo que el que
+// corre en la flota.
+//
+// Solo aplica a agentes nativos que reportan versión: los external y netgrip
+// se actualizan por su cuenta y usan otra numeración. Sin estado no bloquea,
+// para que un agente caído o recién instalado pueda curarse. ?force=1 es la
+// confirmación explícita del operador.
+func (s *server) agentDowngradeBlocked(slug string, r *http.Request) (reported string, blocked bool) {
+	if r.URL.Query().Get("force") == "1" {
+		return "", false
+	}
+	// Build de desarrollo: la versión embebida no es real (default 0.1.0).
+	if v := agentbin.EmbeddedAgentVersion; v == "" || v == "0.1.0" {
+		return "", false
+	}
+	_, version, kind, _, ok := s.agents.Info(slug)
+	if !ok || version == "" || (kind != "" && kind != "native") {
+		return "", false
+	}
+	if vercmp.CmpBuild(version, agentbin.EmbeddedAgentVersion) > 0 {
+		return version, true
+	}
+	return "", false
+}
+
 func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if !agentSlugRe.MatchString(slug) {
@@ -359,6 +387,12 @@ func (s *server) handleAgentBinary(w http.ResponseWriter, r *http.Request) {
 	if arch == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request",
 			"falta ?arch= (amd64, arm64, armv7, mips, mipsle)")
+		return
+	}
+	// #1840: no degradar un agente que ya va por delante del binario embebido.
+	if reported, blocked := s.agentDowngradeBlocked(slug, r); blocked {
+		writeError(w, http.StatusConflict, "agent_downgrade_refused",
+			"el router corre el agente "+reported+" y este servidor embebe "+agentbin.EmbeddedAgentVersion+"; repite con ?force=1 para forzar")
 		return
 	}
 	f, err := agentbin.Open(arch)
@@ -407,6 +441,12 @@ func (s *server) handleAgentPackage(w http.ResponseWriter, r *http.Request) {
 	if arch == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request",
 			"falta ?arch= (amd64, arm64, arm, mips, mipsle)")
+		return
+	}
+	// #1840: no degradar un agente que ya va por delante del binario embebido.
+	if reported, blocked := s.agentDowngradeBlocked(slug, r); blocked {
+		writeError(w, http.StatusConflict, "agent_downgrade_refused",
+			"el router corre el agente "+reported+" y este servidor embebe "+agentbin.EmbeddedAgentVersion+"; repite con ?force=1 para forzar")
 		return
 	}
 	// #1476: format=ipk (por defecto) lo compone el servidor al vuelo desde el
@@ -1025,6 +1065,14 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	// agente es el NetGrip embebido (lo destrozaría: duplicado + token roto).
 	if s.agentKindOf(slug) == "netgrip" {
 		writeError(w, http.StatusConflict, "netgrip_managed", "agente embebido en NetGrip: actualiza o reinstala el panel NetGrip en el propio router")
+		return
+	}
+	// #1840: no reinstalar un agente que ya va por delante del binario
+	// embebido. El script le dejaría una versión más vieja y perdería fixes
+	// sin avisar; ?force=1 es la confirmación explícita del operador.
+	if reported, blocked := s.agentDowngradeBlocked(slug, r); blocked {
+		writeError(w, http.StatusConflict, "agent_downgrade_refused",
+			"el router corre el agente "+reported+" y este servidor embebe "+agentbin.EmbeddedAgentVersion+"; repite con ?force=1 para forzar")
 		return
 	}
 

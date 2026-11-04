@@ -54,10 +54,20 @@ jobs:
           echo "agent=$AGENT_VERSION" >> "$GITHUB_OUTPUT"
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           if [ -n "$PREV_TAG" ]; then
+            PREV_AGENT=$(git show "$PREV_TAG:agent/VERSION" 2>/dev/null | tr -d '[:space:]' || true)
             if ! git diff --quiet "$PREV_TAG"..HEAD -- agent/; then
-              PREV_AGENT=$(git show "$PREV_TAG:agent/VERSION" 2>/dev/null | tr -d '[:space:]' || true)
               if [ -n "$PREV_AGENT" ] && [ "$PREV_AGENT" = "$AGENT_VERSION" ]; then
                 echo "::error::agent/ cambió desde $PREV_TAG pero agent/VERSION sigue en $AGENT_VERSION. Sube la versión del agente antes de taguear."
+                exit 1
+              fi
+            fi
+            # #1840: un release no puede rebajar la versión del agente. Si lo
+            # hace, el servidor embebe un agente más viejo que el que ya corre
+            # en los routers y un reinstall degradaría la flota.
+            if [ -n "$PREV_AGENT" ] && [ "$PREV_AGENT" != "$AGENT_VERSION" ]; then
+              NEWEST=$(printf '%s\n%s\n' "$PREV_AGENT" "$AGENT_VERSION" | sort -V | tail -n 1)
+              if [ "$NEWEST" = "$PREV_AGENT" ]; then
+                echo "::error::agent/VERSION bajó de $PREV_AGENT ($PREV_TAG) a $AGENT_VERSION. Publicar un servidor con un agente embebido más viejo que el de la flota no está permitido (#1840)."
                 exit 1
               fi
             fi
