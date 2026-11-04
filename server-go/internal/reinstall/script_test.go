@@ -147,7 +147,7 @@ func TestScriptSelfHealInit(t *testing.T) {
 		"selfheal_binary()",
 		`url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"`,
 		"logger -t netpulse-agent \"self-heal: binario restaurado\"",
-		"selfheal_binary || logger -t netpulse-agent \"self-heal: no se pudo restaurar el binario\"",
+		"self-heal: no se pudo restaurar el binario; el servicio no arranca",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("init sin self-heal: falta %q", want)

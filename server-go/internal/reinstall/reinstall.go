@@ -473,19 +473,26 @@ selfheal_binary() {
 }
 
 
-	# (#879) self-heal: tras un sysupgrade /etc sobrevive pero el binario del
-	# watchdog no: si quedó la entrada de cron del antiguo watchdog, retirarla
-	# (cron loguearía un comando inexistente cada 2 min).
-	cleanup_stale_watchdog_cron() {
+# (#879) self-heal: tras un sysupgrade /etc sobrevive pero el binario del
+# watchdog no: si quedó la entrada de cron del antiguo watchdog, retirarla
+# (cron loguearía un comando inexistente cada 2 min).
+cleanup_stale_watchdog_cron() {
 	[ -f /usr/sbin/netpulse-watchdog ] && return 0
 	crontab -l 2>/dev/null | grep -q netpulse-watchdog || return 0
 	( crontab -l 2>/dev/null | grep -v netpulse-watchdog ) | crontab - 2>/dev/null || true
 	logger -t netpulse-agent "watchdog cron huérfano retirado (#879)"
-	}
-	
-	start_service() {
+}
+
+# #1857: si el binario no está y el self-heal no lo trae, no se registra la
+# instancia. procd arrancaría una ruta inexistente, reintentaría y se
+# rendiría, dejando el servicio como arrancado y el agente muerto sin más
+# rastro que una línea en el log.
+start_service() {
 	cleanup_stale_watchdog_cron
-	selfheal_binary || logger -t netpulse-agent "self-heal: no se pudo restaurar el binario"
+	if ! selfheal_binary; then
+		logger -t netpulse-agent "self-heal: no se pudo restaurar el binario; el servicio no arranca"
+		return 0
+	fi
 	procd_open_instance netpulse-agent
 	procd_set_param command "$BIN"
 	procd_set_param respawn "${respawn_threshold:-3600}" "${respawn_timeout:-5}" "${respawn_retry:-5}"
