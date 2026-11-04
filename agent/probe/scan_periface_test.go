@@ -109,6 +109,9 @@ func TestScanPorInterfazThrottle(t *testing.T) {
 		"\tInterface phy0-ap1\n\t\taddr 62:22:32:5b:5c:98\n\t\ttype AP\n"
 	run := &countingRunner{fakeRunner: fakeRunner{outs: map[string]string{
 		CmdIwDev: iwDev,
+		// La AP responde (aqui, sin BSS): el test mide la agrupacion por
+		// radio, no el reintento de #1839.
+		CmdScanIface("phy0-ap0"): "",
 	}}}
 	p := NewProber(run, Options{})
 	ctx := context.Background()

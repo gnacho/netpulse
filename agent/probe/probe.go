@@ -130,6 +130,10 @@ const (
 	// hechos. Cada interfaz tiene ahora su propio tiempo y un fallo o un
 	// cuelgue solo vacía su propia sección.
 	scanIfaceTimeout = 8 * time.Second
+	// maxScanFallbacks (#1839): reintentos por radio cuando la interfaz
+	// elegida rechaza el scan. Dos basta para cubrir AP + managed + una
+	// tercera, y acota el peor caso (3 x 8 s por radio).
+	maxScanFallbacks = 2
 	// CmdRadioSections (#500): secciones wifi-device de UCI con su banda, para
 	// resolver "2.4 GHz" → radio0 (la relación iface→sección no sale de iwinfo).
 	CmdRadioSections = `uci -q show wireless 2>/dev/null | grep -E "=wifi-device$|\.band=|\.hwmode="`

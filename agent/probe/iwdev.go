@@ -6,6 +6,7 @@
 package probe
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -101,4 +102,39 @@ func pickScanIface(group []IwDevIface) IwDevIface {
 		}
 	}
 	return group[0]
+}
+
+// IwDevScanAlternates returns the other interfaces of the same radio, in the
+// order worth trying when the chosen one refuses the scan (#1839). On
+// Asuswrt/dhd every phy exposes an AP VAP that answers
+// NL80211_CMD_TRIGGER_SCAN with "Operation not supported" while the managed
+// VAP of the same phy accepts it and returns BSSes.
+func IwDevScanAlternates(ifaces []IwDevIface, chosen IwDevIface) []IwDevIface {
+	if chosen.Phy < 0 {
+		return nil
+	}
+	var out []IwDevIface
+	for _, i := range ifaces {
+		if i.Phy != chosen.Phy || i.Iface == chosen.Iface {
+			continue
+		}
+		out = append(out, i)
+	}
+	sort.SliceStable(out, func(a, b int) bool { return altRank(out[a]) < altRank(out[b]) })
+	return out
+}
+
+// altRank orders scan fallbacks: a managed VAP first, then anything else, and
+// monitor and P2P-device last because they are not expected to answer either.
+func altRank(i IwDevIface) int {
+	switch {
+	case strings.EqualFold(i.Type, "managed"):
+		return 0
+	case strings.EqualFold(i.Type, "monitor"):
+		return 3
+	case strings.EqualFold(i.Type, "P2P-device"):
+		return 4
+	default:
+		return 1
+	}
 }
