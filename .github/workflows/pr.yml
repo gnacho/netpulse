@@ -73,17 +73,11 @@ jobs:
       # y TestOpenArmVariants los abre. Version dummy: los assets reales con
       # version los compila solo main (go.yml). Nombres segun normalizeArch:
       # armv7 -> "arm" con GOARM=7 (#458), MIPS softfloat sin FPU (#488).
+      - name: Install UPX
+        run: sudo apt-get update && sudo apt-get install -y upx-ucl
+
       - name: Build agent binaries para embed
-        env:
-          CGO_ENABLED: 0
-          GOOS: linux
-        run: |
-          set -e
-          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
-          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
-          (cd agent && GOARCH=mipsle GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-mipsle ./cmd/netpulse-agent)
-          (cd agent && GOARCH=mips GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=0.0.0-pr" -o ../server-go/internal/agentbin/agents/netpulse-agent-mips ./cmd/netpulse-agent)
+        run: make agents AGENT_VERSION="0.0.0-pr"
 
       - name: Tests server (server-go)
         working-directory: server-go

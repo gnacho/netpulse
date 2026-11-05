@@ -14,6 +14,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"errors"
 	"io"
 	"io/fs"
 	"strings"
@@ -142,12 +143,9 @@ func SetEmbeddedMismatch(v bool) { embeddedMismatch = v }
 // por binarios embebidos incoherentes con EmbeddedAgentVersion.
 func EmbeddedMismatch() bool { return embeddedMismatch }
 
-// VerifyEmbedded comprueba que cada binario embebido contenga el string de
-// EmbeddedAgentVersion. No podemos ejecutar binarios de otras arquitecturas:
-// los -X main.Version del build van a rodata, así que la presencia del
-// string en el ELF es la verificación posible. Devuelve (ok, archs malos).
-// Sin binarios (dev) o con la versión default sin ldflags no hay nada que
-// verificar: (true, "").
+// VerifyEmbedded checks the version of each embedded agent. Compressed builds
+// carry a version sidecar bound to the binary's SHA-256; legacy uncompressed
+// builds are checked for their version string. Development defaults skip checks.
 func VerifyEmbedded() (bool, string) {
 	if !HasBinaries() {
 		return true, ""
@@ -166,7 +164,14 @@ func verifyFSVersion(fsys fs.FS, version string) (bool, string) {
 		if err != nil || len(b) == 0 {
 			continue // sin binario para esa arquitectura: Open ya da 404
 		}
-		if !bytes.Contains(b, []byte(version)) {
+		metadata, metadataErr := fs.ReadFile(fsys, "agents/netpulse-agent-"+arch+".version")
+		if metadataErr == nil {
+			fields := strings.Fields(string(metadata))
+			digest := sha256.Sum256(b)
+			if len(fields) != 2 || fields[0] != version || fields[1] != hex.EncodeToString(digest[:]) {
+				bad = append(bad, arch)
+			}
+		} else if !errors.Is(metadataErr, fs.ErrNotExist) || !bytes.Contains(b, []byte(version)) {
 			bad = append(bad, arch)
 		}
 	}

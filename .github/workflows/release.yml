@@ -91,6 +91,9 @@ jobs:
       # arquitecturas. Garantiza además embed == assets bit a bit. Cualquier
       # fallo de la descarga o la verificación deja reused=false y el paso
       # de compilación (fallback) corre encima, sobreescribiendo lo extraído.
+      - name: Install UPX
+        run: sudo apt-get update && sudo apt-get install -y upx-ucl
+
       - name: Reutiliza agentes del release anterior (si agent/VERSION no cambió)
         id: agent-reuse
         env:
@@ -130,6 +133,10 @@ jobs:
               tar xzf "$tarball" netpulse-agent || return 1
               mv netpulse-agent "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}" || return 1
               chmod +x "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}" || return 1
+              # Older uncompressed assets must be rebuilt with UPX.
+              binary="$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}"
+              upx -t "$binary" || return 1
+              printf '%s %s\n' "$AGENT_VERSION" "$(sha256sum "$binary" | cut -d' ' -f1)" > "$binary.version" || return 1
             done
           }
           if reuse; then
@@ -142,20 +149,7 @@ jobs:
 
       - name: Build agent binaries para embed (todas las arquitecturas)
         if: steps.agent-reuse.outputs.reused != 'true'
-        env:
-          CGO_ENABLED: 0
-          GOOS: linux
-        run: |
-          set -e
-          # amd64
-          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
-          # arm64
-          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
-          # armv7 (fichero "arm": el nombre que busca normalizeArch)
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
-          # mipsle/mips softfloat (#488): MIPS sin FPU, ambos endianness
-          (cd agent && GOARCH=mipsle GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-mipsle ./cmd/netpulse-agent)
-          (cd agent && GOARCH=mips GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-mips ./cmd/netpulse-agent)
+        run: make agents AGENT_VERSION="${{ steps.version.outputs.agent }}"
 
       - name: Tests Go (ambos módulos)
         run: |

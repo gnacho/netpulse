@@ -1,6 +1,8 @@
 package agentbin
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"testing"
 	"testing/fstest"
 )
@@ -57,5 +59,41 @@ func TestEmbeddedMismatchFlag(t *testing.T) {
 	SetEmbeddedMismatch(false)
 	if EmbeddedMismatch() {
 		t.Fatal("mismatch false no se refleja")
+	}
+}
+
+func TestVerifyFSCompressedVersion(t *testing.T) {
+	binary := []byte("compressed agent without a visible version")
+	digest := sha256.Sum256(binary)
+	for _, tc := range []struct {
+		name, metadata string
+		valid          bool
+	}{
+		{"matching", fmt.Sprintf("3.0.11 %x\n", digest), true},
+		{"wrong version", fmt.Sprintf("3.0.10 %x\n", digest), false},
+		{"wrong binary", fmt.Sprintf("3.0.11 %x\n", sha256.Sum256([]byte("other"))), false},
+		{"malformed", "3.0.11", false},
+		{"empty", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fsys := fstest.MapFS{
+				"agents/netpulse-agent-amd64":         {Data: binary},
+				"agents/netpulse-agent-amd64.version": {Data: []byte(tc.metadata)},
+			}
+			ok, bad := verifyFSVersion(fsys, "3.0.11")
+			if ok != tc.valid || (!ok && bad != "amd64") {
+				t.Fatalf("got (%v, %q), want valid=%v", ok, bad, tc.valid)
+			}
+		})
+	}
+}
+
+// CI can inject the build version to check the actual compressed embed inputs.
+func TestVerifyEmbeddedArtifacts(t *testing.T) {
+	if EmbeddedAgentVersion == "0.1.0" || EmbeddedAgentVersion == "" || !HasBinaries() {
+		t.Skip("requires versioned embedded agents")
+	}
+	if ok, bad := VerifyEmbedded(); !ok {
+		t.Fatalf("embedded agent version mismatch: %s", bad)
 	}
 }

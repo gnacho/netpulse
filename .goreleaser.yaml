@@ -74,6 +74,11 @@ builds:
       - -w
       - "-X main.Version={{ .Env.AGENT_VERSION }}"
 
+    hooks:
+      post:
+        - cmd: upx --best --lzma "{{ .Path }}"
+        - cmd: upx -t "{{ .Path }}"
+
 archives:
   - id: netpulse
     ids: [netpulse]

@@ -326,3 +326,12 @@ file with its test.
 ## License
 
 [AGPL-3.0](LICENSE)
+
+### Building compressed agents
+
+Agent builds require UPX on the build host (`sudo apt-get install upx-ucl` on
+Ubuntu). Run `make agents AGENT_VERSION="$(cat agent/VERSION)"` to cross-compile
+and compress all five Linux architectures before they are embedded in the server.
+Use `UPX=/path/to/upx` for a local UPX installation. Compression and UPX integrity
+checks are required; failures stop the build. CI and GoReleaser compress agents
+before embedding or packaging them. OpenWrt release packages use those assets.
