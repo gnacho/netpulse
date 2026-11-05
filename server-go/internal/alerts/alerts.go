@@ -179,6 +179,9 @@ const (
 	// #1452: cierre automático de la alerta de señal débil (episodio
 	// resuelto con valor de recuperación y duración).
 	TypeWifiWeakRecovered = "wifi-weak-recovered"
+	// #1873: una MAC que solo aparece en una tabla de reenvío, sin lease,
+	// ARP, ND ni mDNS, y que sigue ahí mucho rato. Informativa, no urgente.
+	TypeUnverifiedMac = "unverified-mac"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy

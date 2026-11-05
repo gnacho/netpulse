@@ -391,6 +391,14 @@ type Live struct {
 	unknownGrace    map[string]int
 	unknownAlerted  map[string]bool
 	unknownGraceNum int // ticks antes de declarar desconocido (default 3, #234)
+	// unverifiedSince: primera vez (unix ms) que una MAC sin ninguna prueba
+	// de host se ve en una tabla de reenvío. unverifiedNoted: MACs que ya
+	// dejaron su nota informativa (#1873, persistida en kv). unverifiedAfterMs
+	// es el umbral en tiempo real (0 = default), no en ticks: la cadencia de
+	// sondeo cambia con el kind de la unidad y con la configuración.
+	unverifiedSince   map[string]int64
+	unverifiedNoted   map[string]bool
+	unverifiedAfterMs int64
 	// rdns: reverse DNS fallback for devices nothing else named (rdns.go).
 	rdns *rdnsCache
 	// impostorActive (#1358): BSSID impostor → alertID emitida. Solo en
@@ -562,6 +570,8 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		unknownGrace:         map[string]int{},
 		unknownAlerted:       map[string]bool{},
 		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
+		unverifiedSince:      map[string]int64{},
+		unverifiedNoted:      map[string]bool{},
 		impostorActive:       map[string]string{},
 		impostorAllow:        map[string]bool{},
 		impostorEnabled:      true,
@@ -607,6 +617,17 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 				var key string
 				if rows.Scan(&key) == nil {
 					l.unknownAlerted[strings.TrimPrefix(key, "unknown_alerted:")] = true
+				}
+			}
+			rows.Close()
+		}
+		// #1873: MACs que ya dejaron su nota de baja prioridad, para no
+		// repetirla tras un reinicio (clave `unverified_mac_noted:<mac>`).
+		if rows, err := d.Query("SELECT key FROM kv WHERE key LIKE 'unverified_mac_noted:%'"); err == nil {
+			for rows.Next() {
+				var key string
+				if rows.Scan(&key) == nil {
+					l.unverifiedNoted[strings.TrimPrefix(key, "unverified_mac_noted:")] = true
 				}
 			}
 			rows.Close()
@@ -2360,12 +2381,14 @@ func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 		nowOnline[d.MAC] = true
 		if trusted[d.MAC] {
 			delete(l.unknownGrace, d.MAC)
+			delete(l.unverifiedSince, d.MAC)
 			continue
 		}
 		// issue #234: con hostname (lease resuelto) el dispositivo es
 		// conocido; se resetea su gracia y nunca alerta.
 		if d.Name != d.MAC {
 			delete(l.unknownGrace, d.MAC)
+			delete(l.unverifiedSince, d.MAC)
 			continue
 		}
 		// issue #1818: una MAC sin ninguna prueba de que hay un host real
@@ -2375,11 +2398,13 @@ func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 		// actualización en un "dispositivo desconocido".
 		if !unknownDeviceHasEvidence(d) {
 			delete(l.unknownGrace, d.MAC)
+			l.noteUnverifiedMac(d, devices, dists)
 			continue
 		}
 		// issue #248: esta MAC ya alertó alguna vez → no vuelve a hacerlo.
 		if l.unknownAlerted[d.MAC] {
 			delete(l.unknownGrace, d.MAC)
+			delete(l.unverifiedSince, d.MAC)
 			continue
 		}
 		// Solo los dispositivos que ACABAN de conectarse (o que ya estaban en
@@ -2402,8 +2427,106 @@ func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 			delete(l.unknownGrace, mac)
 		}
 	}
+	// #1873: el reloj de la nota solo corre mientras la MAC siga ahí. Si se
+	// va, el siguiente avistamiento empieza a contar de cero.
+	for mac := range l.unverifiedSince {
+		if !nowOnline[mac] {
+			delete(l.unverifiedSince, mac)
+		}
+	}
 	l.onlineMacs = nowOnline
 	l.seenOnlineMacs = true
+}
+
+// unverifiedMacNoteAfter es cuánto tiene que persistir una MAC sin ninguna
+// prueba de host antes de dejar su nota (#1873). Diez minutos: suficiente
+// para que un protocolo de recuperación de firmware (NMRP de Netgear dura
+// segundos) no la dispare y poco para una MAC que se ha quedado a vivir en
+// una tabla de reenvío.
+const unverifiedMacNoteAfter int64 = 10 * 60 * 1000
+
+// unverifiedThreshold devuelve el umbral efectivo en ms. Los Live montados a
+// mano (tests, demo) dejan unverifiedAfterMs a 0 y usan el default.
+// Debe llamarse con l.mu tomado.
+func (l *Live) unverifiedThreshold() int64 {
+	if l.unverifiedAfterMs > 0 {
+		return l.unverifiedAfterMs
+	}
+	return unverifiedMacNoteAfter
+}
+
+// noteUnverifiedMac deja una nota informativa cuando una MAC sin lease, ARP,
+// ND ni mDNS sigue apareciendo en una tabla de reenvío (#1873). No toca el
+// gate de #1818 ni el contador de desconocidos: es el rastro de lo que hasta
+// ahora se descartaba en silencio, que es justo lo que pidió el reportero.
+// Debe llamarse con l.mu tomado.
+func (l *Live) noteUnverifiedMac(d Device, devices []Device, dists []DistributionNode) {
+	if l.unverifiedNoted[d.MAC] {
+		return
+	}
+	if l.unverifiedSince == nil {
+		l.unverifiedSince = map[string]int64{}
+	}
+	if l.unverifiedNoted == nil {
+		l.unverifiedNoted = map[string]bool{}
+	}
+	now := time.Now().UnixMilli()
+	first, seen := l.unverifiedSince[d.MAC]
+	if !seen {
+		l.unverifiedSince[d.MAC] = now
+		return
+	}
+	if now-first < l.unverifiedThreshold() {
+		return
+	}
+	l.emitUnverifiedMac(d, devices, dists, (now-first)/60000)
+	l.unverifiedNoted[d.MAC] = true
+	l.persistUnverifiedNoted(d.MAC)
+	delete(l.unverifiedSince, d.MAC)
+}
+
+// emitUnverifiedMac: nota de baja prioridad (category clients, info, no
+// urgente) para una MAC que persiste sin evidencia. No comparte ID con la
+// alerta de desconocido: esta es informativa y el motor deduplica por ID.
+// Debe llamarse con l.mu tomado.
+func (l *Live) emitUnverifiedMac(d Device, devices []Device, dists []DistributionNode, minutes int64) {
+	where, port := l.deviceLocation(d, devices, dists)
+	if minutes < 1 {
+		minutes = 1
+	}
+	vars := map[string]string{
+		"mac":     d.MAC,
+		"router":  l.routerDisplayName(d.RouterID),
+		"where":   where,
+		"minutes": fmt.Sprintf("%d", minutes),
+	}
+	if port != "" {
+		vars["port"] = port
+	}
+	desc := fmt.Sprintf("%s has been in %s for %d min with no lease, ARP, ND or mDNS", d.MAC, where, minutes)
+	if port != "" {
+		desc = fmt.Sprintf("%s has been on %s (%s) for %d min with no lease, ARP, ND or mDNS", d.MAC, where, port, minutes)
+	}
+	l.engine.Emit(AlertEvent{
+		ID:       "alert-unverified-mac-" + d.MAC,
+		Category: alerts.CatClients, Urgent: false,
+		Severity:    "info",
+		Title:       "Unverified device",
+		Description: desc,
+		Type:        alerts.TypeUnverifiedMac,
+		Vars:        vars,
+		Time:        "just now", RouterID: d.RouterID,
+	})
+}
+
+// persistUnverifiedNoted guarda en kv que esta MAC ya dejó su nota (#1873),
+// para no repetirla tras un reinicio. Con db nil (demo/tests) es no-op.
+// Debe llamarse con l.mu tomado.
+func (l *Live) persistUnverifiedNoted(mac string) {
+	if l.db == nil {
+		return
+	}
+	_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "unverified_mac_noted:"+mac)
 }
 
 // persistUnknownAlerted guarda en kv la memoria per-MAC (issue #248) para que

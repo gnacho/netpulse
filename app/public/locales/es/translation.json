@@ -307,6 +307,10 @@
       "firmware-target-unknown": {
         "title": "Target de firmware no disponible",
         "description": "{{router}}: el target configurado \"{{target}}\" no figura entre los releases publicados de OpenWrt (revisa el nombre en Actualizaciones de firmware)"
+      },
+      "unverified-mac": {
+        "title": "Dispositivo sin verificar en {{router}}",
+        "description": "{{mac}} lleva {{minutes}} min en {{where}} sin lease, ARP, ND ni mDNS"
       }
     },
     "viewDevice": "Ver dispositivo",

@@ -22,6 +22,7 @@ var newTypeSlugs = []string{
 	TypeSwitchRebooted, TypeAgentRearmed, TypeAgentReinstalled,
 	TypeAutoRearmFailed, TypeUplinkRestored, TypeSnmpRecovered,
 	TypeRouterOffline,
+	TypeUnverifiedMac,
 }
 
 // hintSlugs: slugs ya existentes en #310/#671 (con hint) para detectar colisiones.
@@ -50,8 +51,8 @@ func TestNewTypeSlugsAreKebabCaseAndUnique(t *testing.T) {
 		}
 		seen[slug] = true
 	}
-	if len(newTypeSlugs) != 24 {
-		t.Errorf("se esperan 24 slugs nuevos, hay %d", len(newTypeSlugs))
+	if len(newTypeSlugs) != 25 {
+		t.Errorf("se esperan 25 slugs nuevos, hay %d", len(newTypeSlugs))
 	}
 }
 
