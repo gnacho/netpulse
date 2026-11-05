@@ -1168,7 +1168,13 @@
       "lastIp": "Última IP",
       "peersConnected": "Peers conectados",
       "serverActive": "Servidor activo",
-      "transfer30d": "Transferencia 30 d"
+      "transfer30d": "Transferencia 30 d",
+      "configButton": "Ajustes",
+      "configTitle": "Ajustes de WireGuard",
+      "showDisconnected": "Mostrar clientes no conectados",
+      "showDisconnectedHint": "Pares sin handshake activo. Solo afecta a esta tarjeta en este navegador.",
+      "hiddenPeers_one": "1 cliente no conectado oculto",
+      "hiddenPeers_other": "{{count}} clientes no conectados ocultos"
     },
     "statusReasonTitle": "Por qué está caída esta unidad"
   },

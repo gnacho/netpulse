@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, KeyRound, Laptop, Network, Smartphone, Tablet } from 'lucide-react'
+import { ChevronDown, KeyRound, Laptop, Network, Settings2, Smartphone, Tablet } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
@@ -17,6 +17,30 @@ const PEER_ICONS: Record<PeerType, LucideIcon> = {
   tablet: Tablet,
   sitio: Network,
   desconocido: Network,
+}
+
+/**
+ * #1886: preferencia de la tarjeta, guardada en el navegador como el
+ * intervalo de refresco (`netpulse-refresh`). Vive aquí y no en el servidor
+ * porque solo decide qué se lista en esta vista. Sin localStorage o con un
+ * valor raro, gana el defecto: los desconectados quedan ocultos.
+ */
+const SHOW_DISCONNECTED_KEY = 'netpulse-wireguard-show-disconnected'
+
+function readShowDisconnected(): boolean {
+  try {
+    return localStorage.getItem(SHOW_DISCONNECTED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeShowDisconnected(value: boolean) {
+  try {
+    localStorage.setItem(SHOW_DISCONNECTED_KEY, value ? '1' : '0')
+  } catch {
+    /* sin localStorage: la preferencia vive solo en el estado */
+  }
 }
 
 function PeerRow({ peer, index }: { peer: WGPeer; index: number }) {
@@ -124,12 +148,25 @@ function PeerRow({ peer, index }: { peer: WGPeer; index: number }) {
 export function WireGuardPanel() {
   const { t } = useTranslation()
   const { wireguard } = useNetPulse()
+  const [configOpen, setConfigOpen] = useState(false)
+  const [showDisconnected, setShowDisconnected] = useState(readShowDisconnected)
+  const reduce = useReducedMotion()
   // #1441: activos primero y, dentro de cada grupo, los urgentes primero
   // (mismo criterio que los slots del mapa).
   const peers = [...wireguard.peers].sort(
     (a, b) => Number(b.active) - Number(a.active) || Number(b.urgent) - Number(a.urgent),
   )
   const connected = peers.filter((p) => p.active).length
+  // #1886: la preferencia solo decide qué se lista. El contador de arriba
+  // sigue dando el total real, filtro o no, para que ocultar no falsee la
+  // lectura de la tarjeta.
+  const visible = showDisconnected ? peers : peers.filter((p) => p.active)
+  const hidden = peers.length - visible.length
+
+  const toggleDisconnected = (checked: boolean) => {
+    setShowDisconnected(checked)
+    writeShowDisconnected(checked)
+  }
 
   return (
     <section id="wireguard" className="scroll-mt-4 rounded-2xl border border-border bg-surface p-5 transition-shadow duration-500 md:p-6 lg:col-span-5">
@@ -141,11 +178,58 @@ export function WireGuardPanel() {
           </div>
           <h3 className="font-display text-h2 text-text-primary">WireGuard</h3>
         </div>
-        <StatusPill tone="tunnel" label={t('routerDetail.wireguard.serverActive')} />
+        <div className="flex items-center gap-2">
+          <StatusPill tone="tunnel" label={t('routerDetail.wireguard.serverActive')} />
+          {/* #1886: chip de configuración de la tarjeta, abierto por defecto
+              en el estado cerrado y solo con preferencias de esta vista. */}
+          <button
+            type="button"
+            onClick={() => setConfigOpen((v) => !v)}
+            aria-expanded={configOpen}
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-caption font-medium transition-colors duration-150',
+              configOpen
+                ? 'border-accent/40 bg-accent-soft text-accent'
+                : 'border-border bg-elevated text-text-secondary hover:border-accent/40 hover:text-accent',
+            )}
+          >
+            <Settings2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+            {t('routerDetail.wireguard.configButton')}
+          </button>
+        </div>
       </div>
       <p className="mt-1.5 font-mono text-caption text-text-muted">
         {wireguard.interface} · {wireguard.subnet} · :51820
       </p>
+
+      {/* ②bis Configuración de la tarjeta (#1886) */}
+      <AnimatePresence initial={false}>
+        {configOpen && (
+          <motion.div
+            key="wg-config"
+            initial={reduce ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={reduce ? { opacity: 0 } : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <div className="mt-3 rounded-xl border border-border bg-elevated/60 px-3.5 py-3" role="group" aria-label={t('routerDetail.wireguard.configTitle')}>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-text-primary">{t('routerDetail.wireguard.showDisconnected')}</div>
+                  <div className="text-caption text-text-muted">{t('routerDetail.wireguard.showDisconnectedHint')}</div>
+                </div>
+                <Switch
+                  checked={showDisconnected}
+                  onCheckedChange={toggleDisconnected}
+                  aria-label={t('routerDetail.wireguard.showDisconnected')}
+                  className="shrink-0"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stats */}
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -165,10 +249,19 @@ export function WireGuardPanel() {
 
       {/* Lista de peers */}
       <div className="mt-3 divide-y divide-border/50">
-        {peers.map((p, i) => (
+        {visible.map((p, i) => (
           <PeerRow key={p.key || p.id} peer={p} index={i} />
         ))}
       </div>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => toggleDisconnected(true)}
+          className="mt-3 w-full rounded-lg border border-dashed border-border px-3 py-2 text-caption text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+        >
+          {t('routerDetail.wireguard.hiddenPeers', { count: hidden })}
+        </button>
+      )}
     </section>
   )
 }
