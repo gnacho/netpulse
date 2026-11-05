@@ -773,6 +773,17 @@ func agentSourceClass(kind string) string {
 	return kind
 }
 
+// isPusherType: tipos de router que no corren el agente nativo, así que su
+// push llega de un scraper o de una integración (#1871). "" se trata como
+// nativo para no inventar un kind cuando la fila no está cargada.
+func isPusherType(t string) bool {
+	switch t {
+	case "", "openwrt", "glinet":
+		return false
+	}
+	return true
+}
+
 // portsCarryTraffic: el payload trae contadores o tasas por boca. Un beacon
 // solo publica estado de enlace y FDB, así que no entra (#1741).
 func portsCarryTraffic(ports []EthPort) bool {
@@ -797,6 +808,15 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	// #441: conservar el kind del agente: los pushers externos (beacon/
 	// scraper) no llevan sección system y el router queda sin vitals.
 	out.agentKind = p.Kind
+	// #1871: el kind del payload es opcional y las integraciones que empujan
+	// no lo rellenan, pero el registro ya sabe que la unidad no corre el
+	// agente nativo. Se sella en el polled y no en el payload a propósito:
+	// checkAgentVersion y el cache anti-parpadeo leen p.Kind, y un agente
+	// nativo en una fila external (migración 2.49.x) debe seguir comprobando
+	// su versión y heredando sus propias vitals.
+	if out.agentKind == "" && isPusherType(cfg.Type) {
+		out.agentKind = "external"
+	}
 	// #832: el equipo se expone él mismo a Home Assistant por MQTT (NetGrip
 	// con su MQTT activado); el publisher de flota cede el paso.
 	out.selfExpose = p.Data.MQTT != nil && p.Data.MQTT.Enabled
