@@ -3926,21 +3926,28 @@ func (l *Live) GetOverview(ctx context.Context) (ov *Overview, err error) {
 // RouterOS/AsusWRT manda tasas por boca en vez de contadores de tramas, así
 // que se prueba primero la serie en bps y se cae a frames solo si está vacía.
 func (l *Live) fillSparklineFromPorts(routerList []Router) {
-	if l.db == nil || l.db.PortSeries == nil {
+	for i := range routerList {
+		l.fillSparklineFromPortsOne(&routerList[i])
+	}
+}
+
+// fillSparklineFromPortsOne aplica el respaldo de #1741 a un solo router.
+// #1871: el detalle de la unidad construye con buildRouter sin pasar por
+// buildOverview, así que la línea de 24 h del detalle seguía a cero en un
+// pusher aunque la tarjeta de flota ya estuviera bien.
+func (l *Live) fillSparklineFromPortsOne(r *Router) {
+	if l.db == nil || l.db.PortSeries == nil || r == nil {
 		return
 	}
-	for i := range routerList {
-		r := &routerList[i]
-		if !r.sparklineFromPorts || !allZeroF(r.Sparkline) {
-			continue
-		}
-		if sp, err := l.db.PortSeries.HourlyBpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
-			r.Sparkline = sp
-			continue
-		}
-		if sp, err := l.db.PortSeries.HourlyFpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
-			r.Sparkline = sp
-		}
+	if !r.sparklineFromPorts || !allZeroF(r.Sparkline) {
+		return
+	}
+	if sp, err := l.db.PortSeries.HourlyBpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
+		r.Sparkline = sp
+		return
+	}
+	if sp, err := l.db.PortSeries.HourlyFpsTotal(r.ID, len(r.Sparkline)); err == nil && len(sp) > 0 && !allZeroF(sp) {
+		r.Sparkline = sp
 	}
 }
 
@@ -4449,6 +4456,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	} else {
 		router = l.offlineRouter(*cfg)
 	}
+	l.fillSparklineFromPortsOne(&router)
 	// Mapa global MAC → lease + MAC de bridge → nombre de router
 	leaseMap := map[string]DhcpLease{}
 	routerByMac := map[string]string{}
