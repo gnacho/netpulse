@@ -53,17 +53,29 @@ func (s *server) registerChannelPlanRoutes(mux *http.ServeMux) {
 				return slug
 			}
 			var payload *probe.Payload
+			host, bridgeMAC := "", ""
 			if s.agents != nil {
 				if st := s.agents.Snapshot(slug); st != nil {
 					payload = st.Payload
 				}
+				// #1874: un push event-driven (wireless-only) no trae board ni
+				// bridge MAC; la identidad retenida mantiene la asociación.
+				host, bridgeMAC, _ = s.agents.Identity(slug)
 			}
-			if payload != nil && payload.Data.System != nil && payload.Data.System.Board != nil {
-				if norm(payload.Data.System.Board.Hostname) == want {
-					return slug
+			if payload != nil && payload.Data.System != nil {
+				if b := payload.Data.System.Board; b != nil {
+					if h := strings.TrimSpace(b.Hostname); h != "" {
+						host = h
+					}
+				}
+				if bridgeMAC == "" {
+					bridgeMAC = payload.Data.System.BridgeMAC
 				}
 			}
-			if id := resolveAgentRouter(slug, payload, routerByID); id != "" {
+			if norm(host) == want {
+				return slug
+			}
+			if id := resolveAgentRouterIdentity(slug, host, bridgeMAC, routerByID); id != "" {
 				if id == routerID || norm(routerByID[id].Name) == want || norm(routerByID[id].Host) == want {
 					return slug
 				}

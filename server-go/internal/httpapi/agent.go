@@ -867,10 +867,27 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				if payload != nil {
 					item.PanelPort = payload.PanelPort
 				}
-				item.RouterID = resolveAgentRouter(slug, payload, routerByID)
-				if payload != nil && payload.Data.System != nil && payload.Data.System.Board != nil {
-					item.Hostname = strings.ToLower(strings.TrimSpace(payload.Data.System.Board.Hostname))
+				// #1874: un push event-driven (wireless-only) no trae sección
+				// system, y resolver la asociación con el payload actual dejaba
+				// el router sin id: la UI pintaba "agente no instalado" con el
+				// agente vivo. La identidad retenida por el registry (#852) es
+				// la que sobrevive a esos pushes.
+				host, bridgeMAC := "", ""
+				if s.agents != nil {
+					host, bridgeMAC, _ = s.agents.Identity(slug)
 				}
+				if payload != nil && payload.Data.System != nil {
+					if b := payload.Data.System.Board; b != nil {
+						if h := strings.TrimSpace(b.Hostname); h != "" {
+							host = h
+						}
+					}
+					if bridgeMAC == "" {
+						bridgeMAC = payload.Data.System.BridgeMAC
+					}
+				}
+				item.RouterID = resolveAgentRouterIdentity(slug, host, bridgeMAC, routerByID)
+				item.Hostname = strings.ToLower(strings.TrimSpace(host))
 				// Fase 6.3 (issue #243): upgrade disponible si el agente
 				// reporta una versión distinta del binario embebido y el router
 				// asociado es actualizable (nativo OpenWrt/GL.iNet).
@@ -919,32 +936,43 @@ type routerIdentity struct {
 	Mac  string
 }
 
-// resolveAgentRouter devuelve el id del router asociado a un agente. Primero
-// intenta slug == router.id; si no, empareja por bridge MAC persistida y solo
-// usa un hostname de board cuando es único (#1334): el hostname suele estar
-// duplicado en APs puente idénticos y un match ambiguo no debe inventar una
-// asociación. La MAC es la identidad física autoritativa.
+// resolveAgentRouter devuelve el id del router asociado a un agente a partir
+// de un payload suelto (sin acceso al registry). Es la variante que usan los
+// llamadores que no tienen la identidad retenida; handleAgentsList y el plan
+// de canales usan resolveAgentRouterIdentity con la identidad del registry.
 func resolveAgentRouter(slug string, payload *probe.Payload, routers map[string]routerIdentity) string {
+	host, bridgeMAC := "", ""
+	if payload != nil && payload.Data.System != nil {
+		bridgeMAC = payload.Data.System.BridgeMAC
+		if payload.Data.System.Board != nil {
+			host = payload.Data.System.Board.Hostname
+		}
+	}
+	return resolveAgentRouterIdentity(slug, host, bridgeMAC, routers)
+}
+
+// resolveAgentRouterIdentity devuelve el id del router asociado a un agente.
+// Primero intenta slug == router.id; si no, empareja por bridge MAC y solo usa
+// un hostname de board cuando es único (#1334): el hostname suele estar
+// duplicado en APs puente idénticos y un match ambiguo no debe inventar una
+// asociación. La MAC es la identidad física autoritativa. Recibe host y MAC
+// por separado porque el último push puede ser event-driven y no traerlos
+// (#1874): ahí se pasan los retenidos por el registry (#852).
+func resolveAgentRouterIdentity(slug, host, bridgeMAC string, routers map[string]routerIdentity) string {
 	if slug != "" {
 		if _, ok := routers[slug]; ok {
 			return slug
 		}
 	}
-	if payload == nil || payload.Data.System == nil {
-		return ""
-	}
-	if payload.Data.System.BridgeMAC != "" {
+	if bridgeMAC != "" {
 		for _, r := range routers {
-			if r.Mac != "" && strings.EqualFold(payload.Data.System.BridgeMAC, r.Mac) {
+			if r.Mac != "" && strings.EqualFold(bridgeMAC, r.Mac) {
 				return r.ID
 			}
 		}
 	}
-	if payload.Data.System.Board == nil {
-		return ""
-	}
 	norm := func(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
-	hostname := norm(payload.Data.System.Board.Hostname)
+	hostname := norm(host)
 	if hostname == "" {
 		return ""
 	}

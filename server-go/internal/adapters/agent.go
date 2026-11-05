@@ -122,6 +122,21 @@ func (r *AgentRegistry) Info(slug string) (lastSeen time.Time, version, kind str
 	return st.LastSeen, st.Version, st.Kind, st.Interval, true
 }
 
+// Identity devuelve la identidad retenida del agente: hostname del board y
+// MAC del bridge, aunque el último push sea event-driven y no traiga sección
+// system (#852 los conserva en AgentState). La usa GET /api/agents para
+// asociar el agente con su router cuando el payload actual no lleva identidad
+// (#1874).
+func (r *AgentRegistry) Identity(slug string) (host, bridgeMAC string, ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	st, found := r.states[slug]
+	if !found {
+		return "", "", false
+	}
+	return st.Host, st.BridgeMAC, true
+}
+
 // SelfExpose informa de si el router se expone él mismo a Home Assistant por
 // MQTT (#832), leyéndolo de la última muestra del agente. ok=false = el
 // agente no lo informa (standalone o embedder que no lo reporta).
