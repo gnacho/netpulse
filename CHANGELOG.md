@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.51.1] - 2026-11-05
+
 ### Fixed
 
 - A guest of a Proxmox host shows the VLAN its own configuration declares (#1757). A container or a virtual machine hangs from the bridge of the host, never from a port of the router, so the forwarding table and the bridge VLAN table of the router cannot say which VLAN it is on, and every guest painted as unlabelled no matter how it was segmented. The inventory already read the configuration of each guest to get its MAC, so it now takes `tag=<vid>` from the same line and seals it on the device, and a guest without a tag inherits the VLAN of the host chip: that is the port the host is plugged into, which is where its guests actually live.
