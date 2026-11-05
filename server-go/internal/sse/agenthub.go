@@ -80,6 +80,14 @@ func (h *AgentHub) fireOnConnect(slug string) {
 	}
 }
 
+// Connected indica si el slug tiene un agente con el stream SSE abierto.
+func (h *AgentHub) Connected(slug string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	_, ok := h.conns[slug]
+	return ok
+}
+
 // ConnectedSlugs devuelve los slugs con agente conectado vía SSE.
 func (h *AgentHub) ConnectedSlugs() []string {
 	h.mu.Lock()
