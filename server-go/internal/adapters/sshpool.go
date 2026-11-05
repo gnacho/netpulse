@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -387,6 +388,22 @@ func sshErrDetail(stderr string) string {
 // Run ejecuta cmd en host con timeout (por defecto 5 s, como el JS).
 // Una sesión fallida por canal roto invalida la conexión (reconexión).
 func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
+	return p.run(host, cmd, nil, timeout)
+}
+
+// RunScript ejecuta un script POSIX por stdin con `sh -s` (#1737). Dropbear
+// limita el tamaño de cada string del paquete a MAX_CMD_LEN (9000 bytes) y
+// aborta la conexión con "String too long": el cliente SSH solo ve EOF, sin
+// exit status ni stderr. El script de reinstalación pasa de 14 KB por argv, así
+// que el comando completo viaja por stdin y en argv solo va `sh -s`.
+func (p *SSHPool) RunScript(host, script string, timeout time.Duration) (string, error) {
+	return p.run(host, "sh -s", strings.NewReader(script), timeout)
+}
+
+// run abre una sesión, ejecuta cmd (alimentando stdin si no es nil) y devuelve
+// stdout. Comparte el manejo de stderr, drop por canal roto y timeout entre
+// Run y RunScript.
+func (p *SSHPool) run(host, cmd string, stdin io.Reader, timeout time.Duration) (string, error) {
 	if timeout <= 0 {
 		timeout = sshDefaultTimeout
 	}
@@ -400,6 +417,7 @@ func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
 		return "", fmt.Errorf("ssh %s: session: %w", host, err)
 	}
 	defer session.Close()
+	session.Stdin = stdin
 
 	type result struct {
 		out    []byte

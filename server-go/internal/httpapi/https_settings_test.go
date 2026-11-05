@@ -467,7 +467,7 @@ func TestTheInstallLineCarriesTheRoot(t *testing.T) {
 	}
 	dir := t.TempDir()
 	// Up to the download: create the file, write the root, show where.
-	upTo := line[:strings.Index(line, " && curl")]
+	upTo := line[:strings.Index(line, " && if command -v curl")]
 	upTo = strings.Replace(upTo, "$(mktemp)", dir+"/ca.pem", 1)
 	if out, err := exec.Command("sh", "-c", upTo).CombinedOutput(); err != nil {
 		t.Fatalf("%v: %s", err, out)
