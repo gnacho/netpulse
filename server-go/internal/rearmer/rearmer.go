@@ -68,6 +68,27 @@ type SSHRunner interface {
 	Run(host, cmd string, timeout time.Duration) (string, error)
 }
 
+// scriptRunner lo implementa el pool real: manda el script por stdin (#1737).
+// Va en su propia interfaz para no obligar a los fakes de test, que solo
+// necesitan Run.
+type scriptRunner interface {
+	RunScript(host, script string, timeout time.Duration) (string, error)
+}
+
+// El pool de producción tiene que saber ejecutar por stdin: el script de
+// reinstalación pasa de 9000 bytes y dropbear cierra la conexión si viaja por
+// argv, sin dejar ni exit status ni stderr (#1737).
+var _ scriptRunner = (*adapters.SSHPool)(nil)
+
+// runScript manda el script por stdin cuando el pool lo soporta y cae a Run
+// con los fakes de test, que ya prueban el contenido con argv.
+func runScript(pool SSHRunner, host, script string, timeout time.Duration) (string, error) {
+	if sr, ok := pool.(scriptRunner); ok {
+		return sr.RunScript(host, script, timeout)
+	}
+	return pool.Run(host, script, timeout)
+}
+
 // AlertsEngine: mínimo del motor de alertas que necesita el rearmer.
 // EmitOrUpdate consolida alertas "en curso" por ID (issue #271): el primer
 // fallo crea la alerta; los reintentos la actualizan en vez de duplicar.
@@ -400,7 +421,7 @@ func (r *Rearmer) Reinstall(slug, agentURL string) (Result, error) {
 		if f := r.trust.Load(); f != nil {
 			trust = append(trust, (*f)(agentURL))
 		}
-		_, err := r.pool.Run(host, reinstall.ScriptWithTargets(slug, t, agentURL, reinstall.ServerFP(agentURL), reinstall.Digests(), targets, trust...), ReinstallSSHWait)
+		_, err := runScript(r.pool, host, reinstall.ScriptWithTargets(slug, t, agentURL, reinstall.ServerFP(agentURL), reinstall.Digests(), targets, trust...), ReinstallSSHWait)
 		return err
 	}); err != nil {
 		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)

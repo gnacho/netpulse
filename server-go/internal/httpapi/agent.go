@@ -73,6 +73,23 @@ type SSHRunner interface {
 	Run(host, cmd string, timeout time.Duration) (string, error)
 }
 
+// scriptRunner lo implementa el pool real: manda el script por stdin (#1737).
+// Va aparte para no obligar a los fakes de test, que solo necesitan Run.
+type scriptRunner interface {
+	RunScript(host, script string, timeout time.Duration) (string, error)
+}
+
+// runScript manda el script por stdin cuando el pool lo soporta y cae a Run
+// con los fakes. Dropbear corta la conexión con "String too long" cuando un
+// string del paquete pasa de 9000 bytes, y el script de reinstalación ronda
+// los 15 KB: por argv el cliente solo ve EOF, sin exit status ni stderr.
+func runScript(pool SSHRunner, host, script string, timeout time.Duration) (string, error) {
+	if sr, ok := pool.(scriptRunner); ok {
+		return sr.RunScript(host, script, timeout)
+	}
+	return pool.Run(host, script, timeout)
+}
+
 // ---------------------------------------------------------------------------
 // Rate limit por IP (ventana fija de 1 min; purga oportunista)
 // ---------------------------------------------------------------------------
@@ -699,14 +716,32 @@ func (s *server) agentInstallLine(r *http.Request, slug, token string) string {
 		fpArg = " --server-fp=" + tr.ServerFP
 	}
 	scriptURL := strings.TrimRight(server, "/") + "/api/agents/install-agent.sh"
-	// #1577: descarga a fichero y ejecuta SOLO si curl terminó bien. Con
-	// `curl | sh` el código de salida de curl se perdía: una descarga
-	// truncada (proxy, corte de red) llegaba al shell como script
-	// incompleto y moría con un "Syntax error: Unterminated quoted string"
-	// en una línea sin relación con la causa.
+	// #1737: el one-liner solo usaba curl y en un router sin curl (BusyBox
+	// pelado, lo que reportó MassiPi) fallaba con "curl: not found" antes de
+	// llegar al instalador. Se mantiene curl cuando está y se cae a wget, que
+	// sí viene en todos los firmwares OpenWrt. wget de BusyBox no conoce
+	// --ca-certificate, así que se intenta con la CA y se reintenta sin
+	// verificar el certificado: el pin del servidor (--server-fp) y el token
+	// de un solo uso siguen protegiendo el resto del flujo.
+	dest := "/tmp/netpulse-install-agent.sh"
+	var download string
+	if curlCACert != "" {
+		download = fmt.Sprintf(
+			"if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 3%s -o %s %s; else wget -q --ca-certificate=\"$NPCA\" -O %s %s || wget -q --no-check-certificate -O %s %s; fi",
+			curlCACert, dest, scriptURL, dest, scriptURL, dest, scriptURL)
+	} else {
+		download = fmt.Sprintf(
+			"if command -v curl >/dev/null 2>&1; then curl -fsSL --retry 3 -o %s %s; else wget -q -O %s %s; fi",
+			dest, scriptURL, dest, scriptURL)
+	}
+	// #1577: descarga a fichero y ejecuta SOLO si el descargador terminó bien.
+	// Con `curl | sh` el código de salida se perdía: una descarga truncada
+	// (proxy, corte de red) llegaba al shell como script incompleto y moría
+	// con un "Syntax error: Unterminated quoted string" en una línea sin
+	// relación con la causa.
 	return fmt.Sprintf(
-		"%scurl -fsSL --retry 3%s -o /tmp/netpulse-install-agent.sh %s && sh /tmp/netpulse-install-agent.sh --host=%s --server=%s --slug=%s --token=%s%s%s%s",
-		caArg, curlCACert, scriptURL, host, server, slug, token, caFileArg, fpArg, sshKeyArg)
+		"%s%s && sh %s --host=%s --server=%s --slug=%s --token=%s%s%s%s",
+		caArg, download, dest, host, server, slug, token, caFileArg, fpArg, sshKeyArg)
 }
 
 // agentListItem: lo que ve la UI — NUNCA el token ni su hash.
@@ -1165,7 +1200,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	token, err := s.rotateAgentTokenAtomic(slug, func(t string) error {
 		// FORK: with HTTPS on, the agent moves to it and pins the root.
 		trust := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, serverURL)
-		_, runErr := s.pool.Run(host, reinstall.ScriptWithTargets(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), targets, trust), 300*time.Second)
+		_, runErr := runScript(s.pool, host, reinstall.ScriptWithTargets(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), targets, trust), 300*time.Second)
 		return runErr
 	})
 	if err != nil {
