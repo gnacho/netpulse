@@ -253,6 +253,18 @@ func (s *server) handleAgentUpgrade(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "status": status})
 }
 
+// upgradeAllEligible decide si upgrade-all puede mandar el comando a la
+// unidad. El tipo de la fila routers basta para descartar un scraper sin
+// agente, pero no para descartar una unidad con agente nativo: desde la
+// migración a external (2.49.x) esas filas conservan su agente y el hub
+// sabe quién tiene el stream abierto (#1872).
+func (s *server) upgradeAllEligible(slug string) bool {
+	if s.routerUpgradeable(slug) {
+		return true
+	}
+	return s.agentHub != nil && s.agentHub.Connected(slug)
+}
+
 // sendOrQueueUpgrade envía el comando upgrade por SSE; si el agente no está
 // conectado, lo encola para el flush on-connect del hub. Devuelve el estado.
 // Registra la versión objetivo del upgrade para cerrar el ciclo en cuanto el
@@ -450,9 +462,11 @@ func (s *server) handleAgentsUpgradeAll(w http.ResponseWriter, r *http.Request) 
 					} else {
 						item.Status = "up_to_date"
 					}
-				// Solo agentes nativos OpenWrt: los de type managed-switch/
-				// external son scrapers que no entienden el comando "upgrade".
-				case !s.routerUpgradeable(slug):
+				// El comando "upgrade" solo lo entiende un agente nativo. El tipo
+				// de la fila decide para un scraper, pero una unidad con agente
+				// nativo y fila external (migración 2.49.x) sí puede actualizarse:
+				// ahí manda el stream SSE abierto (#1872).
+				case !s.upgradeAllEligible(slug):
 					item.Status = "not_openwrt"
 				// #447: solo hay novedad si el agente es MÁS VIEJO que el
 				// binario embebido (build incluido); un agente más nuevo no
