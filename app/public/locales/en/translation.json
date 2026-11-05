@@ -1117,6 +1117,7 @@
       "mode": "Mode",
       "port": "Port",
       "pvid": "PVID",
+      "subnet": "Subnet",
       "tagged": "Tagged",
       "title": "VLANs",
       "toggleAria": "Bridge VLANs ({{count}})",

@@ -1117,6 +1117,7 @@
       "mode": "Modo",
       "port": "Puerto",
       "pvid": "PVID",
+      "subnet": "Subred",
       "tagged": "Tagged",
       "title": "VLANs",
       "toggleAria": "VLANs del bridge ({{count}})",

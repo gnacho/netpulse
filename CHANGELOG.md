@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Fixed
+
+- The VLAN panel reads the configuration even when the kernel answers (#1757). A router that segments with 802.1Q subinterfaces reports every bridge and every subinterface on VLAN 1, an answer valid enough that the configuration was never consulted, so the panel showed a flat list of ports with no name and no subnet, and the topology had nothing to colour. Both views are merged on every poll now: the kernel keeps the flags, the configuration adds the network name, its subnet and the VLANs that only exist as a subinterface, and a default answer no longer shadows them.
+
 ### Changed
 
 - An unknown device alerts only when something proves a host is there (#1818). The unnamed MAC that appears in a bridge or switch forwarding table for a few seconds is now ignored, which is what a Netgear unit does while it reboots to flash firmware: NMRP announces an address that never asks for a lease and never answers ARP, and every firmware update used to leave a stranger in the client list. The alert now needs an address resolved by DHCP, ARP, ND or mDNS, a wireless association or an LLDP neighbour, so a laptop that really joins the network still reports on the first poll. The three-tick grace stays, since at the default 30 second cadence it already covers the minute of dwell the report asked for.

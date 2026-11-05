@@ -71,6 +71,7 @@ export function VlanPanel({ vlans }: { vlans: VlanPort[] }) {
                   <tr className="border-b border-border/60 text-[10px] font-semibold uppercase tracking-[0.06em] text-text-muted">
                     <th className="pb-2 pr-4">{t('routerDetail.vlans.port')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.vlans.vlanId')}</th>
+                    <th className="pb-2 pr-4">{t('routerDetail.vlans.subnet')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.vlans.mode')}</th>
                     <th className="pb-2">{t('routerDetail.vlans.pvid')}</th>
                   </tr>
@@ -106,6 +107,9 @@ export function VlanPanel({ vlans }: { vlans: VlanPort[] }) {
                           {v.name && (
                             <span className="ml-2 font-sans text-[11px] text-text-muted">{v.name}</span>
                           )}
+                        </td>
+                        <td className="py-2 pr-4 font-mono text-mono-sm text-text-secondary">
+                          {v.subnet ?? '-'}
                         </td>
                         <td className="py-2 pr-4"><VlanBadge tagged={v.tagged} /></td>
                         <td className="py-2">

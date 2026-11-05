@@ -235,9 +235,11 @@ const (
 	CmdNetworkDump = "ubus call network.interface dump 2>/dev/null || true"
 	CmdBridgeVlan  = "bridge vlan show 2>/dev/null || true"
 	// CmdUciBridgeVlan: the VLANs as configured, for the routers whose
-	// firmware carries no `bridge` binary — an optional package, and
-	// absent on plenty of boards that do use VLANs.
-	CmdUciBridgeVlan = `uci -q show network 2>/dev/null | grep -E "=bridge-vlan$|\.(device|vlan|ports)=" || true`
+	// firmware carries no `bridge` binary (an optional package, absent on
+	// plenty of boards that do use VLANs) and for the ones that segment
+	// with 802.1Q subinterfaces, which the kernel reports all on VLAN 1
+	// (#1757). Both models are read from `uci show network`.
+	CmdUciBridgeVlan = `uci -q show network 2>/dev/null | grep -E "=bridge-vlan$|=device$|\.(device|vlan|ports|type|name|proto|ipaddr|netmask)=" || true`
 
 	// CmdMdnsBrowse (#338): mDNS service discovery via umdns (OpenWrt's
 	// lightweight mDNS daemon). Returns JSON with hostname -> services.
@@ -1589,6 +1591,9 @@ type VlanEntry struct {
 	// Name es la etiqueta que LuCI da a la VLAN (uci show network, #258),
 	// rellenada por el servidor al juntarla con VlanLabels (#1757).
 	Name string `json:"name,omitempty"`
+	// Subnet es la red que sirve la VLAN (192.168.111.1/24), sacada de la
+	// interfaz que vive en el bridge (#1757).
+	Subnet string `json:"subnet,omitempty"`
 }
 
 // VlanPort: puerto del bridge con sus VLANs (issue #315).

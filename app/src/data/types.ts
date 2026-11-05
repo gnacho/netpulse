@@ -456,6 +456,8 @@ export interface VlanEntry {
   pvid: boolean
   /** LuCI's name for the VLAN (uci show network), when the router has one. */
   name?: string
+  /** #1757: the network the VLAN serves, e.g. 192.168.111.1/24. */
+  subnet?: string
 }
 
 /** One internet connection of a router that has several. Read-only: the
