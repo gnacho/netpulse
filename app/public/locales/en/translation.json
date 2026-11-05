@@ -1168,7 +1168,13 @@
       "lastIp": "Last IP",
       "peersConnected": "Connected peers",
       "serverActive": "Server active",
-      "transfer30d": "Transfer 30 d"
+      "transfer30d": "Transfer 30 d",
+      "configButton": "Settings",
+      "configTitle": "WireGuard settings",
+      "showDisconnected": "Show disconnected clients",
+      "showDisconnectedHint": "Peers with no live handshake. Only affects this card in this browser.",
+      "hiddenPeers_one": "1 disconnected client hidden",
+      "hiddenPeers_other": "{{count}} disconnected clients hidden"
     },
     "statusReasonTitle": "Why this unit is down"
   },

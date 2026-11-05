@@ -23,6 +23,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- The WireGuard card can hide the peers that are not connected (#1886). A gateway with a dozen tunnels listed them all, so the ones actually in use sat under the ones that had not handshaken in weeks. A settings chip in the card header holds a switch, off by default, that drops them from the list, and the connected counter keeps reporting the real total so hiding a row does not change the reading. When rows are hidden a muted line says how many and brings them back, and the choice lives in the browser like the refresh interval, since it is a view preference and not a server setting.
 - A MAC that only a forwarding table sees leaves a note after ten minutes (#1877). The alert side now ignores it, which is what the report asked for, but a device could then sit on the network for hours with nobody noticing. One info event per MAC is recorded in the activity log, category clients, not urgent, so the urgent counter and the push path stay out of it. The clock is real time rather than poll ticks, and the note survives a restart.
 - The channel lens draws from the scans when a unit has no survey (#1878). The survey supplies noise and occupancy, not neighbours, yet the lens treated it as its only source, so a unit without one got an empty panel even with scan data available. The own network now comes from the channel plan and a line says why the unit has no survey. With survey the view is unchanged.
 
