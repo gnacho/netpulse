@@ -218,6 +218,13 @@ type FDBData struct {
 	// cableados. Valor = banda de la radio cuyo BSSID es la MAC del puerto
 	// ("2.4 GHz"|"5 GHz"|"6 GHz"); sin radio que casar, la MAC se omite.
 	WirelessSide map[string]string `json:"wirelessSide,omitempty"`
+	// VLANs: MAC → VLAN con la que el bridge aprendió esa MAC (el `vlan
+	// <id>` de `bridge fdb show`). Solo existe en bridges con VLAN
+	// filtering; ausente = sin dato, no "VLAN 0". Es la prueba exacta del
+	// segmento de un cliente cableado: sin ella el server solo podía
+	// deducir la VLAN del PVID del puerto, que es la del puerto y no la del
+	// cliente (#1757).
+	VLANs map[string]int `json:"vlans,omitempty"`
 }
 
 // DawnData: estado de DAWN (roaming/band-steering, Fase 14). Solo si DAWN

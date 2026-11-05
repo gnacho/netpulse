@@ -819,7 +819,7 @@ func (p *Prober) probeFDB(ctx context.Context, lldpPorts map[string]bool, radios
 	fd := &FDBData{}
 	any := false
 	if out := p.runBest(ctx, CmdBridgeFDB, 0); out != "" {
-		fd.MACs, fd.WirelessSide = ParseBridgeFdbSplit(out)
+		fd.MACs, fd.WirelessSide, fd.VLANs = ParseBridgeFdbVlans(out)
 		fd.WirelessSide = bandTagWirelessSide(fd.WirelessSide, radios)
 		any = true
 	}

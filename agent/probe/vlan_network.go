@@ -159,7 +159,7 @@ func MergeVlanPorts(kernel, declared []VlanPort) []VlanPort {
 		return kernel
 	}
 	if len(kernel) == 0 {
-		return declared
+		return labelVlanPorts(declared)
 	}
 	idx := make(map[string]int, len(kernel)+len(declared))
 	out := make([]VlanPort, 0, len(kernel)+len(declared))
@@ -175,7 +175,57 @@ func MergeVlanPorts(kernel, declared []VlanPort) []VlanPort {
 		idx[p.Port] = len(out)
 		out = append(out, VlanPort{Port: p.Port, Vlans: append([]VlanEntry(nil), p.Vlans...)})
 	}
-	return out
+	return labelVlanPorts(out)
+}
+
+// labelVlanPorts names the VLANs of the ports that only carry the id. The name
+// of a network is declared once, on the pseudo-port of its subinterface
+// (br_switch.777), while the ports that actually carry it (a radio AP, an
+// uplink) come from the kernel with the id and nothing else: the wifi panel of
+// a dumb AP showed "777" with no way to know which network that was (#1757).
+//
+// An id that names exactly one network on the whole box inherits that name.
+// Two different networks sharing a number stay unnamed: a wrong name is worse
+// than no name.
+func labelVlanPorts(ports []VlanPort) []VlanPort {
+	names := map[int]map[string]bool{}
+	subnets := map[int]map[string]bool{}
+	note := func(m map[int]map[string]bool, id int, v string) {
+		if v == "" {
+			return
+		}
+		if m[id] == nil {
+			m[id] = map[string]bool{}
+		}
+		m[id][v] = true
+	}
+	for _, p := range ports {
+		for _, e := range p.Vlans {
+			note(names, e.ID, e.Name)
+			note(subnets, e.ID, e.Subnet)
+		}
+	}
+	only := func(m map[int]map[string]bool, id int) string {
+		if len(m[id]) != 1 {
+			return ""
+		}
+		for v := range m[id] {
+			return v
+		}
+		return ""
+	}
+	for i := range ports {
+		for j := range ports[i].Vlans {
+			e := &ports[i].Vlans[j]
+			if e.Name == "" {
+				e.Name = only(names, e.ID)
+			}
+			if e.Subnet == "" {
+				e.Subnet = only(subnets, e.ID)
+			}
+		}
+	}
+	return ports
 }
 
 func mergeVlanEntries(kernel, declared []VlanEntry) []VlanEntry {

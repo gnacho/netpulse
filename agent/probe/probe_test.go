@@ -572,13 +572,14 @@ func TestParseFdbExcluyeWireless(t *testing.T) {
 // silencio puertos físicos con nombres no enumerados (las jaulas SFP del
 // BPI-R4 se llaman sfp-lan/sfp-wan; también "lan" suelto o usb0). El filtro
 // invertido conserva cualquier miembro físico del bridge y solo excluye
-// wireless (phy*-ap*, wlan*) y virtuales (br*, lo, veth*, wg*, túneles,
-// subinterfaces VLAN).
+// wireless (phy*-ap*, wlan*, wl*) y virtuales (br*, lo, veth*, wg*, túneles).
+// #1757: la subinterfaz VLAN (lan1.10, eth0.999) SÍ es un puerto cableado —
+// es como se llama el puerto del bridge en un router que segmenta con 802.1Q.
 func TestParseFdbDenylistPuertos(t *testing.T) {
 	out := "==PORTS==\n" +
 		"1 sfp-lan\n2 sfp-wan\n3 eth1\n4 lan\n5 usb0\n6 swp1\n7 enp2s0\n" +
 		"8 phy0-ap0\n9 phy1-ap1\n10 wlan0\n11 br-lan\n12 br0\n13 lo\n" +
-		"14 veth0\n15 wg0\n16 tunl0\n17 tap0\n18 pppoe-wan\n19 lan1.10\n" +
+		"14 veth0\n15 wg0\n16 tunl0\n17 tap0\n18 pppoe-wan\n19 lan1.10\n20 eth0.999\n" +
 		"==MACS==\n" +
 		// sfp-lan resuelto por port_no (vía brctl); el resto por nombre.
 		"1 aa:00:00:00:00:01\n" +
@@ -587,7 +588,7 @@ func TestParseFdbDenylistPuertos(t *testing.T) {
 		"phy0-ap0 bb:00:00:00:00:01\nphy1-ap1 bb:00:00:00:00:02\nwlan0 bb:00:00:00:00:03\n" +
 		"br-lan bb:00:00:00:00:04\nbr0 bb:00:00:00:00:05\nlo bb:00:00:00:00:06\nveth0 bb:00:00:00:00:07\n" +
 		"wg0 bb:00:00:00:00:08\ntunl0 bb:00:00:00:00:09\ntap0 bb:00:00:00:00:0a\n" +
-		"pppoe-wan bb:00:00:00:00:0b\nlan1.10 bb:00:00:00:00:0c\n"
+		"pppoe-wan bb:00:00:00:00:0b\nlan1.10 bb:00:00:00:00:0c\neth0.999 bb:00:00:00:00:0d\n"
 	fdb := ParseBridgeFdb(out)
 	want := map[string]string{
 		"AA:00:00:00:00:01": "sfp-lan",
@@ -597,6 +598,8 @@ func TestParseFdbDenylistPuertos(t *testing.T) {
 		"AA:00:00:00:00:05": "usb0",
 		"AA:00:00:00:00:06": "swp1",
 		"AA:00:00:00:00:07": "enp2s0",
+		"BB:00:00:00:00:0C": "lan1.10",
+		"BB:00:00:00:00:0D": "eth0.999",
 	}
 	if len(fdb) != len(want) {
 		t.Fatalf("esperaba %d MACs (solo puertos físicos), tengo %d: %+v", len(want), len(fdb), fdb)
