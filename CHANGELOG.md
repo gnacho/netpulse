@@ -7,6 +7,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Fixed
+
+- A client is tagged with the VLAN its bridge actually sees (#1757). The forwarding table was read from one bridge only and every port carrying a dot was thrown away, so a router that segments with 802.1Q subinterfaces, where the real ports are `eth0.777` and `eth0.999`, lost its wired clients altogether: no port, no VLAN and no line in the topology. Every bridge the unit has is read now, a subinterface counts as a port, and each MAC carries the VLAN the bridge learned it on, which is the only evidence of where a client lives. A forwarding table without that field leaves the client without a VLAN instead of guessing one from the default of the port.
+- A wireless client keeps the interface and the SSID that served it (#1757). The hostapd path built each station without either, so on any OpenWrt that answers over ubus every WiFi client arrived with an empty interface, and the topology, which resolves the VLAN of a station through its AP interface, had nothing to colour. The interface is taken from the object that was queried and the SSID from `iw dev`, and the VLAN of an AP interface now carries the name and the subnet of the network it serves.
+- A guest without a tag is no longer painted with a VLAN it does not have (#1757). When Proxmox declares no `tag=`, the guest sits in the native VLAN of the bridge of the host, not in the VLAN of the port where the host is plugged. Inheriting the VLAN of the host chip marked those guests with an unrelated network, so a container on an untagged bridge showed up in the VLAN of a segmented one.
+
 ## [2.51.1] - 2026-11-05
 
 ### Fixed
