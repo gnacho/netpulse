@@ -652,14 +652,21 @@ func (c *OpenWrtClient) GetLuCILabels() *probe.LuCILabels {
 	return probe.ParseLuCILabels(out)
 }
 
-// GetBridgeVlans: VLANs del bridge (issue #315). Salida de `bridge vlan show`
-// parseada; nil si el router no tiene bridge vlan filtering o falla la sonda.
+// GetBridgeVlans: VLANs del bridge (issue #315). La salida del kernel se
+// fusiona con la configuración (#1757): un router que segmenta con
+// subinterfaces 802.1Q contesta con todos los puertos en la VLAN 1 y las
+// VLANs reales solo están en `uci show network`. nil si ninguna de las dos
+// fuentes dice nada.
 func (c *OpenWrtClient) GetBridgeVlans() []probe.VlanPort {
-	out, err := c.pool.Run(c.Host, probe.CmdBridgeVlan, 0)
-	if err != nil {
-		return nil
+	var kernel []probe.VlanPort
+	if out, err := c.pool.Run(c.Host, probe.CmdBridgeVlan, 0); err == nil {
+		kernel = probe.ParseBridgeVlan(out)
 	}
-	ports := probe.ParseBridgeVlan(out)
+	var declared []probe.VlanPort
+	if out, err := c.pool.Run(c.Host, probe.CmdUciBridgeVlan, 0); err == nil {
+		declared = probe.MergeVlanPorts(probe.ParseUciBridgeVlans(out), probe.ParseUciNetworkVlans(out))
+	}
+	ports := probe.MergeVlanPorts(kernel, declared)
 	if len(ports) == 0 {
 		return nil
 	}

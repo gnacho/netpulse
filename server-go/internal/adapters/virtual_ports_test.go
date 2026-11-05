@@ -77,8 +77,12 @@ func TestVirtualIfaceFamilyNamesTheFamilies(t *testing.T) {
 		"tun0":      "tunnel",
 		"pppoe-wan": "tunnel",
 		"gre1":      "tunnel",
-		"eth1":      "virtual",
-		"foo0":      "virtual",
+		// #1757: las interfaces AP del agente (OpenWrt mac80211 y wlan<N>).
+		"phy0-ap0": "wifi",
+		"phy1-ap2": "wifi",
+		"wlan0":    "wifi",
+		"eth1":     "virtual",
+		"foo0":     "virtual",
 	}
 	for name, want := range cases {
 		if got := virtualIfaceFamily(name); got != want {

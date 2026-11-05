@@ -325,3 +325,35 @@ func TestClientTLSVerification(t *testing.T) {
 		})
 	}
 }
+
+// TestNICsOfConfigReadsTag: la VLAN del invitado solo existe en la config de
+// Proxmox (tag=<vid>), así que el parser tiene que sacarla junto a la MAC
+// (#1757). Un invitado sin tag está en la VLAN nativa del bridge.
+func TestNICsOfConfigReadsTag(t *testing.T) {
+	cfg := map[string]any{
+		"net0": "bridge=vmbr0,hwaddr=BC:24:11:00:00:01,tag=999,ip=dhcp,name=eth0,type=veth",
+		"net1": "virtio=BC:24:11:00:00:02,bridge=vmbr1,tag=42",
+		"net2": "bridge=vmbr0,hwaddr=BC:24:11:00:00:03,ip=dhcp,name=eth2,type=veth",
+		"net3": "bridge=vmbr0,hwaddr=BC:24:11:00:00:04,tag=0",
+	}
+	nics := NICsOfConfig(cfg)
+	if len(nics) != 4 {
+		t.Fatalf("nics: %+v (want 4)", nics)
+	}
+	// net<N> en orden, no el orden aleatorio del map.
+	want := []NIC{
+		{MAC: "BC:24:11:00:00:01", Tag: 999, Bridge: "vmbr0"},
+		{MAC: "BC:24:11:00:00:02", Tag: 42, Bridge: "vmbr1"},
+		{MAC: "BC:24:11:00:00:03", Bridge: "vmbr0"},
+		{MAC: "BC:24:11:00:00:04", Bridge: "vmbr0"},
+	}
+	if !reflect.DeepEqual(nics, want) {
+		t.Fatalf("nics: %+v (want %+v)", nics, want)
+	}
+	// MACsOfConfig sigue devolviendo solo las MACs, en el mismo orden.
+	macs := MACsOfConfig(cfg)
+	wantMACs := []string{"BC:24:11:00:00:01", "BC:24:11:00:00:02", "BC:24:11:00:00:03", "BC:24:11:00:00:04"}
+	if !reflect.DeepEqual(macs, wantMACs) {
+		t.Fatalf("macs: %v (want %v)", macs, wantMACs)
+	}
+}

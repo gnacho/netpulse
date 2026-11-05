@@ -299,6 +299,12 @@ export interface Device {
    * puede seguir infiriendo como fallback para datos viejos, B2).
    */
   infra?: DeviceInfra
+  /**
+   * VLAN que declara una fuente que la conoce (hoy, el inventario de Proxmox
+   * leyendo tag= de la config del invitado). El router no puede deducirla
+   * porque el invitado cuelga del bridge del host (#1757). Ausente = sin dato.
+   */
+  vlan?: number
   /** Segundos restantes del lease DHCP (issue #437). */
   leaseRemaining?: number | null
   /** Nombre del icono manual elegido por el usuario (issue #437). */
@@ -456,6 +462,8 @@ export interface VlanEntry {
   pvid: boolean
   /** LuCI's name for the VLAN (uci show network), when the router has one. */
   name?: string
+  /** #1757: the network the VLAN serves, e.g. 192.168.111.1/24. */
+  subnet?: string
 }
 
 /** One internet connection of a router that has several. Read-only: the

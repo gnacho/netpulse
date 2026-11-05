@@ -333,27 +333,34 @@ func (p *Prober) scanWithFallback(ctx context.Context, ifaces []IwDevIface, chos
 	return used, "", lastErr
 }
 
-// probeVlans reports the bridge VLANs, preferring what the kernel says over
-// what the config declares.
+// probeVlans reports the bridge VLANs, merging what the kernel says with what
+// the configuration declares.
 //
 // The section has existed in the payload since VLANs were added, but
 // nothing ever filled it: only the server's own SSH probe did, and a router
 // reached through its agent never takes that path, so its VLAN panel has
-// always been empty. The fallback matters just as much — `bridge` lives in
-// an optional package, and a router without it has VLANs that only the
-// configuration knows about.
+// always been empty.
+//
+// Neither source is enough on its own. `bridge` lives in an optional package,
+// so plenty of routers have VLANs only the configuration knows about. And a
+// box that segments with 802.1Q subinterfaces (eth0.999 into br-iot) answers
+// with every port on VLAN 1, a valid-looking answer that says nothing about
+// the real layout. The two views are therefore merged always, the kernel
+// owning the flags and the configuration the names, subnets and the VLANs
+// that only exist as subinterfaces (#1757).
 func (p *Prober) probeVlans(ctx context.Context) []VlanPort {
+	var kernel []VlanPort
 	if out := p.runBest(ctx, CmdBridgeVlan, 0); out != "" {
-		if ports := ParseBridgeVlan(out); len(ports) > 0 {
-			return ports
-		}
+		kernel = ParseBridgeVlan(out)
 	}
+	var declared []VlanPort
 	if out := p.runBest(ctx, CmdUciBridgeVlan, 0); out != "" {
-		if ports := ParseUciBridgeVlans(out); len(ports) > 0 {
-			return ports
-		}
+		// A router uses one model or the other, so the two UCI parsers
+		// never describe the same port: bridge-vlan sections name bridge
+		// ports, the subinterface model names bridges and their parents.
+		declared = MergeVlanPorts(ParseUciBridgeVlans(out), ParseUciNetworkVlans(out))
 	}
-	return nil
+	return MergeVlanPorts(kernel, declared)
 }
 
 // runBest es best-effort: error → "" (la sección queda ausente).
