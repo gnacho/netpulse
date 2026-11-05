@@ -64,6 +64,10 @@ type pveVM struct {
 	Node     string // nodo que lo ejecuta (citadel-01)
 	Type     string // "lxc" | "qemu"
 	Instance string // instancia Proxmox a la que pertenece (#764)
+	// Tag: VLAN del guest según la config de Proxmox (tag=<vid>), 0 si está
+	// en la VLAN nativa del bridge. Es el único sitio donde consta: el router
+	// no la ve porque el guest cuelga del bridge del host (#1757).
+	Tag int
 }
 
 // pveNode: un nodo PVE con su instancia de origen.
@@ -254,8 +258,8 @@ func (l *Live) fetchPveInventory(clients []pveInstClient) *pveInventory {
 				log.Printf("[netpulse:pve] %s config %s/%d: %v", ic.inst.ID, r.Type, r.VMID, err)
 				continue
 			}
-			for _, mac := range pve.MACsOfConfig(cfg) {
-				inv.ctByMAC[mac] = pveVM{Name: r.Name, Node: r.Node, Type: r.Type, Instance: ic.inst.ID}
+			for _, nic := range pve.NICsOfConfig(cfg) {
+				inv.ctByMAC[nic.MAC] = pveVM{Name: r.Name, Node: r.Node, Type: r.Type, Instance: ic.inst.ID, Tag: nic.Tag}
 			}
 		}
 	}
@@ -352,6 +356,12 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			devices[idx].Infra = "vm"
 		} else {
 			devices[idx].Infra = "ct"
+		}
+		// VLAN del invitado según su config en Proxmox: el router no puede
+		// verla porque el guest cuelga del bridge del host, no de un puerto
+		// suyo (#1757).
+		if vm.Tag > 0 {
+			devices[idx].Vlan = vm.Tag
 		}
 		// El nombre del invitado es el que le puso el administrador en
 		// Proxmox, y para un CT suele ser el ÚNICO que hay: no pide DHCP

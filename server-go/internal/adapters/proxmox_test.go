@@ -55,6 +55,32 @@ func TestSealProxmoxInfra(t *testing.T) {
 	}
 }
 
+// TestSealProxmoxInfraCarriesTheGuestVlan: la VLAN de cada invitado sale de
+// tag= en su config de Proxmox, el único sitio donde consta: cuelga del
+// bridge del host, así que ni el FDB ni `bridge vlan show` del router la ven
+// (#1757). Un invitado sin tag queda en 0 (VLAN nativa del bridge).
+func TestSealProxmoxInfraCarriesTheGuestVlan(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:00:00:01": {Name: "iot", Node: "pve", Type: "lxc", Instance: "default", Tag: 999},
+			"BC:24:11:00:00:02": {Name: "lan", Node: "pve", Type: "lxc", Instance: "default"},
+		},
+		nodes: map[string]pveNode{"default|pve": {Instance: "default", Node: "pve"}},
+	}
+	devices := []Device{
+		{ID: "pve", MAC: "C8:FF:BF:0C:60:12", Name: "pve"},
+		{ID: "bc-24-11-00-00-01", MAC: "BC:24:11:00:00:01", Name: "iot"},
+		{ID: "bc-24-11-00-00-02", MAC: "BC:24:11:00:00:02", Name: "lan"},
+	}
+	applyPVEInfra(devices, nil, inv)
+	if devices[1].Vlan != 999 {
+		t.Errorf("iot vlan=%d (want 999)", devices[1].Vlan)
+	}
+	if devices[2].Vlan != 0 {
+		t.Errorf("lan vlan=%d (want 0: sin tag, VLAN nativa)", devices[2].Vlan)
+	}
+}
+
 // TestSealProxmoxInfraSinInventario: sin cluster configurado o sin CTs
 // conocidos → no-op (los devices no cambian).
 func TestSealProxmoxInfraSinInventario(t *testing.T) {

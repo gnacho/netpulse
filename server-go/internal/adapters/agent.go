@@ -705,6 +705,13 @@ func virtualIfaceFamily(name string) string {
 		return "vlan"
 	case strings.HasPrefix(name, "br"), name == "bridge":
 		return "bridge"
+	// #1757: las interfaces AP no tienen ifType en /proc/net/dev. En OpenWrt
+	// son phy<N>-ap<N> (hostapd sobre mac80211) y en otras plataformas
+	// wlan<N>: verlas como "virtual" a secas esconde que son el WiFi, que es
+	// justo lo que se quiere leer por interfaz.
+	case strings.HasPrefix(name, "phy") && strings.Contains(name, "-ap"),
+		strings.HasPrefix(name, "wlan"):
+		return "wifi"
 	case strings.HasPrefix(name, "bond"), strings.HasPrefix(name, "lag"):
 		return "lag"
 	case strings.HasPrefix(name, "tun"), strings.HasPrefix(name, "tap"), strings.HasPrefix(name, "wg"),

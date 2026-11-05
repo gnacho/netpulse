@@ -110,6 +110,11 @@ func ParseUciNetworkVlans(out string) []VlanPort {
 			// The bridge carries the VLAN the subinterface tags on the parent
 			// port: the members of the VLAN are the ports of the bridge.
 			add(bridge, VlanEntry{ID: vid, PVID: true, Name: info.label, Subnet: info.subnet})
+			// The subinterface itself is the bridge port the forwarding
+			// database reports for every device behind it, so it needs its own
+			// entry: without it the topology has no way to colour a device that
+			// hangs from eth0.999 (#1757).
+			add(port, VlanEntry{ID: vid, PVID: true, Name: info.label, Subnet: info.subnet})
 			add(m[1], VlanEntry{ID: vid, Tagged: true})
 		}
 		// No subinterface among the members: the bridge is a plain untagged

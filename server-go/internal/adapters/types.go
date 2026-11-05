@@ -310,13 +310,16 @@ type Device struct {
 	SpeedMbps int `json:"speedMbps,omitempty"`
 	// Infra: rol de infraestructura sellado server-side (Fase 4). La app NO
 	// infiere: pinta badge si viene. "hypervisor" (host Proxmox/VMware/…),
-
 	// "ct" (contenedor anidado bajo hipervisor), "vm" (máquina virtual, que
 	// solo el inventario del hipervisor distingue de un contenedor),
 	// "managed-switch" (switch con gestión identificado por LLDP — hoy
 	// switch-netgear), "ap" (punto de acceso gestionado, p. ej. reportado
 	// por el controlador UniFi).
 	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"vm"|"managed-switch"|"ap"
+	// Vlan: VLAN del dispositivo cuando la declara una fuente que la conoce y
+	// el router no puede verla. Hoy solo el inventario de Proxmox la aporta,
+	// leyendo tag=<vid> de la config del invitado (#1757). 0 = sin dato.
+	Vlan int `json:"vlan,omitempty"`
 	// --- mDNS/SSDP fingerprinting (#338) ---
 	// MdnsServices: mDNS service types advertised by this device (from umdns).
 	// e.g. ["_airplay._tcp", "_raop._tcp"] for an Apple TV.

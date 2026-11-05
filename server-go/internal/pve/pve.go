@@ -29,6 +29,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -218,40 +220,73 @@ func (c *Client) NodeIP(ctx context.Context, node string) (string, error) {
 	return fallback, nil
 }
 
-// MACsOfConfig extrae las MACs de una config de VM/CT. Proxmox expone cada
-// NIC como "net0": "…" con el formato:
+// NIC is one NIC declared in a guest config: the MAC it uses, the VLAN tag it
+// carries and the bridge it hangs from. Proxmox writes tag=<vid> when the
+// guest is not on the native VLAN, and that is the only place the tag exists:
+// the guest sits behind the host bridge, so the router never sees it (#1757).
+type NIC struct {
+	MAC    string
+	Tag    int
+	Bridge string
+}
+
+// NICsOfConfig returns the NICs of a VM/CT config, in net<N> order so the
+// result is stable between polls. Proxmox exposes each NIC as "net0": "…":
 //
 //	LXC:  net0: bridge=vmbr0,hwaddr=BC:24:11:XX:XX:XX,ip=dhcp,name=eth0,type=veth
-//	QEMU: net0: virtio=BC:24:11:XX:XX:XX,bridge=vmbr0   (MAC tras el nombre del modelo)
+//	QEMU: net0: virtio=BC:24:11:XX:XX:XX,bridge=vmbr0   (MAC tras el modelo)
 //
-// Devuelve las MACs normalizadas a mayúsculas con ':'.
-func MACsOfConfig(cfg map[string]any) []string {
-	var out []string
-	for k, v := range cfg {
-		if !strings.HasPrefix(k, "net") {
-			continue
+// MACs are normalised to upper case with ':'.
+func NICsOfConfig(cfg map[string]any) []NIC {
+	keys := make([]string, 0, len(cfg))
+	for k := range cfg {
+		if strings.HasPrefix(k, "net") {
+			keys = append(keys, k)
 		}
-		s, ok := v.(string)
+	}
+	sort.Strings(keys)
+	var out []NIC
+	for _, k := range keys {
+		s, ok := cfg[k].(string)
 		if !ok {
 			continue
 		}
+		var nic NIC
 		for _, field := range strings.Split(s, ",") {
-			if strings.HasPrefix(field, "hwaddr=") {
-				if mac := normMAC(field[len("hwaddr="):]); mac != "" {
-					out = append(out, mac)
+			switch {
+			case strings.HasPrefix(field, "hwaddr="):
+				nic.MAC = normMAC(field[len("hwaddr="):])
+			case strings.HasPrefix(field, "bridge="):
+				nic.Bridge = field[len("bridge="):]
+			case strings.HasPrefix(field, "tag="):
+				if n, err := strconv.Atoi(field[len("tag="):]); err == nil && n > 0 && n < 4095 {
+					nic.Tag = n
 				}
-				continue
-			}
-			// QEMU: el primer campo es <modelo>=<MAC> (virtio=XX, e1000=XX…)
-			if eq := strings.Index(field, "="); eq > 0 {
-				val := field[eq+1:]
-				if looksLikeMAC(val) {
-					if mac := normMAC(val); mac != "" {
-						out = append(out, mac)
+			default:
+				// QEMU: el primer campo es <modelo>=<MAC> (virtio=XX, e1000=XX…)
+				if eq := strings.Index(field, "="); eq > 0 {
+					if looksLikeMAC(field[eq+1:]) {
+						nic.MAC = normMAC(field[eq+1:])
 					}
 				}
 			}
 		}
+		if nic.MAC != "" {
+			out = append(out, nic)
+		}
+	}
+	return out
+}
+
+// MACsOfConfig extrae las MACs de una config de VM/CT (ver NICsOfConfig).
+func MACsOfConfig(cfg map[string]any) []string {
+	nics := NICsOfConfig(cfg)
+	if len(nics) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(nics))
+	for _, n := range nics {
+		out = append(out, n.MAC)
 	}
 	return out
 }

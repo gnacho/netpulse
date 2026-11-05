@@ -292,13 +292,16 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 }
 
 // FAMILY_LABEL_KEY (#1125): familia ifType (IANA) -> clave i18n de la
-// etiqueta del grupo de interfaces virtuales. Cerrado: el server solo emite
-// estas cinco ("lag"|"vlan"|"bridge"|"tunnel"|"virtual").
+// etiqueta del grupo de interfaces virtuales. El server emite las cinco de
+// ifType ("lag"|"vlan"|"bridge"|"tunnel"|"virtual") y, desde #1757, "wifi"
+// para las interfaces AP del agente (phy0-ap0, wlan0: /proc/net/dev no da
+// ifType, así que se reconoce por nombre).
 const FAMILY_LABEL_KEY: Record<string, string> = {
   lag: 'routerDetail.ports.fam_lag',
   vlan: 'routerDetail.ports.fam_vlan',
   bridge: 'routerDetail.ports.fam_bridge',
   tunnel: 'routerDetail.ports.fam_tunnel',
+  wifi: 'routerDetail.ports.fam_wifi',
   virtual: 'routerDetail.ports.fam_virtual',
 }
 
@@ -324,6 +327,15 @@ export function PortPanel({ router, extras, className, snmpStats }: {
       return next
     })
   const used = ports.filter((p) => p.up).length
+  // #1757: VLAN de una interfaz no física, cruzando su nombre con la tabla de
+  // VLANs del router (la misma regla que usa la topología: PVID manda y sin
+  // PVID se toma la primera entrada). En un AP las interfaces AP aparecen
+  // como puertos del bridge, así que esto dice a qué VLAN sirve cada SSID.
+  const vlanOfIface = (p: EthPort) => {
+    const name = p.iface ?? p.label
+    const entry = router.vlans?.find((e) => e.port === name)
+    return entry ? (entry.vlans.find((v) => v.pvid) ?? entry.vlans[0]) : undefined
+  }
   const wirelessUplink = ex.backhaul?.kind === 'wireless'
   // #1383: la info WAN del contexto es la del gateway; pintarla en la boca
   // "wan" de cualquier otra unidad (p.ej. un AP cuyo uplink entra por su ex
@@ -410,13 +422,29 @@ export function PortPanel({ router, extras, className, snmpStats }: {
           </button>
           {virtualOpen && (
             <ul className="border-t border-border/60 px-4 py-2">
-              {virtualPorts.map((p) => (
+              {virtualPorts.map((p) => {
+                const vl = vlanOfIface(p)
+                const hasRate = p.rxBps !== undefined || p.txBps !== undefined
+                return (
                 <li key={p.id} className="flex items-center gap-3 py-1.5 text-caption">
                   <span className="inline-flex w-16 shrink-0 justify-center rounded border border-border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-text-muted">
                     {t(FAMILY_LABEL_KEY[p.family ?? ''] ?? 'routerDetail.ports.fam_virtual', { defaultValue: p.family })}
                   </span>
                   <span className="truncate font-mono text-mono-sm text-text-primary">{p.label}</span>
+                  {vl && (
+                    <span
+                      className="shrink-0 rounded border border-border px-1 font-mono text-[10px] text-text-muted"
+                      title={vl.name ? `${t('routerDetail.vlans.id')} ${vl.id} · ${vl.name}` : `${t('routerDetail.vlans.id')} ${vl.id}`}
+                    >
+                      {t('routerDetail.vlans.id')} {vl.id}
+                    </span>
+                  )}
                   <span className="ml-auto inline-flex shrink-0 items-center gap-2">
+                    {hasRate && (
+                      <span className="font-mono text-[10px] text-text-muted">
+                        ↓ {fmtPortBps(p.rxBps)} ↑ {fmtPortBps(p.txBps)}
+                      </span>
+                    )}
                     {p.speed && <span className="text-text-muted">{p.speed}</span>}
                     <span
                       className={p.up ? 'h-1.5 w-1.5 rounded-full bg-ok' : 'h-1.5 w-1.5 rounded-full bg-border-strong/50'}
@@ -424,7 +452,8 @@ export function PortPanel({ router, extras, className, snmpStats }: {
                     />
                   </span>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           )}
         </div>

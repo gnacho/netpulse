@@ -1055,6 +1055,10 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
   // PVID se toma la primera entrada. Solo cableado: la API no declara la VLAN
   // de un cliente WiFi, y suponerla sería inventar el dato.
   const vlanOf = (d: Device): ChipNode['vlan'] => {
+    // #1757: la VLAN que declara el propio device (inventario de Proxmox,
+    // tag= de la config del invitado) manda: el router no puede verla porque
+    // el invitado cuelga del bridge del host, no de un puerto suyo.
+    if (d.vlan) return { id: d.vlan, pvid: false }
     // #1757: `bridge vlan show` lista también las interfaces AP (wlan0,
     // wlan1) como puertos del bridge, así que la estación inalámbrica se
     // resuelve por su interfaz igual que un cliente cableado por su puerto.
@@ -1294,7 +1298,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const hostChip = chips.find((c) => c.id === hostId)
     const kids = childrenOf(hostId).map((d) => mkChip(d, hostId, true))
     if (!hostChip || kids.length === 0) continue
+    // #1757: un invitado cuelga del bridge del host, no de un puerto del
+    // router, así que su VLAN no está en `bridge vlan show`. Cuando Proxmox no
+    // declara tag= (invitado en la VLAN nativa del bridge) hereda la VLAN del
+    // chip del host, que es la del puerto donde ese host está conectado.
+    const hostVlan = hostChip.vlan
     kids.forEach((c, i) => {
+      if (!c.vlan && hostVlan) c.vlan = hostVlan
       c.x = hostChip.x - ((Math.min(kids.length, CT_COLS) - 1) * CT_DX) / 2 + (i % CT_COLS) * CT_DX
       c.y = hostChip.y + CT_OFFSET_Y + Math.floor(i / CT_COLS) * CT_DY
       c.size = 22

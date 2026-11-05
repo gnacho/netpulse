@@ -66,6 +66,14 @@ func TestParseUciNetworkVlansReadsSubinterfaces(t *testing.T) {
 	if len(lan) != 1 || lan[0].ID != 1 || lan[0].Name != "Lan" || lan[0].Subnet != "192.168.1.1/24" {
 		t.Fatalf("br-lan = %+v", lan)
 	}
+
+	// The forwarding database names the bridge port, which here is the
+	// subinterface: it has to resolve to the same VLAN as the bridge or a
+	// device behind eth0.999 shows no VLAN at all (#1757).
+	sub := vlansOf(ports, "eth0.999")
+	if len(sub) != 1 || sub[0].ID != 999 || sub[0].Name != "IOT" || !sub[0].PVID {
+		t.Fatalf("eth0.999 = %+v, want VLAN 999 (the port the FDB reports)", sub)
+	}
 }
 
 func TestParseUciNetworkVlansIgnoresNonBridges(t *testing.T) {

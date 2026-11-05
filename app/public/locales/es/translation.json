@@ -1098,7 +1098,8 @@
       "fam_vlan": "VLAN",
       "fam_bridge": "Bridge",
       "fam_tunnel": "Túnel",
-      "fam_virtual": "Virtual"
+      "fam_virtual": "Virtual",
+      "fam_wifi": "WiFi"
     },
     "radios": {
       "channel": "Canal",
@@ -1114,6 +1115,7 @@
       "summary": "SNMP: {{ok}} polls OK / {{fail}} fallos"
     },
     "vlans": {
+      "id": "ID",
       "mode": "Modo",
       "port": "Puerto",
       "pvid": "PVID",
