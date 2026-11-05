@@ -954,6 +954,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		// push SIN sección FDB (event-driven) recicla el cache, mismo contrato
 		// anti-parpadeo que fdb.
 		out.wirelessSide = fd.WirelessSide
+		// #1757: VLAN real de cada cliente cableado, tal como el bridge la
+		// aprendió. Se pisa tal cual (incluso vacío) por la misma razón que el
+		// hint wireless-side: una sección fresca es la verdad del equipo.
+		out.fdbVlans = fd.VLANs
 		if len(fd.Ports) > 0 {
 			out.ports = ethPortsToAdapter(fd.Ports)
 			// #291: los pushers externos declaran el puerto del FDB como
@@ -1048,6 +1052,9 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if out.wirelessSide == nil && p.Data.FDB == nil {
 		out.wirelessSide = cached.wirelessSide
 	}
+	if out.fdbVlans == nil && p.Data.FDB == nil {
+		out.fdbVlans = cached.fdbVlans
+	}
 	if out.luci == nil {
 		out.luci = cached.luci
 	}
@@ -1095,7 +1102,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		lldpSnap = cached.lldp // conserva la última sección buena (#489)
 	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb, wirelessSide: out.wirelessSide, luci: out.luci, system: sysSnap, systemKind: sysSnapKind, lldp: lldpSnap,
+		wireless: out.wireless, fdb: out.fdb, fdbVlans: out.fdbVlans, wirelessSide: out.wirelessSide, luci: out.luci, system: sysSnap, systemKind: sysSnapKind, lldp: lldpSnap,
 		clientBw: out.clientBw, vlans: out.vlans, multiWan: out.multiWan}
 	l.mu.Unlock()
 

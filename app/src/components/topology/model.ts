@@ -1050,15 +1050,25 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   // -- chips de dispositivos --------------------------------------------------
   const chips: ChipNode[] = []
-  // #1757: VLAN del puerto del cliente cableado. El bridge VLAN filtering del
-  // router dice qué VLANs lleva cada puerto; PVID es la nativa y manda, y sin
-  // PVID se toma la primera entrada. Solo cableado: la API no declara la VLAN
-  // de un cliente WiFi, y suponerla sería inventar el dato.
+  // #1757: nombre de la red para una VLAN conocida por su id. El router
+  // declara qué subred/nombre vive en cada VLAN y el agregado sale de ahí: el
+  // dato del cliente (FDB o tag= del hipervisor) solo trae el id.
+  const vlanNameOf = (id: number): string | undefined => {
+    for (const r of routers) {
+      for (const entry of r.vlans ?? []) {
+        for (const v of entry.vlans) {
+          if (v.id === id && v.name) return v.name
+        }
+      }
+    }
+    return undefined
+  }
   const vlanOf = (d: Device): ChipNode['vlan'] => {
-    // #1757: la VLAN que declara el propio device (inventario de Proxmox,
-    // tag= de la config del invitado) manda: el router no puede verla porque
-    // el invitado cuelga del bridge del host, no de un puerto suyo.
-    if (d.vlan) return { id: d.vlan, pvid: false }
+    // #1757: la VLAN que el servidor resolvió para este cliente manda. Sale de
+    // la evidencia exacta del bridge (la VLAN con la que aprendió su MAC) o del
+    // `tag=` que declara el hipervisor para el invitado. El puerto solo se usa
+    // cuando no hay dato.
+    if (d.vlan) return { id: d.vlan, name: vlanNameOf(d.vlan), pvid: false }
     // #1757: `bridge vlan show` lista también las interfaces AP (wlan0,
     // wlan1) como puertos del bridge, así que la estación inalámbrica se
     // resuelve por su interfaz igual que un cliente cableado por su puerto.
@@ -1298,13 +1308,11 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const hostChip = chips.find((c) => c.id === hostId)
     const kids = childrenOf(hostId).map((d) => mkChip(d, hostId, true))
     if (!hostChip || kids.length === 0) continue
-    // #1757: un invitado cuelga del bridge del host, no de un puerto del
-    // router, así que su VLAN no está en `bridge vlan show`. Cuando Proxmox no
-    // declara tag= (invitado en la VLAN nativa del bridge) hereda la VLAN del
-    // chip del host, que es la del puerto donde ese host está conectado.
-    const hostVlan = hostChip.vlan
+    // #1757: sin herencia. Un invitado sin `tag=` en Proxmox no vive en la
+    // VLAN del puerto donde cuelga el host, vive en la VLAN nativa del bridge
+    // del host (la 1, sin etiquetar). Heredar la del host pintaba invitados no
+    // etiquetados con la VLAN del puerto del hipervisor, que no es la suya.
     kids.forEach((c, i) => {
-      if (!c.vlan && hostVlan) c.vlan = hostVlan
       c.x = hostChip.x - ((Math.min(kids.length, CT_COLS) - 1) * CT_DX) / 2 + (i % CT_COLS) * CT_DX
       c.y = hostChip.y + CT_OFFSET_Y + Math.floor(i / CT_COLS) * CT_DY
       c.size = 22

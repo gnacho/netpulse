@@ -69,7 +69,11 @@ const (
 	// marca. Mucho más barato que iwinfo en CPUs justas (MT7621: el ucode de
 	// iwinfo quemaba 25% de CPU con churn de roaming).
 	CmdHostapdClients = `for o in $(ubus list 'hostapd.*' 2>/dev/null); do ` +
-		`echo "==AP==$o"; ubus call "$o" get_clients 2>/dev/null; done`
+		`echo "==AP==$o"; ubus call "$o" get_clients 2>/dev/null; done; ` +
+		// #1757: SSID por interfaz AP. `ubus call get_clients` no lo trae y el
+		// objeto ubus solo da el nombre de la interfaz (phy1-ap2), que es lo
+		// que necesita la VLAN; el SSID lo pone la ficha del cliente.
+		`echo "==SSID=="; iw dev 2>/dev/null | awk '/^[ \t]*Interface /{i=$2} /^[ \t]*ssid /{print i, $2}'`
 	// CmdWirelessCombined (#368): iwinfo en UNA pasada por interfaz (info una
 	// vez + assoclist una vez) emitiendo clientes y resumen de radio juntos.
 	// Sustituye a CmdIwinfoAssoc+CmdRadios cuando ubus no está: la mitad de
@@ -188,10 +192,8 @@ const (
 	// comportamiento que antes en equipos sin bridge).
 	bridgeDetect   = `BR=br-lan; [ -d /sys/class/net/$BR/bridge ] || BR=br0; [ -d /sys/class/net/$BR/bridge ] || { BR=; for d in /sys/class/net/*/bridge; do [ -d "$d" ] || continue; BR=${d%/bridge}; BR=${BR##*/}; break; done; }; `
 	CmdBrifMembers = bridgeDetect + `ls /sys/class/net/$BR/brif/ 2>/dev/null`
-	// CmdBridgeFDB: "==PORTS==" (port_no ifname) + "==MACS==" (port mac).
-	// No asume `brctl`: prueba brctl y, si no existe o no aporta, `bridge fdb
-	// show` (OpenWrt/GLuON modernos usan iproute2). Issue #253. El bridge lo
-	// resuelve bridgeDetect (#1435).
+	// CmdBridgeFDB: no asume `brctl`: prueba brctl y, si no existe o no aporta,
+	// `bridge fdb show` (OpenWrt/GLuON modernos usan iproute2). Issue #253.
 	// SIN `command -v`: el ash de busybox en Merlin/Asuswrt NO tiene el builtin
 	// `command` ("sh: command: not found"), así que la guarda antigua
 	// `if command -v brctl` fallaba siempre y caía al branch de `bridge`, que
@@ -205,10 +207,28 @@ const (
 	// propio bridge registrada en cada puerto) para paridad con brctl ($3=="no"
 	// allí); sin esto el server ve la MAC propia aprendida en el puerto y lo
 	// clasifica como uplink, descartando TODOS sus clientes cableados (#506).
-	CmdBridgeFDB = bridgeDetect +
-		`echo "==PORTS=="; for d in /sys/class/net/$BR/brif/*; do [ -r "$d/port_no" ] && echo "$(cat $d/port_no) $(basename $d)"; done; ` +
-		`echo "==MACS=="; (brctl showmacs $BR 2>/dev/null | awk 'NR>1 && $3=="no" {print $1, $2}') 2>/dev/null; ` +
-		`(bridge fdb show br $BR 2>/dev/null | awk 'NF>=3 && $1!="01:" && $1!="33:33:" && $1!="ff:ff:" && $1!="00:00:00:00:00:00" && $0 !~ /permanent/ {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1), $1}}') 2>/dev/null; true`
+	//
+	// CmdBridgeFDB: "==PORTS==<bridge>" (port_no ifname) + "==MACS==<bridge>"
+	// (port mac [vlan]). El sufijo con el nombre del bridge es el que permite
+	// leer TODOS los bridges sin mezclar sus tablas de puertos (cada bridge
+	// numera sus puertos desde 1) y es opcional al parsear, así que la salida
+	// antigua de un agente viejo sigue valiendo (#1757).
+	//
+	// Antes se leía UN solo bridge (br-lan, br0 o el primero). Un router que
+	// segmenta con subinterfaces 802.1Q tiene un bridge POR segmento: los
+	// clientes de br-iot/br-guest no aparecían en ninguna tabla y el mapa los
+	// pintaba sin puerto y sin VLAN.
+	//
+	// El tercer campo de MACS es el `vlan <id>` que `bridge fdb show` imprime
+	// en bridges con VLAN filtering: es la VLAN REAL del cliente, no el PVID
+	// del puerto por el que entró.
+	CmdBridgeFDB = `echo "==PORTS=="; for d in /sys/class/net/*; do [ -d "$d/bridge" ] || continue; ` +
+		`br=$(basename "$d"); echo "==PORTS==$br"; ` +
+		`for b in "$d"/brif/*; do [ -r "$b/port_no" ] && echo "$(cat $b/port_no) $(basename $b)"; done; done; ` +
+		`echo "==MACS=="; for d in /sys/class/net/*; do [ -d "$d/bridge" ] || continue; ` +
+		`br=$(basename "$d"); echo "==MACS==$br"; ` +
+		`(brctl showmacs "$br" 2>/dev/null | awk 'NR>1 && $3=="no" {print $1, $2}') 2>/dev/null; ` +
+		`(bridge fdb show br "$br" 2>/dev/null | awk 'NF>=3 && $1!="01:" && $1!="33:33:" && $1!="ff:ff:" && $1!="00:00:00:00:00:00" && $0 !~ /permanent/ {p=""; v=0; for(i=1;i<=NF;i++){ if($i=="dev") p=$(i+1); if($i=="vlan") v=$(i+1) }; if(p!="") print p, $1, v}') 2>/dev/null; done; true`
 	CmdBridgeMAC = bridgeDetect + "cat /sys/class/net/$BR/address 2>/dev/null"
 	// CmdIfaceMACs (#1765): "iface mac" de TODAS las interfaces del kernel.
 	// Un equipo responde por la MAC del bridge, la de cada VLAN, la del puerto
@@ -1440,20 +1460,27 @@ var (
 )
 
 // fdbPortWired: ¿cuenta este puerto como cableado para el mapa MAC→puerto?
-// Las subinterfaces VLAN (lan1.10, eth0.100) tampoco cuentan: el FDB de un
-// bridge con VLAN filtering reporta el puerto físico.
+// La subinterfaz VLAN (eth0.999, lan1.10) SÍ cuenta: es el puerto real del
+// bridge en un router que segmenta con 802.1Q y el FDB lo nombra así (antes se
+// descartaba por llevar punto, y todos los clientes cableados de sus bridges
+// se quedaban sin puerto y sin VLAN, #1757). Lo que no cuenta es una
+// subinterfaz de radio (wl0.1, wlan0.1) ni una interfaz virtual (br*, veth*).
 func fdbPortWired(port string) bool {
-	if port == "" || strings.ContainsAny(port, ".@") {
+	if port == "" || strings.Contains(port, "@") {
 		return false
 	}
-	return !fdbWirelessRe.MatchString(port) && !fdbVirtualRe.MatchString(port)
+	base := port
+	if i := strings.IndexByte(base, '.'); i > 0 {
+		base = base[:i]
+	}
+	return !fdbWirelessRe.MatchString(base) && !fdbVirtualRe.MatchString(base)
 }
 
 // ParseBridgeFdb parsea la salida ==PORTS==/==MACS== → MAC aprendida → puerto.
 // Acepta dos formatos en ==MACS==: brctl (`<port_no> <mac>`) y
-// `bridge fdb show` (`<ifname> <mac>`, emitido por CmdBridgeFDB).
+// `bridge fdb show` (`<ifname> <mac> [vlan <id>]`).
 func ParseBridgeFdb(out string) map[string]string {
-	wired, _ := ParseBridgeFdbSplit(out)
+	wired, _, _ := ParseBridgeFdbVlans(out)
 	return wired
 }
 
@@ -1464,18 +1491,45 @@ func ParseBridgeFdb(out string) map[string]string {
 // backhaul 4-address). Sin este segundo mapa el server las vería únicamente en
 // el FDB de tránsito del gateway y su fallback las dibujaría como cableadas.
 func ParseBridgeFdbSplit(out string) (wired, wirelessSide map[string]string) {
+	wired, wirelessSide, _ = ParseBridgeFdbVlans(out)
+	return wired, wirelessSide
+}
+
+// ParseBridgeFdbVlans: lo anterior más la VLAN con la que el bridge aprendió
+// cada MAC (el `vlan <id>` de `bridge fdb show`, solo en bridges con VLAN
+// filtering). Es el dato exacto del segmento de un cliente cableado: el PVID
+// del puerto dice dónde entra la trama sin etiquetar, no en qué VLAN vive el
+// cliente.
+//
+// Las secciones pueden venir con el nombre del bridge detrás de la marca
+// ("==PORTS==br_switch", un bridge por segmento). Sin sufijo se asume una sola
+// tabla, que es lo que emite un agente viejo.
+func ParseBridgeFdbVlans(out string) (wired, wirelessSide map[string]string, vlans map[string]int) {
 	wired = map[string]string{}
 	wirelessSide = map[string]string{}
-	portNames := map[string]string{} // port_no → ifname
+	vlans = map[string]int{}
+	// bridge → port_no → ifname. La clave "" cubre la salida sin sufijo.
+	portNames := map[string]map[string]string{}
+	bridge := ""
 	section := byte(0)
+	ports := func(br string) map[string]string {
+		m, ok := portNames[br]
+		if !ok {
+			m = map[string]string{}
+			portNames[br] = m
+		}
+		return m
+	}
 	for _, line := range strings.Split(out, "\n") {
 		t := strings.TrimSpace(line)
 		if strings.HasPrefix(t, "==PORTS==") {
 			section = 'p'
+			bridge = strings.TrimSpace(strings.TrimPrefix(t, "==PORTS=="))
 			continue
 		}
 		if strings.HasPrefix(t, "==MACS==") {
 			section = 'm'
+			bridge = strings.TrimSpace(strings.TrimPrefix(t, "==MACS=="))
 			continue
 		}
 		p := strings.Fields(t)
@@ -1490,15 +1544,22 @@ func ParseBridgeFdbSplit(out string) (wired, wirelessSide map[string]string) {
 					no = strconv.FormatInt(n, 10)
 				}
 			}
-			portNames[no] = name
-			portNames[name] = name // puerto también localizable por nombre (bridge fdb)
+			m := ports(bridge)
+			m[no] = name
+			m[name] = name // puerto también localizable por nombre (bridge fdb)
 		case 'm':
 			no, mac := p[0], p[1]
-			port, ok := portNames[no]
+			m := ports(bridge)
+			port, ok := m[no]
 			if !ok || mac == "" {
 				continue
 			}
 			mac = strings.ToUpper(mac)
+			if len(p) >= 3 {
+				if vid, err := strconv.Atoi(p[2]); err == nil && vid > 0 {
+					vlans[mac] = vid
+				}
+			}
 			switch {
 			case fdbPortWired(port):
 				wired[mac] = port
@@ -1507,7 +1568,7 @@ func ParseBridgeFdbSplit(out string) (wired, wirelessSide map[string]string) {
 			}
 		}
 	}
-	return wired, wirelessSide
+	return wired, wirelessSide, vlans
 }
 
 // fdbPortWirelessSide: puertos del bridge que son radios o subinterfaces de
@@ -1692,7 +1753,19 @@ type hostapdClientsJSON struct {
 // estación si el driver los reportó (issue #551).
 func ParseHostapdClients(out string) map[string]WirelessClient {
 	m := map[string]WirelessClient{}
-	for _, chunk := range strings.Split(out, "==AP==") {
+	// Sección de SSIDs (iw dev) al final de la salida: iface → SSID.
+	head := out
+	ssidByIface := map[string]string{}
+	if i := strings.Index(out, "==SSID=="); i >= 0 {
+		head = out[:i]
+		for _, line := range strings.Split(out[i:], "\n") {
+			p := strings.Fields(line)
+			if len(p) == 2 && p[0] != "==SSID==" {
+				ssidByIface[p[0]] = p[1]
+			}
+		}
+	}
+	for _, chunk := range strings.Split(head, "==AP==") {
 		chunk = strings.TrimSpace(chunk)
 		if chunk == "" {
 			continue
@@ -1702,6 +1775,13 @@ func ParseHostapdClients(out string) map[string]WirelessClient {
 		if i < 0 {
 			continue
 		}
+		// #1757: el objeto ubus ES la interfaz AP ("hostapd.phy1-ap2"). Sin
+		// este dato el cliente wifi viajaba sin `Iface`, y el mapa no podía
+		// casarlo con el puerto del bridge para leer su VLAN: todo cliente
+		// wifi de un OpenWrt con hostapd (o sea, casi todos) salía sin VLAN.
+		iface := strings.TrimSpace(chunk[:i])
+		iface = strings.TrimPrefix(iface, "hostapd.")
+		iface = strings.TrimSpace(strings.TrimPrefix(iface, "/"))
 		var j hostapdClientsJSON
 		if err := json.Unmarshal([]byte(chunk[i:]), &j); err != nil || j.Freq == 0 {
 			continue
@@ -1719,7 +1799,8 @@ func ParseHostapdClients(out string) map[string]WirelessClient {
 				continue
 			}
 			m[strings.ToUpper(mac)] = WirelessClient{
-				SignalDbm: st.Signal, Band: band,
+				SignalDbm: st.Signal, Band: band, Iface: iface,
+				SSID:    ssidByIface[iface],
 				RxBytes: st.Bytes.Rx, TxBytes: st.Bytes.Tx,
 			}
 		}

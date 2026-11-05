@@ -154,6 +154,11 @@ type routerPolled struct {
 	ports    []EthPort
 	radios   []Radio
 	fdb      map[string]string
+	// fdbVlans: MAC → VLAN con la que el bridge aprendió esa MAC (#1757). El
+	// PVID de un puerto dice por dónde entra una trama sin etiquetar, no en
+	// qué VLAN vive el cliente: solo este dato lo dice. Vacío = sin dato (el
+	// bridge no tiene VLAN filtering, o la sonda es por SSH y no lo reporta).
+	fdbVlans map[string]int
 	// wirelessSide: MACs que el bridge del router aprende en sus propios
 	// puertos de radio (wl0.1, wlan0…) pero que la tabla de estaciones no
 	// lista (MACs rotadas que siguen emitiendo, backhaul 4-address). El
@@ -217,6 +222,9 @@ type extrasSnapshot struct {
 	radios   []Radio
 	wireless map[string]WirelessClient
 	fdb      map[string]string
+	// fdbVlans: MAC → VLAN del FDB (#1757). Mismo anti-parpadeo que fdb: solo
+	// nace del payload del agente y una sonda SSH exitosa lo limpia.
+	fdbVlans map[string]int
 	// wirelessSide: último hint bueno de MACs detrás de radios propias
 	// (ver routerPolled.wirelessSide). Mismo anti-parpadeo que fdb.
 	wirelessSide map[string]string
@@ -1324,6 +1332,13 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if fdb != nil {
 		wsGood = nil
 	}
+	// La VLAN del FDB viaja solo en el payload del agente: la sonda SSH no la
+	// lee y una lectura buena sin ella LIMPIA el cache (un valor viejo pintaría
+	// al cliente en un segmento que ya dejó).
+	fdbVlansGood := cached.fdbVlans
+	if fdb != nil {
+		fdbVlansGood = nil
+	}
 	luciGood := cached.luci
 	if luci := client.GetLuCILabels(); luci != nil {
 		luciGood = luci
@@ -1333,7 +1348,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		vlansGood = vlans
 	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, luci: luciGood, vlans: vlansGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, fdbVlans: fdbVlansGood, luci: luciGood, vlans: vlansGood}
 	l.mu.Unlock()
 
 	// Uso de RAM: #513. Si el agente reporta memory.used (procesos) lo
@@ -1383,7 +1398,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		cpu: cpuV, ram: ramPct, temp: tempV,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, arpDevs: arpDevs, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
-		fdb: fdbGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
+		fdb: fdbGood, fdbVlans: fdbVlansGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
 		polledAt: l.now().UnixMilli(),
@@ -3790,6 +3805,20 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			}
 		}
 		devices = append(devices, d)
+	}
+	// #1757: la VLAN de un cliente sale de la evidencia exacta del bridge (la
+	// VLAN con la que aprendió su MAC), no del PVID del puerto por el que
+	// entró. Solo rellena el hueco: el `tag=` que declara el hipervisor para un
+	// invitado manda y se aplica después.
+	for i := range devices {
+		if devices[i].Vlan > 0 || devices[i].MAC == "" {
+			continue
+		}
+		if p := polled[devices[i].RouterID]; p != nil {
+			if v := p.fdbVlans[strings.ToUpper(devices[i].MAC)]; v > 0 {
+				devices[i].Vlan = v
+			}
+		}
 	}
 	// Give clients learned only in an SNMP switch's FDB a traffic figure from
 	// that port's counters (see switchporttraffic.go).
