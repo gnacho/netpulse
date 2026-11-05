@@ -21,6 +21,7 @@ package adapters
 import (
 	"context"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,6 +81,19 @@ type pveInstClient struct {
 	c    *pve.Client
 }
 
+// pveClientsKey: huella de la config que obliga a recrear los clientes. Debe
+// incluir TODO lo que cambia el transporte, no solo url/token: con los ajustes
+// TLS fuera de la clave, editar caPem/fingerprint/insecure no surtia efecto
+// hasta reiniciar el servicio (#1879).
+func pveClientsKey(instances []pve.Instance) string {
+	var b strings.Builder
+	for _, in := range instances {
+		b.WriteString(in.ID + "|" + in.URL + "|" + in.TokenID + "|" + in.Secret + "|" +
+			in.CAPEM + "|" + in.FingerprintSHA256 + "|" + strconv.FormatBool(in.Insecure) + "\n")
+	}
+	return b.String()
+}
+
 // pveClientsCached: clientes de TODAS las instancias configuradas (#764),
 // recreados si la lista cambió (patrón AdGuard). Sin instancias → nil.
 func (l *Live) pveClientsCached() []pveInstClient {
@@ -87,10 +101,7 @@ func (l *Live) pveClientsCached() []pveInstClient {
 		return nil
 	}
 	instances := pve.LoadInstances(l.db.DB)
-	key := ""
-	for _, in := range instances {
-		key += in.ID + "|" + in.URL + "|" + in.TokenID + "|" + in.Secret + "\n"
-	}
+	key := pveClientsKey(instances)
 	if key == "" {
 		l.pveClients = nil
 		l.pveKey = ""
