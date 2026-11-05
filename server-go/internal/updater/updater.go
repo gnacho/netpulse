@@ -628,11 +628,36 @@ func (u *Updater) broadcastLocked() {
 // already_updating) o si no se pudo copiar.
 func (u *Updater) Apply() bool { return u.ApplyBy("admin") }
 
+// applyFreshCheckAge: antigüedad máxima del chequeo que se acepta como
+// objetivo de un apply (#1881). Con checkInterval a 24 h, un apply manual con
+// el estado del último chequeo descargaba una release ya superada y costaba un
+// segundo reinicio.
+const applyFreshCheckAge = 10 * time.Minute
+
+// needsFreshCheck indica si el objetivo guardado es demasiado viejo para
+// aplicarlo sin volver a preguntar a GitHub.
+func (u *Updater) needsFreshCheck() bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.lastCheck == nil || time.Since(time.UnixMilli(*u.lastCheck)) > applyFreshCheckAge
+}
+
 // ApplyBy lanza update.sh en segundo plano con el iniciador dado ("admin"
 // manual o "auto" para el rolling main). Antes de lanzar registra la entrada
 // 'running' del historial (#159) y persiste el marcador pendingApply (#161);
 // la goroutine finaliza ambos según el resultado del script.
 func (u *Updater) ApplyBy(initiatedBy string) bool {
+	// #1881: el objetivo es el último chequeo, que puede tener hasta 24 h
+	// (checkInterval). Aplicar con ese estado instala una release ya superada
+	// y obliga a un segundo reinicio; refrescamos antes de elegir target. Si
+	// el chequeo falla, Check conserva el anterior: aplicar nunca depende de
+	// que GitHub responda.
+	if u.needsFreshCheck() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*httpTimeout+2*time.Second)
+		u.Check(ctx)
+		cancel()
+	}
+
 	u.mu.Lock()
 	if u.updatingStep != nil {
 		u.mu.Unlock()
