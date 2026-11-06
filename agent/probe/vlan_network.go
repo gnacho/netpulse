@@ -8,6 +8,42 @@ import (
 	"strings"
 )
 
+// uciSection is one `network.<name>` section of `uci show network`, with the
+// section type kept under "@type". Anonymous sections keep their printed name
+// (@device[0]) so the declaration order is preserved.
+type uciSection map[string]string
+
+// uciNetworkSections splits `uci show network` into its sections, in the order
+// the configuration declares them. Shared by the VLAN view (#1757) and the
+// networks view (#1889), which read the same configuration for different
+// purposes and must never disagree about what it says.
+func uciNetworkSections(out string) (map[string]uciSection, []string) {
+	sections := map[string]uciSection{}
+	order := []string{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "network.") {
+			continue
+		}
+		key, val, ok := strings.Cut(strings.TrimPrefix(line, "network."), "=")
+		if !ok {
+			continue
+		}
+		val = strings.Trim(val, "'")
+		name, attr, isAttr := strings.Cut(key, ".")
+		if _, seen := sections[name]; !seen {
+			sections[name] = uciSection{}
+			order = append(order, name)
+		}
+		if !isAttr {
+			sections[name]["@type"] = val
+			continue
+		}
+		sections[name][attr] = val
+	}
+	return sections, order
+}
+
 // vlanSubifRe matches an 802.1Q subinterface: the parent device and the VLAN
 // id in its name, the way Linux and OpenWrt build them (eth0.666).
 var vlanSubifRe = regexp.MustCompile(`^([^.]+)\.(\d{1,4})$`)
@@ -24,30 +60,7 @@ var vlanSubifRe = regexp.MustCompile(`^([^.]+)\.(\d{1,4})$`)
 // it is read as a source of its own and merged with the kernel output, never
 // as a fallback.
 func ParseUciNetworkVlans(out string) []VlanPort {
-	type section map[string]string
-	sections := map[string]section{}
-	order := []string{}
-	for _, line := range strings.Split(out, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, "network.") {
-			continue
-		}
-		key, val, ok := strings.Cut(strings.TrimPrefix(line, "network."), "=")
-		if !ok {
-			continue
-		}
-		val = strings.Trim(val, "'")
-		name, attr, isAttr := strings.Cut(key, ".")
-		if _, seen := sections[name]; !seen {
-			sections[name] = section{}
-			order = append(order, name)
-		}
-		if !isAttr {
-			sections[name]["@type"] = val
-			continue
-		}
-		sections[name][attr] = val
-	}
+	sections, order := uciNetworkSections(out)
 
 	// Interfaces first: they carry the name and the subnet of whatever device
 	// they sit on.
@@ -262,7 +275,10 @@ func mergeVlanEntries(kernel, declared []VlanEntry) []VlanEntry {
 func splitUciList(val string) []string {
 	var out []string
 	for _, part := range strings.Split(val, "' '") {
-		if p := strings.TrimSpace(strings.Trim(part, "'")); p != "" {
+		// UCI imprime una lista como 'a' 'b' o como 'a b': las dos formas son
+		// la misma lista y quedarse con la cadena entera inventaba un puerto
+		// que no existe (#1889).
+		for _, p := range strings.Fields(strings.Trim(part, "'")) {
 			out = append(out, p)
 		}
 	}
@@ -285,8 +301,6 @@ func vlanSubnet(ip, mask string) string {
 	}
 	return fmt.Sprintf("%s/%d", ip, ones)
 }
-
-
 
 // vlanOnlyDefault: the kernel reported nothing but the default VLAN.
 func vlanOnlyDefault(entries []VlanEntry) bool {

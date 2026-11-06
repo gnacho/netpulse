@@ -20,6 +20,7 @@ import { RouterPerformance } from '@/components/routers/RouterPerformance'
 import { MultiWanPanel } from '@/components/routers/MultiWanPanel'
 import { WanLatency } from '@/components/routers/WanLatency'
 import { VlanPanel } from '@/components/routers/VlanPanel'
+import { NetworksPanel } from '@/components/routers/NetworksPanel'
 import { WireGuardPanel } from '@/components/routers/WireGuardPanel'
 
 /** Página `/routers/:id` — plantilla de detalle (router-detail.md) */
@@ -281,6 +282,11 @@ export default function RouterDetail() {
               : 'bps'}
           className="lg:col-span-12"
         />
+      )}
+
+      {/* #1889: la unidad como redes de OpenWrt, no solo como chasis */}
+      {detail?.networks && detail.networks.length > 0 && (
+        <NetworksPanel networks={detail.networks} clients={detail.clients ?? []} />
       )}
 
       {/* VLANs del bridge (issue #315, read-only) */}

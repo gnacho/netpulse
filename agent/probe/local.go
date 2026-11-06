@@ -348,19 +348,23 @@ func (p *Prober) scanWithFallback(ctx context.Context, ifaces []IwDevIface, chos
 // the real layout. The two views are therefore merged always, the kernel
 // owning the flags and the configuration the names, subnets and the VLANs
 // that only exist as subinterfaces (#1757).
-func (p *Prober) probeVlans(ctx context.Context) []VlanPort {
+func (p *Prober) probeVlans(ctx context.Context) ([]VlanPort, []UciNetwork) {
 	var kernel []VlanPort
 	if out := p.runBest(ctx, CmdBridgeVlan, 0); out != "" {
 		kernel = ParseBridgeVlan(out)
 	}
 	var declared []VlanPort
+	var networks []UciNetwork
 	if out := p.runBest(ctx, CmdUciBridgeVlan, 0); out != "" {
+		// La misma configuracion alimenta las dos vistas (#1889): una sola
+		// lectura de `uci show network` por ronda.
 		// A router uses one model or the other, so the two UCI parsers
 		// never describe the same port: bridge-vlan sections name bridge
 		// ports, the subinterface model names bridges and their parents.
 		declared = MergeVlanPorts(ParseUciBridgeVlans(out), ParseUciNetworkVlans(out))
+		networks = ParseUciNetworks(out)
 	}
-	return MergeVlanPorts(kernel, declared)
+	return MergeVlanPorts(kernel, declared), networks
 }
 
 // runBest es best-effort: error → "" (la sección queda ausente).
@@ -382,7 +386,7 @@ func (p *Prober) Build(ctx context.Context, router, version string) *Payload {
 	}
 	// Wan antes que FDB: probeFDB usa la boca del uplink para marcarla.
 	pl.Data.Wan = p.probeWan(ctx)
-	pl.Data.Vlans = p.probeVlans(ctx)
+	pl.Data.Vlans, pl.Data.Networks = p.probeVlans(ctx)
 	pl.Data.System = p.probeSystem(ctx)
 	pl.Data.Wireless = p.probeWireless(ctx, true)
 	pl.Data.DHCP = p.probeDHCP(ctx)

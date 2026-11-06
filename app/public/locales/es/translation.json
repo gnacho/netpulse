@@ -1126,6 +1126,19 @@
       "untagged": "Untagged",
       "vlanId": "ID VLAN"
     },
+    "networks": {
+      "clients": "Clientes",
+      "clientsTip": "Clientes cuya VLAN se conoce",
+      "device": "Dispositivo",
+      "members": "Miembros",
+      "network": "Red",
+      "noCounters": "Esta unidad no reporta contadores por interfaz",
+      "subnet": "Subred",
+      "title": "Redes",
+      "toggleAria": "Redes de OpenWrt ({{count}})",
+      "traffic": "Tráfico",
+      "vlan": "VLAN {{id}}"
+    },
     "wan": {
       "chartAria": "Tráfico WAN de la puerta de enlace. Descarga actual {{down}} Mbps, subida {{up}} Mbps.",
       "fiber": "Fibra {{plan}}",

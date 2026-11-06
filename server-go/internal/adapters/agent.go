@@ -942,6 +942,12 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	} else if cached != nil {
 		out.vlans = cached.vlans
 	}
+	// #1889: las redes UCI viajan en el mismo payload que las VLANs.
+	if len(p.Data.Networks) > 0 {
+		out.networks = p.Data.Networks
+	} else if cached != nil {
+		out.networks = cached.networks
+	}
 	if dh := p.Data.DHCP; dh != nil && len(dh.Reservations) > 0 {
 		out.reservations = dh.Reservations
 	}
@@ -1102,7 +1108,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		lldpSnap = cached.lldp // conserva la última sección buena (#489)
 	}
 	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: out.ports, radios: out.radios,
-		wireless: out.wireless, fdb: out.fdb, fdbVlans: out.fdbVlans, wirelessSide: out.wirelessSide, luci: out.luci, system: sysSnap, systemKind: sysSnapKind, lldp: lldpSnap,
+		wireless: out.wireless, fdb: out.fdb, fdbVlans: out.fdbVlans, networks: out.networks, wirelessSide: out.wirelessSide, luci: out.luci, system: sysSnap, systemKind: sysSnapKind, lldp: lldpSnap,
 		clientBw: out.clientBw, vlans: out.vlans, multiWan: out.multiWan}
 	l.mu.Unlock()
 
