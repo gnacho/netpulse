@@ -153,6 +153,15 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
           ? nowSec - up.ts < TIMELINE_FAILED_S
           : up.step !== 'queued' && nowSec - up.ts < TIMELINE_STALLED_S)
 
+  // #1894: los fallos que ocurren en el navegador llegan como código corto
+  // ('timeout', 'network'), no como mensaje del servidor. Traducirlos evita
+  // que la fila enseñe la palabra "network" en rojo y nada más.
+  const clientFailText = (code?: string) => {
+    if (code === 'timeout') return t('routers.agents.sshTimeout')
+    if (code === 'network') return t('routers.agents.sshUnreachable')
+    return code ?? ''
+  }
+
   const reinstall = async () => {
     if (reinstallState === 'busy') return
     // #483: primera instalación vs reinstalación: mismo endpoint (reinstall
@@ -175,7 +184,7 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
       // #1894: el fallo NO se auto-oculta. Un error que desaparece a los 8 s
       // no se puede leer, copiar ni adjuntar a un reporte.
       setReinstallState('fail')
-      setReinstallMsg(res?.error ?? t(failKey))
+      setReinstallMsg(clientFailText(res?.error) || t(failKey))
     }
   }
 
@@ -195,7 +204,7 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
       await refreshAgents()
     } else {
       setUninstallState('fail')
-      setUninstallMsg(res?.error ?? t('routers.agents.uninstallFail'))
+      setUninstallMsg(clientFailText(res?.error) || t('routers.agents.uninstallFail'))
     }
     window.setTimeout(() => setUninstallState('idle'), 8000)
   }
@@ -280,7 +289,7 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
       await refreshAgents()
     } else {
       setRemoveState('fail')
-      setRemoveMsg(res?.error ?? t('routers.agents.removeFail'))
+      setRemoveMsg(clientFailText(res?.error) || t('routers.agents.removeFail'))
     }
     window.setTimeout(() => setRemoveState('idle'), 8000)
   }
