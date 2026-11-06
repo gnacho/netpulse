@@ -127,6 +127,9 @@ func envRewriteBlock(targets WanTargets) string {
 # compone en un temporal y solo se pone en su sitio si salio entero, asi que un
 # /etc lleno o de solo lectura conserva el anterior en vez de dejarlo a medias.
 warn() { echo "netpulse-agent: $*" >&2; }
+# #1894: aviso normal por stdout. El journal y la caja de la UI enseñan lo que
+# el script cuenta; sin esto una instalación correcta no dejaba ni una línea.
+say() { echo "netpulse-agent: $*"; }
 USER_VARS=""
 SCAN_VALUE="0"
 if [ -f "$ENV_FILE" ]; then
@@ -324,6 +327,7 @@ case "$ARCH" in
 		esac ;;
 	*) echo "arch no soportado: $ARCH" >&2; exit 20 ;;
 esac
+say "arquitectura $ARCH ($GOARCH)"
 
 # #1476: si el router habla opkg o apk, instala el paquete que sirve el propio
 # servidor. Deja binario, init y /etc/config/netpulse-agent, que es conffile y
@@ -358,7 +362,7 @@ elif command -v apk >/dev/null 2>&1; then
 	fi
 	rm -f /tmp/netpulse-agent.apk
 fi
-
+if [ "$PKG_OK" = "1" ]; then say "paquete instalado"; else say "sin paquete; instalo el binario suelto"; fi
 if [ "$PKG_OK" != "1" ]; then
 # Descargar el binario del propio server (auth por token)
 # #1737: sin estos mensajes el fallo llega como "Process exited with status
@@ -376,6 +380,7 @@ if [ -n "$SHA256" ]; then
 	[ "$GOT" = "$SHA256" ] || { echo "sha256 no coincide (esperado $SHA256, obtenido $GOT)" >&2; exit 21; }
 fi
 chmod 0755 /tmp/netpulse-agent.new
+say "binario descargado y verificado"
 # #1853: el servicio se para AQUI, con el binario ya descargado y verificado.
 # Pararlo antes dejaba el router sin agente si la descarga fallaba. Hay que
 # pararlo igualmente: /tmp es tmpfs y /usr es overlay, asi que mv escribe el
@@ -526,6 +531,7 @@ if ! "$INIT" restart >/dev/null 2>&1; then
 	warn "el agente no arranco tras el reinstall; revisa $INIT"
 	exit 24
 fi
+say "agente arrancado"
 `
 }
 

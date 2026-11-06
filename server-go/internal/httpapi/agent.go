@@ -1147,7 +1147,7 @@ type reinstallResponse struct {
 	Message   string `json:"message,omitempty"`
 	// #1894: salida del script de instalación (cola). Sin ella el operador solo
 	// veía "exit status 1" en rojo durante unos segundos y nada en el journal.
-	Output    string `json:"output,omitempty"`
+	Output string `json:"output,omitempty"`
 }
 
 func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
@@ -1403,8 +1403,17 @@ func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Ejecutar la desinstalación en el router (idempotente; margen moderado).
-	if _, err := s.pool.Run(host, uninstall.Script(), 60*time.Second); err != nil {
-		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+	// #1894: con la salida del script, no solo el error. Uninstall no dejaba
+	// ni una línea en el journal y el operador no tenía forma de saber qué
+	// había pasado dentro de la unidad.
+	out, err := runScript(s.pool, host, uninstall.Script(), 60*time.Second)
+	if tail := outputTail(out, 4000); tail != "" {
+		log.Printf("netpulse:agent uninstall %s: salida del script de desinstalación:\n%s", slug, tail)
+	}
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]any{
+			"error": "ssh_failed", "message": err.Error(), "output": outputTail(out, 8000),
+		})
 		return
 	}
 
