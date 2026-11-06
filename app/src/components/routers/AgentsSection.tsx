@@ -79,6 +79,8 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
   const auth = useAuth()
   const [reinstallState, setReinstallState] = useState<ReinstallState>('idle')
   const [reinstallMsg, setReinstallMsg] = useState('')
+  // #1894: salida del script de instalación; sobrevive al mensaje temporal.
+  const [reinstallOut, setReinstallOut] = useState('')
   const [uninstallState, setUninstallState] = useState<ReinstallState>('idle')
   const [uninstallMsg, setUninstallMsg] = useState('')
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -156,15 +158,19 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
     if (!window.confirm(t(confirmKey, { router: router?.name ?? slug }))) return
     setReinstallState('busy')
     setReinstallMsg('')
+    setReinstallOut('')
     const res = await reinstallAgent(slug)
+    setReinstallOut(res?.output ?? '')
     if (res && !res.error) {
       setReinstallState('done')
       setReinstallMsg(res.recovered ? t(doneKey) : t(pendingKey))
+      window.setTimeout(() => setReinstallState('idle'), 8000)
     } else {
+      // #1894: el fallo NO se auto-oculta. Un error que desaparece a los 8 s
+      // no se puede leer, copiar ni adjuntar a un reporte.
       setReinstallState('fail')
       setReinstallMsg(res?.error ?? t(failKey))
     }
-    window.setTimeout(() => setReinstallState('idle'), 8000)
   }
 
   // #624: desinstala el agente del router (detiene init, borra binario/env)
@@ -635,6 +641,12 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
           <p className={cn('mt-1.5 text-caption', reinstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>
             {reinstallMsg}
           </p>
+        )}
+        {reinstallOut && (
+          <details className="mt-1.5 rounded-lg border border-border bg-canvas px-2 py-1.5" open={reinstallState === 'fail'}>
+            <summary className="cursor-pointer text-caption text-text-muted">{t('routers.agents.outputTitle')}</summary>
+            <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-text-secondary">{reinstallOut}</pre>
+          </details>
         )}
         {uninstallMsg && uninstallState !== 'idle' && (
           <p className={cn('mt-1.5 text-caption', uninstallState === 'fail' ? 'text-danger' : 'text-text-muted')}>

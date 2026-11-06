@@ -1302,6 +1302,7 @@
       "reinstallConfirm": "Reinstall the agent on {{router}}? The current agent (if any) will be replaced and its token rotated.",
       "reinstallDone": "Agent reinstalled and reporting again.",
       "reinstallPending": "Agent installed; waiting for it to report (up to 40s).",
+      "outputTitle": "Command output",
       "reinstallFail": "Reinstall failed",
       "install": "Install agent",
       "installing": "Installing…",

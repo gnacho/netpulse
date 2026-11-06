@@ -83,6 +83,17 @@ type scriptRunner interface {
 // con los fakes. Dropbear corta la conexión con "String too long" cuando un
 // string del paquete pasa de 9000 bytes, y el script de reinstalación ronda
 // los 15 KB: por argv el cliente solo ve EOF, sin exit status ni stderr.
+// outputTail recorta la salida de un script remoto para llevarla al journal
+// y a la respuesta HTTP (#1894): interesa el final, donde está el error, y un
+// script de instalación puede escupir miles de líneas de descarga.
+func outputTail(out string, max int) string {
+	out = strings.TrimSpace(out)
+	if len(out) <= max {
+		return out
+	}
+	return "…" + out[len(out)-max:]
+}
+
 func runScript(pool SSHRunner, host, script string, timeout time.Duration) (string, error) {
 	if sr, ok := pool.(scriptRunner); ok {
 		return sr.RunScript(host, script, timeout)
@@ -1134,6 +1145,9 @@ type reinstallResponse struct {
 	Installed bool   `json:"installed"`
 	Recovered bool   `json:"recovered"` // llegó un push nuevo tras la instalación
 	Message   string `json:"message,omitempty"`
+	// #1894: salida del script de instalación (cola). Sin ella el operador solo
+	// veía "exit status 1" en rojo durante unos segundos y nada en el journal.
+	Output    string `json:"output,omitempty"`
 }
 
 func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
@@ -1210,14 +1224,26 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	// Rotar el token de forma ATÓMICA (#630): el script lo instala en el router
 	// y, si el SSH falla, se restaura el hash previo en kv — así el agente no
 	// se queda empujando un token que el servidor ya no acepta (401 eterno).
+	// #1894: la salida del script se captura, no se descarta. Es la única
+	// evidencia de qué pasó dentro del router: antes el handler la tiraba con
+	// `_` y el operador recibía un "exit status 1" sin contexto.
+	scriptOut := ""
 	token, err := s.rotateAgentTokenAtomic(slug, func(t string) error {
 		// FORK: with HTTPS on, the agent moves to it and pins the root.
 		trust := tlsmode.AgentTrust(s.tlsMgr, s.fingerprint, serverURL)
-		_, runErr := runScript(s.pool, host, reinstall.ScriptWithTargets(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), targets, trust), 300*time.Second)
+		out, runErr := runScript(s.pool, host, reinstall.ScriptWithTargets(slug, t, serverURL, reinstall.ServerFP(serverURL), reinstall.Digests(), targets, trust), 300*time.Second)
+		scriptOut = out
 		return runErr
 	})
+	// #1894: al journal SIEMPRE, éxito o fallo, para que el servidor tenga el
+	// rastro aunque el operador cierre la pestaña.
+	if tail := outputTail(scriptOut, 4000); tail != "" {
+		log.Printf("netpulse:agent reinstall %s: salida del script de instalación:\n%s", slug, tail)
+	}
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "ssh_failed", err.Error())
+		writeJSON(w, http.StatusBadGateway, map[string]any{
+			"error": "ssh_failed", "message": err.Error(), "output": outputTail(scriptOut, 8000),
+		})
 		return
 	}
 
@@ -1238,6 +1264,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, reinstallResponse{
 		Slug: slug, Token: token, Installed: true, Recovered: recovered,
 		Message: map[bool]string{true: "agente instalado y empujando", false: "agente instalado; aún no ha empujado en 40 s"}[recovered],
+		Output:  outputTail(scriptOut, 8000),
 	})
 }
 

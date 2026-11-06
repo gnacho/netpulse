@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- Reinstalling an agent now shows what the install script actually said (#1894). The handler discarded the script output with `_`, so the operator got a red "exit status 1" that vanished after eight seconds and the server journal had nothing at all. The output is captured and returned with the response, on failure and on success, it is written to the server journal either way, and the UI shows it in a collapsible frame under the message. A failed reinstall no longer hides itself: the error stays until the next attempt, so it can be read, copied and attached to a report.
+
 - The SSH pool writes what it does to the system log (#1893). A unit showed bursts of "Exit before auth" in dropbear and there was nothing on the server side to correlate them with: no host, no reason, no rhythm. Every new connection is now logged with its host and user, every discarded connection is logged before the redial that follows, and every dial failure is logged with the real cause, whether that is a host key problem, an authentication rejection, a timeout or a network error, together with the consecutive failure count and the backoff. Failures are rate limited to the first and every tenth so a dead unit cannot fill the journal, and a recovery line closes the episode.
 
 ### Fixed
