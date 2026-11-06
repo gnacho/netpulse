@@ -259,7 +259,12 @@ const (
 	// plenty of boards that do use VLANs) and for the ones that segment
 	// with 802.1Q subinterfaces, which the kernel reports all on VLAN 1
 	// (#1757). Both models are read from `uci show network`.
-	CmdUciBridgeVlan = `uci -q show network 2>/dev/null | grep -E "=bridge-vlan$|=device$|\.(device|vlan|ports|type|name|proto|ipaddr|netmask)=" || true`
+	//
+	// The section type lines must survive the filter (#1936): `uci show`
+	// prints `network.lan=interface`, and that is the only place a named
+	// section says what it is. Without it ParseUciNetworks sees no
+	// interface at all and the networks view stays empty on every unit.
+	CmdUciBridgeVlan = `uci -q show network 2>/dev/null | grep -E "=bridge-vlan$|=device$|=interface$|\.(device|vlan|ports|type|name|proto|ipaddr|netmask)=" || true`
 
 	// CmdMdnsBrowse (#338): mDNS service discovery via umdns (OpenWrt's
 	// lightweight mDNS daemon). Returns JSON with hostname -> services.
