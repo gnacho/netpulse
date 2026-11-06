@@ -1302,6 +1302,7 @@
       "reinstallConfirm": "¿Reinstalar el agente en {{router}}? El agente actual (si lo hay) será sustituido y su token rotado.",
       "reinstallDone": "Agente reinstalado y empujando de nuevo.",
       "reinstallPending": "Agente instalado; esperando a que empuje (hasta 40 s).",
+      "outputTitle": "Salida del comando",
       "reinstallFail": "Fallo al reinstalar",
       "install": "Instalar agente",
       "installing": "Instalando…",

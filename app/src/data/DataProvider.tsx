@@ -235,7 +235,7 @@ export interface NetPulseApi extends NetPulseData {
    * vía SSH (binario, env, servicio procd). Devuelve el resultado; null si
    * falló (demo siempre null).
    */
-  reinstallAgent: (slug: string) => Promise<{ recovered: boolean; token?: string; error?: string } | null>
+  reinstallAgent: (slug: string) => Promise<{ recovered: boolean; token?: string; output?: string; error?: string } | null>
   /**
    * #624: POST /api/agents/{slug}/uninstall — desinstala el agente nativo del
    * router vía SSH (detiene el init, borra binario/env/watchdog) y revoca su
@@ -1249,7 +1249,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const reinstallAgent = useCallback(async (slug: string): Promise<{ recovered: boolean; token?: string; error?: string } | null> => {
+  const reinstallAgent = useCallback(async (slug: string): Promise<{ recovered: boolean; token?: string; output?: string; error?: string } | null> => {
     if (modeRef.current !== 'live') return null
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/reinstall`, {
@@ -1258,11 +1258,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       })
       if (res.status === 401) redirectLogin()
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string }
-        return { recovered: false, error: body.message ?? `HTTP ${res.status}` }
+        const body = (await res.json().catch(() => ({}))) as { message?: string; output?: string }
+        return { recovered: false, error: body.message ?? `HTTP ${res.status}`, output: body.output }
       }
-      const json = (await res.json()) as { recovered: boolean; token?: string }
-      return { recovered: json.recovered, token: json.token }
+      const json = (await res.json()) as { recovered: boolean; token?: string; output?: string }
+      return { recovered: json.recovered, token: json.token, output: json.output }
     } catch {
       return { recovered: false, error: 'network' }
     }
