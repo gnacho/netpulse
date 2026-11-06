@@ -249,7 +249,23 @@ export default function FirmwareUpgrades() {
           checksum: it.checksum,
         }
       })
-      setEdits(initialEdits)
+      // #1898: no pisar las ediciones locales al recargar. El auto-refresco
+      // de un upgrade en curso (cada 10 s) devolvía el desplegable al target
+      // del servidor mientras el usuario estaba eligiendo otra versión.
+      setEdits((prev) => {
+        const next = { ...initialEdits }
+        data.forEach((it) => {
+          const p = prev[it.routerId]
+          if (!p) return
+          next[it.routerId] = {
+            ...next[it.routerId],
+            targetVersion: p.targetVersion ?? it.targetVersion ?? it.detectedVersion ?? '',
+            targetUrl: p.targetUrl ?? it.targetUrl,
+            checksum: p.checksum ?? it.checksum,
+          }
+        })
+        return next
+      })
     } catch (e) {
       setError(String(e))
     } finally {
@@ -440,29 +456,55 @@ export default function FirmwareUpgrades() {
     }
   }
 
+  // #1898: persistir el target es también lo que hace que la selección del
+  // desplegable se quede donde el usuario la dejó. Vive aparte del botón
+  // Guardar porque el desplegable lo llama solo, sin estado "busy".
+  const postTarget = async (id: string, e: Partial<FirmwareItem>) => {
+    const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/target`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: e.model ?? '',
+        currentVersion: e.currentVersion ?? '',
+        targetVersion: e.targetVersion ?? '',
+        targetUrl: e.targetUrl ?? '',
+        checksum: e.checksum ?? '',
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
+    }
+    // Sin recarga completa: la tarjeta refleja lo guardado y el resto de
+    // ediciones locales (URL, checksum, exclusiones) no se toca.
+    setItems((prev) => prev.map((it) => (it.routerId === id ? { ...it, targetVersion: e.targetVersion ?? '' } : it)))
+  }
+
   const saveTarget = async (id: string) => {
     const e = edits[id]
     if (!e) return
     setBusy((prev) => ({ ...prev, [id]: 'save' }))
     try {
-      const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/target`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: e.model ?? '',
-          currentVersion: e.currentVersion ?? '',
-          targetVersion: e.targetVersion ?? '',
-          targetUrl: e.targetUrl ?? '',
-          checksum: e.checksum ?? '',
-        }),
-      })
-      if (!res.ok) throw new Error(await res.text())
+      await postTarget(id, e)
       await fetchItems()
     } catch (err) {
       setError(String(err))
     } finally {
       setBusy((prev) => ({ ...prev, [id]: '' }))
     }
+  }
+
+  // #1898: elegir una versión la guarda en el acto. Antes el cambio vivía solo
+  // en `edits` (estado local de la página), así que al refrescar o al salir y
+  // volver el desplegable regresaba al target que tuviera el servidor.
+  const chooseTarget = (item: FirmwareItem, value: string) => {
+    updateEdit(item.routerId, { targetVersion: value })
+    const e = { ...edits[item.routerId], targetVersion: value }
+    // Sin modelo detectado el servidor rechaza el target: la selección se
+    // queda local (y ya no la pisa la recarga) hasta que haya modelo.
+    if (!e.model) return
+    setError('')
+    postTarget(item.routerId, e).catch((err) => setError(String(err)))
   }
 
   // #519: descartar el aviso de un intento de upgrade fallido/obsoleto.
@@ -655,6 +697,15 @@ export default function FirmwareUpgrades() {
       payload.time = recTime
     }
     try {
+      // #1898: el disparo programado flashea el target GUARDADO en el servidor
+      // (`runRecurrenceShot`), no el que este diálogo enseña. Si difieren se
+      // guarda primero: programar sin target guardado desactivaba la
+      // recurrencia al vencer con "no firmware target saved".
+      const edit = edits[id]
+      const item = items.find((x) => x.routerId === id)
+      if (edit?.model && edit.targetVersion && edit.targetVersion !== item?.targetVersion) {
+        await postTarget(id, edit)
+      }
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/recurrence`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1034,7 +1085,7 @@ export default function FirmwareUpgrades() {
                   <span className="text-caption text-text-muted">{t('firmwareUpgrades.targetVersion')} *</span>
                   <select
                     value={effTarget}
-                    onChange={(ev) => updateEdit(item.routerId, { targetVersion: ev.target.value })}
+                    onChange={(ev) => chooseTarget(item, ev.target.value)}
                     disabled={!isAdmin || active || versionsBusy[item.routerId]}
                     className="h-[38px] rounded-lg border border-border bg-canvas px-3 text-sm text-text-primary disabled:opacity-60"
                   >
