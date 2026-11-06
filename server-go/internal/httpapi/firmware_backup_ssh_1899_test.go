@@ -3,7 +3,6 @@ package httpapi
 // #1899: copia de config por SSH en unidades sin agente.
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http/httptest"
 	"os"
@@ -54,10 +53,9 @@ func makeSshBackupServer(t *testing.T, typ string, payload string) (*server, str
 }
 
 func TestSshConfigBackupStoresTheArchive(t *testing.T) {
-	// base64 con saltos de línea, como lo emite busybox en el router.
-	raw := "TAR-GZ-DE-PRUEBA"
-	payload := base64.StdEncoding.EncodeToString([]byte(raw))
-	payload = payload[:4] + "\n" + payload[4:] + "\n"
+	// El script escupe el marcador y detrás el tar.gz crudo (#1935).
+	raw := "\x1f\x8btar-gz-de-prueba"
+	payload := sshBackupMarker + "\n" + raw
 	s, id, pool := makeSshBackupServer(t, "openwrt", payload)
 	req := httptest.NewRequest("POST", "/api/firmware-backups/"+id, nil)
 	req.SetPathValue("routerId", id)
@@ -87,6 +85,11 @@ func TestSshConfigBackupStoresTheArchive(t *testing.T) {
 	if !strings.Contains(pool.cmd, "rm -f") || !strings.Contains(pool.cmd, "sysupgrade --create-backup") {
 		t.Fatalf("comando inesperado: %s", pool.cmd)
 	}
+	// #1935: la imagen de fábrica no trae base64 y el backup no puede depender
+	// de un paquete que la unidad no tiene.
+	if strings.Contains(pool.cmd, "base64") {
+		t.Fatalf("el script vuelve a depender de base64: %s", pool.cmd)
+	}
 }
 
 func TestSshConfigBackupRejectsNonOpenwrt(t *testing.T) {
@@ -104,7 +107,22 @@ func TestDecodeSshBackupRejectsGarbage(t *testing.T) {
 	if _, err := decodeSshBackup("   \n"); err == nil {
 		t.Fatal("salida vacía aceptada")
 	}
-	if _, err := decodeSshBackup("esto no es base64!!!"); err == nil {
-		t.Fatal("base64 inválido aceptado")
+	if _, err := decodeSshBackup(sshBackupMarker + "\n"); err == nil {
+		t.Fatal("marcador sin datos aceptado")
+	}
+	if _, err := decodeSshBackup(sshBackupMarker + "\nesto no es gzip"); err == nil {
+		t.Fatal("salida que no es gzip aceptada")
+	}
+}
+
+// #1935: cualquier aviso que la unidad deje en stdout antes del marcador no
+// puede tirar el backup.
+func TestDecodeSshBackupSkipsThePreamble(t *testing.T) {
+	data, err := decodeSshBackup("aviso de la unidad\n" + sshBackupMarker + "\n\x1f\x8bdatos")
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if string(data) != "\x1f\x8bdatos" {
+		t.Fatalf("datos = %q", data)
 	}
 }
