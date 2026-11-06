@@ -15,6 +15,8 @@ Each unit now reports where its inventory came from and how old it is (#1917). T
 
 - A release reuses the agent binaries again when the agent did not change (#1916). The step that downloads the previous release runs inside a temporary directory, and `gh` resolves the repository through git, so every attempt died with "not a git repository", printed a warning and fell back to compiling five architectures that were already built. The download now names the repository explicitly, so the previous assets are really reused and the embedded agent stays bit for bit the published one. Reusing also writes the version stamp of #1914, which the compile path produces but this one did not, otherwise the guard that reads the stamp would disable agent self-upgrade on every release that reused the binaries.
 
+- The networks card added in #1889 never rendered on a live server (#1918). The API was sending the field all along, but `getRouterDetail` rebuilt the response from an inline type that had no `networks` member and dropped the key, so the guard in the router page never saw any data. TypeScript does not flag a field that is simply never copied, and this repo has no frontend test runner, so nothing caught it.
+
 ## [2.51.3] - 2026-11-06
 
 ### Fixed

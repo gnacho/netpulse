@@ -1364,6 +1364,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         adguard?: AdGuardStats
         wireguard?: WireGuardStats
         vlans?: VlanPort[]
+        networks?: NetworkInfo[]
         multiWan?: MultiWanInfo
         snmpOk?: number
         snmpFail?: number
@@ -1385,6 +1386,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         adguard: json.adguard,
         wireguard: json.wireguard,
         vlans: json.vlans,
+        networks: json.networks,
         multiWan: json.multiWan,
         snmpOk: json.snmpOk,
         snmpFail: json.snmpFail,
