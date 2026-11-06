@@ -333,6 +333,14 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 			backoff = sshBackoffMax
 		}
 		entry.notUntil = time.Now().Add(backoff)
+		// #1893: un "Exit before auth" en dropbear no se podía cruzar con nada,
+		// porque el server no decía a qué host llamaba ni por qué fallaba. El
+		// motivo real (host key, auth, timeout, red) va al log del sistema con
+		// el host y el número de fallos; se registra el primero y cada diez
+		// para que una unidad apagada no sature el journal.
+		if entry.failures == 1 || entry.failures%10 == 0 {
+			log.Printf("[netpulse:ssh] dial %s (user=%s): %v (fallo %d, backoff %s)", host, cfg.User, err, entry.failures, backoff)
+		}
 		p.mu.Unlock()
 		if isSSHAuthError(err) {
 			return nil, &SSHAuthError{Host: host, Err: err}
@@ -344,6 +352,13 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 		_ = p.closeSSHClient(client)
 		return nil, errors.New("ssh pool closed")
 	}
+	// #1893: toda conexión NUEVA queda registrada. Si algo está marcando el
+	// ciclo de sondeo con conexiones que mueren antes de autenticar, aquí se
+	// ve el ritmo real de dials por host en vez de suponerlo.
+	if entry.failures > 0 {
+		log.Printf("[netpulse:ssh] %s: conexión recuperada tras %d fallos de dial", host, entry.failures)
+	}
+	log.Printf("[netpulse:ssh] %s: nueva conexión establecida (user=%s)", host, cfg.User)
 	entry.client = client
 	entry.failures = 0
 	entry.notUntil = time.Time{}
@@ -356,6 +371,9 @@ func (p *SSHPool) drop(host string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if e := p.conns[host]; e != nil && e.client != nil {
+		// #1893: el descarte explica la reconexión siguiente; sin esta línea un
+		// dial nuevo no se puede distinguir de una fuga de conexiones.
+		log.Printf("[netpulse:ssh] %s: conexión descartada, el próximo comando rediala", host)
 		_ = p.closeSSHClient(e.client)
 		e.client = nil
 	}
