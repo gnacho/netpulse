@@ -20,15 +20,13 @@ frontend:
 	cp -r app/dist server-go/internal/staticspa/dist
 
 # The agent binaries are go:embed inputs of the server, so they must exist
-# before the server compiles. Arch names follow normalizeArch: armv7 is
-# "arm" with GOARM=7 and MIPS is softfloat.
+# before the server compiles. scripts/build-agents.sh builds the five
+# architectures (normalizeArch names: armv7 is "arm" with GOARM=7, MIPS is
+# softfloat), packs them with UPX and verifies the result (#1890: an unpacked
+# agent needs twice its size free to upgrade on a router). It needs upx in
+# PATH; UPX_BIN=/path/to/upx points it elsewhere.
 agents:
-	@mkdir -p $(AGENT_BIN)
-	cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "-s -w -X main.Version=$(AGENT_VERSION)" -o ../$(AGENT_BIN)/netpulse-agent-amd64 ./cmd/netpulse-agent
-	cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "-s -w -X main.Version=$(AGENT_VERSION)" -o ../$(AGENT_BIN)/netpulse-agent-arm64 ./cmd/netpulse-agent
-	cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 $(GO) build -trimpath -ldflags "-s -w -X main.Version=$(AGENT_VERSION)" -o ../$(AGENT_BIN)/netpulse-agent-arm ./cmd/netpulse-agent
-	cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=mipsle GOMIPS=softfloat $(GO) build -trimpath -ldflags "-s -w -X main.Version=$(AGENT_VERSION)" -o ../$(AGENT_BIN)/netpulse-agent-mipsle ./cmd/netpulse-agent
-	cd agent && CGO_ENABLED=0 GOOS=linux GOARCH=mips GOMIPS=softfloat $(GO) build -trimpath -ldflags "-s -w -X main.Version=$(AGENT_VERSION)" -o ../$(AGENT_BIN)/netpulse-agent-mips ./cmd/netpulse-agent
+	GO=$(GO) scripts/build-agents.sh $(AGENT_VERSION) $(AGENT_BIN)
 
 server:
 	cd server-go && $(GO) test ./...

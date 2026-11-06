@@ -13,6 +13,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - A wireless client keeps the interface and the SSID that served it (#1757). The hostapd path built each station without either, so on any OpenWrt that answers over ubus every WiFi client arrived with an empty interface, and the topology, which resolves the VLAN of a station through its AP interface, had nothing to colour. The interface is taken from the object that was queried and the SSID from `iw dev`, and the VLAN of an AP interface now carries the name and the subnet of the network it serves.
 - A guest without a tag is no longer painted with a VLAN it does not have (#1757). When Proxmox declares no `tag=`, the guest sits in the native VLAN of the bridge of the host, not in the VLAN of the port where the host is plugged. Inheriting the VLAN of the host chip marked those guests with an unrelated network, so a container on an untagged bridge showed up in the VLAN of a segmented one.
 
+### Changed
+
+- An agent ships compressed, so a router with little room can install it (#1890). The update downloads the new build to `/tmp` and moves it over the installed one, which means a unit needs twice the size of the agent free before it even starts: 15 MB for a 7.5 MB agent, on a flash of 16 MB. The report came from a unit with 10 MB where the upgrade could not begin. Every architecture is now packed with UPX in `--best --lzma`, which takes the five binaries from 6.9-8.3 MB down to 2.0-2.4 MB, and the cost is about 170 ms at start-up on x86. The build refuses to produce agents without UPX instead of skipping the step in silence, a test fails when an embedded agent is not packed, and the release checks the mark and the size before publishing. The embedded sha256 is computed over the packed bytes, so integrity checks are unchanged.
+
 ## [2.51.1] - 2026-11-05
 
 ### Fixed

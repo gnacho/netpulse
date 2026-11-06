@@ -15,6 +15,8 @@ Every pull request runs `pr-checks` (server build with the embedded agents, test
 
 Run `make check` before pushing to reproduce `pr-checks` locally. It installs the frontend dependencies, lints and builds the app, refreshes the embedded SPA, cross-compiles the agent binaries and runs the Go tests for both modules.
 
+- **The agent binaries are packed with UPX.** Both the gate and the workflows build them through `scripts/build-agents.sh`, which refuses to finish without `upx` on the path (Debian and Ubuntu package it as `upx-ucl`) and verifies each binary afterwards. Unpacked agents weigh 7-9 MB, and the updater needs room for the installed build and its replacement at the same time, which a router with a 16 MB flash does not have (#1890). Point `UPX_BIN` somewhere else if your copy is not on the path.
+
 - **New server code goes in its own file by domain**, next to its test. `live.go` is wiring only; do not append features to it. This keeps review, conflict resolution and revert easy.
 - **String contracts get constants.** Do not match on loose literals; if a value is part of a contract (`PeerKind` and friends), it gets a constant or a helper.
 - **Every behavior change ships with a test** that would fail without it. Real device fixtures and table-driven cases are preferred; no invented readings.

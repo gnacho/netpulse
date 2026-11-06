@@ -1,7 +1,9 @@
 package agentbin
 
 import (
+	"bytes"
 	"errors"
+	"io"
 	"io/fs"
 	"testing"
 )
@@ -41,6 +43,36 @@ func TestOpenKeepsBinaryName(t *testing.T) {
 	}
 	if gotErr != nil && !errors.Is(gotErr, fs.ErrNotExist) {
 		t.Fatalf("Open error = %v, want fs.ErrNotExist", gotErr)
+	}
+}
+
+// #1890: el agente se empaqueta con UPX para que quepa dos veces en la flash
+// de un router con poco espacio (descarga + reemplazo). Un binario sin
+// empaquetar pesa 7-9 MB y rompe esa actualización, así que un build que
+// sirva agentes sin comprimir es un fallo, no una preferencia. Solo aplica
+// cuando hay binarios embebidos: en un árbol de desarrollo no hay ninguno.
+func TestEmbeddedAgentsAreUpxPacked(t *testing.T) {
+	if !HasBinaries() {
+		t.Skip("sin binarios embebidos (árbol de desarrollo)")
+	}
+	for _, arch := range []string{"amd64", "arm64", "arm", "mipsle", "mips"} {
+		f, err := Open(arch)
+		if err != nil {
+			t.Fatalf("Open(%s): %v", arch, err)
+		}
+		b, err := io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			t.Fatalf("leer %s: %v", arch, err)
+		}
+		// UPX mantiene la cabecera ELF válida y deja su marca al final.
+		tail := b[len(b)-256:]
+		if !bytes.Contains(tail, []byte("UPX!")) {
+			t.Errorf("%s no está empaquetado con UPX (%d bytes)", arch, len(b))
+		}
+		if len(b) > 4<<20 {
+			t.Errorf("%s pesa %d bytes; empaquetado debería rondar 2-3 MB", arch, len(b))
+		}
 	}
 }
 
