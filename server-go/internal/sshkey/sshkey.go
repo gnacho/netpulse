@@ -334,9 +334,17 @@ func scanHostKeys(host string) ([]khEntry, error) {
 	cmd := exec.Command("ssh-keyscan", "-T", "3", "-t", "ed25519,ecdsa,rsa", host)
 	out, err := cmd.Output()
 	if err != nil {
+		// #1893: ssh-keyscan abre una conexión por algoritmo y las cierra antes
+		// de autenticar, que en dropbear se ve como "Exit before auth: Exited
+		// normally". Sin esta línea ese tráfico no se podía atribuir a NetPulse.
+		log.Printf("[netpulse:ssh] ssh-keyscan %s: %v", host, err)
 		return nil, &ExecError{What: "ssh-keyscan", Err: err, Out: string(out)}
 	}
-	return parseKnownHosts(string(out))
+	entries, perr := parseKnownHosts(string(out))
+	if perr == nil {
+		log.Printf("[netpulse:ssh] ssh-keyscan %s: %d clave(s) de host", host, len(entries))
+	}
+	return entries, perr
 }
 
 func readKnownHosts(path string) ([]khEntry, error) {
