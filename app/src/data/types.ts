@@ -42,6 +42,11 @@ export interface Router {
    *  LuCI). La topología cruza el puerto del cliente con esta lista para
    *  etiquetar su VLAN. Ausente si la unidad no lo reporta. */
   vlans?: VlanPort[]
+  /** #1917: vía que produjo el inventario ("agent"|"external"|"snmp"|"ssh").
+   *  Ausente si la unidad no tiene sondeo del que sacarlo. */
+  inventorySource?: string
+  /** #1917: epoch ms del sondeo que produjo ese inventario. */
+  inventoryAt?: number
   status: Status
   /** Salud 0–100 */
   health: number

@@ -1005,6 +1005,11 @@
     "highTempBanner": "Temperatura alta: {{temp}} (umbral {{threshold}}).",
     "info": {
       "access": "Acceso",
+      "inventory": "Inventario",
+      "inventoryAgent": "Agente",
+      "inventorySsh": "SSH",
+      "inventorySnmp": "SNMP",
+      "inventoryExternal": "Integración",
       "copied": "Comando copiado",
       "copySsh": "SSH (copiar)",
       "firmwareBase": "(base {{base}})",

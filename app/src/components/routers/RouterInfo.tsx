@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, ExternalLink, LayoutDashboard, Terminal } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { fmtUptime } from '@/i18n'
+import { fmtSeenAgo, fmtUptime } from '@/i18n'
 import type { Router } from '@/data/mock'
 import { SectionHeader } from '@/components/SectionHeader'
 import { StatusPill } from '@/components/StatusPill'
@@ -19,6 +19,25 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <dd className="text-right font-mono text-mono-sm text-text-primary">{children}</dd>
     </div>
   )
+}
+
+/**
+ * #1917: nombre traducido de la vía que produjo el inventario. Las claves van
+ * literales en el switch para que el extractor de i18n las pueda ver.
+ */
+function inventorySourceLabel(source: string, t: (key: string) => string): string {
+  switch (source) {
+    case 'agent':
+      return t('routerDetail.info.inventoryAgent')
+    case 'ssh':
+      return t('routerDetail.info.inventorySsh')
+    case 'snmp':
+      return t('routerDetail.info.inventorySnmp')
+    case 'external':
+      return t('routerDetail.info.inventoryExternal')
+    default:
+      return source
+  }
 }
 
 /** ③ Info + Red (router-detail.md §③) — definition list + acciones ghost. */
@@ -79,6 +98,21 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
     { label: 'Uptime', node: fmtUptime(router.uptime) },
     { label: t('routerDetail.info.lastReboot'), node: ex.lastReboot },
     { label: t('routerDetail.info.timezone'), node: ex.timezone ?? '—' },
+    {
+      // #1917: de dónde salió el inventario y cuánto lleva ahí. Una lectura
+      // por SSH de hace cuatro horas sigue siendo válida, pero el operador
+      // tiene que poder verlo en vez de dar el dato por fresco.
+      label: t('routerDetail.info.inventory'),
+      node: router.inventorySource ? (
+        <span className="inline-flex items-center gap-1.5">
+          {inventorySourceLabel(router.inventorySource, t)}
+          <span className="text-text-muted">·</span>
+          <span className="text-text-muted">{fmtSeenAgo(router.inventoryAt)}</span>
+        </span>
+      ) : (
+        '—'
+      ),
+    },
     {
       label: t('routerDetail.info.access'),
       node: router.type === 'managed-switch' || router.type === 'external' ? (

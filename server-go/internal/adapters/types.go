@@ -184,8 +184,17 @@ type Router struct {
 	// Vlans (#1757): bridge VLAN filtering por puerto (id, tagged, pvid y el
 	// nombre declarado en LuCI). La topología cruza el puerto del cliente con
 	// esta lista para etiquetar su VLAN. Ausente si la unidad no lo reporta.
-	Vlans  []VlanPort `json:"vlans,omitempty"`
-	Status string     `json:"status"` // "online"|"warn"|"offline"|"unreachable"
+	Vlans []VlanPort `json:"vlans,omitempty"`
+	// InventorySource (#1917): vía que produjo el inventario de esta unidad
+	// ("agent", "external", "snmp" o "ssh"). Un inventario leído por SSH es
+	// válido, pero no es lo mismo que un push del agente: la UI necesita
+	// poder decirlo. Ausente cuando no hay sondeo que lo justifique.
+	InventorySource string `json:"inventorySource,omitempty"`
+	// InventoryAt (#1917): epoch ms del sondeo que produjo ese inventario,
+	// para que la UI pueda enseñar su antigüedad en vez de dar por bueno un
+	// dato de hace horas.
+	InventoryAt int64  `json:"inventoryAt,omitempty"`
+	Status      string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
 	Health int        `json:"health"`
 	// LatencyMs (#1384): latencia sondeada de la unidad (ping unidad→gateway
 	// en no-gateway; latencia WAN en el gateway). Null cuando la fuente no la
