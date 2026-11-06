@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.51.4] - 2026-11-06
+
 ### Added
 
 Each unit now reports where its inventory came from and how old it is (#1917). The server already knew the difference internally: a unit without an agent is inventoried over SSH on every tick, and an SNMP switch comes from its own collector, but that detail never left the process, so a client list pushed by an agent a minute ago looked exactly like one read over SSH four hours ago. The router page now shows the source (agent, SSH, SNMP or an integration) next to the age of the last poll. It also matters for units that will never run an agent: a readable inventory is still useful, as long as the operator can see it is not live.
