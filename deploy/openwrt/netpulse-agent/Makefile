@@ -50,7 +50,7 @@ endef
 
 # ---------------------------------------------------------------------------
 # Build — el binario se compila desde el código fuente del repo con Go.
-# Requiere golang en el host de compilación (el SDK de OpenWrt incluye Go).
+# Requiere golang y UPX en el host de compilación (el SDK de OpenWrt incluye Go).
 # Si no quieres compilar, sustituye esta sección por la descarga del binario
 # precompilado de la release.
 # ---------------------------------------------------------------------------
@@ -58,10 +58,13 @@ endef
 GO_ARCH_DETECT:=$(shell echo $(ARCH) | sed 's/aarch64/arm64/;s/arm_cortex-a7/armv7/;s/arm_cortex-a9/armv7/;s/arm_cortex-a53/arm64/;s/arm_cortex-a55/arm64/;s/x86_64/amd64/')
 
 define Build/Compile
+	rm -f $(PKG_BUILD_DIR)/netpulse-agent
 	(cd $(PKG_BUILD_DIR)/agent && \
 	 CGO_ENABLED=0 GOOS=linux GOARCH=$(GO_ARCH_DETECT) \
 	 go build -trimpath -ldflags "-s -w -X main.Version=$(PKG_VERSION)" \
 	 -o $(PKG_BUILD_DIR)/netpulse-agent ./cmd/netpulse-agent)
+	upx --best --lzma $(PKG_BUILD_DIR)/netpulse-agent
+	upx -t $(PKG_BUILD_DIR)/netpulse-agent
 endef
 
 define Package/netpulse-agent/install
