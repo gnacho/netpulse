@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 )
@@ -38,6 +39,54 @@ const (
 	scanWorkers  = 100
 	probeWorkers = 16
 )
+
+// hostKey normaliza una referencia de unidad: minúsculas, sin puerto y sin el
+// punto final de un FQDN. El barrido trabaja con IPs y el alta permite escribir
+// nombres, así que sin normalizar la misma unidad tiene dos claves distintas.
+func hostKey(h string) string {
+	h = strings.TrimSpace(strings.ToLower(h))
+	if h == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		h = host
+	}
+	return strings.TrimSuffix(h, ".")
+}
+
+// configuredIndex: claves bajo las que una unidad ya dada de alta puede
+// aparecer en el barrido (#1895). Además de la cadena literal se resuelven los
+// nombres a IP, porque un AP configurado como "ap.lan" aparece en el barrido
+// como 192.168.1.2. lookup es inyectable para tests; nil usa net.Resolver.
+func configuredIndex(ctx context.Context, routers []adapters.RouterConfig, lookup func(context.Context, string) ([]string, error)) map[string]bool {
+	if lookup == nil {
+		res := &net.Resolver{}
+		lookup = res.LookupHost
+	}
+	out := map[string]bool{}
+	for _, r := range routers {
+		key := hostKey(r.Host)
+		if key == "" {
+			continue
+		}
+		out[key] = true
+		if net.ParseIP(key) != nil {
+			continue
+		}
+		// Resolver es best-effort y acotado: un nombre que ya no resuelve no
+		// debe frenar el barrido ni marcar nada como configurado.
+		rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		addrs, err := lookup(rctx, key)
+		cancel()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			out[hostKey(a)] = true
+		}
+	}
+	return out
+}
 
 // Result es un candidato a router.
 type Result struct {
@@ -339,10 +388,11 @@ func Routers(ctx context.Context, db *sql.DB, keyPath string, force bool) Respon
 		return Response{Subnet: &subnet, Results: []Result{}, Cached: false, Error: "cancelled"}
 	}
 
-	configured := map[string]bool{}
-	for _, r := range routerstore.ListRouters(db) {
-		configured[r.Host] = true
-	}
+	// #1895: "ya añadido" no puede ser una comparación de cadenas en crudo. El
+	// alta admite un nombre DNS o una IP con puerto y el barrido solo ve IPs,
+	// así que un AP configurado como "ap.lan" se ofrecía como nuevo mientras
+	// el gateway, configurado por IP, sí se marcaba.
+	configured := configuredIndex(ctx, routerstore.ListRouters(db), nil)
 	type candidate struct{ h string }
 	cands := make([]candidate, 0, len(alive))
 	for _, h := range alive {
@@ -386,7 +436,7 @@ func Routers(ctx context.Context, db *sql.DB, keyPath string, force bool) Respon
 			IsGateway:  c.h == gwIP,
 			Authorized: authorized,
 			Model:      model,
-			Configured: configured[c.h],
+			Configured: configured[hostKey(c.h)] || (hostname != "" && configured[hostKey(hostname)]),
 		})
 	}
 	sort.Slice(results, func(i, j int) bool {
