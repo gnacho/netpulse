@@ -537,6 +537,8 @@ func probeGatewayModel(host, keyPath string) (model, typ string) {
 		return "", "openwrt"
 	case res := <-ch:
 		if res.err != nil {
+			// #1893: el bootstrap del gateway también diala SSH fuera del pool.
+			log.Printf("[netpulse:ssh] gateway %s: ssh falló (%v); se asume openwrt", host, res.err)
 			return "", "openwrt"
 		}
 		var board struct {
