@@ -806,6 +806,19 @@ func agentUpgradeable(typ string) bool {
 	return typ == "" || typ == "openwrt" || typ == "glinet"
 }
 
+// agentUpdateEligible: ¿procede ofrecer el upgrade en la tabla de flota? El
+// tipo descarta los scrapers sin agente nativo, pero desde la migración a
+// external (2.49.x) una unidad conserva su agente y el hub sabe quién tiene el
+// stream abierto. Sin esta pata la bandera decía "al día" mientras
+// upgrade-all sí le mandaba el comando: dos respuestas opuestas para la misma
+// unidad (#1883, #1900).
+func (s *server) agentUpdateEligible(slug, typ string) bool {
+	if agentUpgradeable(typ) {
+		return true
+	}
+	return s.agentHub != nil && s.agentHub.Connected(slug)
+}
+
 // routerTypeOf: tipo de la fila routers para el slug ("" si no existe).
 func (s *server) routerTypeOf(slug string) string {
 	if s.db == nil {
@@ -940,7 +953,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 				if agentKind == "netgrip" {
 					item.UpdateAvailable = item.Fresh && item.Version != "" && cmpSemver(netgripLatest(), item.Version) > 0
 				} else {
-					item.UpdateAvailable = item.Fresh && !agentbin.EmbeddedMismatch() && agentUpgradeable(matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
+					item.UpdateAvailable = item.Fresh && !agentbin.EmbeddedMismatch() && s.agentUpdateEligible(slug, matchedType) && item.Version != "" && vercmp.CmpBuild(item.Version, agentbin.EmbeddedAgentVersion) < 0
 				}
 				// #1382: un agente sin pulso reciente (equipo apagado o
 				// retirado de la red) no puede actualizarse; marcarlo como

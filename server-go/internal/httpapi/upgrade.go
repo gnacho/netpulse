@@ -39,6 +39,7 @@ const (
 	upgradeStepVerifying   = "verifying"   // comprobando sha256 de la descarga
 	upgradeStepSwapping    = "swapping"    // intercambio atómico del binario
 	upgradeStepRestarting  = "restarting"  // swap ok, reinicio del servicio
+	upgradeStepRestartFail = "restart_failed" // el reinicio no llegó a arrancar el binario nuevo (#1900)
 	upgradeStepDone        = "done"        // el agente ya empuja la versión objetivo (#401)
 	upgradeStepFailed      = "failed"      // upgrade-result con error
 	upgradeStepQueued      = "queued"      // en cola hasta que el agente conecte
@@ -54,7 +55,12 @@ const (
 	upgradeStateTTL   = 3 * time.Minute
 	upgradeQueuedTTL  = 30 * time.Minute
 	upgradeDoneTTL    = 45 * time.Second
+	upgradeFailedTTL  = 10 * time.Minute
 	upgradeHistoryCap = 16
+	// upgradeRestartGrace: margen desde "restarting" para que el binario nuevo
+	// empuje su versión. Pasado ese tiempo el reinicio no ocurrió y el estado
+	// tiene que decirlo en vez de quedarse quieto (#1900).
+	upgradeRestartGrace = 90 * time.Second
 )
 
 // upgradeStepEntry es un paso de la historia del upgrade (timeline de la UI).
@@ -189,12 +195,24 @@ func (u *upgradeTracker) snapshot(slug string) (upgradeState, bool) {
 	if !ok {
 		return upgradeState{}, false
 	}
+	// #1900: "restarting" era un pozo sin fondo. Si el agente no volvió a
+	// empujar su versión dentro del margen, el reinicio no ocurrió: se expone
+	// un paso terminal con el motivo para que la UI deje de decir que la
+	// unidad está al día mientras corre el binario viejo. La conversión va
+	// antes del TTL para que el fallo herede el suyo (más largo).
+	if st.Step == upgradeStepRestarting && u.now().Sub(st.Ts) > upgradeRestartGrace {
+		st.Step = upgradeStepRestartFail
+		st.Error = "el agente no volvió a reportar tras el reinicio; sigue corriendo el binario anterior"
+		st.Pct = 0
+	}
 	ttl := upgradeStateTTL
 	switch st.Step {
 	case upgradeStepQueued:
 		ttl = upgradeQueuedTTL
 	case upgradeStepDone:
 		ttl = upgradeDoneTTL
+	case upgradeStepRestartFail:
+		ttl = upgradeFailedTTL
 	}
 	if u.now().Sub(st.Ts) > ttl {
 		return upgradeState{}, false
