@@ -22,13 +22,19 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
-const (
-	defaultBinPath  = "/usr/sbin/netpulse-agent"
-	agentInitScript = "/etc/init.d/netpulse-agent"
-)
+const defaultBinPath = "/usr/sbin/netpulse-agent"
+
+// agentInitScript: script procd que supervisa el agente en OpenWrt y GL.iNet.
+// Es una var para que los tests puedan apuntarla a un directorio temporal.
+var agentInitScript = "/etc/init.d/netpulse-agent"
+
+// execSelf sustituye la imagen del proceso en marcha por otro binario. Es una
+// var para que los tests puedan observarla sin reemplazar el proceso de test.
+var execSelf = syscall.Exec
 
 // tmpBinPath es la descarga temporal del binario nuevo antes del swap atómico.
 var tmpBinPath = "/tmp/netpulse-agent.new"
@@ -150,15 +156,30 @@ func swapBinary(src, dst string) error {
 	return os.Rename(tmp, dst)
 }
 
-// restartService reinicia el servicio procd del agente. Sin init script,
-// devuelve error (no hay forma fiable de reiniciarse a sí mismo).
-func restartService() error {
-	if _, err := os.Stat(agentInitScript); err != nil {
-		return fmt.Errorf("init script %s no encontrado", agentInitScript)
+// restartService arranca el binario que acaba de instalarse.
+//
+// Con script procd se le pide el reinicio y el supervisor relanza el proceso,
+// que es la vía preferida: si el binario nuevo no arranca, procd reintenta y
+// el equipo no se queda a oscuras. Los equipos que no tienen ese script
+// (Asuswrt-Merlin instalado a la Merlin bajo /jffs, Synology, cualquier
+// instalación manual o por Entware) fallaban aquí: el swap quedaba hecho, el
+// proceso seguía con el binario viejo en memoria y nadie se enteraba hasta el
+// siguiente reinicio (#1900). En esos casos se reemplaza la imagen del propio
+// proceso con exec, que conserva PID, argumentos y entorno y arranca el
+// binario nuevo en el sitio.
+func restartService(bin string) error {
+	if _, err := os.Stat(agentInitScript); err == nil {
+		cmd := exec.Command(agentInitScript, "restart")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("%s restart: %v (%s)", agentInitScript, err, strings.TrimSpace(string(out)))
+		}
+		return nil
 	}
-	cmd := exec.Command(agentInitScript, "restart")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s restart: %v (%s)", agentInitScript, err, strings.TrimSpace(string(out)))
+	if bin == "" {
+		bin = currentBinPath()
+	}
+	if err := execSelf(bin, os.Args, os.Environ()); err != nil {
+		return fmt.Errorf("sin %s y exec de %s falló: %w", agentInitScript, bin, err)
 	}
 	return nil
 }
@@ -262,7 +283,12 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	reportUpgradeProgress(opts, transport, "restarting", 0)
 	// Reportar ANTES de reiniciar: el reinicio mata este proceso.
 	reportUpgradeResult(opts, transport, true, "")
-	if err := restartService(); err != nil {
-		log.Warn("[netpulse-agent] upgrade: reinicio falló", "err", err)
+	if err := restartService(dst); err != nil {
+		// El proceso sigue vivo con el binario viejo en memoria y el nuevo en
+		// disco: sin este aviso el servidor se queda en "restarting" y la UI
+		// dice que la unidad está al día (#1900). El reporte llega porque nadie
+		// ha reemplazado este proceso.
+		log.Error("[netpulse-agent] upgrade: reinicio falló; el binario nuevo está en disco pero este proceso sigue con el viejo", "err", err, "dst", dst)
+		reportUpgradeResult(opts, transport, false, "reinicio falló: "+err.Error())
 	}
 }
