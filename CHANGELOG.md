@@ -8,6 +8,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Added
+- A configuration backup no longer needs an agent on the unit (#1899). The button only rendered for a unit with an agent, so a router managed over plain SSH had no way to keep a copy of its config even though the server can already reach it. The server now builds the archive itself with `sysupgrade --create-backup`, brings it back base64 encoded over the SSH channel, always removes the temporary file on the unit, whose /tmp is RAM, and stores it where the agent backups already live, so one list and one download serve both kinds. A unit that does have an agent still prefers the event stream and only falls back to SSH when the agent is not connected.
+
 
 - The SSH pool writes what it does to the system log (#1893). A unit showed bursts of "Exit before auth" in dropbear and there was nothing on the server side to correlate them with: no host, no reason, no rhythm. Every new connection is now logged with its host and user, every discarded connection is logged before the redial that follows, and every dial failure is logged with the real cause, whether that is a host key problem, an authentication rejection, a timeout or a network error, together with the consecutive failure count and the backoff. Failures are rate limited to the first and every tenth so a dead unit cannot fill the journal, and a recovery line closes the episode.
 
