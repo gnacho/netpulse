@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- The SSH pool writes what it does to the system log (#1893). A unit showed bursts of "Exit before auth" in dropbear and there was nothing on the server side to correlate them with: no host, no reason, no rhythm. Every new connection is now logged with its host and user, every discarded connection is logged before the redial that follows, and every dial failure is logged with the real cause, whether that is a host key problem, an authentication rejection, a timeout or a network error, together with the consecutive failure count and the backoff. Failures are rate limited to the first and every tenth so a dead unit cannot fill the journal, and a recovery line closes the episode.
+
 ### Fixed
 
 - A config backup no longer stays on the unit after it is uploaded (#1897). Every manual or scheduled backup wrote its tarball under `/tmp` and left it there, and on a router `/tmp` is RAM, so each snapshot took memory away until the next reboot. The agent now deletes the local file once the operation ends, whether the upload succeeded or not, since the copy that matters is the one the server keeps with retention. The firmware flow keeps its local backup on purpose: that one is reported in the result so it can be recovered by hand when sysupgrade fails.
