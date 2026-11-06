@@ -96,6 +96,12 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
   // (sanos o caídos): antes solo aparecía cuando estaba stale o faltaba, y el
   // duplicado vivía en la tarjeta Info del detalle.
   const canReinstall = auth?.role === 'admin' && isOpenWrt && (agent !== undefined || isMissing)
+  // #1899: copia de config de una unidad que solo responde por SSH. El server
+  // hace el backup, así que el botón necesita el id del router (aquí no hay
+  // agente del que sacarlo) y el mismo criterio de tipo que el endpoint y el
+  // header del detalle: OpenWrt vanilla, nunca una unidad agent-only.
+  const backupRouterId = agent?.routerId ?? router?.id
+  const canSshBackup = !!router && !router.agentOnly && (!router.type || router.type === 'openwrt')
   // #624: desinstalar el agente vía SSH (liberar espacio en routers con poco
   // room, p. ej. UniFi 6 Lite). Solo agentes nativos OpenWrt con agente
   // presente: no tiene sentido desinstalar algo que no está, ni un NetGrip
@@ -390,8 +396,10 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
           <AgentUpgradeButton agent={agent} className="h-8" />
           {/* #1462: snapshot standalone de la config (SSE config_backup);
               el resultado se confirma al aparecer la entrada en la lista de
-              backups de la unidad. */}
-          <AgentBackupButton agent={agent} routerId={agent?.routerId} className="h-8" />
+              backups de la unidad. #1899: sin agente la copia la hace el
+              server por SSH, así que la fila de una unidad solo SSH también
+              ofrece el botón. */}
+          <AgentBackupButton agent={agent} routerId={backupRouterId} allowSsh={canSshBackup} className="h-8" />
           {isNetgrip ? (
             // #363: NetGrip fresco se auto-actualiza desde su panel; el hint
             // lo explica.
