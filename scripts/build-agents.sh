@@ -35,6 +35,11 @@ export GOOS=linux
 
 build() {
 	local arch=$1 extra=$2
+	# go build does not always rewrite an existing -o target when the build is
+	# cached, and a target that is already UPX packed makes the packing step
+	# fail with AlreadyPackedException. Removing it first keeps the script
+	# idempotent: two runs in a row must both work.
+	rm -f "$OUT/netpulse-agent-$arch"
 	# shellcheck disable=SC2086
 	(cd agent && env GOARCH="$arch" $extra "$GO" build -trimpath \
 		-ldflags "-s -w -X main.Version=$VERSION" \

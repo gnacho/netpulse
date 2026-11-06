@@ -210,6 +210,11 @@ export function PortSeriesChart({
     })
   }, [visiblePorts, ports])
 
+  // #1901: solo 24h lee `raw` (muestras instantáneas, `Resolution()` en
+  // portseries.go). 7d y 30d leen buckets de 5 m y 12m buckets diarios, así
+  // que esos se dibujan como escalones: un pico por bucket no es una rampa.
+  const curveType = range === '24h' ? 'linear' : 'stepAfter'
+
   const fetchData = useCallback(async () => {
     if (!portId) return
     setLoading(true)
@@ -460,7 +465,7 @@ export function PortSeriesChart({
               <XAxis dataKey="t" hide />
               <Tooltip content={<PortTooltip unit={effUnit} />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
               <Area
-                type="linear"
+                type={curveType}
                 dataKey="rx"
                 name="RX"
                 stroke="#3b82f6"
@@ -471,7 +476,7 @@ export function PortSeriesChart({
                 isAnimationActive={false}
               />
               <Area
-                type="linear"
+                type={curveType}
                 dataKey="tx"
                 name="TX"
                 stroke="#10b981"

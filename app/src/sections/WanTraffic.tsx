@@ -93,6 +93,11 @@ export function WanTraffic() {
     return () => window.clearInterval(id)
   }, [range, isDemo])
 
+  // #1901: TODOS los rangos de esta gráfica son MAX por bucket (1h usa
+  // buckets de 3 min, 24h de 1 h, 7d de 1 d, 30d de 6 h), no muestras
+  // instantáneas. Un segmento en rampa entre dos picos afirma que el enlace
+  // estuvo subiendo durante todo el hueco: inventa duración. El escalón
+  // dibuja exactamente lo que el dato dice, "este ritmo se vio en este bucket".
   const liveDotDown = useMemo(() => makeLiveDot(liveData.length, '#22D3EE'), [liveData.length])
   const liveDotUp = useMemo(() => makeLiveDot(liveData.length, '#A78BFA'), [liveData.length])
 
@@ -176,7 +181,7 @@ export function WanTraffic() {
               />
             ) : null}
             <Area
-              type="linear"
+              type="stepAfter"
               dataKey="down"
               stroke="#22D3EE"
               strokeWidth={2}
@@ -187,7 +192,7 @@ export function WanTraffic() {
               animationEasing="ease-out"
             />
             <Area
-              type="linear"
+              type="stepAfter"
               dataKey="up"
               stroke="#A78BFA"
               strokeWidth={2}
