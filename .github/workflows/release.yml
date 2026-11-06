@@ -115,12 +115,16 @@ jobs:
             # cada paso crítico aborta explícitamente con || return 1.
             TMP=$(mktemp -d) || return 1
             cd "$TMP" || return 1
+            # -R explícito: dentro de $TMP no hay repositorio git y gh resuelve
+            # el remoto con `git remote get-url`, que falla con "not a git
+            # repository" (#1916). Con el repo en la variable del entorno no
+            # depende del directorio de trabajo.
             for arch in amd64 arm64 armv7 mipsle mips; do
-              gh release download "$PREV_TAG" --pattern "netpulse-agent_*_linux_${arch}.tar.gz" --clobber || return 1
+              gh release download "$PREV_TAG" -R "$GITHUB_REPOSITORY" --pattern "netpulse-agent_*_linux_${arch}.tar.gz" --clobber || return 1
             done
             # Los tarballs deben casar con el checksums.txt del release
             # anterior (filtrado a los assets del agente).
-            gh release download "$PREV_TAG" --pattern checksums.txt --clobber || return 1
+            gh release download "$PREV_TAG" -R "$GITHUB_REPOSITORY" --pattern checksums.txt --clobber || return 1
             grep 'netpulse-agent_.*_linux_.*\.tar\.gz' checksums.txt > agent-checksums.txt || return 1
             sha256sum -c agent-checksums.txt || return 1
             NAMES="amd64:amd64 arm64:arm64 armv7:arm mipsle:mipsle mips:mips"
@@ -131,6 +135,12 @@ jobs:
               mv netpulse-agent "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}" || return 1
               chmod +x "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/netpulse-agent-${name}" || return 1
             done
+            # Sello de versión (#1914): build-agents.sh lo escribe al compilar y
+            # verifyFSVersion lo lee porque los agentes van comprimidos con UPX
+            # y el literal no está en claro. Al reutilizar no se compila, así que
+            # el sello hay que dejarlo aquí o el guard de #1246 vuelve a
+            # desactivar los upgrades de agente.
+            printf '%s\n' "$AGENT_VERSION" > "$GITHUB_WORKSPACE/server-go/internal/agentbin/agents/agent.version" || return 1
           }
           if reuse; then
             echo "agente $AGENT_VERSION reutilizado de $PREV_TAG"
