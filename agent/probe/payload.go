@@ -59,6 +59,9 @@ type PayloadData struct {
 	// #305). El servidor calcula los rates por boca con el delta entre
 	// payloads. nil = sonda fallida (conserva la última buena).
 	NetIf map[string]IfCounters `json:"netIf,omitempty"`
+	// Networks: las redes logicas de OpenWrt tal como las declara UCI
+	// (#1889), con su device, subred, VLAN y miembros.
+	Networks []UciNetwork `json:"networks,omitempty"`
 	// Vlans: VLANs del bridge (issue #315, bridge vlan show). nil = sonda
 	// fallida o router sin bridge vlan filtering.
 	Vlans []VlanPort `json:"vlans,omitempty"`

@@ -729,6 +729,9 @@ type RouterDetail struct {
 	// Vlans: VLANs del bridge (issue #315). nil = sin datos (demo/routers
 	// sin bridge vlan filtering); slice vacio = sondeo sin VLANs.
 	Vlans []VlanPort `json:"vlans,omitempty"`
+	// Networks (#1889): las redes logicas de OpenWrt tal como las declara UCI,
+	// con su device, subred, VLAN, miembros y el trafico del device.
+	Networks []NetworkInfo `json:"networks,omitempty"`
 	// MultiWan: the router's internet connections and which one carries
 	// traffic — a read-only mirror of what its own panel manages. nil =
 	// the router never reported any; an empty uplink list = it reported
@@ -1150,4 +1153,18 @@ type Snapshotter interface {
 	GetAdguardClients(ctx context.Context) ([]AdguardClient, error)
 	// Close libera recursos (conexiones SSH, clientes HTTP).
 	Close() error
+}
+
+// NetworkInfo (#1889): una red logica de OpenWrt, la unidad en la que el
+// operador piensa cuando mira su router. El trafico es el del device de la
+// red; ausente cuando la unidad no reporta contadores.
+type NetworkInfo struct {
+	Name   string   `json:"name"`
+	Device string   `json:"device,omitempty"`
+	Proto  string   `json:"proto,omitempty"`
+	Subnet string   `json:"subnet,omitempty"`
+	Vlan   int      `json:"vlan,omitempty"`
+	Ports  []string `json:"ports,omitempty"`
+	RxBps  float64  `json:"rxBps,omitempty"`
+	TxBps  float64  `json:"txBps,omitempty"`
 }

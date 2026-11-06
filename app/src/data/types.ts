@@ -711,3 +711,16 @@ export interface ReanchorResponse {
   daemon: 'none' | 'dawn' | 'usteer' | 'both'
   recommendations: ReanchorRecommendation[]
 }
+
+/** #1889: una red lógica de OpenWrt tal como la declara UCI, con su device,
+ *  subred, VLAN, miembros y el tráfico del device (ausente sin contadores). */
+export interface NetworkInfo {
+  name: string
+  device?: string
+  proto?: string
+  subnet?: string
+  vlan?: number
+  ports?: string[]
+  rxBps?: number
+  txBps?: number
+}

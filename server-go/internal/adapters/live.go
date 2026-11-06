@@ -159,6 +159,8 @@ type routerPolled struct {
 	// qué VLAN vive el cliente: solo este dato lo dice. Vacío = sin dato (el
 	// bridge no tiene VLAN filtering, o la sonda es por SSH y no lo reporta).
 	fdbVlans map[string]int
+	// networks: redes logicas declaradas en UCI (#1889).
+	networks []probe.UciNetwork
 	// wirelessSide: MACs que el bridge del router aprende en sus propios
 	// puertos de radio (wl0.1, wlan0…) pero que la tabla de estaciones no
 	// lista (MACs rotadas que siguen emitiendo, backhaul 4-address). El
@@ -225,6 +227,8 @@ type extrasSnapshot struct {
 	// fdbVlans: MAC → VLAN del FDB (#1757). Mismo anti-parpadeo que fdb: solo
 	// nace del payload del agente y una sonda SSH exitosa lo limpia.
 	fdbVlans map[string]int
+	// networks: última lista buena de redes UCI (#1889).
+	networks []probe.UciNetwork
 	// wirelessSide: último hint bueno de MACs detrás de radios propias
 	// (ver routerPolled.wirelessSide). Mismo anti-parpadeo que fdb.
 	wirelessSide map[string]string
@@ -1347,8 +1351,13 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if vlans := client.GetBridgeVlans(); vlans != nil {
 		vlansGood = vlans
 	}
+	// #1889: la misma configuracion UCI dice las redes logicas de la unidad.
+	networksGood := cached.networks
+	if nets := client.GetNetworks(); nets != nil {
+		networksGood = nets
+	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, fdbVlans: fdbVlansGood, luci: luciGood, vlans: vlansGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, fdbVlans: fdbVlansGood, luci: luciGood, vlans: vlansGood, networks: networksGood}
 	l.mu.Unlock()
 
 	// Uso de RAM: #513. Si el agente reporta memory.used (procesos) lo
@@ -1400,7 +1409,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, fdbVlans: fdbVlansGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
-		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood,
+		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood, networks: networksGood,
 		polledAt: l.now().UnixMilli(),
 	}, nil
 }
@@ -4778,6 +4787,10 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	if p != nil && len(p.vlans) > 0 {
 		vlans = vlanPortsWithNames(p.vlans, p.luci)
 	}
+	var networks []NetworkInfo
+	if p != nil && len(p.networks) > 0 {
+		networks = networkInfos(p.networks, p.ports)
+	}
 	var multiWan *MultiWanInfo
 	if p != nil {
 		multiWan = p.multiWan
@@ -4785,7 +4798,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	detail := &RouterDetail{
 		Router: router, Ports: enriched, Radios: radios, Backhaul: nil,
 		Series:  PerfSeries{H1: seriesOf("1h"), H24: seriesOf("24h"), D7: seriesOf("7d")},
-		Clients: clients, Extras: extras, Vlans: vlans, MultiWan: multiWan,
+		Clients: clients, Extras: extras, Vlans: vlans, Networks: networks, MultiWan: multiWan,
 	}
 	// #930: contadores de salud SNMP del router (solo si se sondea por SNMP).
 	if cfg.SnmpEnabled {
@@ -6148,4 +6161,27 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		return port
 	}
 	return port
+}
+
+// networkInfos convierte la configuracion UCI en la vista de redes (#1889).
+// El trafico es el del DEVICE de la red (br-iot), que ya llega como puerto
+// virtual con rates: una bridge suma lo de sus puertos y eso no es lo que el
+// operador lee en su panel. Sin contadores la fila simplemente no lo muestra.
+func networkInfos(nets []probe.UciNetwork, ports []EthPort) []NetworkInfo {
+	byIface := map[string]EthPort{}
+	for _, pt := range ports {
+		if pt.Iface != "" {
+			byIface[pt.Iface] = pt
+		}
+	}
+	out := make([]NetworkInfo, 0, len(nets))
+	for _, n := range nets {
+		ni := NetworkInfo{Name: n.Name, Device: n.Device, Proto: n.Proto, Subnet: n.Subnet, Vlan: n.Vlan, Ports: n.Ports}
+		if pt, ok := byIface[n.Device]; ok {
+			ni.RxBps = pt.RxBps
+			ni.TxBps = pt.TxBps
+		}
+		out = append(out, ni)
+	}
+	return out
 }

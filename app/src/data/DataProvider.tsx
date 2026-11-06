@@ -15,6 +15,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  NetworkInfo,
   AdGuardStats,
   AgentInfo,
   AlertCategory,
@@ -99,6 +100,8 @@ export interface RouterDetailData {
   wireguard?: WireGuardStats
   /** VLANs del bridge (issue #315). Ausente si el router no tiene bridge vlan filtering. */
   vlans?: VlanPort[]
+  /** #1889: redes lógicas de OpenWrt (UCI) con su device, subred y tráfico. */
+  networks?: NetworkInfo[]
   /** Las varias conexiones a internet del router, si reporta más de una.
    *  Solo lectura: las gestiona el panel del propio router. */
   multiWan?: MultiWanInfo

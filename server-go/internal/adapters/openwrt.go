@@ -714,3 +714,19 @@ func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, 
 	}
 	return probe.ParseArp(out), nil, probe.ParseArpDevs(out)
 }
+
+// GetNetworks: redes logicas que la unidad declara en UCI (#1889). Es la
+// misma lectura que alimenta las VLANs, asi que una unidad por SSH tambien
+// tiene la vista de redes; lo que no tiene son los contadores por interfaz.
+// nil si no hay datos, para que el anti-parpadeo conserve la ultima lista.
+func (c *OpenWrtClient) GetNetworks() []probe.UciNetwork {
+	out, err := c.pool.Run(c.Host, probe.CmdUciBridgeVlan, 0)
+	if err != nil {
+		return nil
+	}
+	nets := probe.ParseUciNetworks(out)
+	if len(nets) == 0 {
+		return nil
+	}
+	return nets
+}
