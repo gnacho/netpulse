@@ -146,11 +146,15 @@ func (s *server) handleListConfigRouters(w http.ResponseWriter, r *http.Request)
 }
 
 type routerInput struct {
-	Name      *string `json:"name"`
-	Host      *string `json:"host"`
-	Type      string  `json:"type"`
-	Gateway   bool    `json:"gateway"`
-	AgentOnly bool    `json:"agent_only"`
+	Name *string `json:"name"`
+	Host *string `json:"host"`
+	Type string  `json:"type"`
+	// Gateway y AgentOnly son punteros por el mismo motivo que el resto:
+	// ausente significa "no lo toques". Con bool a secas, un PUT parcial
+	// (por ejemplo el que solo cambia inventory_mode) los reiniciaba a
+	// false y tiraba el gateway o el agent-only de la unidad (#1937).
+	Gateway   *bool `json:"gateway"`
+	AgentOnly *bool `json:"agent_only"`
 	// InventoryMode (#1917): "auto" | "agent" | "ssh". Manda sobre agent_only.
 	InventoryMode *string `json:"inventory_mode"`
 	// Disabled (issue #1085): pausa la unidad (nil = no tocar).
@@ -314,7 +318,8 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
-		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
+		Name: name, Host: host, Type: typ,
+		IsGateway: in.Gateway != nil && *in.Gateway, AgentOnly: in.AgentOnly != nil && *in.AgentOnly,
 		InventoryMode:  invMode,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
@@ -412,8 +417,6 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		}
 		typ = &t
 	}
-	gw := in.Gateway
-	ao := in.AgentOnly
 	var invMode *string
 	if in.InventoryMode != nil {
 		m, msg := validateInventoryMode(in.InventoryMode)
@@ -471,7 +474,7 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	}
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
-		IsGateway: &gw, AgentOnly: &ao,
+		IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
 		InventoryMode:  invMode,
 		Disabled:       in.Disabled,
 		FirmwareTarget: firmwareTarget,
