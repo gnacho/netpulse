@@ -40,7 +40,7 @@
     "unread": "No leída",
     "unreadCount_one": "aviso sin leer",
     "unreadCount_other": "avisos sin leer",
-    "viewRouter": "Ver router",
+    "viewRouter": "Ver unidad",
     "findDevice": "Localizar este dispositivo",
     "identifyDevice": "Identificar este dispositivo",
     "connectedTo": "Conectado a",
@@ -553,7 +553,7 @@
       "unprotectedPill": "Sin proteger por AdGuard"
     },
     "summary": "{{total}} conocidos · {{online}} online ahora",
-    "viewRouter": "Ver router {{name}}",
+    "viewRouter": "Ver unidad {{name}}",
     "types": {
       "altavoz": "altavoz",
       "aspirador": "aspirador",
