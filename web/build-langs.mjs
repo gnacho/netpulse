@@ -97,7 +97,13 @@ async function main() {
       const pg = await ctx.newPage()
       pg.on('pageerror', (e) => errors.push(`${lang}/${page.file}: ${e}`))
       const fileUrl = `file://${path.join(WEB, page.file)}?hl=${lang}`
-      await pg.goto(fileUrl, { waitUntil: 'networkidle' })
+      // #1933: 'load' y no 'networkidle'. La página se carga desde file:// y
+      // sigue pidiendo fuentes y capturas externas, así que el contador de
+      // red puede no llegar a cero dentro del presupuesto y el prerender
+      // fallaba al azar con un timeout que no tenía que ver con el cambio.
+      // Lo que sí está garantizado es el evento load; los renders dinámicos
+      // (ticker, contadores) los cubre la espera de abajo.
+      await pg.goto(fileUrl, { waitUntil: 'load' })
       await pg.waitForTimeout(700) // renders dinámicos (ticker, shots, contadores)
       let html = await pg.evaluate(() => '<!DOCTYPE html>\n' + document.documentElement.outerHTML)
       await ctx.close()
