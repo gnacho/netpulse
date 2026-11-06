@@ -961,11 +961,21 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       // router y otros routers) — regla de máxima distancia, sin arcos
       // hardcodeados por red. El radio se ajusta para que quede fuera del
       // círculo de sus propios cableados y dentro del viewport.
+      // #1791: el abanico cableado se abre HACIA FUERA de la unidad (desde el
+      // gateway hacia ella), no siempre al oeste. Con el arco fijo [150,210],
+      // una unidad en el borde derecho abanicaba a sus clientes hacia el
+      // gateway, por encima de los enlaces entre unidades: el reporter lo
+      // pidio como "fan clients to the right for units on the RIGHT edge".
+      // En una unidad a la izquierda el resultado es el de antes (180 grados).
+      const outward = gatewayNode
+        ? angleTo(gatewayNode.x, gatewayNode.y, node.x, node.y)
+        : (AP_WIRED_FAN[0] + AP_WIRED_FAN[1]) / 2
+      const wiredFan: [number, number] = [outward - 30, outward + 30]
       const farWest = anchors.filter((a) => a.kind === 'hub' && hypervisorHosts.has(a.id))
       const rest = anchors.filter((a) => !farWest.includes(a))
       const farWestItems = farWest.map((a) => ({ ...a, x: 0, y: 0 }))
       const restItems = rest.map((a) => ({ ...a, x: 0, y: 0 }))
-      fanLayout(restItems, node, ROUTER_FAN_RADIUS, AP_WIRED_FAN[0], AP_WIRED_FAN[1])
+      fanLayout(restItems, node, ROUTER_FAN_RADIUS, wiredFan[0], wiredFan[1])
       // Vecinos desde los que alejarse: gateway, los distnodes del switch/AP y
       // los demás routers (APs/switches) — el host se abre paso en el hueco.
       const neighbors: { x: number; y: number }[] = []
@@ -982,11 +992,11 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       if (gatewayNode) {
         hostArcs.push(...arcAround(angleTo(node.x, node.y, gatewayNode.x, gatewayNode.y), 27))
       }
-      hostArcs.push([AP_WIRED_FAN[0] - 10, AP_WIRED_FAN[1] + 10])
+      hostArcs.push([wiredFan[0] - 10, wiredFan[1] + 10])
       const gapAngle = widestGapCenterInArcs(node, neighbors, HUB_HOST_RADIUS, hostArcs)
       fanLayout(farWestItems, node, HUB_HOST_RADIUS, gapAngle - 20, gapAngle + 20)
       placed.push(...restItems, ...farWestItems)
-      fanArcByRouter.set(node.id, [[AP_WIRED_FAN[0] - 8, AP_WIRED_FAN[1] + 8]])
+      fanArcByRouter.set(node.id, [[wiredFan[0] - 8, wiredFan[1] + 8]])
     }
 
     for (const p of placed) {

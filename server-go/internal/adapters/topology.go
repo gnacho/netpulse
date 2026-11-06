@@ -576,31 +576,43 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	// La fase FDB no los veía porque keptMacsForPort filtra por RouterID y
 	// los clientes de un switch se atribuyen al DHCP server (el gateway).
 	if gatewayID != "" {
-		switchIDByMac := map[string]string{}
-		for id, p := range polled {
-			if p != nil && p.brMac != "" && p.cfg.Type == "managed-switch" {
-				switchIDByMac[strings.ToUpper(p.brMac)] = id
-			}
-		}
 		gwMac := ""
 		if gw := polled[gatewayID]; gw != nil {
 			gwMac = strings.ToUpper(gw.brMac)
 		}
-		var managed []DistributionNode
-		for _, dn := range dists {
-			if dn.Kind == "managed" && dn.Mac != "" {
-				managed = append(managed, dn)
+		// #1791: se recorre la unidad gestionada aunque NINGUN distnode la case
+		// por MAC. Antes hacian falta dos cosas a la vez: un distnode "managed"
+		// con Mac, y que esa Mac fuera exactamente el bridge address del switch
+		// (y solo si cfg.Type == "managed-switch"). Un switch SNMP suele
+		// anunciar por LLDP una chassis-MAC distinta de su bridge address, y un
+		// switch declarado external+SNMP ni siquiera entraba por el tipo, asi
+		// que el switch hoja nunca se inferia y sus clientes se quedaban en el
+		// fan-out del switch gestionado. Sin ancla por MAC el nodo hoja cuelga
+		// de la propia unidad de flota (Parent vacio).
+		type swCandidate struct{ id, parent string }
+		var candidates []swCandidate
+		for _, id := range routerIDs {
+			p := polled[id]
+			if p == nil || p.brMac == "" || len(p.fdb) == 0 {
+				continue
 			}
+			// Solo switches gestionados de verdad: un AP con agente (AgentOnly)
+			// sigue fuera, porque su puerto multi-MAC es su propio uplink.
+			if p.cfg.Type != "managed-switch" && !(p.cfg.Type == "external" && p.cfg.SnmpEnabled) {
+				continue
+			}
+			parent := ""
+			for _, dn := range dists {
+				if dn.Kind == "managed" && dn.Mac != "" && strings.EqualFold(dn.Mac, p.brMac) {
+					parent = dn.ID
+					break
+				}
+			}
+			candidates = append(candidates, swCandidate{id: id, parent: parent})
 		}
-		for _, dn := range managed {
-			switchID, ok := switchIDByMac[strings.ToUpper(dn.Mac)]
-			if !ok {
-				continue
-			}
+		for _, cand := range candidates {
+			switchID := cand.id
 			p := polled[switchID]
-			if p == nil {
-				continue
-			}
 			rootPort := ""
 			if gwMac != "" {
 				rootPort = p.fdb[gwMac]
@@ -635,7 +647,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				id := fmt.Sprintf("dist-%s-%s", switchID, port)
 				dists = append(dists, DistributionNode{
 					ID: id, Kind: "inferred", RouterID: switchID, Port: port,
-					PortLabel: portLabel(p, port), MacCount: len(kept), Parent: dn.ID,
+					PortLabel: portLabel(p, port), MacCount: len(kept), Parent: cand.parent,
 				})
 				// #1791: los clientes del puerto cuelgan del nodo hoja, no del
 				// gateway que les dio la IP. Sin AttachTo, hubOf los anclaba al
@@ -643,6 +655,11 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				for _, mac := range kept {
 					if idx, ok := byMAC[mac]; ok {
 						devices[idx].AttachTo = id
+						// El puerto fisico del switch se conserva: claim no
+						// re-ancla los clientes de una hoja (#1417), asi que
+						// sin esto el chip perdia el dato.
+						devices[idx].Port = port
+						devices[idx].PortLabel = portLabel(p, port)
 					}
 				}
 			}
