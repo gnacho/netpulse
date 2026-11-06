@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- The SSH pool writes what it does to the system log (#1893). A unit showed bursts of "Exit before auth" in dropbear and there was nothing on the server side to correlate them with: no host, no reason, no rhythm. Every new connection is now logged with its host and user, every discarded connection is logged before the redial that follows, and every dial failure is logged with the real cause, whether that is a host key problem, an authentication rejection, a timeout or a network error, together with the consecutive failure count and the backoff. Failures are rate limited to the first and every tenth so a dead unit cannot fill the journal, and a recovery line closes the episode.
+
 ### Fixed
 
 - Discovery no longer offers a unit that is already in the fleet (#1895). A candidate was marked as already added only when its IP was byte-identical to the host string in the configuration, so a unit added by DNS name, by a name with different case or a trailing dot, or by an IP with a port showed up with an Add button while the gateway, added by plain IP, was the only one recognised. The comparison now normalises case, port and the trailing dot, resolves configured names to their addresses, and also matches the reverse DNS name of the candidate, with name resolution bounded so a stale name cannot slow the scan down.
