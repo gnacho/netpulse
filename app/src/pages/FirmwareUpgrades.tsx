@@ -1312,7 +1312,7 @@ export default function FirmwareUpgrades() {
               )}
 
               <div className="mt-3 flex justify-end">
-                <AgentBackupButton agent={findAgentFor(agents, item.routerId)} routerId={item.routerId} />
+                <AgentBackupButton agent={findAgentFor(agents, item.routerId)} routerId={item.routerId} allowSsh />
               </div>
 
               <details

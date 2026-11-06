@@ -225,6 +225,8 @@ export interface NetPulseApi extends NetPulseData {
    * imperativo). null si la petición falló (demo siempre null).
    */
   backupAgent: (slug: string) => Promise<'sent' | 'not_connected' | null>
+  /** #1899: copia de config por SSH en una unidad OpenWrt sin agente. */
+  backupRouterSsh: (routerId: string) => Promise<{ ok: boolean; error?: string } | null>
   /**
    * #251: POST /api/agents/upgrade-all — envía el upgrade a todos los agentes
    * con versión desactualizada. Devuelve el resumen por slug; null si falló.
@@ -1235,6 +1237,25 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // #1899: la copia la hace el propio servidor por SSH (sysupgrade
+  // --create-backup + base64) y la guarda donde la UI ya lista backups, asi
+  // que la entrada aparece en el mismo sitio que las del agente.
+  const backupRouterSsh = useCallback(async (routerId: string): Promise<{ ok: boolean; error?: string } | null> => {
+    if (modeRef.current !== 'live') return null
+    try {
+      const res = await fetch(`/api/firmware-backups/${encodeURIComponent(routerId)}`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(150_000),
+      })
+      if (res.status === 401) redirectLogin()
+      const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
+      if (!res.ok) return { ok: false, error: body?.message ?? body?.error ?? `HTTP ${res.status}` }
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  }, [])
+
   const upgradeAllAgents = useCallback(async (): Promise<{ sent: number; total: number; message: string; agents: { slug: string; status: string }[] } | null> => {    if (modeRef.current !== 'live') return null
     try {
       const res = await fetch('/api/agents/upgrade-all', {
@@ -1447,13 +1468,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       rearmAgent,
       upgradeAgent,
       backupAgent,
+      backupRouterSsh,
       upgradeAllAgents,
       reinstallAgent,
       uninstallAgent,
       removeAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, approveImpostorBssid, setPeerUrgent, dismissAlert, rearmAgent, upgradeAgent, backupAgent, upgradeAllAgents, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, approveImpostorBssid, setPeerUrgent, dismissAlert, rearmAgent, upgradeAgent, backupAgent, upgradeAllAgents, backupRouterSsh, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

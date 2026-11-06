@@ -11,6 +11,8 @@ interface AgentBackupButtonProps {
   /** id del router: el resultado se confirma viendo aparecer la entrada en
    *  GET /api/firmware-backups/{routerId}. */
   routerId?: string
+  /** #1899: permite la copia por SSH en una unidad OpenWrt sin agente. */
+  allowSsh?: boolean
   className?: string
 }
 
@@ -34,9 +36,9 @@ const BACKUP_WAIT_S = 45
  *   not_connected → 409, agente sin SSE (a diferencia del upgrade no se encola)
  *   fail          → petición fallida (red, 4xx/5xx)
  */
-export function AgentBackupButton({ agent, routerId, className }: AgentBackupButtonProps) {
+export function AgentBackupButton({ agent, routerId, allowSsh = false, className }: AgentBackupButtonProps) {
   const { t } = useTranslation()
-  const { backupAgent } = useNetPulse()
+  const { backupAgent, backupRouterSsh } = useNetPulse()
   const auth = useAuth()
   const [state, setState] = useState<BackupState>('idle')
   const [clickTs, setClickTs] = useState(0)
@@ -83,7 +85,8 @@ export function AgentBackupButton({ agent, routerId, className }: AgentBackupBut
   }, [state, routerId, clickTs])
 
   if (auth?.role !== 'admin') return null
-  if (!agent || !routerId) return null
+  // #1899: sin agente el boton solo existe si la unidad puede por SSH.
+  if (!routerId || (!agent && !allowSsh)) return null
 
   const label =
     state === 'busy' ? t('routers.agent.backupSent')
@@ -100,10 +103,28 @@ export function AgentBackupButton({ agent, routerId, className }: AgentBackupBut
       onClick={async () => {
         if (state === 'busy' || state === 'waiting') return
         setState('busy')
+        // #1899: la via SSH guarda la copia en el servidor antes de responder,
+        // asi que el sondeo de abajo la encuentra en el primer tick.
+        const viaSsh = async (id: string) => {
+          const res = await backupRouterSsh(id)
+          if (res?.ok) {
+            setClickTs(Date.now())
+            setState('waiting')
+          } else {
+            setState('fail')
+            toIdle(6000)
+          }
+        }
+        if (!agent) {
+          if (allowSsh) await viaSsh(routerId)
+          return
+        }
         const res = await backupAgent(agent.slug)
         if (res === 'sent') {
           setClickTs(Date.now())
           setState('waiting')
+        } else if (res === 'not_connected' && allowSsh) {
+          await viaSsh(routerId)
         } else if (res === 'not_connected') {
           setState('not_connected')
           toIdle(6000)

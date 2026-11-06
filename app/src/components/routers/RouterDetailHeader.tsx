@@ -21,6 +21,9 @@ export function RouterDetailHeader({ router }: { router: Router }) {
   const isGateway = router.roleBadge === 'Principal'
   const osLabel = osBadge(router.type)
   const agent = useAgentFor(router.id)
+  // #1899: la copia de config tambien existe en una unidad OpenWrt sin agente
+  // (la hace el servidor por SSH), asi que el boton no depende del agente.
+  const canSshBackup = !router.type || router.type === 'openwrt'
   // #1136: el chip AdGuard solo tiene sentido con AdGuard configurado; sin
   // host era un adorno fijo en la cabecera del gateway.
   const { adguard } = useNetPulse()
@@ -121,13 +124,13 @@ export function RouterDetailHeader({ router }: { router: Router }) {
                   <AgentUpgradeButton agent={agent} />
                 </motion.span>
               )}
-              {agent && (
+              {(agent || canSshBackup) && (
                 <motion.span
                   initial={reduce ? false : { opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.2, delay: 0.15 + (pills.length + 3) * 0.06 }}
                 >
-                  <AgentBackupButton agent={agent} routerId={router.id} />
+                  <AgentBackupButton agent={agent} routerId={router.id} allowSsh={canSshBackup} />
                 </motion.span>
               )}
             </div>
