@@ -292,3 +292,135 @@ func TestUpgradeRejectsMissingOrMismatchedDigest(t *testing.T) {
 		})
 	}
 }
+
+// stubNoInitScript apunta el script procd a una ruta que no existe y devuelve
+// la restauración, para ejercitar la vía sin supervisor (#1900).
+func stubNoInitScript(t *testing.T) {
+	t.Helper()
+	old := agentInitScript
+	agentInitScript = filepath.Join(t.TempDir(), "sin-init")
+	t.Cleanup(func() { agentInitScript = old })
+}
+
+// stubExecSelf sustituye el exec del proceso y registra con qué se llamó.
+func stubExecSelf(t *testing.T, err error) *[]string {
+	t.Helper()
+	var calls []string
+	old := execSelf
+	execSelf = func(bin string, argv []string, env []string) error {
+		calls = append(calls, bin)
+		return err
+	}
+	t.Cleanup(func() { execSelf = old })
+	return &calls
+}
+
+// #1900 pata 1: sin script procd el agente se reemplaza a sí mismo con el
+// binario que acaba de instalar. Antes devolvía error, el proceso seguía con
+// el binario viejo en memoria y el equipo quedaba mintiendo hasta el reboot.
+func TestRestartServiceExecsTheNewBinaryWithoutProcd(t *testing.T) {
+	stubNoInitScript(t)
+	calls := stubExecSelf(t, nil)
+	bin := filepath.Join(t.TempDir(), "netpulse-agent")
+	if err := restartService(bin); err != nil {
+		t.Fatalf("restartService: %v", err)
+	}
+	if len(*calls) != 1 || (*calls)[0] != bin {
+		t.Fatalf("exec con %v, quiero exactamente %q", *calls, bin)
+	}
+}
+
+// Con script procd se le pide el reinicio y no se toca el proceso: el
+// supervisor es quien lo relanza.
+func TestRestartServiceUsesTheProcdScriptWhenItExists(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "reiniciado")
+	script := filepath.Join(dir, "netpulse-agent")
+	body := "#!/bin/sh\ntouch " + marker + "\nexit 0\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatalf("WriteFile script: %v", err)
+	}
+	old := agentInitScript
+	agentInitScript = script
+	defer func() { agentInitScript = old }()
+	calls := stubExecSelf(t, nil)
+
+	if err := restartService("/tmp/otro"); err != nil {
+		t.Fatalf("restartService: %v", err)
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("con script procd no se debe hacer exec: %v", *calls)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("el script no llegó a ejecutarse: %v", err)
+	}
+}
+
+// Si el exec también falla, el error dice por dónde se intentó.
+func TestRestartServiceReportsExecFailure(t *testing.T) {
+	stubNoInitScript(t)
+	stubExecSelf(t, os.ErrPermission)
+	err := restartService("/tmp/netpulse-agent")
+	if err == nil || !strings.Contains(err.Error(), "/tmp/netpulse-agent") {
+		t.Fatalf("error = %v, quiero uno que nombre el binario", err)
+	}
+}
+
+// #1900 de punta a punta: el agente reporta ok antes de reiniciar y, si el
+// reinicio no arranca, reporta el fallo con el motivo para que el servidor no
+// se quede en "restarting" y la UI no diga que está al día.
+func TestUpgradeReportsRestartFailure(t *testing.T) {
+	var mu sync.Mutex
+	var results []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/agents/patio/binary":
+			data := make([]byte, 64)
+			sum := sha256.Sum256(data)
+			w.Header().Set("Content-Length", "64")
+			w.Header().Set("X-Checksum-Sha256", hex.EncodeToString(sum[:]))
+			_, _ = w.Write(data)
+		case "/api/agents/patio/upgrade-result":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			mu.Lock()
+			results = append(results, body)
+			mu.Unlock()
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	oldTmp := tmpBinPath
+	tmpBinPath = filepath.Join(dir, "agent.new")
+	defer func() { tmpBinPath = oldTmp }()
+	exe := filepath.Join(dir, "netpulse-agent")
+	if err := os.WriteFile(exe, []byte("viejo"), 0o755); err != nil {
+		t.Fatalf("WriteFile exe: %v", err)
+	}
+	oldPath := currentBinPath
+	currentBinPath = func() string { return exe }
+	defer func() { currentBinPath = oldPath }()
+	stubNoInitScript(t)
+	stubExecSelf(t, os.ErrPermission)
+
+	handleUpgrade(Options{Server: srv.URL, Slug: "patio", Token: "tok"}, nil, "")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(results) != 2 {
+		t.Fatalf("resultados = %v, quiero ok y then fallo", results)
+	}
+	if ok, _ := results[0]["ok"].(bool); !ok {
+		t.Fatalf("primer resultado: %v, quiero ok=true antes del reinicio", results[0])
+	}
+	if ok, _ := results[1]["ok"].(bool); ok {
+		t.Fatalf("segundo resultado: %v, quiero ok=false", results[1])
+	}
+	if msg, _ := results[1]["error"].(string); !strings.Contains(msg, "reinicio falló") {
+		t.Fatalf("error reportado = %q", msg)
+	}
+}
