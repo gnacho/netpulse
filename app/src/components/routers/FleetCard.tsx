@@ -307,7 +307,9 @@ export function FleetCard({ router, index = 0, refreshKey = 0 }: FleetCardProps)
                 </defs>
                 <Tooltip content={<TrafficTooltip unit={trafficUnit} />} cursor={{ stroke: 'rgb(var(--border-strong))', strokeWidth: 1 }} />
                 <Area
-                  type="linear"
+                  // #1901: sparkline horario (MAX del bucket), no muestras
+                  // instantáneas: el escalón no inventa minutos de rampa.
+                  type="stepAfter"
                   dataKey="v"
                   stroke="#22D3EE"
                   strokeWidth={1.75}
