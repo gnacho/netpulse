@@ -8,6 +8,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ## [Unreleased]
 
 ### Added
+- A configuration backup no longer needs an agent on the unit (#1899). The button only rendered for a unit with an agent, so a router managed over plain SSH had no way to keep a copy of its config even though the server can already reach it. The server now builds the archive itself with `sysupgrade --create-backup`, brings it back base64 encoded over the SSH channel, always removes the temporary file on the unit, whose /tmp is RAM, and stores it where the agent backups already live, so one list and one download serve both kinds. A unit that does have an agent still prefers the event stream and only falls back to SSH when the agent is not connected.
+
 
 - Reinstalling an agent now shows what the install script actually said (#1894). The handler discarded the script output with `_`, so the operator got a red "exit status 1" that vanished after eight seconds and the server journal had nothing at all. The output is captured and returned with the response, on failure and on success, it is written to the server journal either way, and the UI shows it in a collapsible frame under the message. A failed reinstall no longer hides itself: the error stays until the next attempt, so it can be read, copied and attached to a report.
 

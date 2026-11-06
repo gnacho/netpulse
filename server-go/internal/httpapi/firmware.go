@@ -59,6 +59,7 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 	s.registerFirmwareOwutRoutes(mux)
 	// Método por unidad + imagen subida desde local (#1414).
 	s.registerFirmwareUploadRoutes(mux)
+	s.registerFirmwareBackupSshRoutes(mux) // #1899
 	// Backups de config en el server (#1414).
 	s.registerFirmwareBackupRoutes(mux)
 	// Disponibilidad real de releases (#1444): lista cacheada, chequeo
