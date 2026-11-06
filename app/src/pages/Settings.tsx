@@ -321,6 +321,8 @@ interface ConfigRouter {
   type: RouterType
   is_gateway: boolean
   agent_only: boolean
+  /** #1917: "auto" | "agent" | "ssh". El servidor deriva agent_only de aqui. */
+  inventory_mode?: string
   disabled: boolean
   firmware_target: string
   snmp_enabled: boolean
@@ -351,7 +353,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [name, setName] = useState('')
   const [type, setType] = useState<RouterType>('openwrt')
   const [gateway, setGateway] = useState(false)
-  const [agentOnly, setAgentOnly] = useState(false)
+  const [inventoryMode, setInventoryMode] = useState('auto')
   const [addSshPort, setAddSshPort] = useState(22)
   const [addSnmpEnabled, setAddSnmpEnabled] = useState(false)
   const [addSnmpCommunity, setAddSnmpCommunity] = useState('')
@@ -368,7 +370,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editName, setEditName] = useState('')
   const [editType, setEditType] = useState<RouterType>('openwrt')
   const [editGateway, setEditGateway] = useState(false)
-  const [editAgentOnly, setEditAgentOnly] = useState(false)
+  const [editInventoryMode, setEditInventoryMode] = useState('auto')
   const [editDisabled, setEditDisabled] = useState(false)
   const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
@@ -520,7 +522,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           name: name.trim() || undefined,
           type,
           gateway,
-          agent_only: agentOnly,
+          inventory_mode: inventoryMode,
           ssh_port: addSshPort,
           snmp_enabled: addSnmpEnabled,
           snmp_community: addSnmpCommunity.trim() || undefined,
@@ -537,7 +539,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setName('')
       setType('openwrt')
       setGateway(false)
-      setAgentOnly(false)
+      setInventoryMode('auto')
       setAddSshPort(22)
       setAddSnmpEnabled(false)
       setAddSnmpCommunity('')
@@ -560,7 +562,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditName(r.name ?? '')
     setEditType(r.type)
     setEditGateway(r.is_gateway)
-    setEditAgentOnly(r.agent_only)
+    setEditInventoryMode(r.inventory_mode ?? (r.agent_only ? 'agent' : 'auto'))
     setEditDisabled(r.disabled ?? false)
     setEditFirmwareTarget(r.firmware_target ?? '')
     setEditSnmpEnabled(r.snmp_enabled ?? false)
@@ -589,7 +591,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           name: editName.trim() || undefined,
           type: editType,
           gateway: editGateway,
-          agent_only: editAgentOnly,
+          inventory_mode: editInventoryMode,
           disabled: editDisabled,
           firmware_target: editFirmwareTarget.trim(),
           snmp_enabled: editSnmpEnabled,
@@ -690,6 +692,10 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     ) : r.is_gateway ? (
                       <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
                         {t('settings.routers.gatewayBadge')}
+                      </span>
+                    ) : r.inventory_mode === 'ssh' ? (
+                      <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
+                        {t('settings.routers.inventoryModeSshBadge')}
                       </span>
                     ) : r.agent_only ? (
                       <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-muted ring-1 ring-inset ring-border">
@@ -850,10 +856,19 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             <Switch checked={gateway} onCheckedChange={setGateway} />
             {t('settings.routers.gateway')}
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-            <Switch checked={agentOnly} onCheckedChange={setAgentOnly} />
-            {t('settings.routers.agentOnly')}
-          </label>
+          <div className="flex items-center gap-2 text-sm text-text-secondary">
+            <span>{t('settings.routers.inventoryMode')}</span>
+            <SegmentedControl
+              options={[
+                { value: 'auto', label: t('settings.routers.inventoryModeAuto') },
+                { value: 'agent', label: t('settings.routers.inventoryModeAgent') },
+                { value: 'ssh', label: t('settings.routers.inventoryModeSsh') },
+              ]}
+              value={inventoryMode}
+              onChange={setInventoryMode}
+              ariaLabel={t('settings.routers.inventoryMode')}
+            />
+          </div>
           <button
             type="submit"
             disabled={submitting || !host.trim()}
@@ -1019,11 +1034,20 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   <Switch checked={editGateway} onCheckedChange={setEditGateway} />
                   {t('settings.routers.gateway')}
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
-                  <Switch checked={editAgentOnly} onCheckedChange={setEditAgentOnly} />
-                  {t('settings.routers.agentOnly')}
-                  <InfoTip text={t('settings.routers.agentOnlyHint')} />
-                </label>
+                <div className="flex items-center gap-2 text-sm text-text-secondary">
+                  <span>{t('settings.routers.inventoryMode')}</span>
+                  <SegmentedControl
+                    options={[
+                      { value: 'auto', label: t('settings.routers.inventoryModeAuto') },
+                      { value: 'agent', label: t('settings.routers.inventoryModeAgent') },
+                      { value: 'ssh', label: t('settings.routers.inventoryModeSsh') },
+                    ]}
+                    value={editInventoryMode}
+                    onChange={setEditInventoryMode}
+                    ariaLabel={t('settings.routers.inventoryMode')}
+                  />
+                  <InfoTip text={t('settings.routers.inventoryModeHint')} />
+                </div>
                 {/* #1085: pausa la unidad sin borrarla ni perder histórico. */}
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
                   <Switch checked={editDisabled} onCheckedChange={setEditDisabled} />

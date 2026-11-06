@@ -93,12 +93,14 @@ func (s *server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 // routerListItem es la vista HTTP de un router. Omite la comunidad SNMP,
 // que solo necesita el adapter para sondear, y expone si esta configurada.
 type routerListItem struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	Host             string `json:"host"`
-	Type             string `json:"type"`
-	IsGateway        bool   `json:"is_gateway"`
-	AgentOnly        bool   `json:"agent_only"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Host      string `json:"host"`
+	Type      string `json:"type"`
+	IsGateway bool   `json:"is_gateway"`
+	AgentOnly bool   `json:"agent_only"`
+	// InventoryMode (#1917): "auto" | "agent" | "ssh".
+	InventoryMode    string `json:"inventory_mode,omitempty"`
 	CreatedAt        int64  `json:"created_at"`
 	FirmwareTarget   string `json:"firmware_target,omitempty"`
 	SnmpEnabled      bool   `json:"snmp_enabled"`
@@ -119,6 +121,7 @@ func newRouterListItem(rt adapters.RouterConfig) routerListItem {
 		Type:             rt.Type,
 		IsGateway:        rt.IsGateway,
 		AgentOnly:        rt.AgentOnly,
+		InventoryMode:    rt.InventoryMode,
 		CreatedAt:        rt.CreatedAt,
 		FirmwareTarget:   rt.FirmwareTarget,
 		SnmpEnabled:      rt.SnmpEnabled,
@@ -148,6 +151,8 @@ type routerInput struct {
 	Type      string  `json:"type"`
 	Gateway   bool    `json:"gateway"`
 	AgentOnly bool    `json:"agent_only"`
+	// InventoryMode (#1917): "auto" | "agent" | "ssh". Manda sobre agent_only.
+	InventoryMode *string `json:"inventory_mode"`
 	// Disabled (issue #1085): pausa la unidad (nil = no tocar).
 	Disabled *bool `json:"disabled"`
 	// FirmwareTarget: versión objetivo del firmware (issue #241; opcional).
@@ -181,6 +186,20 @@ func validateHost(host string) (string, string) {
 		return "", "host debe ser una IP o hostname válido"
 	}
 	return h, ""
+}
+
+// validateInventoryMode (#1917): "" se acepta y el store lo interpreta como
+// "auto" implicito (compatibilidad con clientes que no mandan el campo).
+func validateInventoryMode(v *string) (string, string) {
+	if v == nil {
+		return "", ""
+	}
+	m := strings.TrimSpace(*v)
+	switch m {
+	case "", "auto", "agent", "ssh":
+		return m, ""
+	}
+	return "", "Invalid enum value. Expected 'auto' | 'agent' | 'ssh'"
 }
 
 // validateAdGuardHost permite host o host:puerto (1..65535). Devuelve
@@ -289,8 +308,14 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		}
 		sshPort = p
 	}
+	invMode, invMsg := validateInventoryMode(in.InventoryMode)
+	if invMsg != "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", invMsg)
+		return
+	}
 	created, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{
 		Name: name, Host: host, Type: typ, IsGateway: in.Gateway, AgentOnly: in.AgentOnly,
+		InventoryMode:  invMode,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
 		SSHPort: sshPort,
@@ -389,6 +414,15 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	}
 	gw := in.Gateway
 	ao := in.AgentOnly
+	var invMode *string
+	if in.InventoryMode != nil {
+		m, msg := validateInventoryMode(in.InventoryMode)
+		if msg != "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", msg)
+			return
+		}
+		invMode = &m
+	}
 	var firmwareTarget *string
 	if in.FirmwareTarget != nil {
 		v := strings.TrimSpace(*in.FirmwareTarget)
@@ -438,6 +472,7 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 	updated, ok := routerstore.UpdateRouter(s.db.DB, id, routerstore.UpdateInput{
 		Name: name, Host: host, Type: typ,
 		IsGateway: &gw, AgentOnly: &ao,
+		InventoryMode:  invMode,
 		Disabled:       in.Disabled,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,

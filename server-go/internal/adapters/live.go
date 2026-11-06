@@ -1689,6 +1689,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	// #1917: de dónde salió este inventario y de cuándo es. Se calcula aquí,
 	// donde ya se conoce el agentKind, para no exponer ese detalle interno.
 	r.InventorySource = p.inventorySource()
+	// #1917: el modo configurado viaja con la tarjeta para que la UI no ofrezca
+	// agente en una unidad que se inventaria por SSH.
+	r.InventoryMode = p.cfg.InventoryMode
 	r.InventoryAt = p.polledAt
 	// #1741: la serie de 24 h de una unidad sin throughput nativo (SNMP o
 	// pusher external) sale de sus puertos. Se decide aquí, donde se conoce el

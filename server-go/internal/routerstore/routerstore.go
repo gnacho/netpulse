@@ -28,7 +28,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, temp_threshold, console_polling, disabled FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, temp_threshold, console_polling, disabled, inventory_mode FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -37,9 +37,9 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 	for rows.Next() {
 		var r adapters.RouterConfig
 		var gw, ao, snmpEn, snmpPort, snmpInterval, agentInterval, sshPort, consolePoll, disabled int
-		var name, ft, snmpComm sql.NullString
+		var name, ft, snmpComm, mode sql.NullString
 		var tt sql.NullInt64
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &agentInterval, &sshPort, &tt, &consolePoll, &disabled); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &agentInterval, &sshPort, &tt, &consolePoll, &disabled, &mode); err != nil {
 			continue
 		}
 		// DEFAULT 1 de la migración, pero una fila insertada antes de la
@@ -51,6 +51,15 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		r.FirmwareTarget = ft.String
 		r.IsGateway = gw == 1
 		r.AgentOnly = ao == 1
+		r.InventoryMode = mode.String
+		if r.InventoryMode == "" {
+			// Filas anteriores a la columna: el modo se deduce del flag viejo.
+			if r.AgentOnly {
+				r.InventoryMode = "agent"
+			} else {
+				r.InventoryMode = "auto"
+			}
+		}
 		r.SnmpEnabled = snmpEn == 1
 		r.SnmpCommunity = snmpComm.String
 		r.SnmpPort = snmpPort
@@ -137,6 +146,9 @@ type AddInput struct {
 	Type      string // default "openwrt"
 	IsGateway bool
 	AgentOnly bool
+	// InventoryMode (#1917): "auto" (default), "agent" (solo agente, sin SSH)
+	// o "ssh" (nunca esperar agente). Manda sobre AgentOnly cuando viene.
+	InventoryMode string
 	// FirmwareTarget: versión objetivo (issue #241). "" = sin comprobar.
 	FirmwareTarget string
 	// SNMP (issue #309): credenciales para sondeo SNMP.
@@ -185,6 +197,19 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if in.AgentOnly {
 		ao = 1
 	}
+	// #1917: el modo explicito manda sobre el booleano heredado.
+	mode := in.InventoryMode
+	if mode == "" {
+		if ao == 1 {
+			mode = "agent"
+		} else {
+			mode = "auto"
+		}
+	}
+	ao = 0
+	if mode == "agent" {
+		ao = 1
+	}
 	snmpEn := 0
 	if in.SnmpEnabled {
 		snmpEn = 1
@@ -206,8 +231,8 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 		consolePoll = 0
 	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, console_polling) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, in.AgentInterval, sshPort, consolePoll,
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, console_polling, inventory_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, in.AgentInterval, sshPort, consolePoll, mode,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -240,6 +265,9 @@ type UpdateInput struct {
 	Type      *string
 	IsGateway *bool
 	AgentOnly *bool
+	// InventoryMode (#1917): "auto" | "agent" | "ssh". nil = no tocar. Cuando
+	// viene, deriva agent_only (solo "agent" deja la unidad sin SSH).
+	InventoryMode *string
 	// Disabled (issue #1085): nil = no tocar; true = pausar la unidad
 	// (sin sondeo ni alertas, insignia y fuera de desplegables).
 	Disabled *bool
@@ -312,6 +340,17 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 		}
 		sets = append(sets, "agent_only = ?")
 		args = append(args, ao)
+	}
+	// #1917: el modo explicito se escribe despues y deriva agent_only, asi que
+	// gana si el cliente manda los dos campos.
+	if in.InventoryMode != nil {
+		mode := *in.InventoryMode
+		ao := 0
+		if mode == "agent" {
+			ao = 1
+		}
+		sets = append(sets, "inventory_mode = ?", "agent_only = ?")
+		args = append(args, mode, ao)
 	}
 	if in.Disabled != nil {
 		v := 0

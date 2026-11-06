@@ -662,6 +662,11 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// SPEC-65 D65-5: nombre visible por usuario ("" = usar el username).
 	migrate(sqldb, "users", "display_name", "ALTER TABLE users ADD COLUMN display_name TEXT DEFAULT ''")
 	migrate(sqldb, "routers", "agent_only", "ALTER TABLE routers ADD COLUMN agent_only INTEGER NOT NULL DEFAULT 0")
+	// #1917: modo de inventario por unidad. ""/"auto" = comportamiento de
+	// siempre (agente si lo hay, SSH si no), "agent" = solo agente (el antiguo
+	// agent_only), "ssh" = nunca esperar agente: se inventaria por SSH y no
+	// alerta por la ausencia de un agente que no va a existir.
+	migrate(sqldb, "routers", "inventory_mode", "ALTER TABLE routers ADD COLUMN inventory_mode TEXT NOT NULL DEFAULT ''")
 	// issue #196: bridgeMAC persistido del router (exclusión de "desconocido").
 	migrate(sqldb, "routers", "mac", "ALTER TABLE routers ADD COLUMN mac TEXT")
 	// Ancho de canal de los vecinos (#1087), con el agente nuevo; 0 = viejo.

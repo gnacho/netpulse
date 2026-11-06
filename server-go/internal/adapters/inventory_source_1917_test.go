@@ -38,7 +38,7 @@ func TestBuildRouterPublishesInventoryOrigin(t *testing.T) {
 	l := NewLive(nil, nil, nil, nil)
 	polled := time.Now().Add(-7 * time.Minute).UnixMilli()
 	p := &routerPolled{
-		cfg:      RouterConfig{ID: "rt2", Name: "rt2", Host: "192.168.1.2"},
+		cfg:       RouterConfig{ID: "rt2", Name: "rt2", Host: "192.168.1.2", InventoryMode: "ssh"},
 		agentKind: "native",
 		polledAt:  polled,
 	}
@@ -50,5 +50,10 @@ func TestBuildRouterPublishesInventoryOrigin(t *testing.T) {
 	}
 	if r.InventoryAt != polled {
 		t.Fatalf("InventoryAt = %d, esperaba %d", r.InventoryAt, polled)
+	}
+	// El modo configurado viaja con la tarjeta: la UI lo necesita para no
+	// ofrecer acciones de agente en una unidad que se inventaria por SSH.
+	if r.InventoryMode != "ssh" {
+		t.Fatalf("InventoryMode = %q, esperaba ssh", r.InventoryMode)
 	}
 }
