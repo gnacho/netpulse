@@ -1005,6 +1005,11 @@
     "highTempBanner": "High temperature: {{temp}} (threshold {{threshold}}).",
     "info": {
       "access": "Access",
+      "inventory": "Inventory",
+      "inventoryAgent": "Agent",
+      "inventorySsh": "SSH",
+      "inventorySnmp": "SNMP",
+      "inventoryExternal": "Integration",
       "copied": "Command copied",
       "copySsh": "SSH (copy)",
       "firmwareBase": "(base {{base}})",

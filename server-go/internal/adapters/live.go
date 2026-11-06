@@ -1583,6 +1583,23 @@ func vlanPortsWithNames(ports []VlanPort, luci *probe.LuCILabels) []VlanPort {
 	return out
 }
 
+// inventorySource (#1917) nombra la vía que produjo este sondeo. El sondeo
+// del agente llega con su Kind ya resuelto; el resto sale del cliente SSH o
+// del recolector SNMP, que es lo que distingue "ssh" de "snmp".
+func (p *routerPolled) inventorySource() string {
+	switch p.agentKind {
+	case "native", "netgrip":
+		return "agent"
+	case "":
+		if p.cfg.SnmpEnabled {
+			return "snmp"
+		}
+		return "ssh"
+	default:
+		return p.agentKind
+	}
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -1669,6 +1686,10 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		r.VitalsAvailable = bptr(v.available)
 	}
 	r.SnmpEnabled = p.cfg.SnmpEnabled
+	// #1917: de dónde salió este inventario y de cuándo es. Se calcula aquí,
+	// donde ya se conoce el agentKind, para no exponer ese detalle interno.
+	r.InventorySource = p.inventorySource()
+	r.InventoryAt = p.polledAt
 	// #1741: la serie de 24 h de una unidad sin throughput nativo (SNMP o
 	// pusher external) sale de sus puertos. Se decide aquí, donde se conoce el
 	// agent kind, porque Router no lo expone y VitalsAvailable ya no sirve de
