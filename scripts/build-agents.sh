@@ -71,4 +71,9 @@ for arch in amd64 arm64 arm mipsle mips; do
 	"$UPX_BIN" -t "$bin" >/dev/null || { echo "build-agents: $bin fails the UPX integrity test" >&2; exit 1; }
 done
 
+# UPX compresses the version literal passed with -X main.Version, so the #1246
+# guard cannot find it by scanning the embedded bytes. The stamp keeps that
+# check working without unpacking at runtime (#1914).
+printf '%s\n' "$VERSION" > "$OUT/agent.version"
+
 ls -l "$OUT"/netpulse-agent-*

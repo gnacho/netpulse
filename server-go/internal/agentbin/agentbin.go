@@ -155,17 +155,39 @@ func VerifyEmbedded() (bool, string) {
 	return verifyFSVersion(agentsFS, EmbeddedAgentVersion)
 }
 
+// embeddedStampFile es el sello que build-agents.sh escribe junto a los
+// binarios embebidos. UPX comprime el literal de versión dentro del payload
+// (ver #1890), así que el escaneo de bytes no lo encuentra: el sello conserva
+// la comprobación sin descomprimir en runtime (#1914).
+const embeddedStampFile = "agents/agent.version"
+
+// embeddedArchs son las arquitecturas que el servidor embebe y sirve.
+var embeddedArchs = []string{"amd64", "arm64", "arm", "mips", "mipsle"}
+
 // verifyFSVersion es verifyEmbedded desacoplada del embed para tests.
 func verifyFSVersion(fsys fs.FS, version string) (bool, string) {
 	if version == "" || version == "0.1.0" {
 		return true, ""
 	}
-	var bad []string
-	for _, arch := range []string{"amd64", "arm64", "arm", "mips", "mipsle"} {
+	var present []string
+	for _, arch := range embeddedArchs {
 		b, err := fs.ReadFile(fsys, "agents/netpulse-agent-"+arch)
 		if err != nil || len(b) == 0 {
 			continue // sin binario para esa arquitectura: Open ya da 404
 		}
+		present = append(present, arch)
+	}
+
+	if stamp, err := fs.ReadFile(fsys, embeddedStampFile); err == nil {
+		if strings.TrimSpace(string(stamp)) == version {
+			return true, ""
+		}
+		return false, strings.Join(present, ",")
+	}
+
+	var bad []string
+	for _, arch := range present {
+		b, _ := fs.ReadFile(fsys, "agents/netpulse-agent-"+arch)
 		if !bytes.Contains(b, []byte(version)) {
 			bad = append(bad, arch)
 		}

@@ -49,6 +49,36 @@ func TestVerifyFSVersion(t *testing.T) {
 	}
 }
 
+// #1914: los agentes van comprimidos con UPX y el literal de versión no está
+// en claro en los bytes embebidos. El sello escrito por build-agents.sh
+// restaura la comprobación sin descomprimir.
+func TestVerifyFSVersionUsesStampForPackedBinaries(t *testing.T) {
+	packed := fstest.MapFS{
+		"agents/netpulse-agent-amd64": {Data: []byte("UPXD payload without the version")},
+		"agents/netpulse-agent-arm64": {Data: []byte("UPXD payload without the version")},
+	}
+	if ok, bad := verifyFSVersion(packed, "3.0.37"); ok || bad != "amd64,arm64" {
+		t.Fatalf("packed sin sello debe fallar: ok=%v bad=%q", ok, bad)
+	}
+
+	stamped := fstest.MapFS{
+		"agents/netpulse-agent-amd64": {Data: []byte("UPXD payload")},
+		"agents/netpulse-agent-arm64": {Data: []byte("UPXD payload")},
+		"agents/agent.version":        {Data: []byte("3.0.37\n")},
+	}
+	if ok, bad := verifyFSVersion(stamped, "3.0.37"); !ok || bad != "" {
+		t.Fatalf("sello correcto: ok=%v bad=%q", ok, bad)
+	}
+
+	stale := fstest.MapFS{
+		"agents/netpulse-agent-amd64": {Data: []byte("UPXD payload")},
+		"agents/agent.version":        {Data: []byte("3.0.36\n")},
+	}
+	if ok, bad := verifyFSVersion(stale, "3.0.37"); ok || bad != "amd64" {
+		t.Fatalf("sello viejo: ok=%v bad=%q", ok, bad)
+	}
+}
+
 func TestEmbeddedMismatchFlag(t *testing.T) {
 	SetEmbeddedMismatch(true)
 	if !EmbeddedMismatch() {
