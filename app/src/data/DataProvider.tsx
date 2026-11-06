@@ -1276,9 +1276,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const reinstallAgent = useCallback(async (slug: string): Promise<{ recovered: boolean; token?: string; output?: string; error?: string } | null> => {
     if (modeRef.current !== 'live') return null
     try {
+      // #1894: el handler espera al script (hasta 300 s) y luego al primer
+      // push del agente (40 s). Con 90 s el navegador cortaba una instalación
+      // que seguía viva y la pintaba como fallo.
       const res = await fetch(`/api/agents/${encodeURIComponent(slug)}/reinstall`, {
         method: 'POST',
-        signal: AbortSignal.timeout(90_000),
+        signal: AbortSignal.timeout(360_000),
       })
       if (res.status === 401) redirectLogin()
       if (!res.ok) {
@@ -1287,8 +1290,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       const json = (await res.json()) as { recovered: boolean; token?: string; output?: string }
       return { recovered: json.recovered, token: json.token, output: json.output }
-    } catch {
-      return { recovered: false, error: 'network' }
+    } catch (e) {
+      // #1894: dos fallos distintos que antes eran el mismo 'network': el
+      // navegador se cansó de esperar (el comando puede seguir corriendo en el
+      // router) o no hay camino hasta el servidor.
+      return { recovered: false, error: e instanceof DOMException && e.name === 'TimeoutError' ? 'timeout' : 'network' }
     }
   }, [])
 
@@ -1306,8 +1312,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       }
       const json = (await res.json()) as { gone: boolean; token?: boolean }
       return { gone: json.gone, token: json.token }
-    } catch {
-      return { gone: false, error: 'network' }
+    } catch (e) {
+      return { gone: false, error: e instanceof DOMException && e.name === 'TimeoutError' ? 'timeout' : 'network' }
     }
   }, [])
 
@@ -1324,8 +1330,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return { error: body.message ?? `HTTP ${res.status}` }
       }
       return {}
-    } catch {
-      return { error: 'network' }
+    } catch (e) {
+      return { error: e instanceof DOMException && e.name === 'TimeoutError' ? 'timeout' : 'network' }
     }
   }, [])
 

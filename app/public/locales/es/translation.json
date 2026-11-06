@@ -1330,6 +1330,8 @@
       "installDone": "Agente instalado y empujando.",
       "installPending": "Agente instalado; esperando a que empuje (hasta 40 s).",
       "installFail": "Fallo al instalar",
+      "sshTimeout": "El servidor dejó de esperar al router. El comando puede seguir corriendo: recarga en un minuto y mira el agente.",
+      "sshUnreachable": "El navegador no pudo hablar con el servidor. Revisa la conexión y vuelve a intentarlo.",
       "uninstall": "Desinstalar",
       "uninstalling": "Desinstalando…",
       "uninstalled": "Desinstalado",

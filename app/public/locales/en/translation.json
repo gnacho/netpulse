@@ -1330,6 +1330,8 @@
       "installDone": "Agent installed and reporting.",
       "installPending": "Agent installed; waiting for it to report (up to 40s).",
       "installFail": "Install failed",
+      "sshTimeout": "The server stopped waiting for the router. The command may still be running: reload in a minute and check the agent.",
+      "sshUnreachable": "The browser could not reach the server. Check the connection and try again.",
       "uninstall": "Uninstall",
       "uninstalling": "Uninstalling…",
       "uninstalled": "Uninstalled",
