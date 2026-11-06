@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.51.2] - 2026-11-06
+
 ### Added
 - The router page can now be read as the networks the unit declares, not only as a chassis with jacks (#1889). A networks card lists each OpenWrt network with its device, its subnet, its VLAN, its member ports, how many clients sit on it and the traffic of its device. Both ways of segmenting a box go through the same code: a bridge with VLAN filtering, where the network device is br_switch.999 and the members come from its bridge-vlan section, and one bridge per network fed by a tagged subinterface, where br-iot learns its VLAN from eth0.999. Traffic is the counter of the network device rather than a sum of its ports, a unit without per-interface counters shows no figure instead of an invented one, and clients are counted only when their VLAN is known. Reading the configuration also fixed a quiet parsing bug: a UCI list written as 'eth1 lan1 lan2' was being treated as one single port name.
 
