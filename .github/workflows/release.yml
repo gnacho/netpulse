@@ -140,22 +140,12 @@ jobs:
             echo "reused=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Instala upx
+        run: sudo apt-get update && sudo apt-get install -y upx-ucl
+
       - name: Build agent binaries para embed (todas las arquitecturas)
         if: steps.agent-reuse.outputs.reused != 'true'
-        env:
-          CGO_ENABLED: 0
-          GOOS: linux
-        run: |
-          set -e
-          # amd64
-          (cd agent && GOARCH=amd64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-amd64 ./cmd/netpulse-agent)
-          # arm64
-          (cd agent && GOARCH=arm64 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm64 ./cmd/netpulse-agent)
-          # armv7 (fichero "arm": el nombre que busca normalizeArch)
-          (cd agent && GOARCH=arm GOARM=7 go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-arm ./cmd/netpulse-agent)
-          # mipsle/mips softfloat (#488): MIPS sin FPU, ambos endianness
-          (cd agent && GOARCH=mipsle GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-mipsle ./cmd/netpulse-agent)
-          (cd agent && GOARCH=mips GOMIPS=softfloat go build -trimpath -ldflags "-s -w -X main.Version=${{ steps.version.outputs.agent }}" -o ../server-go/internal/agentbin/agents/netpulse-agent-mips ./cmd/netpulse-agent)
+        run: scripts/build-agents.sh "${{ steps.version.outputs.agent }}"
 
       - name: Tests Go (ambos módulos)
         run: |
@@ -187,6 +177,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AGENT_VERSION: ${{ steps.version.outputs.agent }}
+
+      # #1890: goreleaser SALTA upx en silencio si no está en PATH, y el
+      # resultado sería un release con agentes de 7-9 MB. Verifica que los
+      # binarios que van en los tarballs están empaquetados y son válidos.
+      - name: Verifica que los agentes del release van con upx
+        if: github.ref_type == 'tag'
+        run: |
+          set -e
+          find dist -name netpulse-agent -type f | while read -r bin; do
+            tail -c 256 "$bin" | grep -qa "UPX!" || { echo "::error::$bin no está empaquetado con upx"; exit 1; }
+            upx -t "$bin" >/dev/null
+            echo "$bin $(du -h "$bin" | cut -f1)"
+          done
 
       # #1656: el demo online es una copia estatica de app/dist, y hasta ahora
       # se publicaba a mano, asi que se quedaba atras sin que nada fallara.
