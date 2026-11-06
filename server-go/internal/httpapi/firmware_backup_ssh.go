@@ -8,7 +8,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"net/http"
 	"os"
@@ -21,12 +20,23 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
-// sshConfigBackupCmd crea el tar.gz con sysupgrade, lo vuelca en base64 (el
-// canal SSH del pool devuelve texto y un tar.gz crudo no sobreviviría) y borra
-// el temporal SIEMPRE: en el router /tmp es tmpfs, o sea RAM (#1897).
+// sshBackupMarker separa la salida del script de los bytes del archivo: si
+// algo se cuela por stdout antes, el servidor toma lo que viene detrás.
+const sshBackupMarker = "__netpulse_backup__"
+
+// sshConfigBackupCmd crea el tar.gz con sysupgrade, lo vuelca en crudo tras el
+// marcador y borra el temporal SIEMPRE: en el router /tmp es tmpfs, o sea RAM
+// (#1897). Nada de base64: la imagen de fábrica de OpenWrt no trae ese applet
+// ni instala coreutils-base64, y con él el backup fallaba con "base64: not
+// found" (#1935). El pool lee stdout con session.Output, que devuelve bytes sin
+// tocar, así que el tar.gz sobrevive al canal.
 const sshConfigBackupCmd = `tmp=/tmp/netpulse-config-backup-$$.tar.gz
-sysupgrade --create-backup "$tmp" >/dev/null 2>&1 && base64 "$tmp"
+sysupgrade --create-backup "$tmp" >/dev/null 2>&1
 rc=$?
+if [ $rc -eq 0 ] && [ -s "$tmp" ]; then
+  echo "` + sshBackupMarker + `"
+  cat "$tmp"
+fi
 rm -f "$tmp"
 exit $rc`
 
@@ -87,22 +97,27 @@ func (s *server) backupConfigOverSsh(ctx context.Context, id, host string) (stri
 	return name, len(data), nil
 }
 
-// decodeSshBackup: base64 con saltos de línea de busybox -> bytes del tar.gz.
+// decodeSshBackup: bytes del tar.gz que la unidad volcó tras el marcador. No
+// hay decodificador de por medio (#1935), así que el único control posible es
+// que lo recibido sea un gzip: cabecera 1f 8b.
 func decodeSshBackup(out string) ([]byte, error) {
-	clean := strings.Map(func(r rune) rune {
-		if r == '\n' || r == '\r' || r == ' ' || r == '\t' {
-			return -1
-		}
-		return r
-	}, out)
-	if clean == "" {
+	i := strings.Index(out, sshBackupMarker)
+	if i < 0 {
 		return nil, errors.New("la unidad no devolvió ningún backup")
 	}
-	data, err := base64.StdEncoding.DecodeString(clean)
-	if err != nil {
+	rest := out[i+len(sshBackupMarker):]
+	if j := strings.IndexByte(rest, '\n'); j >= 0 {
+		rest = rest[j+1:]
+	} else {
+		rest = ""
+	}
+	if rest == "" {
+		return nil, errors.New("la unidad no devolvió ningún backup")
+	}
+	if len(rest) < 2 || rest[0] != 0x1f || rest[1] != 0x8b {
 		return nil, errors.New("la salida de la unidad no es un backup válido")
 	}
-	return data, nil
+	return []byte(rest), nil
 }
 
 func (s *server) registerFirmwareBackupSshRoutes(mux *http.ServeMux) {

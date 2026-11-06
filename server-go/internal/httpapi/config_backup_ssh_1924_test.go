@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
@@ -71,8 +70,8 @@ func newSshScheduleServer(t *testing.T, pool SSHRunner) *server {
 }
 
 func TestConfigBackupSshPassStoresArchive(t *testing.T) {
-	payload := []byte("tar-gz-fake")
-	pool := &sshPoolRecorder{out: base64.StdEncoding.EncodeToString(payload) + "\n"}
+	payload := []byte("\x1f\x8btar-gz-fake")
+	pool := &sshPoolRecorder{out: sshBackupMarker + "\n" + string(payload)}
 	s := newSshScheduleServer(t, pool)
 	if _, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{Name: "ap2", Host: "10.0.0.2"}); err != nil {
 		t.Fatalf("AddRouter: %v", err)
@@ -106,9 +105,9 @@ func TestConfigBackupSshPassStoresArchive(t *testing.T) {
 }
 
 func TestConfigBackupSshPassSurvivesFailures(t *testing.T) {
-	payload := []byte("ok")
+	payload := []byte("\x1f\x8bok")
 	pool := &sshPoolRecorder{
-		out:       base64.StdEncoding.EncodeToString(payload),
+		out:       sshBackupMarker + "\n" + string(payload),
 		failHosts: map[string]bool{"10.0.0.10:22": true},
 	}
 	s := newSshScheduleServer(t, pool)
@@ -129,7 +128,7 @@ func TestConfigBackupSshPassSurvivesFailures(t *testing.T) {
 }
 
 func TestConfigBackupSshPassHonoursRetry(t *testing.T) {
-	pool := &sshPoolRecorder{out: base64.StdEncoding.EncodeToString([]byte("ok"))}
+	pool := &sshPoolRecorder{out: sshBackupMarker + "\n\x1f\x8bok"}
 	s := newSshScheduleServer(t, pool)
 	if _, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{Name: "ap", Host: "10.0.0.2"}); err != nil {
 		t.Fatalf("AddRouter: %v", err)
@@ -150,7 +149,7 @@ func TestConfigBackupSshPassHonoursRetry(t *testing.T) {
 }
 
 func TestConfigBackupSshPassSkipsServedByAgent(t *testing.T) {
-	pool := &sshPoolRecorder{out: base64.StdEncoding.EncodeToString([]byte("ok"))}
+	pool := &sshPoolRecorder{out: sshBackupMarker + "\n\x1f\x8bok"}
 	s := newSshScheduleServer(t, pool)
 	rc, err := routerstore.AddRouter(s.db.DB, routerstore.AddInput{Name: "ap", Host: "10.0.0.2"})
 	if err != nil {
