@@ -192,6 +192,11 @@ type server struct {
 	planScanMu   sync.Mutex
 	lastPlanScan map[string]time.Time
 
+	// Freno entre pases SSH del backup programado (#1924): una unidad sin
+	// agente no se sondea cada tick de 30 s.
+	cfgBackupSshMu   sync.Mutex
+	lastCfgBackupSsh time.Time
+
 	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
 	ingestLimit *ipRateLimit
 
