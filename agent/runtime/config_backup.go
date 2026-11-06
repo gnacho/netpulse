@@ -12,6 +12,7 @@ package runtime
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -23,9 +24,16 @@ func handleConfigBackup(opts Options, transport http.RoundTripper) {
 		log.Error("[netpulse-agent] config_backup: snapshot falló", "err", err)
 		return
 	}
+	// #1897: el tar.gz se borra siempre al terminar, suba o no. En el router
+	// /tmp es tmpfs (RAM), así que cada backup manual o programado se quedaba
+	// ocupando memoria hasta el próximo reinicio; la copia que importa es la
+	// que el server guarda con retención. El flujo de firmware NO hace esto:
+	// ahí el backup local se conserva a propósito para recuperarlo a mano si
+	// sysupgrade falla, y su ruta se reporta en el resultado.
+	defer os.Remove(backupPath)
 	if err := uploadBackup(opts, transport, backupPath); err != nil {
 		log.Error("[netpulse-agent] config_backup: subida falló", "err", err)
 		return
 	}
-	log.Info("[netpulse-agent] config_backup: backup subido", "path", backupPath)
+	log.Info("[netpulse-agent] config_backup: backup subido y temporal local eliminado")
 }
