@@ -385,6 +385,19 @@ func (p *SSHPool) drop(host string) {
 // motivo (curl, wget, uci) se quedaba en el router. Se devuelve la ULTIMA
 // linea no vacia y recortada, que es la que explica el fallo sin arrastrar el
 // ruido del script entero.
+// mergeScriptOutput junta stdout y stderr en el orden en que se leen: primero
+// lo que el script escribio a la salida normal, despues sus avisos. El journal
+// y la caja de la UI enseñan este texto tal cual (#1894).
+func mergeScriptOutput(stdout, stderr string) string {
+	if stderr == "" {
+		return stdout
+	}
+	if stdout != "" && !strings.HasSuffix(stdout, "\n") {
+		stdout += "\n"
+	}
+	return stdout + stderr
+}
+
 func sshErrDetail(stderr string) string {
 	if stderr == "" {
 		return ""
@@ -406,7 +419,7 @@ func sshErrDetail(stderr string) string {
 // Run ejecuta cmd en host con timeout (por defecto 5 s, como el JS).
 // Una sesión fallida por canal roto invalida la conexión (reconexión).
 func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
-	return p.run(host, cmd, nil, timeout)
+	return p.run(host, cmd, nil, timeout, false)
 }
 
 // RunScript ejecuta un script POSIX por stdin con `sh -s` (#1737). Dropbear
@@ -414,14 +427,18 @@ func (p *SSHPool) Run(host, cmd string, timeout time.Duration) (string, error) {
 // aborta la conexión con "String too long": el cliente SSH solo ve EOF, sin
 // exit status ni stderr. El script de reinstalación pasa de 14 KB por argv, así
 // que el comando completo viaja por stdin y en argv solo va `sh -s`.
+// #1894: el script de reinstalación cuenta todo lo que hace por stderr
+// (`warn()` y los `echo ... >&2`), y el pool devolvía solo stdout. Con
+// mergeStderr la salida que viaja al journal y a la UI lleva las dos, y se
+// devuelve también cuando el script falla: es justo cuando hace falta.
 func (p *SSHPool) RunScript(host, script string, timeout time.Duration) (string, error) {
-	return p.run(host, "sh -s", strings.NewReader(script), timeout)
+	return p.run(host, "sh -s", strings.NewReader(script), timeout, true)
 }
 
 // run abre una sesión, ejecuta cmd (alimentando stdin si no es nil) y devuelve
 // stdout. Comparte el manejo de stderr, drop por canal roto y timeout entre
 // Run y RunScript.
-func (p *SSHPool) run(host, cmd string, stdin io.Reader, timeout time.Duration) (string, error) {
+func (p *SSHPool) run(host, cmd string, stdin io.Reader, timeout time.Duration, mergeStderr bool) (string, error) {
 	if timeout <= 0 {
 		timeout = sshDefaultTimeout
 	}
@@ -451,17 +468,23 @@ func (p *SSHPool) run(host, cmd string, stdin io.Reader, timeout time.Duration) 
 	}()
 	select {
 	case res := <-ch:
+		body := string(res.out)
+		if mergeStderr {
+			body = mergeScriptOutput(body, res.stderr)
+		}
 		if res.err != nil {
 			var ee *ssh.ExitError
 			if !errors.As(res.err, &ee) {
 				p.drop(host) // canal roto, no exit status
 			}
+			// #1894: la salida se devuelve aunque el comando falle. Antes se
+			// tiraba, y con ella el motivo real del fallo.
 			if msg := sshErrDetail(res.stderr); msg != "" {
-				return "", fmt.Errorf("ssh %s: %w: %s", host, res.err, msg)
+				return body, fmt.Errorf("ssh %s: %w: %s", host, res.err, msg)
 			}
-			return "", fmt.Errorf("ssh %s: %w", host, res.err)
+			return body, fmt.Errorf("ssh %s: %w", host, res.err)
 		}
-		return string(res.out), nil
+		return body, nil
 	case <-time.After(timeout):
 		// Timeout: cerrar solo la sesión. NO dropear el cliente entero: el
 		// pool permite sesiones concurrentes sobre el mismo router y un
@@ -506,10 +529,11 @@ func (p *SSHPool) RunCtx(ctx context.Context, host, cmd string, timeout time.Dur
 			if !errors.As(res.err, &ee) {
 				p.drop(host) // canal roto, no exit status
 			}
+			// #1894: misma razón que en run(), la salida vuelve con el error.
 			if msg := sshErrDetail(res.stderr); msg != "" {
-				return "", fmt.Errorf("ssh %s: %w: %s", host, res.err, msg)
+				return string(res.out), fmt.Errorf("ssh %s: %w: %s", host, res.err, msg)
 			}
-			return "", fmt.Errorf("ssh %s: %w", host, res.err)
+			return string(res.out), fmt.Errorf("ssh %s: %w", host, res.err)
 		}
 		return string(res.out), nil
 	case <-time.After(timeout):
