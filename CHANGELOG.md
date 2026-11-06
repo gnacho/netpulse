@@ -21,6 +21,10 @@ An inventory mode per unit decides what NetPulse expects from it (#1917). `auto`
 
 - The OpenWrt package now ships a compressed agent as well (#1891). #1902 packed the binaries published in a release, but the ipk built from `deploy/openwrt/netpulse-agent/Makefile` still compiled a plain binary, and that is the path that matters on a router with little flash. The build removes any previous output first, packs the result with `upx --best --lzma` and runs `upx -t` to prove it still decompresses. Building the package now needs UPX on the build host, which the comment states.
 
+- The configuration backup is offered in the fleet agent list too, not only on the firmware page and the router header (#1899). Both of those have passed the SSH permission since #1911, but the agent table rendered the button without it and keyed it on the agent's own router id, so a unit managed over plain SSH, which has no agent row to hang the action on, never showed it. The row now falls back to the router id and applies the same OpenWrt-only rule as the header.
+
+- Every SSH probe that does not go through the connection pool now leaves a line in the server log (#1893). A unit reported dropbear pairs of "Child connection" and "Exit before auth: Exited normally" every half minute and there was nothing on the server side to match them against, because the pool is the only path that logged. Host key pinning with `ssh-keyscan` opens one connection per algorithm, the LAN scan opens a bare TCP connection to port 22 per host and the gateway probe opens another, and all three close before authenticating, which is exactly what dropbear reports. Each one logs now, and the LAN sweep writes a single summary line so a /24 port scan cannot be mistaken for a unit being polled.
+
 ## [2.51.3] - 2026-11-06
 
 ### Fixed
