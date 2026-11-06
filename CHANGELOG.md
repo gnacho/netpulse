@@ -19,6 +19,8 @@ An inventory mode per unit decides what NetPulse expects from it (#1917). `auto`
 
 - The networks card added in #1889 never rendered on a live server (#1918). The API was sending the field all along, but `getRouterDetail` rebuilt the response from an inline type that had no `networks` member and dropped the key, so the guard in the router page never saw any data. TypeScript does not flag a field that is simply never copied, and this repo has no frontend test runner, so nothing caught it.
 
+- The OpenWrt package now ships a compressed agent as well (#1891). #1902 packed the binaries published in a release, but the ipk built from `deploy/openwrt/netpulse-agent/Makefile` still compiled a plain binary, and that is the path that matters on a router with little flash. The build removes any previous output first, packs the result with `upx --best --lzma` and runs `upx -t` to prove it still decompresses. Building the package now needs UPX on the build host, which the comment states.
+
 ## [2.51.3] - 2026-11-06
 
 ### Fixed
