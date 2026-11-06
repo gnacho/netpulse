@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.51.3] - 2026-11-06
+
 ### Fixed
 - Agent self-upgrade works again on servers built after the binaries were packed with UPX (#1914). The #1246 guard scanned the embedded bytes for the version string, and compression hides it, so every release since the packing change started with self-upgrade disabled and logged a mismatch that did not exist. The build now writes the agent version in a stamp file next to the binaries and the server reads that stamp first, keeping the byte scan for hand-copied or unpacked sets.
 
