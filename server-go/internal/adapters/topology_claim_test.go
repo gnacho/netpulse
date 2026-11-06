@@ -5,13 +5,15 @@ import "testing"
 // #1417: flota con switches gestionados sondeados por SNMP como "external"
 // (el montaje de #1137). El gateway los ve por LLDP en su puerto de uplink;
 // como su Type no es "managed-switch", inferLldpLinks trata el enlace como
-// router↔router y marca el puerto como resuelto SIN crear distnode ni anclar
-// a los clientes cableados del puerto. La inferencia de hojas #1325 tampoco
-// cubre estos switches (filtra Type=="managed-switch"). Resultado: los
-// clientes cableados del switch quedan sin AttachTo y el mapa los cuelga del
-// gateway. claimSwitchFdbClients reclama para cada switch de flota los
-// clientes cableados (atribuidos al gateway) que SU FDB aprendió en un
-// puerto que no es su root port.
+// router↔router y marca el puerto como resuelto SIN crear distnode.
+// claimSwitchFdbClients reclama para cada switch de flota los clientes
+// cableados (atribuidos al gateway) que SU FDB aprendió en un puerto que no
+// es su root port.
+//
+// Desde #1791 la inferencia de hojas #1325 SI cubre estos switches: un puerto
+// con 2+ clientes genera su nodo "inferred" y los clientes cuelgan de el con
+// su puerto fisico. Los puertos con un solo cliente los sigue resolviendo
+// claim, que no re-ancla los clientes de una hoja ya creada.
 
 const (
 	claimGwMac   = "AA:BB:CC:00:00:01"
@@ -72,23 +74,33 @@ func TestClaim1417SonosDetrasDeSwitchSNMP(t *testing.T) {
 		dev("11:11:11:11:11:09", "gateway", "cable"),
 	}
 	devices, dists := inferTopology(polled, devices)
-	for i, d := range devices[:4] {
-		if d.AttachTo != "" {
-			t.Fatalf("prepara: sonos %d ya anclado a %q (fixture sin el bug)", i, d.AttachTo)
+	// #1791: Port 5 de sw1 aprende dos clientes, asi que su hoja ya existe y
+	// los dos cuelgan de ella con el puerto fisico conservado.
+	if len(dists) != 1 || dists[0].ID != "dist-sw1-Port 5" || dists[0].Kind != "inferred" {
+		t.Fatalf("prepara: hoja de sw1 ausente: %+v", dists)
+	}
+	for i := 0; i < 2; i++ {
+		if devices[i].AttachTo != "dist-sw1-Port 5" || devices[i].Port != "Port 5" {
+			t.Fatalf("prepara: sonos%d = (%q, %q), quiero la hoja con Port 5", i+1, devices[i].AttachTo, devices[i].Port)
 		}
 	}
-	if len(dists) != 0 {
-		t.Fatalf("prepara: distnodes inesperados: %+v", dists)
+	if devices[2].AttachTo != "" || devices[3].AttachTo != "" {
+		t.Fatalf("prepara: sonos3/sonos4 no deben anclarse aun: %q %q", devices[2].AttachTo, devices[3].AttachTo)
 	}
 	gwID := "gateway"
 	claimSwitchFdbClients(polled, devices, dists, gwID,
 		fleetFdbEvidence(polled, gwID, nil, nil), fleetLldpEvidence(polled, gwID), nil)
 
-	// sonos1/2: acceso de sw1 por "Port 5"; sonos3: "Port 6".
-	for i, wantPort := range []string{"Port 5", "Port 5", "Port 6"} {
-		if devices[i].AttachTo != "sw1" || devices[i].Port != wantPort {
-			t.Fatalf("sonos%d: got (%q, %q), want (sw1, %q)", i+1, devices[i].AttachTo, devices[i].Port, wantPort)
+	// sonos1/2: la hoja de sw1 los conserva (claim no re-ancla una hoja) y el
+	// puerto fisico sigue en el chip. sonos3, solo en su puerto, lo reclama
+	// claim para el propio switch, como antes.
+	for i := 0; i < 2; i++ {
+		if devices[i].AttachTo != "dist-sw1-Port 5" || devices[i].Port != "Port 5" {
+			t.Fatalf("sonos%d: got (%q, %q), want (dist-sw1-Port 5, Port 5)", i+1, devices[i].AttachTo, devices[i].Port)
 		}
+	}
+	if devices[2].AttachTo != "sw1" || devices[2].Port != "Port 6" {
+		t.Fatalf("sonos3: got (%q, %q), want (sw1, Port 6)", devices[2].AttachTo, devices[2].Port)
 	}
 	// sonos4 lo ven sw1 (trunk) y sw2 (acceso): gana el más profundo.
 	if devices[3].AttachTo != "sw2" || devices[3].Port != "Port 3" {
