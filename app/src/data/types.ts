@@ -45,6 +45,9 @@ export interface Router {
   /** #1917: vía que produjo el inventario ("agent"|"external"|"snmp"|"ssh").
    *  Ausente si la unidad no tiene sondeo del que sacarlo. */
   inventorySource?: string
+  /** #1917: cómo está configurada la unidad. "auto" (default), "agent" (solo
+   *  agente, sin SSH) o "ssh" (nunca esperar agente). */
+  inventoryMode?: string
   /** #1917: epoch ms del sondeo que produjo ese inventario. */
   inventoryAt?: number
   status: Status

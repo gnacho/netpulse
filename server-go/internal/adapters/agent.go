@@ -582,7 +582,10 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 		confirm = reg.ExternalDownConfirm(slug, confirm)
 		if reg.StaleFor(slug, confirm) {
 			l.mu.Lock()
-			if !l.agentDown[cfg.ID] {
+			// #1917: en una unidad con inventory_mode "ssh" el agente no se
+			// espera nunca, asi que su ausencia no es un evento: nada de
+			// alerta, ni urgente ni warn.
+			if !l.agentDown[cfg.ID] && cfg.InventoryMode != "ssh" {
 				l.agentDown[cfg.ID] = true
 				name := agentName(cfg)
 				// #850: para routers agent-only el agente ES la única vía

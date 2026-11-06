@@ -193,9 +193,13 @@ type Router struct {
 	// InventoryAt (#1917): epoch ms del sondeo que produjo ese inventario,
 	// para que la UI pueda enseñar su antigüedad en vez de dar por bueno un
 	// dato de hace horas.
-	InventoryAt int64  `json:"inventoryAt,omitempty"`
-	Status      string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
-	Health int        `json:"health"`
+	InventoryAt int64 `json:"inventoryAt,omitempty"`
+	// InventoryMode (#1917): "auto" | "agent" | "ssh", tal como esta
+	// configurada la unidad. La UI lo usa para no ofrecer acciones de agente
+	// en una unidad que nunca lo va a tener.
+	InventoryMode string `json:"inventoryMode,omitempty"`
+	Status        string `json:"status"` // "online"|"warn"|"offline"|"unreachable"
+	Health        int    `json:"health"`
 	// LatencyMs (#1384): latencia sondeada de la unidad (ping unidad→gateway
 	// en no-gateway; latencia WAN en el gateway). Null cuando la fuente no la
 	// sondea (agent-only/external/SNMP) - la tabla de enlaces pinta "—".
@@ -1022,7 +1026,11 @@ type RouterConfig struct {
 	Type      string `json:"type"` // "glinet"|"openwrt"|"managed-switch"|"external"
 	IsGateway bool   `json:"is_gateway"`
 	AgentOnly bool   `json:"agent_only"`
-	CreatedAt int64  `json:"created_at"` // epoch ms
+	// InventoryMode (#1917): "auto" (default), "agent" (solo agente, sin SSH)
+	// o "ssh" (nunca esperar agente: inventario por SSH, sin alerta de caida
+	// del agente). Derivado de agent_only cuando la fila es anterior.
+	InventoryMode string `json:"inventory_mode,omitempty"`
+	CreatedAt     int64  `json:"created_at"` // epoch ms
 	// FirmwareTarget: versión objetivo configurada por el admin (issue #241).
 	// "" = sin comprobar (el live no emite aviso de firmware).
 	FirmwareTarget string `json:"firmware_target,omitempty"`
