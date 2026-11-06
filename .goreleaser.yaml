@@ -74,6 +74,18 @@ builds:
       - -w
       - "-X main.Version={{ .Env.AGENT_VERSION }}"
 
+# #1890: el agente va empaquetado con UPX. El binario instalado ocupa ~2.5 MB
+# en vez de 7-9 MB, y un router con poco espacio necesita DOS veces el tamaño
+# del binario para reemplazarlo (descarga en /tmp, luego mv sobre el destino
+# mientras el viejo sigue en flash). LZMA comprime más que -9 a cambio de
+# ~150 ms de arranque en x86 (menos de 2 s en un MT7621); el agente arranca
+# en el boot y en cada actualización, no en bucle.
+upx:
+  - enabled: true
+    ids: [netpulse-agent]
+    compress: best
+    lzma: true
+
 archives:
   - id: netpulse
     ids: [netpulse]
