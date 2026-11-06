@@ -27,6 +27,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Changed
 
+- The link out of an alert reads View unit instead of View router (#1896), which is the wording the rest of the interface already settled on. The device list link was renamed with it, and the Spanish strings say Ver unidad.
+
 - An agent ships compressed, so a router with little room can install it (#1890). The update downloads the new build to `/tmp` and moves it over the installed one, which means a unit needs twice the size of the agent free before it even starts: 15 MB for a 7.5 MB agent, on a flash of 16 MB. The report came from a unit with 10 MB where the upgrade could not begin. Every architecture is now packed with UPX in `--best --lzma`, which takes the five binaries from 6.9-8.3 MB down to 2.0-2.4 MB, and the cost is about 170 ms at start-up on x86. The build refuses to produce agents without UPX instead of skipping the step in silence, a test fails when an embedded agent is not packed, and the release checks the mark and the size before publishing. The embedded sha256 is computed over the packed bytes, so integrity checks are unchanged.
 
 ## [2.51.1] - 2026-11-05
