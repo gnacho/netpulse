@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
+	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
 
 // #1795: programación semanal del backup de configuración de los agentes.
@@ -168,20 +170,27 @@ func (s *server) configBackupScheduleTick() {
 
 func (s *server) configBackupScheduleTickAt(now time.Time) {
 	sched := s.loadConfigBackupSchedule()
-	if !configBackupScheduleDue(sched, now) || s.agentHub == nil {
+	if !configBackupScheduleDue(sched, now) {
 		return
 	}
+	servedByAgent := map[string]bool{}
 	sent := 0
-	for _, slug := range s.agentHub.ConnectedSlugs() {
-		if err := s.agentHub.SendPrivileged(slug, "config_backup", map[string]any{}); err != nil {
-			log.Printf("[netpulse] config backup programado: %s: %v", slug, err)
-			continue
+	if s.agentHub != nil {
+		for _, slug := range s.agentHub.ConnectedSlugs() {
+			if err := s.agentHub.SendPrivileged(slug, "config_backup", map[string]any{}); err != nil {
+				log.Printf("[netpulse] config backup programado: %s: %v", slug, err)
+				continue
+			}
+			servedByAgent[slug] = true
+			sent++
 		}
-		sent++
 	}
+	// #1924: las unidades sin agente se copian por SSH en el mismo tick, y
+	// solo las que su agente no haya servido ya en este pase.
+	sent += s.configBackupSshPass(now, servedByAgent)
 	if sent == 0 {
-		// Sin agentes conectados no se quema el slot: se reintenta al
-		// reconectar dentro de la misma semana.
+		// Ninguna unidad copiada no quema el slot: se reintenta dentro de la
+		// misma semana.
 		return
 	}
 	lastRun := time.Now().UnixMilli()
@@ -189,5 +198,72 @@ func (s *server) configBackupScheduleTickAt(now time.Time) {
 		log.Printf("[netpulse] config backup programado: guardar last_run: %v", err)
 		return
 	}
-	log.Printf("[netpulse] config backup programado enviado a %d agentes", sent)
+	log.Printf("[netpulse] config backup programado: %d unidad(es) copiada(s)", sent)
+}
+
+// configBackupSshRetry: una unidad sin agente solo se intenta por SSH cada
+// este intervalo. El tick es de 30 s y un dial SSH puede tardar 120 s: sin
+// freno, una unidad caída recibiría un intento cada medio minuto, el ruido que
+// ya se reportó en #1893.
+const configBackupSshRetry = 10 * time.Minute
+
+// configBackupSshTargets: selección pura del pase SSH (#1924). Entra toda
+// unidad que se pueda copiar por SSH (OpenWrt con host) que no esté marcada
+// agent-only y que su agente no haya servido ya en este pase.
+func configBackupSshTargets(rows []adapters.RouterConfig, servedByAgent map[string]bool) []adapters.RouterConfig {
+	out := make([]adapters.RouterConfig, 0, len(rows))
+	for _, rc := range rows {
+		if rc.AgentOnly || servedByAgent[rc.ID] || rc.Host == "" {
+			continue
+		}
+		if !routerConfigBackupSshCapable(rc) {
+			continue
+		}
+		out = append(out, rc)
+	}
+	return out
+}
+
+// cfgBackupSshAllowed aplica el freno entre pases SSH. Se marca el intento al
+// empezar: un pase lento o con unidades caídas tampoco reintenta enseguida.
+func (s *server) cfgBackupSshAllowed(now time.Time) bool {
+	s.cfgBackupSshMu.Lock()
+	defer s.cfgBackupSshMu.Unlock()
+	if !s.lastCfgBackupSsh.IsZero() && now.Sub(s.lastCfgBackupSsh) < configBackupSshRetry {
+		return false
+	}
+	s.lastCfgBackupSsh = now
+	return true
+}
+
+// configBackupSshPass copia por SSH las unidades sin agente y devuelve cuántas
+// copias se guardaron. Una unidad que falle no aborta el resto: se registra y
+// se sigue con la siguiente.
+func (s *server) configBackupSshPass(now time.Time, servedByAgent map[string]bool) int {
+	if s.db == nil || s.pool == nil {
+		return 0
+	}
+	targets := configBackupSshTargets(routerstore.ListRouters(s.db.DB), servedByAgent)
+	if len(targets) == 0 {
+		return 0
+	}
+	if !s.cfgBackupSshAllowed(now) {
+		log.Printf("[netpulse] config backup programado: %d unidad(es) sin agente esperando turno por SSH", len(targets))
+		return 0
+	}
+	copied := 0
+	for _, rc := range targets {
+		label := rc.Name
+		if label == "" {
+			label = rc.ID
+		}
+		name, size, err := s.backupConfigOverSsh(context.Background(), rc.ID, rc.SSHAddr())
+		if err != nil {
+			log.Printf("[netpulse] config backup programado: %s: %v", label, err)
+			continue
+		}
+		copied++
+		log.Printf("[netpulse] config backup programado: %s: copia por SSH %s (%d bytes)", label, name, size)
+	}
+	return copied
 }

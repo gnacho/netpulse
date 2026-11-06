@@ -34,15 +34,57 @@ exit $rc`
 // lentas; el agente tiene un presupuesto parecido en su flujo.
 const sshConfigBackupTimeout = 120 * time.Second
 
-// configBackupSshCapable: mismo criterio que la página de firmware: OpenWrt
-// vanilla. Un managed-switch o un external SNMP no tienen sysupgrade.
+// routerConfigBackupSshCapable: mismo criterio que la página de firmware:
+// OpenWrt vanilla. Un managed-switch o un external SNMP no tienen sysupgrade.
+func routerConfigBackupSshCapable(rc adapters.RouterConfig) bool {
+	return rc.Type == "" || rc.Type == "openwrt"
+}
+
 func configBackupSshCapable(rows []adapters.RouterConfig, id string) bool {
 	for _, rc := range rows {
 		if rc.ID == id {
-			return rc.Type == "" || rc.Type == "openwrt"
+			return routerConfigBackupSshCapable(rc)
 		}
 	}
 	return false
+}
+
+// sshBackupError lleva el código HTTP de cada fallo del camino SSH, para que
+// el handler manual (#1899) y el backup programado (#1924) compartan la misma
+// implementación sin depender del texto del error.
+type sshBackupError struct {
+	status int
+	code   string
+	msg    string
+}
+
+func (e *sshBackupError) Error() string { return e.msg }
+
+// backupConfigOverSsh crea la copia en la unidad y la guarda en el almacén que
+// lista y descarga la UI. Es el mismo camino para el botón manual y para el
+// tick semanal: una sola implementación, un solo almacén.
+func (s *server) backupConfigOverSsh(ctx context.Context, id, host string) (string, int, error) {
+	out, err := s.pool.Run(host, sshConfigBackupCmd, sshConfigBackupTimeout)
+	if err != nil {
+		return "", 0, &sshBackupError{http.StatusBadGateway, "ssh_backup_failed", err.Error()}
+	}
+	data, err := decodeSshBackup(out)
+	if err != nil {
+		return "", 0, &sshBackupError{http.StatusBadGateway, "backup_invalid", err.Error()}
+	}
+	if len(data) > maxFirmwareUpload {
+		return "", 0, &sshBackupError{http.StatusRequestEntityTooLarge, "backup_too_large", "backup mayor del tope"}
+	}
+	dir := s.firmwareBackupDir()
+	if err := ensureBackupDir(dir); err != nil {
+		return "", 0, &sshBackupError{http.StatusInternalServerError, "firmware_error", err.Error()}
+	}
+	name := s.firmwareBackupName(ctx, id)
+	if err := os.WriteFile(filepath.Join(dir, name), data, backupFileMode); err != nil {
+		return "", 0, &sshBackupError{http.StatusInternalServerError, "firmware_error", err.Error()}
+	}
+	pruneFirmwareBackups(dir, id)
+	return name, len(data), nil
 }
 
 // decodeSshBackup: base64 con saltos de línea de busybox -> bytes del tar.gz.
@@ -83,33 +125,15 @@ func (s *server) handleFirmwareBackupSsh(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusNotFound, "not_found", "no hay router con ese id")
 		return
 	}
-	out, err := s.pool.Run(host, sshConfigBackupCmd, sshConfigBackupTimeout)
+	name, size, err := s.backupConfigOverSsh(r.Context(), id, host)
 	if err != nil {
-		writeJSON(w, http.StatusBadGateway, map[string]any{
-			"error": "ssh_backup_failed", "message": err.Error(),
-		})
-		return
-	}
-	data, err := decodeSshBackup(out)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "backup_invalid", err.Error())
-		return
-	}
-	if len(data) > maxFirmwareUpload {
-		writeError(w, http.StatusRequestEntityTooLarge, "backup_too_large", "backup mayor del tope")
-		return
-	}
-	dir := s.firmwareBackupDir()
-	if err := ensureBackupDir(dir); err != nil {
+		var be *sshBackupError
+		if errors.As(err, &be) {
+			writeJSON(w, be.status, map[string]any{"error": be.code, "message": be.msg})
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
 		return
 	}
-	name := s.firmwareBackupName(context.Background(), id)
-	dest := filepath.Join(dir, name)
-	if err := os.WriteFile(dest, data, backupFileMode); err != nil {
-		writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
-		return
-	}
-	pruneFirmwareBackups(dir, id)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "size": len(data)})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "size": size})
 }
