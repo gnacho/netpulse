@@ -13,6 +13,12 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- A Proxmox guest without a VLAN tag no longer inherits one from the switch (#1757). The device builder fills an empty VLAN from what the router's forwarding table learned for that MAC, which is fine for a plain client but wrong on a trunk port: the hypervisor's own MAC and every untagged guest were filed under whatever VLAN the switch happened to see, and the Proxmox pass only corrected guests that carried an explicit tag. The guest's configured tag is now applied even when it is empty, and the host itself is left without a VLAN, because neither of them lives behind a single tag.
+
+- The only ethernet port of an access point is no longer presented as a WAN link (#1949). Units like the WAX220 still declare a WAN device in board.json even though that port is a member of the LAN bridge and the box has no WAN interface. The port builder relabelled it as LAN but kept the internal id `wan`, which is what the UI uses to paint the Internet link, and a unit that also listed the port as LAN emitted the same jack twice. A layout WAN port that sits in the bridge now keeps its own device name as the id, and the duplicate is skipped. A router whose WAN is a real, separate port is untouched.
+
+- A config backup made by an agent now leaves a line in the server journal (#1899). The SSH path already logged the archive name and size, but agent backups arrive through their own upload endpoint and were stored silently, so a scheduled run only showed the SSH-only units. The upload handler logs the unit, the archive name and its size, which covers both the manual button and the weekly schedule.
+
 - The roam event collector no longer dials units that cannot run `logread` (#1944). It received every unit with a host, SNMP-only switches included, so each pass opened an SSH session that was reset before authenticating and the pool kept redialling with its backoff, which is what the "handshake failed" bursts in the journal were. The callback now carries the unit type and its disabled flag, and only units that can actually answer over SSH are polled.
 
 - A temperature of zero is no longer shown as a reading (#1947). The probe parsed whatever the unit printed and a `0` came back as a valid value, so a unit without a readable sensor displayed a flat 0 C next to real CPU and memory figures. Zero now means "no sensor" and the field is left empty, while negative readings, which do exist, are kept.
