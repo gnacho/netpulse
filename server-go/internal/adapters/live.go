@@ -161,6 +161,9 @@ type routerPolled struct {
 	fdbVlans map[string]int
 	// networks: redes logicas declaradas en UCI (#1889).
 	networks []probe.UciNetwork
+	// wifiNet: ifname inalambrico -> red UCI (#1942). Mismo anti-parpadeo
+	// que networks: se conserva la ultima lectura buena.
+	wifiNet map[string]string
 	// wirelessSide: MACs que el bridge del router aprende en sus propios
 	// puertos de radio (wl0.1, wlan0…) pero que la tabla de estaciones no
 	// lista (MACs rotadas que siguen emitiendo, backhaul 4-address). El
@@ -229,6 +232,8 @@ type extrasSnapshot struct {
 	fdbVlans map[string]int
 	// networks: última lista buena de redes UCI (#1889).
 	networks []probe.UciNetwork
+	// wifiNet: último mapa ifname -> red UCI bueno (#1942).
+	wifiNet map[string]string
 	// wirelessSide: último hint bueno de MACs detrás de radios propias
 	// (ver routerPolled.wirelessSide). Mismo anti-parpadeo que fdb.
 	wirelessSide map[string]string
@@ -1356,8 +1361,14 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	if nets := client.GetNetworks(); nets != nil {
 		networksGood = nets
 	}
+	// #1942: la config wireless dice a que red pertenece cada iface AP, la
+	// unica fuente que atribuye clientes WiFi sin adivinar por el puerto.
+	wifiNetGood := cached.wifiNet
+	if raw, err := client.pool.Run(client.Host, "uci show wireless", 0); err == nil {
+		wifiNetGood = wifiNetworkMap(parseUciWireless(raw))
+	}
 	l.mu.Lock()
-	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, fdbVlans: fdbVlansGood, luci: luciGood, vlans: vlansGood, networks: networksGood}
+	l.extrasCache[cfg.ID] = &extrasSnapshot{ports: portsGood, radios: radiosGood, wireless: wirelessGood, fdb: fdbGood, fdbVlans: fdbVlansGood, luci: luciGood, vlans: vlansGood, networks: networksGood, wifiNet: wifiNetGood}
 	l.mu.Unlock()
 
 	// Uso de RAM: #513. Si el agente reporta memory.used (procesos) lo
@@ -1409,7 +1420,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, fdbVlans: fdbVlansGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
-		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood, networks: networksGood,
+		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood, networks: networksGood, wifiNet: wifiNetGood,
 		polledAt: l.now().UnixMilli(),
 	}, nil
 }
@@ -4813,7 +4824,7 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	}
 	var networks []NetworkInfo
 	if p != nil && len(p.networks) > 0 {
-		networks = networkInfos(p.networks, p.ports)
+		networks = attributeNetworkClients(networkInfos(p.networks, p.ports), clients, p.wifiNet)
 	}
 	var multiWan *MultiWanInfo
 	if p != nil {

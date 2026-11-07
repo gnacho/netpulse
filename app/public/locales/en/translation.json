@@ -1133,7 +1133,7 @@
     },
     "networks": {
       "clients": "Clients",
-      "clientsTip": "Clients whose VLAN is known",
+      "clientsTip": "Clients attributed by switch port, observed VLAN or declared wireless network",
       "device": "Device",
       "members": "Members",
       "network": "Network",
@@ -1142,7 +1142,9 @@
       "title": "Networks",
       "toggleAria": "OpenWrt networks ({{count}})",
       "traffic": "Traffic",
-      "vlan": "VLAN {{id}}"
+      "vlan": "VLAN {{id}}",
+      "showClients": "Show clients",
+      "hideClients": "Hide clients"
     },
     "wan": {
       "chartAria": "Gateway WAN traffic. Current download {{down}} Mbps, upload {{up}} Mbps.",

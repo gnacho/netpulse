@@ -1133,7 +1133,7 @@
     },
     "networks": {
       "clients": "Clientes",
-      "clientsTip": "Clientes cuya VLAN se conoce",
+      "clientsTip": "Clientes atribuidos por puerto del switch, VLAN observada o red wireless declarada",
       "device": "Dispositivo",
       "members": "Miembros",
       "network": "Red",
@@ -1142,7 +1142,9 @@
       "title": "Redes",
       "toggleAria": "Redes de OpenWrt ({{count}})",
       "traffic": "Tráfico",
-      "vlan": "VLAN {{id}}"
+      "vlan": "VLAN {{id}}",
+      "showClients": "Mostrar clientes",
+      "hideClients": "Ocultar clientes"
     },
     "wan": {
       "chartAria": "Tráfico WAN de la puerta de enlace. Descarga actual {{down}} Mbps, subida {{up}} Mbps.",
