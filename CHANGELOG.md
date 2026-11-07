@@ -11,6 +11,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - Tagging a client now tells you who the MAC belongs to (#1945). The tag list and the MAC field worked with bare addresses, so tagging a handful of clients meant keeping a second window open to look each one up. The list shows the known device name next to the MAC, and the MAC field offers the inventoried clients as suggestions, so an existing client can be picked instead of typed.
 
+### Changed
+
+- The server and agent journal is now written in English (#1955). Log entries mixed both languages, which made the journal harder to read next to the English UI and to search when reporting a problem. 148 log calls were translated across the server and the agent, keeping every format verb, structured key and prefix untouched. Nothing else changes: API error bodies, UI strings and the results an agent reports back keep their previous wording, and no i18n layer was added to the journal.
+
 ### Fixed
 
 - A Proxmox guest without a VLAN tag no longer inherits one from the switch (#1757). The device builder fills an empty VLAN from what the router's forwarding table learned for that MAC, which is fine for a plain client but wrong on a trunk port: the hypervisor's own MAC and every untagged guest were filed under whatever VLAN the switch happened to see, and the Proxmox pass only corrected guests that carried an explicit tag. The guest's configured tag is now applied even when it is empty, and the host itself is left without a VLAN, because neither of them lives behind a single tag.
