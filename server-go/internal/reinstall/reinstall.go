@@ -97,6 +97,14 @@ type WanTargets struct {
 	Interval int
 }
 
+// progressBlock define los dos avisos que usan los scripts. Va en el
+// preámbulo y ANTES de cualquier llamada: estaba dentro de envRewriteBlock y
+// el script llamaba a say() en la detección de arquitectura, así que el
+// reinstall moría con "say: not found" (#1894).
+const progressBlock = `warn() { echo "netpulse-agent: $*" >&2; }
+say() { echo "netpulse-agent: $*"; }
+`
+
 // caSetupBlock escribe (o borra) la raíz de la CA en el router. Without a
 // root, one left from an earlier install (a CA since replaced) would make
 // every https download fail against it.
@@ -126,10 +134,6 @@ func envRewriteBlock(targets WanTargets) string {
 	return `# #1853: escribir la config no puede abortar el reinstall. El env se
 # compone en un temporal y solo se pone en su sitio si salio entero, asi que un
 # /etc lleno o de solo lectura conserva el anterior en vez de dejarlo a medias.
-warn() { echo "netpulse-agent: $*" >&2; }
-# #1894: aviso normal por stdout. El journal y la caja de la UI enseñan lo que
-# el script cuenta; sin esto una instalación correcta no dejaba ni una línea.
-say() { echo "netpulse-agent: $*"; }
 USER_VARS=""
 SCAN_VALUE="0"
 if [ -f "$ENV_FILE" ]; then
@@ -276,7 +280,7 @@ SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
 SERVER_FP="` + serverFP + `"
-` + caSetupBlock(tr) + envRewriteBlock(targets) + uciConfigBlock(targets) + preserveOnSysupgrade + `
+` + progressBlock + caSetupBlock(tr) + envRewriteBlock(targets) + uciConfigBlock(targets) + preserveOnSysupgrade + `
 # Releer el env: el agente lo lee del fichero en cada arranque (#1287), así
 # que basta un restart del init procd (respawn inmediato).
 if [ -f "$INIT" ]; then
@@ -306,7 +310,7 @@ SERVER="` + serverURL + `"
 SLUG="` + slug + `"
 TOKEN="` + token + `"
 SERVER_FP="` + serverFP + `"
-` + caSetup + `
+` + progressBlock + caSetup + `
 # FORK: verify https downloads against the server's root when there is one
 CURL_TLS=""; WGET_TLS=""
 if [ -f ` + caPath + ` ]; then CURL_TLS="--cacert ` + caPath + `"; WGET_TLS="--ca-certificate=` + caPath + `"; fi

@@ -29,3 +29,21 @@ func TestScriptWarnStillOnStderr_1894(t *testing.T) {
 		t.Fatal("warn() debe seguir escribiendo a stderr")
 	}
 }
+
+// #1894: say() estaba definido en el bloque de config, detrás de la primera
+// llamada. El script moría con "say: not found" y el reinstall no llegaba ni a
+// instalar el binario.
+func TestScriptDefinesSayBeforeUse_1894(t *testing.T) {
+	s := scriptForTest()
+	def := strings.Index(s, `say() { echo "netpulse-agent: $*"; }`)
+	if def < 0 {
+		t.Fatal("falta la definición de say()")
+	}
+	use := strings.Index(s, `say "`)
+	if use < 0 {
+		t.Fatal("el script no usa say()")
+	}
+	if def > use {
+		t.Fatalf("say() se define en %d y se usa en %d", def, use)
+	}
+}

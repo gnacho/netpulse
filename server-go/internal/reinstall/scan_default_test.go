@@ -18,7 +18,9 @@ import (
 func envBlockForTest(t *testing.T) string {
 	t.Helper()
 	s := scriptForTest()
-	start := strings.Index(s, `warn() { echo "netpulse-agent: $*" >&2; }`)
+	// El bloque empieza en USER_VARS: warn() y say() viven ahora en el
+	// preámbulo del script (#1894) y no forman parte de este fragmento.
+	start := strings.Index(s, `USER_VARS=""`)
 	if start < 0 {
 		t.Fatal("no encuentro el bloque de env en el script")
 	}
@@ -39,7 +41,8 @@ func runEnvBlock(t *testing.T, prev string) string {
 			t.Fatal(err)
 		}
 	}
-	script := "ENV_FILE=" + envPath + "\n" +
+	script := "warn() { echo \"netpulse-agent: $*\" >&2; }\n" +
+		"ENV_FILE=" + envPath + "\n" +
 		"SERVER=http://192.168.1.226:3000\n" +
 		"SLUG=test-router\n" +
 		"TOKEN=" + strings.Repeat("a1", 32) + "\n" +
