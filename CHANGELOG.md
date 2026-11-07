@@ -7,6 +7,20 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- Tagging a client now tells you who the MAC belongs to (#1945). The tag list and the MAC field worked with bare addresses, so tagging a handful of clients meant keeping a second window open to look each one up. The list shows the known device name next to the MAC, and the MAC field offers the inventoried clients as suggestions, so an existing client can be picked instead of typed.
+
+### Fixed
+
+- The roam event collector no longer dials units that cannot run `logread` (#1944). It received every unit with a host, SNMP-only switches included, so each pass opened an SSH session that was reset before authenticating and the pool kept redialling with its backoff, which is what the "handshake failed" bursts in the journal were. The callback now carries the unit type and its disabled flag, and only units that can actually answer over SSH are polled.
+
+- A temperature of zero is no longer shown as a reading (#1947). The probe parsed whatever the unit printed and a `0` came back as a valid value, so a unit without a readable sensor displayed a flat 0 C next to real CPU and memory figures. Zero now means "no sensor" and the field is left empty, while negative readings, which do exist, are kept.
+
+- The iOS home-screen app keeps its header and tab bar inside the safe areas (#1943). Both bars had a fixed height with the safe-area inset padded inside it, so the standalone mode pushed the header under the status bar and the tab labels under the home indicator. Their heights now include the inset, the page padding accounts for the taller tab bar, and in standalone mode the header drops its backdrop blur for an opaque background, which is what makes the top strip readable again.
+
+- The agent install script defines its output helpers before it uses them (#1894). `say()` and `warn()` were declared in the environment block near the end of the script but called from the architecture detection near the top, so with `set -e` a reinstall died with `sh: say: not found` before doing anything, and the operator only saw the failure the previous fix had just made visible. Both helpers now live in the script preamble and a test checks that no call appears before its definition.
+
 ## [2.51.4] - 2026-11-06
 
 ### Added
