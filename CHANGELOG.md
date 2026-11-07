@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.51.5] - 2026-11-07
+
 ### Added
 
 - The networks panel shows who is on each network (#1942). The clients column only filled when the client carried a VLAN tag, so a plain `br-lan` with no VLAN filtering, which is the normal home setup, showed an empty column even though the panel is the natural place to see who sits where. The server now attributes each client to exactly one network: by the wireless network its AP interface declares in UCI, by the switch port its MAC was learned on, or by the observed VLAN tag, which also disambiguates a trunk port present in several networks. A client whose network cannot be determined shows under none instead of being guessed. The count expands into a list with each client's name, IP and MAC.
@@ -34,6 +36,21 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - The iOS home-screen app keeps its header and tab bar inside the safe areas (#1943). Both bars had a fixed height with the safe-area inset padded inside it, so the standalone mode pushed the header under the status bar and the tab labels under the home indicator. Their heights now include the inset, the page padding accounts for the taller tab bar, and in standalone mode the header drops its backdrop blur for an opaque background, which is what makes the top strip readable again.
 
 - The agent install script defines its output helpers before it uses them (#1894). `say()` and `warn()` were declared in the environment block near the end of the script but called from the architecture detection near the top, so with `set -e` a reinstall died with `sh: say: not found` before doing anything, and the operator only saw the failure the previous fix had just made visible. Both helpers now live in the script preamble and a test checks that no call appears before its definition.
+
+- An external unit created by an integration keeps a bare host instead of the URL (#1968). The integration form asks for `https://host` because the pusher needs it, and that value went straight into the router record. The unit form only accepts an IP or a hostname, so the unit could not be edited and could not be set as the gateway until the host was retyped by hand. `AddRouter` now takes the scheme, userinfo, port and path out of whatever it receives, and the units already stored with a URL are normalized on startup. The integration row keeps the URL.
+
+- A Proxmox host and its untagged guests no longer show another client's VLAN (#1757). The server already left their VLAN empty, but the topology chip could not tell "no VLAN" from "no data" and fell back to the PVID of the port, which on a trunk is whichever VLAN the switch lists first. The server now marks when a source resolved the VLAN, including the answer "none", and the chip only falls back to the port when no source spoke. A tagged guest keeps its own VLAN.
+
+- One unit is one SSH connection again (#1893). The pool used the host string as its key, and the same unit arrives both as the configured host and as `host:22` from `SSHAddr`, so it held two entries, two connections and two handshakes. The default port no longer takes part in the key, and a dropbear on another port still gets its own entry. Fewer handshakes per unit, and one line per unit in the journal.
+
+- An unknown uptime is no longer shown as "0d 0h" (#55). A payload without `system.sysinfo`, which is the case of a pusher that does not collect it yet, left the counter at zero and the card rendered a real-looking zero. The server now tracks whether a source declared the uptime and shows "—" when none did, while a genuine zero still reads "0d 0h".
+
+### Thanks
+
+- **@crowedavid** for #1893, #1894, #1899, #1944, #1945, #1947 and #1949.
+- **@MassiPi** for #1757.
+- **@mgrupenhoff** for #1943.
+- **@harpyeagle** for #55 and the OPNsense reports in #1056.
 
 ## [2.51.4] - 2026-11-06
 
