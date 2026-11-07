@@ -9,6 +9,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- The networks panel shows who is on each network (#1942). The clients column only filled when the client carried a VLAN tag, so a plain `br-lan` with no VLAN filtering, which is the normal home setup, showed an empty column even though the panel is the natural place to see who sits where. The server now attributes each client to exactly one network: by the wireless network its AP interface declares in UCI, by the switch port its MAC was learned on, or by the observed VLAN tag, which also disambiguates a trunk port present in several networks. A client whose network cannot be determined shows under none instead of being guessed. The count expands into a list with each client's name, IP and MAC.
+
 - Tagging a client now tells you who the MAC belongs to (#1945). The tag list and the MAC field worked with bare addresses, so tagging a handful of clients meant keeping a second window open to look each one up. The list shows the known device name next to the MAC, and the MAC field offers the inventoried clients as suggestions, so an existing client can be picked instead of typed.
 
 ### Changed
