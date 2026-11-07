@@ -52,6 +52,26 @@ type RouterHost struct {
 	Host      string
 	Name      string
 	AgentOnly bool
+	// Type distingue las unidades que corren logread (OpenWrt y GL.iNet) de
+	// las que solo hablan SNMP o publican por su cuenta (#1944).
+	Type string
+	// Disabled (#1085): unidad pausada, sin sondeo.
+	Disabled bool
+}
+
+// Eligible: solo se abre SSH en unidades que puedan tener el log de hostapd,
+// DAWN o usteer. Un managed-switch o un external solo tienen SNMP y el dial
+// acaba en handshake fallido cada ciclo (#1944).
+func (h RouterHost) Eligible() bool {
+	if h.Host == "" || h.AgentOnly || h.Disabled {
+		return false
+	}
+	switch h.Type {
+	case "", "openwrt", "glinet":
+		return true
+	default:
+		return false
+	}
 }
 
 // Runner es la abstracción de SSH (satisfecha por *sshpool.Pool).
@@ -116,7 +136,7 @@ func (c *Collector) tick() {
 		return
 	}
 	for _, h := range hosts {
-		if h.AgentOnly {
+		if !h.Eligible() {
 			continue
 		}
 		select {
