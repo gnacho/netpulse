@@ -112,7 +112,17 @@ function ParentPicker({ value, onChange }: { value: string; onChange: (v: string
 
 export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
   const { t } = useTranslation()
-  const { refresh } = useNetPulse()
+  const { refresh, devices } = useNetPulse()
+  // #1945: la lista y el alta enseñaban solo la MAC. El nombre del cliente ya
+  // está en el inventario, así que se cruza por MAC (mayúsculas, que es como
+  // llegan del servidor) para que la etiqueta diga de qué equipo habla.
+  const deviceByMac = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const d of devices) {
+      if (d.name) map.set(d.mac.toUpperCase(), d.name)
+    }
+    return map
+  }, [devices])
   const [list, setList] = useState<TopologyOverride[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -276,6 +286,11 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-mono text-sm font-medium text-text-primary">{o.mac}</span>
+                  {deviceByMac.has(o.mac.toUpperCase()) && (
+                    <span className="truncate text-caption text-text-secondary">
+                      {deviceByMac.get(o.mac.toUpperCase())}
+                    </span>
+                  )}
                   <span
                     className={cn(
                       'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
@@ -352,6 +367,7 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
               <input
                 type="text"
                 required
+                list="tag-device-macs"
                 value={draft.mac}
                 onChange={(e) => setDraft((d) => ({ ...d, mac: e.target.value }))}
                 placeholder="AA:BB:CC:DD:EE:FF"
@@ -437,6 +453,14 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
           </div>
         </form>
       )}
+
+      {/* #1945: el alta deja la MAC a mano, pero sugiere los clientes que ya
+          conoce el inventario con su nombre al lado. */}
+      <datalist id="tag-device-macs">
+        {devices.map((d, i) => (
+          <option key={`${d.mac}-${i}`} value={d.mac} label={d.name || undefined} />
+        ))}
+      </datalist>
     </div>
   )
 }
