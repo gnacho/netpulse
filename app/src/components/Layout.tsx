@@ -507,7 +507,7 @@ function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 hidden h-14 items-center gap-4 border-b border-border bg-canvas/80 px-6 backdrop-blur-md md:flex pt-safe">
+    <header className="sticky top-0 z-30 hidden h-header items-center gap-4 border-b border-border bg-canvas/80 px-6 backdrop-blur-md md:flex pt-safe">
       {isRouterDetail(location.pathname) && <BackButton />}
       <h1 className="font-display text-h1 text-text-primary">{t(pageTitleKey(location.pathname))}</h1>
       <div className="ml-auto flex items-center gap-3">
@@ -545,7 +545,7 @@ function MobileHeader() {
     }
   }
   return (
-    <header className="[view-transition-name:netpulse-header] sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
+    <header className="[view-transition-name:netpulse-header] sticky top-0 z-30 flex h-header items-center justify-between border-b border-border bg-canvas/80 px-4 backdrop-blur-md md:hidden pt-safe">
       <div className="flex items-center gap-2">
         {isRouterDetail(location.pathname) ? (
           <>
@@ -643,7 +643,7 @@ function TabBar() {
     >
       <div
         ref={tabBarRef}
-        className="flex h-16 items-stretch overflow-x-auto px-2 pb-[env(safe-area-inset-bottom)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-tabbar items-stretch overflow-x-auto px-2 pb-[env(safe-area-inset-bottom)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {items.map((item) => (
           <NavLink
@@ -727,7 +727,7 @@ function Shell() {
       <div className={collapsed ? 'md:pl-16' : 'md:pl-[232px]'}>
         <Topbar />
         <MobileHeader />
-        <main className="[view-transition-name:netpulse-content] mx-auto w-full max-w-[1400px] px-4 pb-24 pt-4 md:px-6 md:pb-10 md:pt-6">
+        <main className="[view-transition-name:netpulse-content] mx-auto w-full max-w-[1400px] px-4 pb-tabbar pt-4 md:px-6 md:pb-10 md:pt-6">
           {isDemo && <DemoBanner />}
           <AnnouncementBanner />
           <UpdateBanner />
