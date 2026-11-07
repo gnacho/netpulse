@@ -43,6 +43,18 @@ func addrOf(host string) string {
 	return net.JoinHostPort(host, "22")
 }
 
+// poolKey es la clave del pool para un host. El mismo router llega unas veces
+// como "test-gw.lan" y otras como "test-gw.lan:22" (RouterConfig.SSHAddr), y
+// con el string tal cual el pool abría DOS conexiones al mismo equipo, una por
+// clave y cada una con su handshake (#1893). El puerto por defecto no
+// distingue hosts, así que no forma parte de la clave; uno no estándar sí.
+func poolKey(host string) string {
+	if h, port, err := net.SplitHostPort(host); err == nil && port == "22" {
+		return h
+	}
+	return host
+}
+
 // SSHPool gestiona conexiones persistentes a los routers.
 type SSHPool struct {
 	keyPath string
@@ -111,6 +123,7 @@ func NewSSHPool(keyPath string) (*SSHPool, error) {
 // backoff del host: la siguiente llamada reconecta con el valor nuevo, sin
 // esperar el enfriamiento de un fallo ya resuelto.
 func (p *SSHPool) SetPassword(host, user, password string) {
+	host = poolKey(host)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	old, had := p.creds[host]
@@ -261,6 +274,7 @@ func (p *SSHPool) RemoveHostKey(hostnames ...string) error {
 // dial abre (o reabre) la conexión a un host respetando el backoff.
 // Single-flight por host: dos llamantes concurrentes comparten el mismo dial.
 func (p *SSHPool) dial(host string) (*ssh.Client, error) {
+	host = poolKey(host)
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
@@ -368,6 +382,7 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 
 // drop invalida la conexión de un host (la próxima llamada rediala).
 func (p *SSHPool) drop(host string) {
+	host = poolKey(host)
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if e := p.conns[host]; e != nil && e.client != nil {
