@@ -232,6 +232,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	p := &routerPolled{
 		cfg:       cfg,
 		uptimeSec: uptimeSec,
+		hasUptime: sysInfo != nil,
 		net:       netPtr,
 		ports:     ethPorts,
 		fdb:       fdbMap,

@@ -836,6 +836,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if sd := p.Data.System; sd != nil {
 		if sd.SysInfo != nil {
 			sysInfo = sd.SysInfo
+			out.hasUptime = true
 		}
 		out.board = sd.Board
 		if sd.Board != nil {
@@ -881,6 +882,7 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 		}
 		if sd.SysInfo != nil {
 			sysInfo = sd.SysInfo
+			out.hasUptime = true
 		}
 	}
 	mem := sysInfo.Memory
