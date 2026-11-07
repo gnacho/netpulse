@@ -79,6 +79,13 @@ func TestSealProxmoxInfraCarriesTheGuestVlan(t *testing.T) {
 	if devices[2].Vlan != 0 {
 		t.Errorf("lan vlan=%d (want 0: sin tag, VLAN nativa)", devices[2].Vlan)
 	}
+	// La config de Proxmox resolvio ambos: sin tag tambien es una respuesta
+	// (#1757), asi que la UI no debe caer al puerto del trunk.
+	for _, i := range []int{1, 2} {
+		if !devices[i].VlanKnown {
+			t.Errorf("%s: la VLAN vino de Proxmox y VlanKnown deberia ser true", devices[i].Name)
+		}
+	}
 }
 
 // TestSealProxmoxInfraUntaggedGuestClearsTheFdbVlan: el FDB del router se
@@ -113,6 +120,16 @@ func TestSealProxmoxInfraUntaggedGuestClearsTheFdbVlan(t *testing.T) {
 	}
 	if devices[3].Vlan != 888 {
 		t.Errorf("device ajeno a PVE tocado: vlan=%d (want 888)", devices[3].Vlan)
+	}
+	// Host e invitados quedan resueltos (VlanKnown true, aunque Vlan sea 0);
+	// el device ajeno a PVE conserva "sin dato" para que la UI use el puerto.
+	for _, i := range []int{0, 1, 2} {
+		if !devices[i].VlanKnown {
+			t.Errorf("%s: Proxmox resolvio la VLAN y VlanKnown deberia ser true", devices[i].Name)
+		}
+	}
+	if devices[3].VlanKnown {
+		t.Error("un device ajeno a PVE no debe marcarse como resuelto")
 	}
 }
 

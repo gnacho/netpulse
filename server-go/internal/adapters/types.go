@@ -331,8 +331,16 @@ type Device struct {
 	Infra string `json:"infra,omitempty"` // "hypervisor"|"ct"|"vm"|"managed-switch"|"ap"
 	// Vlan: VLAN del dispositivo cuando la declara una fuente que la conoce y
 	// el router no puede verla. Hoy solo el inventario de Proxmox la aporta,
-	// leyendo tag=<vid> de la config del invitado (#1757). 0 = sin dato.
+	// leyendo tag=<vid> de la config del invitado (#1757). 0 con
+	// VlanKnown = false = sin dato.
 	Vlan int `json:"vlan,omitempty"`
+	// VlanKnown: una fuente resolvió la VLAN de este dispositivo (el FDB del
+	// bridge o el tag= del hipervisor) y el valor de Vlan es su respuesta.
+	// Vlan = 0 con VlanKnown = true significa "no está en ninguna VLAN que
+	// conozcamos", no "sin dato": el frontend no debe caer al puerto, que en
+	// un trunk no dice nada (#1757, el host y los invitados de Proxmox se
+	// pintaban con la VLAN de otro invitado).
+	VlanKnown bool `json:"vlanKnown,omitempty"`
 	// --- mDNS/SSDP fingerprinting (#338) ---
 	// MdnsServices: mDNS service types advertised by this device (from umdns).
 	// e.g. ["_airplay._tcp", "_raop._tcp"] for an Apple TV.
@@ -1185,6 +1193,6 @@ type NetworkInfo struct {
 	// ClientMacs (#1942): clientes atribuidos a esta red por puerto FDB, VLAN
 	// observada o wifi-iface declarada. Ausente = ninguno atribuible, no "0".
 	ClientMacs []string `json:"clientMacs,omitempty"`
-	RxBps  float64  `json:"rxBps,omitempty"`
-	TxBps  float64  `json:"txBps,omitempty"`
+	RxBps      float64  `json:"rxBps,omitempty"`
+	TxBps      float64  `json:"txBps,omitempty"`
 }

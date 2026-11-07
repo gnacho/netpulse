@@ -313,6 +313,13 @@ export interface Device {
    * porque el invitado cuelga del bridge del host (#1757). Ausente = sin dato.
    */
   vlan?: number
+  /**
+   * Una fuente resolvió la VLAN de este dispositivo (el FDB del bridge o el
+   * tag= del hipervisor). Con `vlanKnown` y sin `vlan`, la respuesta es "no
+   * está en ninguna VLAN conocida" y el puerto no se usa como respaldo: en un
+   * trunk no dice nada (#1757).
+   */
+  vlanKnown?: boolean
   /** Segundos restantes del lease DHCP (issue #437). */
   leaseRemaining?: number | null
   /** Nombre del icono manual elegido por el usuario (issue #437). */

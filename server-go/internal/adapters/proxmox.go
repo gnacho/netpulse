@@ -364,6 +364,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		// router cree haber aprendido para esa MAC no es evidencia de dónde
 		// vive el invitado, y un 0 aquí la limpia en vez de conservarla.
 		devices[idx].Vlan = vm.Tag
+		devices[idx].VlanKnown = true
 		// El nombre del invitado es el que le puso el administrador en
 		// Proxmox, y para un CT suele ser el ÚNICO que hay: no pide DHCP
 		// con hostname, así que sin esto se queda con su MAC por nombre —
@@ -395,6 +396,7 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		// un trunk y su MAC puede aprenderse en cualquiera de las VLAN que
 		// transporta, así que ese dato no dice en cuál vive su gestión.
 		devices[idx].Vlan = 0
+		devices[idx].VlanKnown = true
 		if n, ok := nodeByKey[key]; ok && looksLikeMACName(devices[idx].Name) {
 			devices[idx].Name = n.Node
 		}
