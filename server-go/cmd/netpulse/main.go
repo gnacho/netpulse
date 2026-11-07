@@ -359,6 +359,7 @@ func run() error {
 				for _, r := range routerstore.ListRouters(dbHandle.DB) {
 					out = append(out, roamevents.RouterHost{
 						ID: r.ID, Host: r.Host, Name: r.Name, AgentOnly: r.AgentOnly,
+						Type: r.Type, Disabled: r.Disabled,
 					})
 				}
 				return out
