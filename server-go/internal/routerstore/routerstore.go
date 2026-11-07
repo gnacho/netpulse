@@ -173,6 +173,10 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if in.Type == "" {
 		in.Type = "openwrt"
 	}
+	// #1968: una unidad guarda un host, no una URL. Las integraciones pasan el
+	// host tal cual se teclea (https://host) y la unidad quedaba sin poder
+	// editarse ni sondearse.
+	in.Host = BareHost(in.Host)
 	id := uniqueId(db, in.Name, in.Host)
 	now := time.Now().UnixMilli()
 	name := in.Name
