@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { ChevronDown, Network } from 'lucide-react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
@@ -23,12 +23,17 @@ function fmtBps(bps?: number): string {
  *
  * El tráfico es el del device de la red, no la suma de sus puertos, y una
  * unidad sin contadores muestra "-" en lugar de una cifra inventada. Los
- * clientes son los que tienen VLAN conocida; sin ese dato no se adivina.
+ * clientes son los que tiene VLAN conocida; sin ese dato no se adivina.
+ *
+ * #1942: la atribucion la hace el server (puerto FDB, VLAN observada o
+ * wifi-iface declarada en UCI) y llega como `clientMacs`. El contador se
+ * despliega para listar nombre, IP y MAC de cada cliente de la red.
  */
 export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; clients: Device[] }) {
   const { t } = useTranslation()
   const reduce = useReducedMotion()
   const [open, setOpen] = useState(true)
+  const [expandedNet, setExpandedNet] = useState<string | null>(null)
 
   if (!networks || networks.length === 0) return null
 
@@ -77,10 +82,13 @@ export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; 
                 </thead>
                 <tbody>
                   {networks.map((n) => {
-                    const knownClients = n.vlan ? clients.filter((c) => c.vlan === n.vlan).length : undefined
+                    const macs = n.clientMacs
+                    const byMac = new Map(clients.map((c) => [c.mac.toUpperCase(), c]))
+                    const expanded = expandedNet === n.name
                     const hasRate = n.rxBps !== undefined || n.txBps !== undefined
                     return (
-                      <tr key={n.name} className="border-b border-border/30 last:border-0" data-vlan-id={n.vlan || undefined}>
+                      <Fragment key={n.name}>
+                      <tr className="border-b border-border/30 last:border-0" data-vlan-id={n.vlan || undefined}>
                         <td className="py-2 pr-4">
                           <span className="flex items-center gap-1.5 font-semibold text-text-primary">
                             <Network className="h-3.5 w-3.5 text-text-muted" strokeWidth={1.75} />
@@ -98,8 +106,17 @@ export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; 
                           {n.ports && n.ports.length > 0 ? n.ports.join(' ') : '-'}
                         </td>
                         <td className="py-2 pr-4" title={t('routerDetail.networks.clientsTip')}>
-                          {knownClients !== undefined ? (
-                            <span className="font-mono text-mono-sm text-text-primary">{knownClients}</span>
+                          {macs && macs.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedNet(expanded ? null : n.name)}
+                              aria-expanded={expanded}
+                              aria-label={t(expanded ? 'routerDetail.networks.hideClients' : 'routerDetail.networks.showClients')}
+                              className="flex items-center gap-1 font-mono text-mono-sm text-text-primary hover:text-accent"
+                            >
+                              {macs.length}
+                              <ChevronDown className={cn('h-3 w-3 transition-transform duration-200', expanded && 'rotate-180')} strokeWidth={1.75} />
+                            </button>
                           ) : (
                             <span className="text-text-muted">-</span>
                           )}
@@ -114,6 +131,25 @@ export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; 
                           )}
                         </td>
                       </tr>
+                      {expanded && macs ? (
+                        <tr className="border-b border-border/30 last:border-0">
+                          <td colSpan={6} className="pb-3 pl-[22px] pr-4">
+                            <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
+                              {macs.map((mac) => {
+                                const d = byMac.get(mac.toUpperCase())
+                                return (
+                                  <li key={mac} className="flex items-baseline gap-2 text-sm">
+                                    <span className="font-medium text-text-primary">{d?.name || mac}</span>
+                                    {d?.ip ? <span className="font-mono text-mono-sm text-text-secondary">{d.ip}</span> : null}
+                                    <span className="font-mono text-[10px] text-text-muted">{mac}</span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          </td>
+                        </tr>
+                      ) : null}
+                      </Fragment>
                     )
                   })}
                 </tbody>

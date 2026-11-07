@@ -729,6 +729,8 @@ export interface NetworkInfo {
   subnet?: string
   vlan?: number
   ports?: string[]
+  /** #1942: clientes atribuidos por el server (puerto FDB, VLAN o wifi-iface). */
+  clientMacs?: string[]
   rxBps?: number
   txBps?: number
 }

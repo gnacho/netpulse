@@ -1182,6 +1182,9 @@ type NetworkInfo struct {
 	Subnet string   `json:"subnet,omitempty"`
 	Vlan   int      `json:"vlan,omitempty"`
 	Ports  []string `json:"ports,omitempty"`
+	// ClientMacs (#1942): clientes atribuidos a esta red por puerto FDB, VLAN
+	// observada o wifi-iface declarada. Ausente = ninguno atribuible, no "0".
+	ClientMacs []string `json:"clientMacs,omitempty"`
 	RxBps  float64  `json:"rxBps,omitempty"`
 	TxBps  float64  `json:"txBps,omitempty"`
 }
