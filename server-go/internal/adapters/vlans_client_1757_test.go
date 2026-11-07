@@ -32,6 +32,12 @@ func TestBuildDevicesVlanDesdeFdb(t *testing.T) {
 	if got["AA:BB:CC:DD:EE:02"] != 777 {
 		t.Fatalf("cliente de eth0.777 esperado en VLAN 777, got %d (%+v)", got["AA:BB:CC:DD:EE:02"], devs)
 	}
+	// El FDB resolvió la VLAN: el frontend no debe caer al puerto (#1757).
+	for _, d := range devs {
+		if !d.VlanKnown {
+			t.Fatalf("%s: la VLAN vino del FDB y VlanKnown deberia ser true", d.MAC)
+		}
+	}
 }
 
 // Un FDB sin campo vlan (bridge sin VLAN filtering) NO inventa VLAN: el
@@ -51,6 +57,9 @@ func TestBuildDevicesSinVlanEnFdbNoInventa(t *testing.T) {
 	if devs[0].Vlan != 0 {
 		t.Fatalf("sin dato de VLAN el dispositivo no debe llevar ninguna, got %d", devs[0].Vlan)
 	}
+	if devs[0].VlanKnown {
+		t.Fatal("sin dato de VLAN, VlanKnown debe quedar false para que la UI pueda usar el puerto")
+	}
 }
 
 // La VLAN del FDB es de SU router: una MAC que otro router declara en una VLAN
@@ -59,9 +68,9 @@ func TestBuildDevicesVlanNoCruzaRouters(t *testing.T) {
 	l := NewLive(nil, nil, nil, nil)
 	polled := map[string]*routerPolled{
 		"rutto": {
-			cfg:  RouterConfig{ID: "rutto", Name: "RUTTO"},
-			fdb:  map[string]string{"AA:BB:CC:DD:EE:04": "eth0"},
-			arp:  map[string]string{"AA:BB:CC:DD:EE:04": "192.168.1.40"},
+			cfg: RouterConfig{ID: "rutto", Name: "RUTTO"},
+			fdb: map[string]string{"AA:BB:CC:DD:EE:04": "eth0"},
+			arp: map[string]string{"AA:BB:CC:DD:EE:04": "192.168.1.40"},
 		},
 		"ap": {
 			cfg:      RouterConfig{ID: "ap", Name: "AP"},

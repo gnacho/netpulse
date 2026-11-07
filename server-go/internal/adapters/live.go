@@ -3861,6 +3861,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		if p := polled[devices[i].RouterID]; p != nil {
 			if v := p.fdbVlans[strings.ToUpper(devices[i].MAC)]; v > 0 {
 				devices[i].Vlan = v
+				devices[i].VlanKnown = true
 			}
 		}
 	}

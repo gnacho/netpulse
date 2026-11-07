@@ -1107,6 +1107,11 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     // `tag=` que declara el hipervisor para el invitado. El puerto solo se usa
     // cuando no hay dato.
     if (d.vlan) return { id: d.vlan, name: vlanNameOf(d.vlan), pvid: false }
+    // #1757: si una fuente resolvió la VLAN y la respuesta fue "ninguna", el
+    // puerto no es un respaldo. El host de Proxmox y sus invitados sin tag=
+    // cuelgan de un trunk, y el PVID de ese puerto (o su primera VLAN) es la
+    // de otro cliente, no la suya.
+    if (d.vlanKnown) return undefined
     // #1757: `bridge vlan show` lista también las interfaces AP (wlan0,
     // wlan1) como puertos del bridge, así que la estación inalámbrica se
     // resuelve por su interfaz igual que un cliente cableado por su puerto.
