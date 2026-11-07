@@ -288,6 +288,9 @@ func run() error {
 		log.Printf("[netpulse] warning: could not generate SSH key: %v", err)
 	}
 	// Bootstrap de routers: tabla vacía → ROUTERS_JSON o autodetección
+	if n := routerstore.NormalizeExternalHosts(dbHandle.DB); n > 0 {
+		log.Printf("[netpulse] normalized the host of %d external units (#1968)", n)
+	}
 	routers := routerstore.EnsureInitialRouters(dbHandle.DB, cfg)
 
 	// Adapter: DEMO_MODE=1 → demo (dataset canónico + random walk);
