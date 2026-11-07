@@ -88,7 +88,7 @@ func EnsureUsers(d *db.DB, cfg *config.Config) error {
 	); err != nil {
 		return err
 	}
-	log.Printf("[netpulse] usuario admin inicial creado: %s", cfg.AuthUser)
+	log.Printf("[netpulse] initial admin user created: %s", cfg.AuthUser)
 	return nil
 }
 

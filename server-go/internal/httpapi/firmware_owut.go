@@ -345,7 +345,7 @@ func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string,
 	// #761: antes de flashear, asegurar que el stack presente (netgrip /
 	// agente) sobrevive al update (ASU no puede empaquetarlos: sin feed).
 	if err := firmware.EnsureStackPreserved(s.pool, host); err != nil {
-		log.Printf("[firmware] preserve-stack %s falló (continuo): %v", routerID, err)
+		log.Printf("[firmware] preserve-stack %s failed (continuing): %v", routerID, err)
 	}
 	start := time.Now()
 	exit, out, err := firmware.RunOwutUpgrade(s.pool, host, cmd)
@@ -363,7 +363,7 @@ func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string,
 		if strings.TrimSpace(msg) == "" {
 			msg = fmt.Sprintf("owut terminó sin salida (exit %d)", exit)
 		}
-		log.Printf("[firmware] owut upgrade %s falló (exit %d): %s", routerID, exit, msg)
+		log.Printf("[firmware] owut upgrade %s failed (exit %d): %s", routerID, exit, msg)
 		_ = s.firmware.SetStatus(id, "failed", msg, "")
 		s.emitFirmwareResult(routerID, from, target, origin, false, msg)
 	}
@@ -380,7 +380,7 @@ func (s *server) runOwutInstallImage(id int64, routerID, host, target string) {
 	}
 	_ = s.firmware.SetStatus(id, "running", "", "")
 	if err := firmware.EnsureStackPreserved(s.pool, host); err != nil {
-		log.Printf("[firmware] preserve-stack %s falló (continuo): %v", routerID, err)
+		log.Printf("[firmware] preserve-stack %s failed (continuing): %v", routerID, err)
 	}
 	start := time.Now()
 	exit, out, err := firmware.RunOwutUpgrade(s.pool, host, firmware.OwutInstallCmd())
@@ -414,7 +414,7 @@ func (s *server) runOwutInstallImage(id int64, routerID, host, target string) {
 		if strings.Contains(out, "Image file") && strings.Contains(out, "does not exist") {
 			msg = "No hay imagen descargada en el router: ejecuta antes Descargar imagen (owut download) y revisa su salida."
 		}
-		log.Printf("[firmware] owut install %s falló (exit %d): %s", routerID, exit, owutTail(out, err))
+		log.Printf("[firmware] owut install %s failed (exit %d): %s", routerID, exit, owutTail(out, err))
 		_ = s.firmware.SetStatus(id, "failed", msg, "")
 		s.emitFirmwareResult(routerID, from, target, "manual", false, msg)
 	}

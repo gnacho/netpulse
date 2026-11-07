@@ -271,7 +271,7 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			}
 			plan, err := orchMgr.CreatePlan(rt.ID, "mqtt", desiredJSON, []executor.Op{opPersisted}, actor)
 			if err != nil {
-				log.Printf("[netpulse] mqtt propagate: no se pudo crear el plan de %s: %v", rt.ID, err)
+				log.Printf("[netpulse] mqtt propagate: could not create plan for %s: %v", rt.ID, err)
 				res["error"] = "plan_error"
 				results = append(results, res)
 				continue
@@ -280,7 +280,7 @@ func (s *server) registerMQTTRoutes(mux *http.ServeMux, mgr *mqttpub.Manager, or
 			// El estado se fija ANTES de enviar: si el agente responde al
 			// instante, su resultado encuentra el plan en applying.
 			if err := orchMgr.SetApplying(plan.ID, actor); err != nil {
-				log.Printf("[netpulse] mqtt propagate: no se pudo marcar applying el plan %s: %v", plan.ID, err)
+				log.Printf("[netpulse] mqtt propagate: could not mark plan %s as applying: %v", plan.ID, err)
 				res["error"] = "plan_error"
 				results = append(results, res)
 				continue

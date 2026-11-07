@@ -38,7 +38,7 @@ func clearUCIBootstrapPassword() {
 		return
 	}
 	if err := config.ClearUCIAuthPass(); err != nil {
-		log.Printf("[netpulse] aviso: no se pudo borrar auth_pass de UCI tras el cambio de contraseña: %v", err)
+		log.Printf("[netpulse] warning: could not remove auth_pass from UCI after password change: %v", err)
 	}
 }
 

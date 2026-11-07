@@ -164,7 +164,7 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		return
 	}
 	if !s.checkAgentToken(p.Slug, p.Token) {
-		log.Printf("[netpulse:beacon] token inválido para %s (origen %s)", p.Slug, src)
+		log.Printf("[netpulse:beacon] invalid token for %s (source %s)", p.Slug, src)
 		return
 	}
 	// Beacon validado: si esa IP tenía un candidato pendiente, ya está parado.
@@ -531,7 +531,7 @@ func (s *server) beaconSeqNote(slug string, seq uint32) {
 		s.beaconSeq = map[string]uint32{}
 	}
 	if had && seq != old+1 {
-		log.Printf("[netpulse:beacon] %s: seq %d tras %d (pérdida, reorden o replay)", slug, seq, old)
+		log.Printf("[netpulse:beacon] %s: seq %d after %d (loss, reordering, or replay)", slug, seq, old)
 	}
 	s.beaconSeq[slug] = seq
 	s.beaconSeqMu.Unlock()

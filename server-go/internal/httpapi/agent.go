@@ -1238,7 +1238,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	// #1894: al journal SIEMPRE, éxito o fallo, para que el servidor tenga el
 	// rastro aunque el operador cierre la pestaña.
 	if tail := outputTail(scriptOut, 4000); tail != "" {
-		log.Printf("netpulse:agent reinstall %s: salida del script de instalación:\n%s", slug, tail)
+		log.Printf("netpulse:agent reinstall %s: installation script output:\n%s", slug, tail)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
@@ -1341,7 +1341,7 @@ func (s *server) handleAgentsReemit(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, item)
 	}
-	log.Printf("[netpulse] reemit: env re-emitido a %d/%d agentes", reemitted, len(out))
+	log.Printf("[netpulse] reemit: env re-emitted to %d/%d agents", reemitted, len(out))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"agents":    out,
 		"reemitted": reemitted,
@@ -1408,7 +1408,7 @@ func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
 	// había pasado dentro de la unidad.
 	out, err := runScript(s.pool, host, uninstall.Script(), 60*time.Second)
 	if tail := outputTail(out, 4000); tail != "" {
-		log.Printf("netpulse:agent uninstall %s: salida del script de desinstalación:\n%s", slug, tail)
+		log.Printf("netpulse:agent uninstall %s: uninstall script output:\n%s", slug, tail)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
@@ -1549,7 +1549,7 @@ func (s *server) acceptAgentPush(p *probe.Payload) bool {
 			`INSERT INTO kv (key, value) VALUES (?, ?)
 			 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
 			key, strconv.FormatInt(p.Ts, 10)); err != nil {
-			log.Printf("[netpulse] no se pudo persistir el ultimo push de %s: %v", p.Router, err)
+			log.Printf("[netpulse] could not persist last push from %s: %v", p.Router, err)
 		}
 		// #1717: el primer push válido limpia el badge de rechazos.
 		_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(p.Router))

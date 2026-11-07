@@ -351,7 +351,7 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 	}
 	if err := s.reloadService(host, "dnsmasq"); err != nil {
 		if rbErr := s.runUCICommands(host, "dhcp", rollback); rbErr != nil {
-			log.Printf("[netpulse] rollback reserva %s falló: %v", mac, rbErr)
+			log.Printf("[netpulse] reservation rollback for %s failed: %v", mac, rbErr)
 		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
@@ -456,7 +456,7 @@ func (s *server) handleDeviceReservationHostnamePut(w http.ResponseWriter, r *ht
 	}
 	if err := s.reloadService(host, "dnsmasq"); err != nil {
 		if rbErr := s.runUCICommands(host, "dhcp", rollback); rbErr != nil {
-			log.Printf("[netpulse] rollback hostname reserva %s falló: %v", mac, rbErr)
+			log.Printf("[netpulse] hostname reservation rollback for %s failed: %v", mac, rbErr)
 		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
@@ -523,7 +523,7 @@ func (s *server) handleDeviceReservationDelete(w http.ResponseWriter, r *http.Re
 	}
 	if err := s.reloadService(host, "dnsmasq"); err != nil {
 		if rbErr := s.runUCICommands(host, "dhcp", rollback); rbErr != nil {
-			log.Printf("[netpulse] rollback borrado reserva %s falló: %v", mac, rbErr)
+			log.Printf("[netpulse] reservation deletion rollback for %s failed: %v", mac, rbErr)
 		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
@@ -701,7 +701,7 @@ func (s *server) handleDeviceBlockPut(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.reloadService(host, "firewall"); err != nil {
 		if rbErr := s.runUCICommands(host, "firewall", blockRuleRollback(section)); rbErr != nil {
-			log.Printf("[netpulse] rollback bloqueo %s falló: %v", mac, rbErr)
+			log.Printf("[netpulse] block rollback for %s failed: %v", mac, rbErr)
 		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return
@@ -760,7 +760,7 @@ func (s *server) handleDeviceBlockDelete(w http.ResponseWriter, r *http.Request)
 	}
 	if err := s.reloadService(host, "firewall"); err != nil {
 		if rbErr := s.runUCICommands(host, "firewall", rollback); rbErr != nil {
-			log.Printf("[netpulse] rollback desbloqueo %s falló: %v", mac, rbErr)
+			log.Printf("[netpulse] unblock rollback for %s failed: %v", mac, rbErr)
 		}
 		writeError(w, http.StatusInternalServerError, "apply_error", err.Error())
 		return

@@ -379,7 +379,7 @@ func NewHandler(d Deps) http.Handler {
 	// #291: listener UDP de beacons (NETPULSE_BEACON_LISTEN; vacío = off).
 	if d.Config != nil && d.Config.BeaconListen != "" {
 		if la, err := s.startBeaconListener(d.Config.BeaconListen); err != nil {
-			log.Printf("[netpulse] aviso: beacon UDP no arrancó en %s (%v)", d.Config.BeaconListen, err)
+			log.Printf("[netpulse] warning: UDP beacon failed to start on %s (%v)", d.Config.BeaconListen, err)
 		} else {
 			log.Printf("[netpulse] beacon UDP escuchando en %s", la)
 		}

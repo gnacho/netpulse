@@ -48,7 +48,7 @@ func (s *server) persistAgentState(slug string, st *adapters.AgentState) {
 		BridgeMAC: st.BridgeMAC,
 	})
 	if err != nil {
-		log.Printf("[netpulse] aviso: no se pudo serializar el estado del agente %s: %v", slug, err)
+		log.Printf("[netpulse] warning: could not serialize state for agent %s: %v", slug, err)
 		return
 	}
 	_, err = s.db.Exec(
@@ -56,7 +56,7 @@ func (s *server) persistAgentState(slug string, st *adapters.AgentState) {
 		agentStateKey(slug), string(raw),
 	)
 	if err != nil {
-		log.Printf("[netpulse] aviso: no se pudo persistir el estado del agente %s: %v", slug, err)
+		log.Printf("[netpulse] warning: could not persist state for agent %s: %v", slug, err)
 	}
 }
 
@@ -67,7 +67,7 @@ func NewStateRestorer(d *db.DB) func(*adapters.AgentRegistry) {
 	return func(reg *adapters.AgentRegistry) {
 		rows, err := d.Query("SELECT key, value FROM kv WHERE key LIKE '" + agentStateKeyPrefix + "%'")
 		if err != nil {
-			log.Printf("[netpulse] aviso: no se pudieron restaurar los estados de agentes: %v", err)
+			log.Printf("[netpulse] warning: could not restore agent states: %v", err)
 			return
 		}
 		defer rows.Close()

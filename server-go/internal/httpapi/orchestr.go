@@ -318,7 +318,7 @@ func (s *server) applyPlanHandler(w http.ResponseWriter, r *http.Request, mgr *o
 // ese caso, solo queda registrado en el log.
 func (s *server) restorePlan(mgr *orchestr.Manager, id, from, to, actor, reason string) {
 	if err := mgr.RestoreTransition(id, from, to, actor, reason); err != nil {
-		log.Printf("[netpulse] orchestr: no se pudo restaurar el plan %s (%s -> %s): %v", id, from, to, err)
+		log.Printf("[netpulse] orchestr: could not restore plan %s (%s -> %s): %v", id, from, to, err)
 	}
 }
 

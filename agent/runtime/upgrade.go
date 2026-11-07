@@ -242,7 +242,7 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	arch = netpulseArch(arch)
 	log := opts.logger()
 
-	log.Info("[netpulse-agent] upgrade iniciado", "slug", opts.Slug, "arch", arch)
+	log.Info("[netpulse-agent] upgrade started", "slug", opts.Slug, "arch", arch)
 	url := opts.Server + "/api/agents/" + opts.Slug + "/binary?arch=" + arch
 	hc := &http.Client{Transport: transport, Timeout: 2 * time.Minute}
 
@@ -251,7 +251,7 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 		reportUpgradeProgress(opts, transport, "downloading", pct)
 	})
 	if err != nil {
-		log.Error("[netpulse-agent] upgrade: descarga falló", "err", err)
+		log.Error("[netpulse-agent] upgrade: download failed", "err", err)
 		reportUpgradeResult(opts, transport, false, err.Error())
 		return
 	}
@@ -266,7 +266,7 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	}
 	reportUpgradeProgress(opts, transport, "verifying", 0)
 	if err := verifySha256(tmpBinPath, digest); err != nil {
-		log.Error("[netpulse-agent] upgrade: verificación falló", "err", err)
+		log.Error("[netpulse-agent] upgrade: verification failed", "err", err)
 		reportUpgradeResult(opts, transport, false, err.Error())
 		return
 	}
@@ -274,12 +274,12 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	dst := currentBinPath()
 	reportUpgradeProgress(opts, transport, "swapping", 0)
 	if err := swapBinary(tmpBinPath, dst); err != nil {
-		log.Error("[netpulse-agent] upgrade: swap falló", "err", err, "dst", dst)
+		log.Error("[netpulse-agent] upgrade: swap failed", "err", err, "dst", dst)
 		reportUpgradeResult(opts, transport, false, err.Error())
 		return
 	}
 
-	log.Info("[netpulse-agent] upgrade: binario intercambiado, reiniciando servicio", "dst", dst)
+	log.Info("[netpulse-agent] upgrade: binary swapped, restarting service", "dst", dst)
 	reportUpgradeProgress(opts, transport, "restarting", 0)
 	// Reportar ANTES de reiniciar: el reinicio mata este proceso.
 	reportUpgradeResult(opts, transport, true, "")
@@ -288,7 +288,7 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 		// disco: sin este aviso el servidor se queda en "restarting" y la UI
 		// dice que la unidad está al día (#1900). El reporte llega porque nadie
 		// ha reemplazado este proceso.
-		log.Error("[netpulse-agent] upgrade: reinicio falló; el binario nuevo está en disco pero este proceso sigue con el viejo", "err", err, "dst", dst)
+		log.Error("[netpulse-agent] upgrade: restart failed, new binary is on disk but this process is still running the old one", "err", err, "dst", dst)
 		reportUpgradeResult(opts, transport, false, "reinicio falló: "+err.Error())
 	}
 }

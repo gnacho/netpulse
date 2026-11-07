@@ -62,7 +62,7 @@ func LoadInstances(db *sql.DB) []Instance {
 	}
 	list := []Instance{{ID: "default", Name: "Proxmox", Config: Config{URL: url, TokenID: tokenID, Secret: secret}}}
 	if err := SaveInstances(db, list); err != nil {
-		log.Printf("[pve] migración legacy: %v", err)
+		log.Printf("[pve] legacy migration: %v", err)
 		return list // devolverla igual: funciona aunque no persista
 	}
 	for _, k := range []string{"proxmox_url", "proxmox_token_id", "proxmox_token_secret"} {

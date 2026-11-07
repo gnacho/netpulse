@@ -102,7 +102,7 @@ func (n *Notifier) Notify(ev alerts.AlertEvent) {
 		return
 	case n.ch <- ev:
 	default:
-		slog.Warn("push: cola llena, notificación descartada", "alertId", ev.ID, "title", ev.Title)
+		slog.Warn("push: queue full, notification dropped", "alertId", ev.ID, "title", ev.Title)
 	}
 }
 
@@ -146,7 +146,7 @@ func payloadJSON(ev alerts.AlertEvent) ([]byte, error) {
 func (n *Notifier) sendAll(ev alerts.AlertEvent) {
 	subs, err := ListSubscriptions(n.db)
 	if err != nil {
-		slog.Error("push: no se pudieron listar suscripciones", "alertId", ev.ID, "error", err)
+		slog.Error("push: could not list subscriptions", "alertId", ev.ID, "error", err)
 		return
 	}
 	for _, s := range subs {
@@ -185,7 +185,7 @@ func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 			TTL:             ttlSeconds,
 		})
 	if err != nil {
-		slog.Warn("push: envío fallido", "alertId", ev.ID, "endpoint", s.Endpoint, "error", err)
+		slog.Warn("push: send failed", "alertId", ev.ID, "endpoint", s.Endpoint, "error", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -193,12 +193,12 @@ func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 		// Suscripción muerta (expirada o dada de baja): purgar (SPEC-PUSH §1).
 		if err := DeleteSubscription(n.db, s.Endpoint); err != nil {
-			slog.Error("push: no se pudo purgar suscripción muerta", "endpoint", s.Endpoint, "error", err)
+			slog.Error("push: could not purge dead subscription", "endpoint", s.Endpoint, "error", err)
 		}
-		slog.Info("push: suscripción purgada", "endpoint", s.Endpoint, "status", resp.StatusCode)
+		slog.Info("push: subscription purged", "endpoint", s.Endpoint, "status", resp.StatusCode)
 		return
 	}
 	if resp.StatusCode >= 400 {
-		slog.Warn("push: push service respondió error", "alertId", ev.ID, "endpoint", s.Endpoint, "status", resp.StatusCode)
+		slog.Warn("push: push service returned an error", "alertId", ev.ID, "endpoint", s.Endpoint, "status", resp.StatusCode)
 	}
 }

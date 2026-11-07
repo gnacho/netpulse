@@ -178,7 +178,7 @@ func (s *server) configBackupScheduleTickAt(now time.Time) {
 	if s.agentHub != nil {
 		for _, slug := range s.agentHub.ConnectedSlugs() {
 			if err := s.agentHub.SendPrivileged(slug, "config_backup", map[string]any{}); err != nil {
-				log.Printf("[netpulse] config backup programado: %s: %v", slug, err)
+				log.Printf("[netpulse] scheduled config backup: %s: %v", slug, err)
 				continue
 			}
 			servedByAgent[slug] = true
@@ -195,10 +195,10 @@ func (s *server) configBackupScheduleTickAt(now time.Time) {
 	}
 	lastRun := time.Now().UnixMilli()
 	if err := kvSetStr(s.db.DB, cfgBackupSchedulePrefix+"last_run_ms", strconv.FormatInt(lastRun, 10)); err != nil {
-		log.Printf("[netpulse] config backup programado: guardar last_run: %v", err)
+		log.Printf("[netpulse] scheduled config backup: save last_run: %v", err)
 		return
 	}
-	log.Printf("[netpulse] config backup programado: %d unidad(es) copiada(s)", sent)
+	log.Printf("[netpulse] scheduled config backup: %d unit(s) backed up", sent)
 }
 
 // configBackupSshRetry: una unidad sin agente solo se intenta por SSH cada
@@ -248,7 +248,7 @@ func (s *server) configBackupSshPass(now time.Time, servedByAgent map[string]boo
 		return 0
 	}
 	if !s.cfgBackupSshAllowed(now) {
-		log.Printf("[netpulse] config backup programado: %d unidad(es) sin agente esperando turno por SSH", len(targets))
+		log.Printf("[netpulse] scheduled config backup: %d unit(s) without agent waiting for SSH", len(targets))
 		return 0
 	}
 	copied := 0
@@ -259,11 +259,11 @@ func (s *server) configBackupSshPass(now time.Time, servedByAgent map[string]boo
 		}
 		name, size, err := s.backupConfigOverSsh(context.Background(), rc.ID, rc.SSHAddr())
 		if err != nil {
-			log.Printf("[netpulse] config backup programado: %s: %v", label, err)
+			log.Printf("[netpulse] scheduled config backup: %s: %v", label, err)
 			continue
 		}
 		copied++
-		log.Printf("[netpulse] config backup programado: %s: copia por SSH %s (%d bytes)", label, name, size)
+		log.Printf("[netpulse] scheduled config backup: %s: SSH backup %s (%d bytes)", label, name, size)
 	}
 	return copied
 }
