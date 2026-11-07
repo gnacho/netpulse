@@ -16,6 +16,7 @@
  * en abanicos por hub; CTs en grid bajo el host.
  */
 import type { Band, Device, DistributionNode, Router, TopoSemantics, TopoSemLink, WanInfo, WGPeer, WireGuardStats } from '@/data/mock'
+import { relaxDistNodes } from './distLayout'
 
 /** viewBox del lienzo SVG */
 export const VB_W = 1000
@@ -1034,6 +1035,33 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     for (const p of placed) {
       anchorPos.set(p.cn.id, { x: p.x, y: p.y })
       distNodes.push({ kind: 'dist', id: p.cn.id, node: p.cn, x: p.x, y: p.y, r: 20 })
+    }
+  }
+
+  // #1957: separar los distnodes entre sí y de los nodos fijos ANTES de
+  // aplicar los pines del usuario. El resolver de colisiones general los
+  // trata como fijos y solo empuja chips, así que sin este pase un switch
+  // inferido podía nacer solapado con otro nodo y había que arrastrarlo.
+  if (distNodes.length > 0) {
+    const obstacles = [
+      ...routerNodes.map((rn) => ({ x: rn.x, y: rn.y, r: rn.r, margin: rn.id === gatewayNode?.id ? 40 : 26 })),
+      { x: internetNode.x, y: internetNode.y, r: 30, margin: 30 },
+    ]
+    for (const hostId of hypervisorHosts) {
+      const p = anchorPos.get(hostId)
+      if (p) obstacles.push({ x: p.x, y: p.y, r: 14, margin: 16 })
+    }
+    const relaxed = relaxDistNodes(
+      distNodes.map((dn) => ({ id: dn.id, x: dn.x, y: dn.y, r: dn.r })),
+      obstacles,
+      { width: VB_W, height: VB_H },
+    )
+    for (const dn of distNodes) {
+      const p = relaxed.get(dn.id)
+      if (!p) continue
+      dn.x = p.x
+      dn.y = p.y
+      if (anchorPos.has(dn.id)) anchorPos.set(dn.id, { x: p.x, y: p.y })
     }
   }
 
