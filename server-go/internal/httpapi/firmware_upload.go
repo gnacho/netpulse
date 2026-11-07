@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -227,6 +228,10 @@ func (s *server) registerFirmwareBackupRoutes(mux *http.ServeMux) {
 			return
 		}
 		pruneFirmwareBackups(dir, slug)
+		// #1899: la vía SSH ya dejaba esta línea y la del agente no, así que
+		// un backup manual o programado de una unidad con agente no dejaba
+		// rastro en el journal.
+		log.Printf("[netpulse] config backup: %s: copia del agente %s (%d bytes)", slug, name, n)
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "size": n})
 	})
 
