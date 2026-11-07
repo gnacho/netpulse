@@ -284,6 +284,27 @@
   .h-tabbar {
     height: calc(4rem + env(safe-area-inset-bottom));
   }
+  /* Cabecera con el inset DENTRO de la altura (#1943): con h-14 + pt-safe el
+     padding se comía el contenido y la barra quedaba más baja de lo previsto. */
+  .h-header {
+    height: calc(3.5rem + env(safe-area-inset-top));
+  }
+  /* Hueco del contenido bajo la tab bar: 6rem + el inset inferior (#1943). */
+  .pb-tabbar {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+
+  /* iOS standalone: el backdrop-filter del header deja una banda difuminada
+     arriba incluso con la página al principio (WebKit 301994, #1943). */
+  @media (display-mode: standalone) {
+    @supports (-webkit-touch-callout: none) {
+      header.sticky {
+        background-color: rgb(var(--canvas));
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+      }
+    }
+  }
   .mesh-bg {
     background-image: url('/mesh-texture.svg');
     background-repeat: repeat;
