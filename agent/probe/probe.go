@@ -1226,9 +1226,11 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 
 	if len(layout) > 0 {
 		lanCount := 0
+		lanNames := map[string]bool{}
 		for _, p := range layout {
 			if p.Role == "lan" {
 				lanCount++
+				lanNames[p.Name] = true
 			}
 		}
 		for _, p := range layout {
@@ -1238,10 +1240,19 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			}
 			up := ok && st.Up
 			label := p.Label
+			id := p.ID
 			if p.Role == "wan" && brMembers[p.Name] {
+				// #1949: la "wan" del board.json de un AP de un solo puerto
+				// es un miembro del bridge LAN, no una boca WAN. La boca se
+				// queda como LAN y con su propio id: con id "wan" la UI la
+				// pintaba como enlace a internet aunque el texto dijera LAN.
+				if lanNames[p.Name] {
+					continue // ya declarada como LAN: no duplicar la boca
+				}
+				id = p.Name
 				label = "LAN " + strconv.Itoa(lanCount+1)
 			}
-			ep := EthPort{ID: p.ID, Label: label, Up: up}
+			ep := EthPort{ID: id, Label: label, Up: up}
 			if up {
 				ep.Speed = st.Speed
 			}
