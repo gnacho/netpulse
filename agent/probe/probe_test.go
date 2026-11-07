@@ -44,6 +44,17 @@ func TestParseTempC(t *testing.T) {
 	if ParseTempC("") != nil || ParseTempC("nan") != nil {
 		t.Fatal("temp inválida → nil")
 	}
+	// #1947: una zona sin sensor declara 0 y el valor llegaba a la UI como
+	// lectura real (0 C / 32 F plana en el WNDR3700v2).
+	if v := ParseTempC("0"); v != nil {
+		t.Fatalf("temp 0 → nil, got %d", *v)
+	}
+	if v := ParseTempC("300"); v != nil {
+		t.Fatalf("temp que redondea a 0 → nil, got %d", *v)
+	}
+	if v := ParseTempC("-5000"); v == nil || *v != -5 {
+		t.Fatalf("temp negativa real: %v", v)
+	}
 }
 
 func TestParseNetDevYBps(t *testing.T) {

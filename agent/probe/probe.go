@@ -554,15 +554,21 @@ func CPUPercent(prev, cur CPUSample) *int {
 	return &v
 }
 
-// ParseTempC: °C del primer thermal zone (nil si la salida no es un entero).
+// ParseTempC: °C del primer thermal zone (nil si la salida no es un entero o
+// si el sensor no da una lectura creíble). Un 0 no es una temperatura de CPU:
+// las unidades sin sensor (WNDR3700v2, #1947) exponen la zona a 0 y pintarlo
+// como dato válido hace creer que la lectura funciona.
 func ParseTempC(out string) *int {
 	milli, err := strconv.Atoi(strings.TrimSpace(out))
-	if err != nil {
+	if err != nil || milli == 0 {
 		return nil
 	}
 	v := milli / 1000
 	if milli%1000 >= 500 {
 		v++
+	}
+	if v == 0 {
+		return nil
 	}
 	return &v
 }
