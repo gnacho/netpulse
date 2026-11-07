@@ -66,7 +66,7 @@ func SetLocalesFS(f fs.FS) {
 	localesFS = f
 	entries, err := fs.ReadDir(f, ".")
 	if err != nil {
-		log.Printf("[netpulse] alertlang: no se pudo listar locales: %v", err)
+		log.Printf("[netpulse] alertlang: could not list locales: %v", err)
 		return
 	}
 	for _, e := range entries {
@@ -99,12 +99,12 @@ func load(lang string) *catalog {
 	}
 	raw, err := fs.ReadFile(localesFS, lang+"/translation.json")
 	if err != nil {
-		log.Printf("[netpulse] alertlang: catálogo no encontrado: lang=%s (%v)", lang, err)
+		log.Printf("[netpulse] alertlang: catalog not found: lang=%s (%v)", lang, err)
 		return nil
 	}
 	var c catalog
 	if err := json.Unmarshal(raw, &c); err != nil {
-		log.Printf("[netpulse] alertlang: catálogo inválido: lang=%s (%v)", lang, err)
+		log.Printf("[netpulse] alertlang: invalid catalog: lang=%s (%v)", lang, err)
 		return nil
 	}
 	cache[lang] = &c

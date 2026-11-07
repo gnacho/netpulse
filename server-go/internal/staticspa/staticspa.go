@@ -53,7 +53,7 @@ func New(staticDir string) *Handler {
 	if data, err := fs.ReadFile(h.files, "index.html"); err == nil {
 		h.indexHTML = data
 	} else {
-		log.Printf("[netpulse] STATIC_DIR=%s sin index.html (¿falta \"npm run build\" en app/?)", desc)
+		log.Printf("[netpulse] STATIC_DIR=%s has no index.html (missing \"npm run build\" in app/?)", desc)
 	}
 	return h
 }

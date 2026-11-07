@@ -253,7 +253,7 @@ func (s *server) resumeIntegrations() {
 	store := s.integrationsStore()
 	rows, err := store.List()
 	if err != nil {
-		log.Printf("[netpulse] aviso: integraciones: no se pudo leer la tabla al arrancar (%v)", err)
+		log.Printf("[netpulse] warning: integrations: could not read table at startup (%v)", err)
 		return
 	}
 	for _, row := range rows {
@@ -274,18 +274,18 @@ func (s *server) resumeIntegrations() {
 		vendor, ok := s.vendorCatalog.Lookup(row.Vendor)
 		if !ok {
 			_ = store.SetState(row.Slug, "error", "unknown vendor "+row.Vendor)
-			log.Printf("[netpulse] aviso: integración %s con vendor desconocido %q al arrancar", row.Slug, row.Vendor)
+			log.Printf("[netpulse] warning: integration %s has unknown vendor %q at startup", row.Slug, row.Vendor)
 			continue
 		}
 		binPath := filepath.Join(s.integrations.Dir(), row.Slug, vendor.Binary)
 		if err := s.integrations.Start(row.Slug, nil, binPath); err != nil {
 			_ = store.SetState(row.Slug, "error", err.Error())
-			log.Printf("[netpulse] aviso: integración %s no se reanudó al arrancar (%v)", row.Slug, err)
+			log.Printf("[netpulse] warning: integration %s could not be resumed at startup (%v)", row.Slug, err)
 			continue
 		}
 		_ = store.SetState(row.Slug, "running", "")
 		_ = store.SetLastStart(row.Slug, time.Now().UnixMilli())
-		log.Printf("[netpulse] integración %s reanudada al arrancar", row.Slug)
+		log.Printf("[netpulse] integration %s resumed at startup", row.Slug)
 	}
 	s.broadcastIntegrations()
 }
@@ -603,7 +603,7 @@ func (s *server) applyIntegrationSSHAuth(row rintegration.Row) {
 	}
 	pass, err := s.integrations.ReadSSHPassword(row.Slug)
 	if err != nil {
-		log.Printf("[netpulse] aviso: integración %s: no se pudo leer el fichero de contraseña SSH (%v); conecto con llave", row.Slug, err)
+		log.Printf("[netpulse] warning: integration %s: could not read SSH password file (%v), connecting with key", row.Slug, err)
 		pass = ""
 	}
 	setter.SetPassword(row.Host, row.Username, pass)

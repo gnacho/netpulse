@@ -126,7 +126,7 @@ func (c *rtlConsoleCache) poll(slug, host string) {
 		e.FailCount++
 		e.FailedAt = time.Now()
 		c.mu.Unlock()
-		log.Printf("[netpulse:rtl] poll %s (%s) falló: %v", slug, host, err)
+		log.Printf("[netpulse:rtl] poll %s (%s) failed: %v", slug, host, err)
 		return
 	}
 	e.Firmware = entry.Firmware

@@ -538,7 +538,7 @@ func probeGatewayModel(host, keyPath string) (model, typ string) {
 	case res := <-ch:
 		if res.err != nil {
 			// #1893: el bootstrap del gateway también diala SSH fuera del pool.
-			log.Printf("[netpulse:ssh] gateway %s: ssh falló (%v); se asume openwrt", host, res.err)
+			log.Printf("[netpulse:ssh] gateway %s: ssh failed (%v), assuming openwrt", host, res.err)
 			return "", "openwrt"
 		}
 		var board struct {
@@ -587,7 +587,7 @@ func EnsureInitialRouters(db *sql.DB, cfg *config.Config) []adapters.RouterConfi
 	}
 	gwIP := DetectGatewayIP()
 	if gwIP == "" {
-		log.Printf("[netpulse] sin puerta de enlace detectada; añade routers desde Ajustes")
+		log.Printf("[netpulse] no gateway detected, add routers from Settings")
 		return []adapters.RouterConfig{}
 	}
 	model, typ := probeGatewayModel(gwIP, cfg.SSHKeyPath)
@@ -603,7 +603,7 @@ func EnsureInitialRouters(db *sql.DB, cfg *config.Config) []adapters.RouterConfi
 	if model == "" {
 		model = "modelo desconocido"
 	}
-	log.Printf("[netpulse] gateway autodetectado: %s (%s, tipo %s). El resto se añade desde Ajustes.",
+	log.Printf("[netpulse] autodetected gateway: %s (%s, type %s). Add the rest from Settings.",
 		created.Host, model, created.Type)
 	return ListRouters(db)
 }

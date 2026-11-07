@@ -170,7 +170,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	a.hbFile = hbFile
 
-	log.Info("[netpulse-agent] agente iniciado", "version", opts.Version, "slug", opts.Slug, "server", opts.Server, "interval", opts.Interval, "scan_interval", opts.ScanInterval)
+	log.Info("[netpulse-agent] agent started", "version", opts.Version, "slug", opts.Slug, "server", opts.Server, "interval", opts.Interval, "scan_interval", opts.ScanInterval)
 	a.setRunning(true)
 
 	// #453: si existe un upgrade de firmware pendiente de un reboot anterior,
@@ -203,7 +203,7 @@ func Run(ctx context.Context, opts Options) error {
 				payload.PanelPort = opts.PanelPort
 				a.pushOnce(ctx, payload)
 			}); err != nil {
-				log.Warn("[netpulse-agent] iw event terminó", "err", err)
+				log.Warn("[netpulse-agent] iw event ended", "err", err)
 			}
 		}()
 	}
@@ -336,7 +336,7 @@ type agent struct {
 // pushOnce envía el payload, toca el heartbeat y actualiza el estado.
 func (a *agent) pushOnce(ctx context.Context, payload *probe.Payload) {
 	if err := a.client.Push(ctx, payload); err != nil {
-		a.log.Warn("[netpulse-agent] push falló", "err", err, "buffered", a.client.Buffered(), "dropped", a.client.Dropped())
+		a.log.Warn("[netpulse-agent] push failed", "err", err, "buffered", a.client.Buffered(), "dropped", a.client.Dropped())
 		a.setPush(false, err.Error())
 		return
 	}
@@ -394,11 +394,11 @@ func (a *agent) handleApply(ex *executor.Executor, transport http.RoundTripper, 
 		return
 	}
 	if len(payload.Ops) == 0 {
-		a.log.Warn("[netpulse-agent] apply: sin ops", "plan_id", payload.PlanID)
+		a.log.Warn("[netpulse-agent] apply: no ops", "plan_id", payload.PlanID)
 		return
 	}
 
-	a.log.Info("[netpulse-agent] apply iniciado", "plan_id", payload.PlanID, "ops", len(payload.Ops))
+	a.log.Info("[netpulse-agent] apply started", "plan_id", payload.PlanID, "ops", len(payload.Ops))
 
 	var result executor.ApplyResult
 	delegated := false
@@ -411,7 +411,7 @@ func (a *agent) handleApply(ex *executor.Executor, transport http.RoundTripper, 
 	}
 	if !delegated {
 		result = ex.Apply(payload.Ops)
-		a.log.Info("[netpulse-agent] apply ejecutado por agente", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
+		a.log.Info("[netpulse-agent] apply executed by agent", "plan_id", payload.PlanID, "status", result.Status, "ms", result.DurationMs)
 	}
 
 	postJSONWithRetry(a.opts, transport, "/api/agents/"+a.opts.Slug+"/apply-result",

@@ -148,7 +148,7 @@ func (n *Notifier) sendWithRetry(ev alerts.AlertEvent) {
 		if httpErr, ok := err.(*httpStatusError); ok {
 			// 4xx (salvo 429): error del emisor, no reintentar jamás.
 			if httpErr.status >= 400 && httpErr.status < 500 && httpErr.status != http.StatusTooManyRequests {
-				slog.Warn("webhook: 4xx permanente, no se reintenta", "alertId", ev.ID, "status", httpErr.status)
+				slog.Warn("webhook: permanent 4xx, not retrying", "alertId", ev.ID, "status", httpErr.status)
 				n.saveDLQ(ev, body, lastErr.Error())
 				return
 			}
@@ -206,7 +206,7 @@ func (n *Notifier) saveDLQ(ev alerts.AlertEvent, body []byte, reason string) {
 		"INSERT OR REPLACE INTO webhook_events (event_id, payload, sent_at, error) VALUES (?, ?, ?, ?)",
 		ev.ID, string(body), time.Now().Unix(), reason,
 	); err != nil {
-		slog.Error("webhook: no se pudo guardar en DLQ", "alertId", ev.ID, "error", err)
+		slog.Error("webhook: could not save to DLQ", "alertId", ev.ID, "error", err)
 		return
 	}
 	slog.Warn("webhook: evento a DLQ", "alertId", ev.ID, "error", reason)

@@ -34,15 +34,15 @@ import (
 // Pasos del progreso de upgrade (los intermedios los envía el agente; los
 // terminales los fija el server a partir de upgrade-result).
 const (
-	upgradeStepRequested   = "requested"   // comando enviado por SSE
-	upgradeStepDownloading = "downloading" // descargando el binario (con pct)
-	upgradeStepVerifying   = "verifying"   // comprobando sha256 de la descarga
-	upgradeStepSwapping    = "swapping"    // intercambio atómico del binario
-	upgradeStepRestarting  = "restarting"  // swap ok, reinicio del servicio
+	upgradeStepRequested   = "requested"      // comando enviado por SSE
+	upgradeStepDownloading = "downloading"    // descargando el binario (con pct)
+	upgradeStepVerifying   = "verifying"      // comprobando sha256 de la descarga
+	upgradeStepSwapping    = "swapping"       // intercambio atómico del binario
+	upgradeStepRestarting  = "restarting"     // swap ok, reinicio del servicio
 	upgradeStepRestartFail = "restart_failed" // el reinicio no llegó a arrancar el binario nuevo (#1900)
-	upgradeStepDone        = "done"        // el agente ya empuja la versión objetivo (#401)
-	upgradeStepFailed      = "failed"      // upgrade-result con error
-	upgradeStepQueued      = "queued"      // en cola hasta que el agente conecte
+	upgradeStepDone        = "done"           // el agente ya empuja la versión objetivo (#401)
+	upgradeStepFailed      = "failed"         // upgrade-result con error
+	upgradeStepQueued      = "queued"         // en cola hasta que el agente conecte
 )
 
 // upgradeStateTTL: cuánto se expone un paso sin actividad antes de dejar de
@@ -410,12 +410,12 @@ func (s *server) handleAgentUpgradeResult(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if body.OK {
-		log.Printf("[netpulse] upgrade: agente %s actualizado correctamente", slug)
+		log.Printf("[netpulse] upgrade: agent %s updated successfully", slug)
 		// El agente reporta el ok ANTES de reiniciarse: el paso visible pasa
 		// a ser "restarting" hasta que el binario nuevo empuje su versión.
 		s.upgrades.set(slug, upgradeStepRestarting, 0, "")
 	} else {
-		log.Printf("[netpulse] upgrade: agente %s falló: %s", slug, body.Error)
+		log.Printf("[netpulse] upgrade: agent %s failed: %s", slug, body.Error)
 		s.upgrades.set(slug, upgradeStepFailed, 0, body.Error)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

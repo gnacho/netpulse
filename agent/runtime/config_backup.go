@@ -21,7 +21,7 @@ func handleConfigBackup(opts Options, transport http.RoundTripper) {
 	log := opts.logger()
 	backupPath := filepath.Join(firmwareTmpDir, fmt.Sprintf("netpulse-config-backup-%d.tar.gz", time.Now().Unix()))
 	if err := backupConfig(backupPath); err != nil {
-		log.Error("[netpulse-agent] config_backup: snapshot falló", "err", err)
+		log.Error("[netpulse-agent] config_backup: snapshot failed", "err", err)
 		return
 	}
 	// #1897: el tar.gz se borra siempre al terminar, suba o no. En el router
@@ -32,8 +32,8 @@ func handleConfigBackup(opts Options, transport http.RoundTripper) {
 	// sysupgrade falla, y su ruta se reporta en el resultado.
 	defer os.Remove(backupPath)
 	if err := uploadBackup(opts, transport, backupPath); err != nil {
-		log.Error("[netpulse-agent] config_backup: subida falló", "err", err)
+		log.Error("[netpulse-agent] config_backup: upload failed", "err", err)
 		return
 	}
-	log.Info("[netpulse-agent] config_backup: backup subido y temporal local eliminado")
+	log.Info("[netpulse-agent] config_backup: backup uploaded and local temporary file removed")
 }

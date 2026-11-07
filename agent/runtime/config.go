@@ -58,7 +58,7 @@ func LoadConfigFromEnv(envFile string) (Options, error) {
 		opts.AllowInsecureCommands = true
 	case "", "0", "false", "no", "off":
 	default:
-		slog.Warn("[netpulse-agent] NETPULSE_ALLOW_INSECURE_COMMANDS inválido, se ignora",
+		slog.Warn("[netpulse-agent] NETPULSE_ALLOW_INSECURE_COMMANDS invalid, ignoring it",
 			"value", get("NETPULSE_ALLOW_INSECURE_COMMANDS"))
 	}
 	if v := get("NETPULSE_INTERVAL"); v != "" {
@@ -67,7 +67,7 @@ func LoadConfigFromEnv(envFile string) (Options, error) {
 		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			opts.Interval = d
 		} else {
-			slog.Warn("[netpulse-agent] NETPULSE_INTERVAL inválido, usando 30s", "value", v)
+			slog.Warn("[netpulse-agent] NETPULSE_INTERVAL invalid, using 30s", "value", v)
 		}
 	}
 	// NETPULSE_SCAN_INTERVAL (#699): mínimo entre scans de vecinos. "0" =
@@ -82,7 +82,7 @@ func LoadConfigFromEnv(envFile string) (Options, error) {
 		} else if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			opts.ScanInterval = d
 		} else {
-			slog.Warn("[netpulse-agent] NETPULSE_SCAN_INTERVAL inválido, usando 30m", "value", v)
+			slog.Warn("[netpulse-agent] NETPULSE_SCAN_INTERVAL invalid, using 30m", "value", v)
 		}
 	}
 	if err := opts.Validate(); err != nil {

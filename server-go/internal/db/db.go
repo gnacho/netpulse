@@ -725,7 +725,7 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// en router-offline). Discriminador idempotente: las filas del router
 	// llevan "host" en vars; las de cliente nuevas, no (vars = device/router).
 	if _, err := sqldb.Exec(`UPDATE alert_log SET type = 'router-offline' WHERE type = 'device-offline' AND vars LIKE '%"host"%'`); err != nil {
-		log.Printf("[netpulse] aviso: no se pudo migrar el tipo de alertas router-offline: %v", err)
+		log.Printf("[netpulse] warning: could not migrate router-offline alert type: %v", err)
 	}
 
 	// #817: port_series_raw tenía dos índices idénticos a su PK, creados por
@@ -734,7 +734,7 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// existentes (~33 MB en una instancia de 266 MB).
 	for _, idx := range []string{"idx_port_series_raw_rpt", "idx_port_series_raw_router_port_ts"} {
 		if _, err := sqldb.Exec("DROP INDEX IF EXISTS " + idx); err != nil {
-			log.Printf("[netpulse] aviso: no se pudo eliminar el índice %s: %v", idx, err)
+			log.Printf("[netpulse] warning: could not drop index %s: %v", idx, err)
 		}
 	}
 
@@ -742,7 +742,7 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// #1579). Keep existing units visible until their owner deploys the
 	// pusher. Legacy credential columns remain in place as inert schema.
 	if _, err := sqldb.Exec(`UPDATE routers SET type = 'external', agent_only = 1 WHERE type IN ('routeros', 'asuswrt')`); err != nil {
-		log.Printf("[netpulse] aviso: no se pudieron migrar los routers RouterOS/Asuswrt a external: %v", err)
+		log.Printf("[netpulse] warning: could not migrate RouterOS/Asuswrt routers to external: %v", err)
 	}
 
 	// #1129: las MACs de roam_events se ingirieron en minúsculas (así vienen
@@ -751,7 +751,7 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	// Normalización one-shot de las filas existentes (la ingesta nueva ya
 	// normaliza, ver roamevents.ParseLogreadLine).
 	if _, err := sqldb.Exec("UPDATE roam_events SET mac = UPPER(mac) WHERE mac IS NOT NULL AND mac != UPPER(mac)"); err != nil {
-		log.Printf("[netpulse] aviso: no se pudieron normalizar las MACs de roam_events: %v", err)
+		log.Printf("[netpulse] warning: could not normalize roam_events MACs: %v", err)
 	}
 
 	// Si no hubo migración Node (instalación fresca creada por Go), marca la
@@ -848,7 +848,7 @@ func (d *DB) Maintenance() {
 // estuvo caído.
 func (d *DB) NightlyJob() {
 	start := time.Now()
-	log.Printf("[netpulse] rollup nocturno: inicio")
+	log.Printf("[netpulse] nightly rollup: start")
 
 	// 1) samples → buckets 5 min. Ventana = retención raw (#812): recubre
 	// caídas de hasta 7 días; con la antigua ventana fija de 48h el tramo
@@ -880,7 +880,7 @@ func (d *DB) NightlyJob() {
 	var freelist int
 	if err := d.QueryRow("PRAGMA freelist_count").Scan(&freelist); err == nil && freelist > 1024 {
 		if _, err := d.Exec("VACUUM"); err != nil {
-			log.Printf("[netpulse] aviso: VACUUM falló: %v", err)
+			log.Printf("[netpulse] warning: VACUUM failed: %v", err)
 		} else {
 			log.Printf("[netpulse] rollup nocturno: VACUUM tras freelist=%d", freelist)
 		}

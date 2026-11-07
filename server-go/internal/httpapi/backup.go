@@ -155,10 +155,10 @@ func (s *server) backupTick() {
 	}
 	dst, err := s.runBackup()
 	if err != nil {
-		log.Printf("[netpulse] backup automático falló: %v", err)
+		log.Printf("[netpulse] automatic backup failed: %v", err)
 		return
 	}
-	log.Printf("[netpulse] backup automático completado: %s", dst)
+	log.Printf("[netpulse] automatic backup completed: %s", dst)
 }
 
 func validBackupTime(v string) bool {
@@ -268,7 +268,7 @@ func (s *server) registerBackupRoutes(mux *http.ServeMux) {
 		defer os.Remove(tmpFile)
 
 		if u := auth.UserFromContext(r.Context()); u != nil {
-			log.Printf("[netpulse] backup: descarga completa de la BD (incluye secrets kv) por admin %s", u.Username)
+			log.Printf("[netpulse] backup: full DB download (includes kv secrets) by admin %s", u.Username)
 		}
 		w.Header().Set("X-Netpulse-Backup-Contains-Credentials", "true")
 		w.Header().Set("Content-Type", "application/octet-stream")

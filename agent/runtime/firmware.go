@@ -72,7 +72,7 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 		return
 	}
 	if cmd.TargetURL == "" {
-		log.Warn("[netpulse-agent] firmware_upgrade: sin targetUrl")
+		log.Warn("[netpulse-agent] firmware_upgrade: no targetUrl")
 		return
 	}
 	if err := validateFirmwareTarget(cmd.TargetURL, cmd.Checksum); err != nil {
@@ -81,7 +81,7 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 		return
 	}
 
-	log.Info("[netpulse-agent] firmware_upgrade iniciado", "upgrade_id", cmd.UpgradeID, "url", cmd.TargetURL)
+	log.Info("[netpulse-agent] firmware_upgrade started", "upgrade_id", cmd.UpgradeID, "url", cmd.TargetURL)
 	hc := &http.Client{Transport: firmwareTransport(opts.Server, cmd.TargetURL, transport), Timeout: 5 * time.Minute}
 
 	dest := filepath.Join(firmwareTmpDir, fmt.Sprintf("firmware-%d.bin", cmd.UpgradeID))
@@ -90,7 +90,7 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 	if err := downloadImage(context.Background(), hc, cmd.TargetURL, dest, cmd.Checksum, func(pct int) {
 		reportFirmwareProgress(opts, transport, cmd.UpgradeID, "downloading", pct, "")
 	}); err != nil {
-		log.Error("[netpulse-agent] firmware_upgrade: descarga/verificación falló", "err", err)
+		log.Error("[netpulse-agent] firmware_upgrade: download/verification failed", "err", err)
 		reportFirmwareResult(opts, transport, cmd.UpgradeID, false, err.Error(), "", "")
 		return
 	}
@@ -98,7 +98,7 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 	reportFirmwareProgress(opts, transport, cmd.UpgradeID, "backing_up", 0, "")
 	backupPath := filepath.Join(firmwareTmpDir, fmt.Sprintf("netpulse-config-backup-%d.tar.gz", time.Now().Unix()))
 	if err := backupConfig(backupPath); err != nil {
-		log.Error("[netpulse-agent] firmware_upgrade: backup de config falló", "err", err)
+		log.Error("[netpulse-agent] firmware_upgrade: config backup failed", "err", err)
 		reportFirmwareResult(opts, transport, cmd.UpgradeID, false, err.Error(), "", "")
 		return
 	}
@@ -106,16 +106,16 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 	// local no sobrevive al reboot del flash). Best-effort: si falla, el
 	// upgrade continúa con el backup local.
 	if err := uploadBackup(opts, transport, backupPath); err != nil {
-		log.Warn("[netpulse-agent] firmware_upgrade: subida del backup al server falló (continúo)", "err", err)
+		log.Warn("[netpulse-agent] firmware_upgrade: backup upload to server failed (continuing)", "err", err)
 	}
 
 	if err := writePendingFirmware(pendingFirmware{UpgradeID: cmd.UpgradeID}); err != nil {
-		log.Error("[netpulse-agent] firmware_upgrade: no se pudo escribir pending", "err", err)
+		log.Error("[netpulse-agent] firmware_upgrade: could not write pending", "err", err)
 	}
 
 	reportFirmwareProgress(opts, transport, cmd.UpgradeID, "flashing", 0, "")
 	if err := runSysupgrade(dest, cmd.KeepConfig); err != nil {
-		log.Error("[netpulse-agent] firmware_upgrade: sysupgrade falló", "err", err)
+		log.Error("[netpulse-agent] firmware_upgrade: sysupgrade failed", "err", err)
 		_ = clearPendingFirmware()
 		reportFirmwareResult(opts, transport, cmd.UpgradeID, false, err.Error(), backupPath, "")
 		return
@@ -123,7 +123,7 @@ func handleFirmwareUpgrade(opts Options, transport http.RoundTripper, data strin
 
 	// sysupgrade normalmente reinicia y este proceso muere; si por alguna
 	// razón no lo hizo, limpiamos el pending y reportamos fallo.
-	log.Error("[netpulse-agent] firmware_upgrade: sysupgrade terminó sin reiniciar")
+	log.Error("[netpulse-agent] firmware_upgrade: sysupgrade finished without rebooting")
 	_ = clearPendingFirmware()
 	reportFirmwareResult(opts, transport, cmd.UpgradeID, false, "sysupgrade terminó sin reiniciar", backupPath, "")
 }
@@ -138,7 +138,7 @@ func checkPendingFirmwareUpgrade(opts Options, transport http.RoundTripper) {
 	_ = clearPendingFirmware()
 	log := opts.logger()
 	version := currentOpenWrtVersion()
-	log.Info("[netpulse-agent] firmware_upgrade: completado tras reboot", "upgrade_id", pending.UpgradeID, "version", version)
+	log.Info("[netpulse-agent] firmware_upgrade: completed after reboot", "upgrade_id", pending.UpgradeID, "version", version)
 	reportFirmwareResult(opts, transport, pending.UpgradeID, true, "", "", version)
 }
 

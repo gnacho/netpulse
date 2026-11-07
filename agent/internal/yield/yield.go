@@ -58,7 +58,7 @@ func DefaultPaths() Paths {
 var runCmd = func(name string, args ...string) error {
 	out, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
-		slog.Warn("[netpulse-agent] yield cmd falló", "cmd", name, "err", err, "out", strings.TrimSpace(string(out)))
+		slog.Warn("[netpulse-agent] yield cmd failed", "cmd", name, "err", err, "out", strings.TrimSpace(string(out)))
 	}
 	return err
 }
@@ -134,7 +134,7 @@ func writeStateFile(path, reason string) {
 	}
 	content := "yielded=1\nts=" + time.Now().UTC().Format(time.RFC3339) + "\nreason=" + reason + "\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		slog.Warn("[netpulse-agent] yield: escribir estado falló", "file", path, "err", err)
+		slog.Warn("[netpulse-agent] yield: state write failed", "file", path, "err", err)
 	}
 }
 
@@ -164,7 +164,7 @@ func removeCronWatchdog(path string) {
 		mode = st.Mode().Perm()
 	}
 	if err := os.WriteFile(path, []byte(out), mode); err != nil {
-		slog.Warn("[netpulse-agent] yield: limpiar cron falló", "file", path, "err", err)
+		slog.Warn("[netpulse-agent] yield: cron cleanup failed", "file", path, "err", err)
 	}
 }
 

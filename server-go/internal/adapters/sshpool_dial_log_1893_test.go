@@ -46,7 +46,7 @@ func TestSSHPoolDialLogsFailureAndRecovery(t *testing.T) {
 	if !strings.Contains(out, host) || !strings.Contains(out, "i/o timeout") {
 		t.Fatalf("el fallo de dial no quedó registrado con host y motivo: %q", out)
 	}
-	if !strings.Contains(out, "fallo 1") {
+	if !strings.Contains(out, "failure 1") {
 		t.Fatalf("el log debería numerar el fallo: %q", out)
 	}
 
@@ -59,10 +59,10 @@ func TestSSHPoolDialLogsFailureAndRecovery(t *testing.T) {
 		t.Fatalf("redial: %v", err)
 	}
 	out = buf.String()
-	if !strings.Contains(out, "nueva conexión establecida") {
+	if !strings.Contains(out, "new connection established") {
 		t.Fatalf("la conexión nueva no quedó registrada: %q", out)
 	}
-	if !strings.Contains(out, "recuperada tras 1 fallos") {
+	if !strings.Contains(out, "recovered after 1 dial failures") {
 		t.Fatalf("la recuperación no cerró el episodio: %q", out)
 	}
 
@@ -80,7 +80,7 @@ func TestSSHPoolDropLogsDiscard(t *testing.T) {
 		t.Fatalf("dial real: %v", err)
 	}
 	pool.drop(host)
-	if !strings.Contains(buf.String(), "conexión descartada") {
+	if !strings.Contains(buf.String(), "connection discarded") {
 		t.Fatalf("el descarte no quedó registrado: %q", buf.String())
 	}
 }

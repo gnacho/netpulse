@@ -103,7 +103,7 @@ func (s *server) firmwareSweepRouter(routerID, host string) {
 		return
 	}
 	if err := kvSetStr(s.db.DB, fwSweepCheckedKey(routerID), strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
-		log.Printf("[firmware] sweep %s: no pude marcar la comprobación: %v", routerID, err)
+		log.Printf("[firmware] sweep %s: could not mark check: %v", routerID, err)
 		return
 	}
 
@@ -133,17 +133,17 @@ func (s *server) emitFirmwareAvailable(routerID, installed, available string) {
 		name = rt
 	}
 	ev := alerts.AlertEvent{
-		ID:       fmt.Sprintf("alert-firmware-available-%s-%d", routerID, time.Now().UnixMilli()),
-		Category: alerts.CatSystem,
-		Urgent:   false,
-		Severity: "info",
-		RouterID: routerID,
-		Time:     "just now",
-		Ts:       time.Now().Unix(),
-		Type:     "firmware-available",
-		Title:    "Nuevo firmware disponible",
+		ID:          fmt.Sprintf("alert-firmware-available-%s-%d", routerID, time.Now().UnixMilli()),
+		Category:    alerts.CatSystem,
+		Urgent:      false,
+		Severity:    "info",
+		RouterID:    routerID,
+		Time:        "just now",
+		Ts:          time.Now().Unix(),
+		Type:        "firmware-available",
+		Title:       "Nuevo firmware disponible",
 		Description: fmt.Sprintf("%s: %s -> %s (detectado por owut check)", name, installed, available),
-		Vars:     map[string]string{"router": name, "from": installed, "to": available},
+		Vars:        map[string]string{"router": name, "from": installed, "to": available},
 	}
 	s.alertEmitter.Emit(ev)
 }

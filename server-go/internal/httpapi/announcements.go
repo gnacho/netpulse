@@ -123,7 +123,7 @@ func (s *server) startAnnouncements() {
 	refresh := func() {
 		a, err := fetchAnnouncements(context.Background(), c.url)
 		if err != nil {
-			log.Printf("[netpulse] announcements: fetch falló: %v", err)
+			log.Printf("[netpulse] announcements: fetch failed: %v", err)
 			return
 		}
 		c.set(a)

@@ -46,8 +46,8 @@ type MigrationReport struct {
 
 // Log emite el resumen de migración (formato [netpulse] …).
 func (r *MigrationReport) Log() {
-	log.Printf("[netpulse] migración Node→Go: backup en %s", r.BackupPath)
-	log.Printf("[netpulse] migración Node→Go: importados users=%d sessions_vivas=%d kv=%d routers=%d device_attrib=%d metrics=%d adguard_stats=%d · login_attempts reseteado (%d filas)",
+	log.Printf("[netpulse] Node→Go migration: backup at %s", r.BackupPath)
+	log.Printf("[netpulse] Node→Go migration: imported users=%d live_sessions=%d kv=%d routers=%d device_attrib=%d metrics=%d adguard_stats=%d · login_attempts reset (%d rows)",
 		r.Users, r.Sessions, r.KV, r.Routers, r.DeviceAttrib, r.Metrics, r.AdguardStats, r.LoginAttemptsReset)
 }
 
@@ -69,7 +69,7 @@ func MigrateNodeDB(dbPath string) (*MigrationReport, error) {
 
 	// Detección del esquema Node: tablas firma presentes.
 	if !hasTable(sqldb, "users") || !hasTable(sqldb, "sessions") || !hasTable(sqldb, "kv") {
-		log.Printf("[netpulse] aviso: %s existe pero no parece una DB de NetPulse; se continúa sin migración", dbPath)
+		log.Printf("[netpulse] warning: %s exists but does not look like a NetPulse DB, continuing without migration", dbPath)
 		return nil, nil
 	}
 	// ¿Ya migrada?

@@ -430,14 +430,14 @@ func (l *Live) recordSnmpFailure(cfg RouterConfig, err error) {
 
 	switch {
 	case consec == 1:
-		log.Printf("[netpulse] SNMP fallo %s: %v", cfg.LogLabel(), err)
+		log.Printf("[netpulse] SNMP failure %s: %v", cfg.LogLabel(), err)
 	case consec == 3 && !open:
 		pingFn := l.ping
 		if pingFn == nil {
 			pingFn = pingHost
 		}
 		if !pingFn(cfg.Host) {
-			log.Printf("[netpulse] SNMP %s: 3 fallos seguidos y sin respuesta a ping (equipo caído); sin alerta SNMP", cfg.LogLabel())
+			log.Printf("[netpulse] SNMP %s: 3 consecutive failures and no ping response (device down), no SNMP alert", cfg.LogLabel())
 			return
 		}
 		// Marcar incidente abierto (re-check bajo lock para no duplicar en

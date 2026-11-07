@@ -54,7 +54,7 @@ var seedCatalog = parseSeed()
 func parseSeed() []Vendor {
 	var f catalogFile
 	if err := json.Unmarshal(seedJSON, &f); err != nil {
-		log.Printf("[netpulse] aviso: la semilla del catálogo de vendors no parsea: %v", err)
+		log.Printf("[netpulse] warning: could not parse vendor catalog seed: %v", err)
 		return nil
 	}
 	return validVendors(f.Vendors)
@@ -103,7 +103,7 @@ func validVendors(entries []catalogEntry) []Vendor {
 	for _, e := range entries {
 		v, ok := vendorFromEntry(e, seen)
 		if !ok {
-			log.Printf("[netpulse] aviso: entrada del catálogo de vendors descartada por no válida: id=%q mode=%q", e.ID, e.Mode)
+			log.Printf("[netpulse] warning: vendor catalog entry discarded as invalid: id=%q mode=%q", e.ID, e.Mode)
 			continue
 		}
 		out = append(out, v)
@@ -291,7 +291,7 @@ func (c *Catalog) Refresh(ctx context.Context) error {
 	c.retryAfter = c.now().Add(catalogRetryCooldown)
 	c.lastErr = err.Error()
 	c.mu.Unlock()
-	log.Printf("[netpulse] aviso: no se pudo refrescar el catálogo de vendors (%v); se sigue sirviendo el último conocido", err)
+	log.Printf("[netpulse] warning: could not refresh vendor catalog (%v), serving the last known one", err)
 	return err
 }
 
@@ -328,11 +328,11 @@ func (c *Catalog) persist(fetchedAt time.Time, body []byte) {
 	}
 	raw, err := json.Marshal(kvCatalog{FetchedAtMs: fetchedAt.UnixMilli(), Body: string(body)})
 	if err != nil {
-		log.Printf("[netpulse] aviso: catálogo de vendors no serializable: %v", err)
+		log.Printf("[netpulse] warning: could not serialize vendor catalog: %v", err)
 		return
 	}
 	if err := kvSet(c.db, kvCatalogKey, string(raw)); err != nil {
-		log.Printf("[netpulse] aviso: no se pudo persistir el catálogo de vendors: %v", err)
+		log.Printf("[netpulse] warning: could not persist vendor catalog: %v", err)
 	}
 }
 
@@ -353,12 +353,12 @@ func (c *Catalog) ensureLoadedLocked() {
 	}
 	var w kvCatalog
 	if err := json.Unmarshal([]byte(raw), &w); err != nil || w.Body == "" {
-		log.Printf("[netpulse] aviso: caché del catálogo de vendors corrupta, se usa la semilla")
+		log.Printf("[netpulse] warning: vendor catalog cache corrupt, using seed")
 		return
 	}
 	var f catalogFile
 	if err := json.Unmarshal([]byte(w.Body), &f); err != nil {
-		log.Printf("[netpulse] aviso: caché del catálogo de vendors no parsea, se usa la semilla")
+		log.Printf("[netpulse] warning: could not parse vendor catalog cache, using seed")
 		return
 	}
 	vs := validVendors(f.Vendors)

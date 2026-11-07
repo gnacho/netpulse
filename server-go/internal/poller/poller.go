@@ -131,7 +131,7 @@ func (p *Poller) Stop() {
 		select {
 		case <-p.doneCh:
 		case <-time.After(stopWait):
-			log.Printf("[netpulse] poller: el tick en curso no terminó en %v; el apagado continúa igualmente", stopWait)
+			log.Printf("[netpulse] poller: current tick did not finish within %v, shutdown continues anyway", stopWait)
 		}
 	})
 }

@@ -158,7 +158,7 @@ func run() error {
 	// entorno real > .env > UCI > defaults. Fail-soft: sin uci se sigue.
 	if os.Getenv("NETPULSE_ONBOX") == "1" {
 		if err := config.LoadUCIEnv(); err != nil {
-			log.Printf("[netpulse] aviso: config UCI no cargada (%v); siguiendo con entorno/defaults", err)
+			log.Printf("[netpulse] warning: UCI config not loaded (%v), continuing with environment/defaults", err)
 		}
 	}
 	envMap := config.FromEnviron()
@@ -206,7 +206,7 @@ func run() error {
 				return err
 			}
 		}
-		log.Print("[netpulse] rollup: ejecutando NightlyJob (buckets 5 min + daily)")
+		log.Print("[netpulse] rollup: running NightlyJob (5 min buckets + daily)")
 		dbHandle.NightlyJob()
 		_ = dbHandle.Close()
 		log.Print("[netpulse] rollup: OK")
@@ -234,14 +234,14 @@ func run() error {
 			}
 			cfg.AuthPass = pass
 			if err := config.PersistUCIAuthPass(pass); err != nil {
-				log.Printf("[netpulse] onbox: auth_pass NO persistida en UCI (%v): apúntala del log AHORA", err)
+				log.Printf("[netpulse] onbox: auth_pass NOT persisted in UCI (%v): copy it from the log NOW", err)
 			} else {
-				log.Print("[netpulse] onbox: auth_pass guardada en UCI (uci get netpulse.server.auth_pass)")
+				log.Print("[netpulse] onbox: auth_pass saved in UCI (uci get netpulse.server.auth_pass)")
 			}
 			log.Print("[netpulse] ==================================================")
 			log.Print("[netpulse] ONBOX primer arranque — credenciales de la webapp")
 			log.Printf("[netpulse]   usuario:    %s", cfg.AuthUser)
-			log.Printf("[netpulse]   contraseña: %s", pass)
+			log.Printf("[netpulse]   password: %s", pass)
 			log.Print("[netpulse] ==================================================")
 		}
 	}
@@ -255,7 +255,7 @@ func run() error {
 	var collReader *collectorreader.Reader
 	if collPath := os.Getenv("COLLECTOR_DB"); collPath != "" {
 		if cr, err := collectorreader.Open(collPath); err != nil {
-			log.Printf("[netpulse] aviso: collector sidecar no disponible (%v)", err)
+			log.Printf("[netpulse] warning: collector sidecar unavailable (%v)", err)
 		} else {
 			collReader = cr
 			log.Printf("[netpulse] collector sidecar: %s", collPath)
@@ -285,7 +285,7 @@ func run() error {
 
 	// Clave SSH propia para sondear routers (se genera la primera vez)
 	if err := sshkey.EnsureKeypair(cfg.SSHKeyPath); err != nil {
-		log.Printf("[netpulse] aviso: no se pudo generar la clave SSH: %v", err)
+		log.Printf("[netpulse] warning: could not generate SSH key: %v", err)
 	}
 	// Bootstrap de routers: tabla vacía → ROUTERS_JSON o autodetección
 	routers := routerstore.EnsureInitialRouters(dbHandle.DB, cfg)
@@ -320,7 +320,7 @@ func run() error {
 		restore(agentReg)
 		pool, err := adapters.NewSSHPool(cfg.SSHKeyPath)
 		if err != nil {
-			log.Printf("[netpulse] aviso: pool SSH no disponible (%v); sirviendo dataset demo", err)
+			log.Printf("[netpulse] warning: SSH pool unavailable (%v), serving demo dataset", err)
 			adapter = adapters.NewDemo(alerts.NewVolatile(dbHandle, nil))
 		} else {
 			sshPool = pool
@@ -372,7 +372,7 @@ func run() error {
 	// urgentes que pasan config). Si falla, el resto del servidor sigue.
 	var pushNotifier *push.Notifier
 	if pub, priv, err := push.EnsureVAPIDKeys(dbHandle); err != nil {
-		log.Printf("[netpulse] aviso: Web Push desactivado (%v)", err)
+		log.Printf("[netpulse] warning: Web Push disabled (%v)", err)
 	} else {
 		pushNotifier = push.NewNotifier(dbHandle, pub, priv)
 	}
@@ -502,7 +502,7 @@ func run() error {
 				}
 			}
 			rearmSup.EnableReinstall(agentURL, rcool)
-			log.Printf("[netpulse] escalado auto-reinstall activo (agent URL %s)", agentURL)
+			log.Printf("[netpulse] auto-reinstall escalation enabled (agent URL %s)", agentURL)
 		}
 		rearmSup.Start()
 		if cooldown <= 0 {
@@ -732,9 +732,9 @@ func run() error {
 				}
 				cutoff := time.Now().Add(-time.Duration(retention) * 24 * time.Hour).UnixMilli()
 				if n, err := deviceevents.Prune(dbHandle.DB, cutoff); err != nil {
-					log.Printf("[netpulse] poda de presencia falló: %v", err)
+					log.Printf("[netpulse] presence purge failed: %v", err)
 				} else if n > 0 {
-					log.Printf("[netpulse] poda de presencia: %d eventos (> %d días)", n, retention)
+					log.Printf("[netpulse] presence purge: %d events (> %d days)", n, retention)
 				}
 			}
 			pruneAlerts := func() {
@@ -777,7 +777,7 @@ func run() error {
 		})
 		log.Printf("[netpulse] MCP server activo en /mcp (streamable-HTTP, auth: API token Bearer, LAN-only)")
 	} else if cfg.MCPEnabled {
-		log.Printf("[netpulse] aviso: NETPULSE_MCP_ENABLED=1 pero no hay token store; MCP desactivado")
+		log.Printf("[netpulse] warning: NETPULSE_MCP_ENABLED=1 but no token store, MCP disabled")
 	}
 
 	// Catálogo de vendors por descubrimiento (#1697): fetch de vendors.json
@@ -865,7 +865,7 @@ func run() error {
 	// en la misma versión y repetirían para siempre. Si la versión no está
 	// en los ELF, se desactivan los upgrades y se avisa en el log.
 	if ok, bad := agentbin.VerifyEmbedded(); !ok {
-		log.Printf("[netpulse] ERROR: binarios de agente embebidos (%s) sin la versión %s: upgrades de agentes DESACTIVADOS hasta recompilar (#1246)", bad, agentbin.EmbeddedAgentVersion)
+		log.Printf("[netpulse] ERROR: embedded agent binaries (%s) lack version %s: agent upgrades DISABLED until rebuild (#1246)", bad, agentbin.EmbeddedAgentVersion)
 		agentbin.SetEmbeddedMismatch(true)
 	}
 	fwScheduler.Start()
@@ -890,7 +890,7 @@ func run() error {
 		if staticDesc == "" {
 			staticDesc = "(embed)"
 		}
-		log.Printf("[netpulse] datos: %s · estáticos: %s", cfg.DataDir, staticDesc)
+		log.Printf("[netpulse] data: %s · static: %s", cfg.DataDir, staticDesc)
 		// Aviso anónimo diario de instancia activa (#822). Fail-silent.
 		telemetry.New(dbHandle, httpapi.Version, cfg.DemoMode).Start(context.Background())
 		p.Start()
@@ -932,7 +932,7 @@ func run() error {
 		if sig == syscall.SIGTERM {
 			name = "SIGTERM"
 		}
-		log.Printf("[netpulse] %s recibido, cerrando...", name)
+		log.Printf("[netpulse] %s received, shutting down...", name)
 		if rearmSup != nil {
 			rearmSup.Stop()
 		}
@@ -1077,13 +1077,13 @@ func (a *mainKVAdapter) Set(key, value string) error {
 func pruneWifiScans(store *channelplan.Store) {
 	const retention = 48 * time.Hour
 	if err := store.Prune(retention); err != nil {
-		log.Printf("[netpulse] aviso: purge inicial de wifi_scans: %v", err)
+		log.Printf("[netpulse] warning: initial wifi_scans purge: %v", err)
 	}
 	ticker := time.NewTicker(6 * time.Hour)
 	defer ticker.Stop()
 	for range ticker.C {
 		if err := store.Prune(retention); err != nil {
-			log.Printf("[netpulse] aviso: purge de wifi_scans: %v", err)
+			log.Printf("[netpulse] warning: wifi_scans purge: %v", err)
 		}
 	}
 }
