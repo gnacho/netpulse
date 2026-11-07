@@ -359,10 +359,11 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 		}
 		// VLAN del invitado según su config en Proxmox: el router no puede
 		// verla porque el guest cuelga del bridge del host, no de un puerto
-		// suyo (#1757).
-		if vm.Tag > 0 {
-			devices[idx].Vlan = vm.Tag
-		}
+		// suyo (#1757). La asignación es incondicional, también sin tag: el
+		// puerto del host transporta varias VLAN, así que la que el FDB del
+		// router cree haber aprendido para esa MAC no es evidencia de dónde
+		// vive el invitado, y un 0 aquí la limpia en vez de conservarla.
+		devices[idx].Vlan = vm.Tag
 		// El nombre del invitado es el que le puso el administrador en
 		// Proxmox, y para un CT suele ser el ÚNICO que hay: no pide DHCP
 		// con hostname, así que sin esto se queda con su MAC por nombre —
@@ -390,6 +391,10 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 			continue
 		}
 		devices[idx].Infra = "hypervisor"
+		// El host tampoco hereda la VLAN del FDB (#1757): su puerto suele ser
+		// un trunk y su MAC puede aprenderse en cualquiera de las VLAN que
+		// transporta, así que ese dato no dice en cuál vive su gestión.
+		devices[idx].Vlan = 0
 		if n, ok := nodeByKey[key]; ok && looksLikeMACName(devices[idx].Name) {
 			devices[idx].Name = n.Node
 		}

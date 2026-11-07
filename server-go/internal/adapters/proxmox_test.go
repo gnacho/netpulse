@@ -81,6 +81,41 @@ func TestSealProxmoxInfraCarriesTheGuestVlan(t *testing.T) {
 	}
 }
 
+// TestSealProxmoxInfraUntaggedGuestClearsTheFdbVlan: el FDB del router se
+// aplica en buildDevices, ANTES del sello PVE, y rellena la VLAN de cualquier
+// device que no tenga una. En un host cuyo puerto es un trunk esa evidencia
+// es falsa: un invitado sin tag= y el propio host acababan pintados con la
+// VLAN de otro invitado (#1757, ronda de 2.51.4). La config de Proxmox es la
+// única fuente: sin tag, la respuesta honesta es "sin VLAN".
+func TestSealProxmoxInfraUntaggedGuestClearsTheFdbVlan(t *testing.T) {
+	inv := &pveInventory{
+		ctByMAC: map[string]pveVM{
+			"BC:24:11:00:00:01": {Name: "tagged", Node: "pve", Type: "qemu", Instance: "default", Tag: 999},
+			"BC:24:11:00:00:02": {Name: "untagged", Node: "pve", Type: "lxc", Instance: "default"},
+		},
+		nodes: map[string]pveNode{"default|pve": {Instance: "default", Node: "pve"}},
+	}
+	devices := []Device{
+		{ID: "pve", MAC: "C8:FF:BF:0C:60:12", Name: "pve", Vlan: 888},
+		{ID: "bc-24-11-00-00-01", MAC: "BC:24:11:00:00:01", Name: "tagged", Vlan: 1},
+		{ID: "bc-24-11-00-00-02", MAC: "BC:24:11:00:00:02", Name: "untagged", Vlan: 888},
+		{ID: "aa-bb-cc-dd-ee-ff", MAC: "AA:BB:CC:DD:EE:FF", Name: "otro", Vlan: 888},
+	}
+	applyPVEInfra(devices, nil, inv)
+	if devices[0].Vlan != 0 {
+		t.Errorf("host vlan=%d (want 0: el FDB de un trunk no es su gestión)", devices[0].Vlan)
+	}
+	if devices[1].Vlan != 999 {
+		t.Errorf("tagged vlan=%d (want 999: el tag= manda sobre el FDB)", devices[1].Vlan)
+	}
+	if devices[2].Vlan != 0 {
+		t.Errorf("untagged vlan=%d (want 0: sin tag no se inventa)", devices[2].Vlan)
+	}
+	if devices[3].Vlan != 888 {
+		t.Errorf("device ajeno a PVE tocado: vlan=%d (want 888)", devices[3].Vlan)
+	}
+}
+
 // TestSealProxmoxInfraSinInventario: sin cluster configurado o sin CTs
 // conocidos → no-op (los devices no cambian).
 func TestSealProxmoxInfraSinInventario(t *testing.T) {
