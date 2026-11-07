@@ -30,6 +30,16 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 )
 
+// uptimeLabel: "—" cuando ninguna fuente declaró uptime (#55). Un pusher que
+// no recoge la sección system.sysinfo dejaba uptimeSec en 0 y la tarjeta
+// pintaba "0d 0h", que se lee como un uptime real de cero.
+func uptimeLabel(p *routerPolled) string {
+	if p == nil || !p.hasUptime {
+		return "—"
+	}
+	return fmtUptime(p.uptimeSec)
+}
+
 // fmtUptime: "<d>d <h>h" (index.js:32-36).
 func fmtUptime(sec float64) string {
 	d := int(sec) / 86400
@@ -125,8 +135,12 @@ type routerPolled struct {
 	flash             string
 	firmwareAvailable string
 	uptimeSec         float64
-	net               *NetDevBps
-	leases            []DhcpLease
+	// hasUptime: alguna fuente declaró el uptime. Sin este flag, un payload sin
+	// system.sysinfo (un pusher que no lo recoge) deja uptimeSec en 0 y la
+	// tarjeta pinta "0d 0h", que es un dato falso, no "sin dato" (#55).
+	hasUptime bool
+	net       *NetDevBps
+	leases    []DhcpLease
 	// reservations: the `config host` entries of /etc/config/dhcp. They name
 	// clients that never take a lease because their address is fixed on the
 	// device itself.
@@ -1686,7 +1700,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 		ID: p.cfg.ID, Name: name, Model: model, ModelShort: model,
 		IP: p.cfg.Host, Status: status, Health: health,
 		CPU: iptr(p.cpu), RAM: iptr(p.ram), Temp: iptr(p.temp),
-		Uptime: fmtUptime(p.uptimeSec), Clients: len(p.leases),
+		Uptime: uptimeLabel(p), Clients: len(p.leases),
 		Sparkline: sparkline, TempThreshold: thr,
 		LatencyMs: p.latencyMs,
 	}
