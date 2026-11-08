@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
+import { Area, Bar, CartesianGrid, ComposedChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { motion } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import type { TimeRange, TrafficPoint } from '@/data/mock'
@@ -57,6 +57,21 @@ export function WanTraffic() {
   const { t } = useTranslation()
   const { traffic: trafficByRange, wan, isDemo } = useNetPulse()
   const [range, setRange] = useState<TimeRange>('24h')
+  const [view, setView] = useState<'line' | 'bars'>(() => {
+    try {
+      return localStorage.getItem('netpulse.trafficView') === 'bars' ? 'bars' : 'line'
+    } catch {
+      return 'line'
+    }
+  })
+  const setTrafficView = (v: 'line' | 'bars') => {
+    setView(v)
+    try {
+      localStorage.setItem('netpulse.trafficView', v)
+    } catch {
+      // sin almacenamiento: la elección vive solo en esta sesión
+    }
+  }
   const [liveData, setLiveData] = useState<TrafficPoint[]>(trafficByRange['24h'])
 
   const FOOTER_METRICS = [
@@ -124,7 +139,17 @@ export function WanTraffic() {
             />
           ) : null}
         </SectionHeader>
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
+          <SegmentedControl
+            options={[
+              { value: 'line', label: t('home.traffic.viewLine') },
+              { value: 'bars', label: t('home.traffic.viewBars') },
+            ]}
+            value={view}
+            onChange={(v) => setTrafficView(v as 'line' | 'bars')}
+            size="sm"
+            ariaLabel={t('home.traffic.viewAria')}
+          />
           <SegmentedControl
             options={TIME_RANGE_OPTIONS}
             value={range}
@@ -144,7 +169,7 @@ export function WanTraffic() {
         aria-label={t('home.traffic.chartAria', { range, down: wan.downMbps, up: wan.upMbps })}
       >
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={liveData} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+          <ComposedChart data={liveData} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
             <defs>
               <linearGradient id="grad-down" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.25} />
@@ -180,29 +205,38 @@ export function WanTraffic() {
                 }}
               />
             ) : null}
-            <Area
-              type="stepAfter"
-              dataKey="down"
-              stroke="#22D3EE"
-              strokeWidth={2}
-              fill="url(#grad-down)"
-              dot={liveDotDown}
-              activeDot={{ r: 4, strokeWidth: 0, fill: '#22D3EE' }}
-              animationDuration={900}
-              animationEasing="ease-out"
-            />
-            <Area
-              type="stepAfter"
-              dataKey="up"
-              stroke="#A78BFA"
-              strokeWidth={2}
-              fill="url(#grad-up)"
-              dot={liveDotUp}
-              activeDot={{ r: 4, strokeWidth: 0, fill: '#A78BFA' }}
-              animationDuration={900}
-              animationEasing="ease-out"
-            />
-          </AreaChart>
+            {view === 'bars' ? (
+              <>
+                <Bar dataKey="down" name="down" fill="#22D3EE" fillOpacity={0.6} />
+                <Bar dataKey="up" name="up" fill="#A78BFA" fillOpacity={0.6} />
+              </>
+            ) : (
+              <>
+                <Area
+                  type="stepAfter"
+                  dataKey="down"
+                  stroke="#22D3EE"
+                  strokeWidth={2}
+                  fill="url(#grad-down)"
+                  dot={liveDotDown}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: '#22D3EE' }}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                />
+                <Area
+                  type="stepAfter"
+                  dataKey="up"
+                  stroke="#A78BFA"
+                  strokeWidth={2}
+                  fill="url(#grad-up)"
+                  dot={liveDotUp}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: '#A78BFA' }}
+                  animationDuration={900}
+                  animationEasing="ease-out"
+                />
+              </>
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </motion.div>
 

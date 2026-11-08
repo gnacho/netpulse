@@ -659,6 +659,9 @@
       "title": "Tráfico WAN",
       "total24h": "Total 24h",
       "uploadMbps": "Subida (Mbps)",
+      "viewBars": "Barras",
+      "viewLine": "Línea",
+      "viewAria": "Vista del gráfico de tráfico",
       "contracted": "Contratado: ↓ {{down}} / ↑ {{up}} Mbps",
       "contractedLine": "↓ {{mbps}} Mbps",
       "utilization": "Pico hoy: {{pct}} % del contratado"
