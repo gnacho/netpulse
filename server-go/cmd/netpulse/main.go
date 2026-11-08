@@ -378,6 +378,10 @@ func run() error {
 		log.Printf("[netpulse] warning: Web Push disabled (%v)", err)
 	} else {
 		pushNotifier = push.NewNotifier(dbHandle, pub, priv)
+		// #1974: Apple rechaza un sub mailto:localhost con 403 BadJwtToken.
+		subj := push.SubjectFor(os.Getenv("NETPULSE_VAPID_SUBJECT"), cfg.PublicURL)
+		pushNotifier.SetSubject(subj)
+		log.Printf("[netpulse] web push VAPID subject: %s", subj)
 	}
 
 	// Webhook saliente (Fase 8.7b): si WEBHOOK_URL está configurado, las

@@ -11,6 +11,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,10 +31,49 @@ const (
 	// ttl de la notificación en el push service (1 h: si el móvil está
 	// apagado más tiempo, la alerta ya es historia).
 	ttlSeconds = 3600
-	// subscriber VAPID (sub del JWT; informativo para el push service).
-	// webpush-go antepone "mailto:" si no empieza por "https:".
-	subscriber = "netpulse@localhost"
+	// fallbackSubject: sub del JWT cuando no hay URL pública https ni subject
+	// configurado. Nunca "netpulse@localhost", que Apple rechaza con 403
+	// BadJwtToken (#1974). La página del proyecto es un https: valido.
+	fallbackSubject = "https://github.com/gnacho/netpulse"
 )
+
+// SubjectFor devuelve el sub del JWT VAPID a partir del subject configurado
+// (NETPULSE_VAPID_SUBJECT) o, si no hay, de NETPULSE_PUBLIC_URL. Solo se acepta
+// una URL https: o un mailto: con dominio real: un mailto:localhost devuelve
+// 403 BadJwtToken en Apple (issue #1974).
+func SubjectFor(configured, publicURL string) string {
+	if s := validSubject(configured); s != "" {
+		return s
+	}
+	if s := validSubject(publicURL); s != "" {
+		return s
+	}
+	return fallbackSubject
+}
+
+func validSubject(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(s), "mailto:") {
+		addr := strings.TrimSpace(s[len("mailto:"):])
+		at := strings.LastIndex(addr, "@")
+		if at <= 0 || at == len(addr)-1 {
+			return ""
+		}
+		domain := strings.ToLower(strings.TrimSpace(addr[at+1:]))
+		if domain == "" || domain == "localhost" || !strings.Contains(domain, ".") {
+			return ""
+		}
+		return s
+	}
+	u, err := url.Parse(s)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return ""
+	}
+	return s
+}
 
 // payload es el JSON cifrado que recibe el Service Worker (contrato con
 // app/src/sw.ts: {title, body, category, severity, url, tag, hint}).
@@ -54,10 +95,11 @@ type payload struct {
 
 // Notifier implementa alerts.Notifier con entrega asíncrona.
 type Notifier struct {
-	db     *db.DB
-	pub    string
-	priv   string
-	client *http.Client
+	db      *db.DB
+	pub     string
+	priv    string
+	subject string
+	client  *http.Client
 
 	ch   chan alerts.AlertEvent
 	done chan struct{} // cerrado en Close: Notify posterior es no-op
@@ -82,16 +124,25 @@ func NewNotifierWithClient(d *db.DB, pub, priv string, client *http.Client) *Not
 
 func newNotifier(d *db.DB, pub, priv string, client *http.Client) *Notifier {
 	n := &Notifier{
-		db:     d,
-		pub:    pub,
-		priv:   priv,
-		client: client,
-		ch:     make(chan alerts.AlertEvent, queueCap),
-		done:   make(chan struct{}),
+		db:      d,
+		pub:     pub,
+		priv:    priv,
+		subject: fallbackSubject,
+		client:  client,
+		ch:      make(chan alerts.AlertEvent, queueCap),
+		done:    make(chan struct{}),
 	}
 	n.wg.Add(1)
 	go n.worker()
 	return n
+}
+
+// SetSubject fija el sub del JWT VAPID (ver SubjectFor). Sin llamada se usa
+// fallbackSubject, que es un https: valido para los push services.
+func (n *Notifier) SetSubject(subject string) {
+	if s := validSubject(subject); s != "" {
+		n.subject = s
+	}
 }
 
 // Notify encola el evento y vuelve inmediatamente (nunca bloquea el poll).
@@ -167,6 +218,25 @@ func (n *Notifier) sendAll(ev alerts.AlertEvent) {
 	}
 }
 
+// wireSubject adapta el subject al formato de webpush-go: la libreria antepone
+// "mailto:" salvo que empiece por "https:", asi que un mailto: explicito se
+// pasa sin prefijo para no acabar en "mailto:mailto:...".
+func wireSubject(s string) string {
+	if strings.HasPrefix(strings.ToLower(s), "mailto:") {
+		return s[len("mailto:"):]
+	}
+	return s
+}
+
+func pushReason(body []byte) string {
+	s := strings.TrimSpace(string(body))
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > 300 {
+		s = s[:300]
+	}
+	return s
+}
+
 func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 	if err := ValidateEndpoint(s.Endpoint); err != nil {
 		slog.Warn("push: endpoint rechazado", "endpoint", s.Endpoint, "error", err)
@@ -179,7 +249,7 @@ func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 		},
 		&webpush.Options{
 			HTTPClient:      n.client,
-			Subscriber:      subscriber,
+			Subscriber:      wireSubject(n.subject),
 			VAPIDPublicKey:  n.pub,
 			VAPIDPrivateKey: n.priv,
 			TTL:             ttlSeconds,
@@ -189,7 +259,7 @@ func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 		return
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 		// Suscripción muerta (expirada o dada de baja): purgar (SPEC-PUSH §1).
 		if err := DeleteSubscription(n.db, s.Endpoint); err != nil {
@@ -199,6 +269,9 @@ func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 		return
 	}
 	if resp.StatusCode >= 400 {
-		slog.Warn("push: push service returned an error", "alertId", ev.ID, "endpoint", s.Endpoint, "status", resp.StatusCode)
+		// #1974: el cuerpo del push service dice la causa (Apple devuelve
+		// {"reason":"BadJwtToken"}). Sin el, un 403 pelado no diagnostica nada.
+		slog.Warn("push: push service returned an error", "alertId", ev.ID, "endpoint", s.Endpoint,
+			"status", resp.StatusCode, "reason", pushReason(respBody))
 	}
 }
