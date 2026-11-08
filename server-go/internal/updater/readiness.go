@@ -35,6 +35,15 @@ const (
 // Var de paquete para apuntarlo al httptest de los tests.
 var probeURL = "https://github.com"
 
+// SetProbeURL cambia el destino del check de conectividad y devuelve la
+// funcion para restaurarlo. Solo para tests: el check no debe depender de que
+// el runner de CI alcance internet (#160).
+func SetProbeURL(u string) (restore func()) {
+	old := probeURL
+	probeURL = u
+	return func() { probeURL = old }
+}
+
 // minDiskFreeBytes es el espacio libre mínimo exigido en repoRoot (descarga
 // del binario de CI ~40 MB + backup del binario actual + margen de build).
 // Var de paquete para poder bajarlo en tests.
