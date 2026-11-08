@@ -729,6 +729,9 @@ export function TopologyMap({
 
   // -- gestos pointer (pan con 1 dedo, pinch con 2) ---------------------------
   const onPointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    // #1983: con un nodo en la mano, un segundo dedo no debe armar un pan o
+    // un pinch: al levantar el primero el lienzo se movia bajo el nodo.
+    if (dragNode.current) return
     containerRef.current?.setPointerCapture(e.pointerId)
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
     moved.current = false
@@ -759,6 +762,7 @@ export function TopologyMap({
     (id: string, startX: number, startY: number, e: ReactPointerEvent) => {
       if (!editMode || !onMoveNode) return
       e.stopPropagation()
+      e.preventDefault()
       // Registrar el puntero y anular pan/pinch: el onPointerDown del
       // contenedor NO corre (el stopPropagation lo impide) y sin registro el
       // onPointerMove hace early-return → el arrastre no movía nada (bug
@@ -1629,6 +1633,9 @@ export function TopologyMap({
             onFocus={() => handleNodeFocus(chipTip(chip))}
             onBlur={closeHover}
             onClick={(e) => {
+              // #1983: un arrastre en modo edicion termina en click; sin este
+              // corte se abria el panel de etiquetado en cada arrastre.
+              if (moved.current) return
               if (onTagDevice) {
                 nodeClick(e, chipTip(chip))
                 onTagDevice(chip.device)
