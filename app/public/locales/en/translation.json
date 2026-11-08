@@ -661,6 +661,7 @@
       "uploadMbps": "Upload (Mbps)",
       "viewBars": "Bars",
       "viewLine": "Line",
+      "viewLinear": "Linear",
       "viewAria": "Traffic chart view",
       "contracted": "Contracted: ↓ {{down}} / ↑ {{up}} Mbps",
       "contractedLine": "↓ {{mbps}} Mbps",
