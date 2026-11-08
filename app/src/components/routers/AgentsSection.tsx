@@ -179,6 +179,9 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
     if (res && !res.error) {
       setReinstallState('done')
       setReinstallMsg(res.recovered ? t(doneKey) : t(pendingKey))
+      // #1894: refrescar la flota al terminar. Sin esto la tarjeta seguia
+      // enseñando el estado anterior y parecia un fallo hasta recargar.
+      await refreshAgents()
       window.setTimeout(() => setReinstallState('idle'), 8000)
     } else {
       // #1894: el fallo NO se auto-oculta. Un error que desaparece a los 8 s
