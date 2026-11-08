@@ -18,7 +18,9 @@ jobs:
             sudo tar xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
           else
             echo "tarball no disponible; compilando gitleaks v8.30.1 desde el modulo"
-            go install github.com/gitleaks/gitleaks/v8@v8.30.1
+            # Fuera del modulo del repo: go install con @version no admite el
+            # contexto del go.mod del proyecto.
+            (cd /tmp && go install github.com/gitleaks/gitleaks/v8@v8.30.1)
             sudo install -m 755 "$(go env GOPATH)/bin/gitleaks" /usr/local/bin/gitleaks
           fi
           gitleaks version
