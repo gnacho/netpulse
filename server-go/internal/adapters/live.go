@@ -1065,6 +1065,26 @@ func (l *Live) getAdguardClient() (std *AdGuardClient, gl *AdGuardGlinetClient) 
 	return l.agStd, l.agGL
 }
 
+// vitalInt descarta un CERO no confirmado (#1947): sin hasTemp/hasCpu/hasRam
+// el 0 es "sin sensor", no una lectura. Un valor distinto de cero se mantiene
+// para no romper fuentes que no marcan el flag.
+func vitalInt(ok bool, v int) *int {
+	if !ok && v == 0 {
+		return nil
+	}
+	return &v
+}
+
+// vitalFloat es la variante para metrics: el cero sin confirmar no se
+// persiste, que era lo que dejaba la grafica de temperatura plana en 0.
+func vitalFloat(ok bool, v int) *float64 {
+	if !ok && v == 0 {
+		return nil
+	}
+	f := float64(v)
+	return &f
+}
+
 // histPoint es un punto de metricsHistory {t, down, up, cpu, ram, temp}.
 type histPoint struct {
 	t              string
@@ -1430,6 +1450,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	return &routerPolled{
 		cfg: cfg, client: client, sysInfo: sysInfo, board: board,
 		cpu: cpuV, ram: ramPct, temp: tempV,
+		hasCpu: cpu != nil, hasRam: mem.Total > 0, hasTemp: temp != nil,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, arpDevs: arpDevs, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
 		fdb: fdbGood, fdbVlans: fdbVlansGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
@@ -1699,7 +1720,7 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	r := Router{
 		ID: p.cfg.ID, Name: name, Model: model, ModelShort: model,
 		IP: p.cfg.Host, Status: status, Health: health,
-		CPU: iptr(p.cpu), RAM: iptr(p.ram), Temp: iptr(p.temp),
+		CPU: vitalInt(p.hasCpu, p.cpu), RAM: vitalInt(p.hasRam, p.ram), Temp: vitalInt(p.hasTemp, p.temp),
 		Uptime: uptimeLabel(p), Clients: len(p.leases),
 		Sparkline: sparkline, TempThreshold: thr,
 		LatencyMs: p.latencyMs,
@@ -5019,9 +5040,9 @@ func (l *Live) GetMetricsRows(context.Context) []MetricsRow {
 		}
 		row := MetricsRow{
 			RouterID:  id,
-			CPU:       fptr(float64(p.cpu)),
-			RAM:       fptr(float64(p.ram)),
-			Temp:      fptr(float64(p.temp)),
+			CPU:       vitalFloat(p.hasCpu, p.cpu),
+			RAM:       vitalFloat(p.hasRam, p.ram),
+			Temp:      vitalFloat(p.hasTemp, p.temp),
 			LatencyMs: p.latencyMs,
 		}
 		// #441/#1568: sin lecturas no se persisten ceros falsos, pero una
