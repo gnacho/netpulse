@@ -1740,7 +1740,14 @@
       "demoNote": "No disponible en la demo local: las notificaciones push necesitan el backend de NetPulse (sin servidor, una suscripción nunca recibiría nada).",
       "errorServer": "No se pudo contactar con el servidor push. Inténtalo de nuevo.",
       "errorGeneric": "No se pudieron activar las notificaciones push en este dispositivo.",
-      "note": "Solo llegan las alertas marcadas como urgentes (se configura en Alertas). El aviso lo muestra el sistema operativo con el icono de NetPulse."
+      "note": "Solo llegan las alertas marcadas como urgentes (se configura en Alertas). El aviso lo muestra el sistema operativo con el icono de NetPulse.",
+      "test": "Enviar prueba",
+      "testBusy": "Enviando…",
+      "testSent": "Notificación de prueba enviada. Mírala en este dispositivo.",
+      "testFailed": "El servicio de push la rechazó: {{reason}}",
+      "testExpired": "La suscripción había caducado y se ha eliminado. Vuelve a activar las notificaciones.",
+      "testRateLimited": "Espera unos segundos antes de enviar otra prueba.",
+      "testGeneric": "No se pudo enviar la prueba."
     },
     "telegram": {
       "title": "Notificaciones Telegram",

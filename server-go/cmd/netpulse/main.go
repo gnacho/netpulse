@@ -792,8 +792,16 @@ func run() error {
 	// respaldo offline.
 	vendorCatalog := rintegration.NewCatalog(dbHandle.DB)
 
+	// #1973: endpoint POST /api/push/test. Se pasa el notifier real; si VAPID
+	// fallo al arrancar, la ruta responde 503 en vez de fingir un envio.
+	var pushDep httpapi.PushTester
+	if pushNotifier != nil {
+		pushDep = pushNotifier
+	}
+
 	handler := httpapi.NewHandler(httpapi.Deps{
 		Config:           cfg,
+		Push:             pushDep,
 		DB:               dbHandle,
 		Adapter:          adapter,
 		Hub:              hub,

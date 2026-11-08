@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { BadgeCheck, CalendarClock, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, Database, Download, ExternalLink, Eye, EyeOff, FileText, FlaskConical, Gauge, HardDrive, History, KeyRound, Loader2, Lock, LogOut, MonitorSmartphone, Moon, Pencil, Plus, Power, Radar, RefreshCw, RotateCcw, RotateCw, Router as RouterIcon, Server, Settings2, Shield, ShieldCheck, Star, Sun, Trash2, TriangleAlert, UserCog, Users, Volume2, Wifi, X } from 'lucide-react'
+import { BadgeCheck, CalendarClock, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, Database, Download, ExternalLink, Eye, EyeOff, FileText, FlaskConical, Gauge, HardDrive, History, KeyRound, Loader2, Lock, LogOut, MonitorSmartphone, Moon, Pencil, Plus, Power, Radar, RefreshCw, Send, RotateCcw, RotateCw, Router as RouterIcon, Server, Settings2, Shield, ShieldCheck, Star, Sun, Trash2, TriangleAlert, UserCog, Users, Volume2, Wifi, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import Integrations from './Integrations'
 import { HealthRing } from '@/components/HealthRing'
@@ -21,7 +21,7 @@ import { InfoTip } from '@/components/InfoTip'
 import { useNetPulse } from '@/data/DataProvider'
 import { fmtEs } from '@/data/mock'
 import { useAuth } from '@/data/AuthContext'
-import { getVapidKey, postPushSubscribe, postPushUnsubscribe, pushContext, unsubscribeCurrentDevice, urlBase64ToUint8Array } from '@/data/push'
+import { getVapidKey, postPushSubscribe, postPushTest, postPushUnsubscribe, pushContext, unsubscribeCurrentDevice, urlBase64ToUint8Array } from '@/data/push'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { useIntegrations } from '@/hooks/useIntegrations'
@@ -4160,6 +4160,9 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
   const [state, setState] = useState<PushCardState>('loading')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // #1973: resultado del envio de prueba, debajo del interruptor.
+  const [testState, setTestState] = useState<'idle' | 'busy' | 'ok' | 'fail' | 'expired' | 'limited'>('idle')
+  const [testReason, setTestReason] = useState('')
 
   // Detección del estado real: soporte → demo → permiso → suscripción viva
   useEffect(() => {
@@ -4266,6 +4269,51 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
     }
   }, [busy, t, onSaved])
 
+  /** #1973: manda una notificación de prueba a este dispositivo. */
+  const sendTest = useCallback(async () => {
+    if (testState === 'busy') return
+    setTestState('busy')
+    setTestReason('')
+    try {
+      const reg = await navigator.serviceWorker.getRegistration()
+      const sub = reg ? await reg.pushManager.getSubscription() : null
+      if (!sub) {
+        setState('disabled')
+        setTestState('fail')
+        setTestReason(t('settings.push.testExpired'))
+        return
+      }
+      const result = await postPushTest(sub.endpoint)
+      if (!result) {
+        setTestState('fail')
+        setTestReason(t('settings.push.testGeneric'))
+        return
+      }
+      if (result.ok) {
+        setTestState('ok')
+        return
+      }
+      if (result.expired) {
+        // El servidor ya borro la suscripcion: la baja local deja el
+        // interruptor en off y evita reintentos contra un endpoint muerto.
+        await sub.unsubscribe().catch(() => false)
+        setState('disabled')
+        setTestState('expired')
+        onSaved()
+        return
+      }
+      if (result.error === 'rate_limited') {
+        setTestState('limited')
+        return
+      }
+      setTestState('fail')
+      setTestReason(result.reason || result.error || t('settings.push.testGeneric'))
+    } catch {
+      setTestState('fail')
+      setTestReason(t('settings.push.testGeneric'))
+    }
+  }, [testState, t, onSaved])
+
   // #998: la activación es un check como el resto de la sección, visible en
   // todos los estados. Sin HTTPS la página no es un contexto seguro y el
   // navegador no permite suscribirse a Web Push (pushContext() ->
@@ -4302,6 +4350,40 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
               </TooltipContent>
             )}
           </Tooltip>
+        </div>
+      )}
+
+      {state === 'enabled' && (
+        <div className="space-y-2 pt-1">
+          <button
+            type="button"
+            onClick={() => void sendTest()}
+            disabled={testState === 'busy'}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-3 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:opacity-50"
+          >
+            <Send className="h-4 w-4" strokeWidth={1.75} />
+            {testState === 'busy' ? t('settings.push.testBusy') : t('settings.push.test')}
+          </button>
+          {testState === 'ok' && (
+            <p role="status" className="rounded-lg bg-ok/10 px-3 py-2 text-caption text-ok">
+              {t('settings.push.testSent')}
+            </p>
+          )}
+          {testState === 'limited' && (
+            <p role="status" className="rounded-lg bg-elevated px-3 py-2 text-caption text-text-muted">
+              {t('settings.push.testRateLimited')}
+            </p>
+          )}
+          {testState === 'expired' && (
+            <p role="status" className="rounded-lg bg-warn/10 px-3 py-2 text-caption text-warn">
+              {t('settings.push.testExpired')}
+            </p>
+          )}
+          {testState === 'fail' && (
+            <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-caption text-danger">
+              {t('settings.push.testFailed', { reason: testReason })}
+            </p>
+          )}
         </div>
       )}
 

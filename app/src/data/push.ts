@@ -5,6 +5,7 @@
  * - GET  /api/push/vapid-key   → {"key":"<base64url>"}  (clave pública VAPID)
  * - POST /api/push/subscribe   body {endpoint, keys:{auth,p256dh}, language} → 201/200
  * - POST /api/push/unsubscribe body {endpoint} → 204
+ * - POST /api/push/test        body {endpoint} → {ok, status, reason, expired} (#1973)
  *
  * En la demo local (sin backend) la tarjeta de Ajustes NO simula la
  * activación: una suscripción push sin servidor nunca recibiría nada y
@@ -51,6 +52,37 @@ export async function postPushSubscribe(sub: PushSubscriptionPayload): Promise<b
     return res.ok // 200/201
   } catch {
     return false
+  }
+}
+
+/** Resultado de POST /api/push/test (#1973). */
+export interface PushTestResult {
+  ok: boolean
+  /** Status devuelto por el push service (Apple, FCM…). */
+  status?: number
+  /** Motivo que da el push service en 4xx (p. ej. BadJwtToken). */
+  reason?: string
+  /** 404/410: la suscripción estaba muerta y el servidor la ha borrado. */
+  expired?: boolean
+  /** Código propio cuando no hubo respuesta del backend o hay rate limit. */
+  error?: string
+}
+
+/** POST /api/push/test: una notificación de prueba a ESTE dispositivo. */
+export async function postPushTest(endpoint: string): Promise<PushTestResult | null> {
+  try {
+    const res = await fetch('/api/push/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (res.status === 401) redirectLogin()
+    if (res.status === 429) return { ok: false, error: 'rate_limited' }
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+    return (await res.json()) as PushTestResult
+  } catch {
+    return null
   }
 }
 
