@@ -1049,6 +1049,27 @@ func resolveAgentRouterIdentity(slug, host, bridgeMAC string, routers map[string
 	return match
 }
 
+// forgetAgent borra todo rastro de un slug: token, estado persistido del
+// registry, badge de rechazos y la entrada en memoria. Lo usan la baja de
+// token y la desinstalación. Sin borrar agent.state.<slug>, el siguiente
+// arranque restaura el estado y una unidad que ya no tiene agente emite
+// "Agent down - falling back to SSH" (#1979).
+func (s *server) forgetAgent(slug string) (tokenRevoked bool) {
+	if res, err := s.db.Exec("DELETE FROM kv WHERE key = ?", agentTokenKey(slug)); err == nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			tokenRevoked = true
+		}
+	}
+	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(slug))
+	if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", agentStateKey(slug)); err != nil {
+		log.Printf("[netpulse] warning: could not purge agent state for %s: %v", slug, err)
+	}
+	if s.agents != nil {
+		s.agents.Forget(slug)
+	}
+	return tokenRevoked
+}
+
 // handleAgentsDelete: revoca el token del slug (el agente recibirá 401 en su
 // próximo push) y olvida su estado. 404 si no existía.
 func (s *server) handleAgentsDelete(w http.ResponseWriter, r *http.Request) {
@@ -1057,19 +1078,9 @@ func (s *server) handleAgentsDelete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
 	}
-	res, err := s.db.Exec("DELETE FROM kv WHERE key = ?", agentTokenKey(slug))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "db_error")
-		return
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	if !s.forgetAgent(slug) {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
-	}
-	// #1717: el badge de rechazos no debe sobrevivir al agente.
-	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(slug))
-	if s.agents != nil {
-		s.agents.Forget(slug)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -1417,16 +1428,9 @@ func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revocar el token del slug (el agente ya no volverá a empujar).
-	tokenRevoked := false
-	if res, err := s.db.Exec("DELETE FROM kv WHERE key = ?", agentTokenKey(slug)); err == nil {
-		if n, _ := res.RowsAffected(); n > 0 {
-			tokenRevoked = true
-		}
-	}
-	if s.agents != nil {
-		s.agents.Forget(slug)
-	}
+	// Revocar el token y borrar el estado persistido: el agente ya no volverá
+	// a empujar y, tras un reinicio, no debe reaparecer como "caído" (#1979).
+	tokenRevoked := s.forgetAgent(slug)
 
 	writeJSON(w, http.StatusOK, uninstallResponse{
 		Slug: slug, Gone: true, Token: tokenRevoked,
