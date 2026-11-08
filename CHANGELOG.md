@@ -7,6 +7,34 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- The WAN traffic chart can draw bars instead of the line (#1975). A switch next to the range selector picks Line or Bars and remembers the choice in the browser. Line stays the default and nothing changes on the server.
+
+### Changed
+
+- The UI uses unit for an enrolled box and client for a network client (#1980). The Fleet summary, the comparison caption, the fleet filter, the Reports labels and the manual tagging panel said router or device depending on the screen. Both locales follow the Fleet/Unit convention from #1896 now.
+
+- Speakers count as entertainment and servers as computers in the client type filter (#1981). The entertainment group also replaced the TV label, and the Infra row left the filter because no live path assigns that group.
+
+### Fixed
+
+- Web Push works on iPhones again (#1974). The VAPID subject was `mailto:netpulse@localhost` and Apple rejected every push with `403 BadJwtToken`. The subject now comes from `NETPULSE_VAPID_SUBJECT` or an https `NETPULSE_PUBLIC_URL`, with the project page as fallback, and the push service reason is logged on 4xx.
+
+- Removing an agent no longer leaves the unit alerting that the agent is down (#1979). Uninstall and token delete forgot the in-memory registry but left the persisted state, so the next server start restored it and the unit emitted "Agent down - falling back to SSH" with no agent installed.
+
+- `owut check` evaluates the target picked in the UI (#1978). Without `-V` it compared against the installed release and answered that no upgrade was needed. Each check also writes a journal line with the target, the duration and the result, and a run without output says so in the card instead of showing nothing (#1977).
+
+- A unit without a temperature sensor no longer draws a flat 0 C (#1947). The SSH poll never marked which readings it really got, so a zero was persisted as a measurement. An unconfirmed zero is now dropped from the fleet card and from the metrics series.
+
+- The manual tagging form has a Save and a Cancel button (#1982). It showed an Add toggle and an Add submit at the same time, and closing the panel silently discarded the draft.
+
+- The agent card refreshes after an install finishes (#1894). It kept the state from before the operation, so a finished install looked stuck until the page was reloaded.
+
+- A deleted client comes back when it returns with an IP (#1984). The tombstone also blocked a client that reattached and got a DHCP lease or an ARP entry. A cached station without an IP stays buried.
+
+- A node drag in the topology no longer turns into a pan or opens the tagging panel on touch screens (#1983). A second pointer could arm a pan or a pinch during a drag, and the click that ends a chip drag opened the tagging sheet.
+
 ## [2.51.5] - 2026-11-07
 
 ### Added
