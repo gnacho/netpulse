@@ -1646,6 +1646,48 @@ func (p *routerPolled) inventorySource() string {
 	}
 }
 
+// displayRole (#1892): rol visible de una unidad a partir de la evidencia de
+// su payload. Una unidad external con agent_only se pintaba como Switch aunque
+// fuese un AP o un NAS, porque el badge leia el mismo flag que autoriza a
+// reclamar clientes con la FDB (#1417). Aqui solo se decide el texto:
+//   - clientes inalambricos y sin WAN -> AP (un AP puente no enruta).
+//   - managed-switch o SNMP -> Switch (un switch de flota se anuncia asi).
+//   - pusher agent-only con 4 o mas bocas y sin radios -> Switch (crs305).
+//   - external sin nada de lo anterior -> External (un NAS no es un switch).
+//   - el resto -> AP, que es el papel de las unidades OpenWrt de la flota.
+//
+// p == nil es una unidad sin sondeo (offline): decide la configuracion.
+func displayRole(p *routerPolled, cfg RouterConfig, isGw bool) (string, string) {
+	if isGw {
+		return "Gateway principal", "Principal"
+	}
+	if p == nil {
+		if cfg.Type == "managed-switch" || cfg.SnmpEnabled {
+			return "Switch", "SW"
+		}
+		if cfg.Type == "external" {
+			return "External", "EXT"
+		}
+		return "Punto de acceso", "AP"
+	}
+	wireless := len(p.wireless) > 0 || len(p.wirelessSide) > 0 || len(p.radios) > 0
+	wan := p.wanInfo.Proto != "" || p.wanInfo.IP != "" || p.wanInfo.Gateway != "" ||
+		p.wanInfo.Port != "" || p.multiWan != nil
+	if wireless && !wan {
+		return "Punto de acceso", "AP"
+	}
+	if cfg.Type == "managed-switch" || cfg.SnmpEnabled {
+		return "Switch", "SW"
+	}
+	if cfg.AgentOnly && !wireless && len(p.ports) >= 4 {
+		return "Switch", "SW"
+	}
+	if cfg.Type == "external" {
+		return "External", "EXT"
+	}
+	return "Punto de acceso", "AP"
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -1747,19 +1789,9 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.selfExpose {
 		r.SelfExpose = bptr(true)
 	}
-	if isGw {
-		r.Role, r.RoleBadge = "Gateway principal", "Principal"
-	} else if cfgIsSwitch(p.cfg) {
-		// external sondeado por SNMP = switch en la práctica (#661); evita el
-		// fallback AP para los switches SNMP de crowedavid (#1137).
-		r.Role, r.RoleBadge = "Switch", "SW"
-	} else if p.cfg.Type == "external" {
-		// #1137: un external genérico NO es un AP; el fallback anterior le
-		// colgaba el chip AP cian en la tarjeta del detalle.
-		r.Role, r.RoleBadge = "External", "EXT"
-	} else {
-		r.Role, r.RoleBadge = "Punto de acceso", "AP"
-	}
+	// #1892: el badge sale de lo que la unidad demuestra, no de `cfgIsSwitch`,
+	// que ademas gobierna los claims de la FDB (#1417) y por eso no se toca.
+	r.Role, r.RoleBadge = displayRole(p, p.cfg, isGw)
 	if p.brMac != "" {
 		r.MAC = p.brMac
 	}
@@ -1921,15 +1953,7 @@ func (l *Live) offlineRouter(cfg RouterConfig) Router {
 			Uptime: "—", Clients: 0, Sparkline: []float64{},
 			Type: cfg.Type,
 		}
-		if gw != nil && cfg.ID == gw.ID {
-			r.Role, r.RoleBadge = "Gateway principal", "Principal"
-		} else if cfg.Type == "managed-switch" || (cfg.Type == "external" && cfg.SnmpEnabled) {
-			r.Role, r.RoleBadge = "Switch", "SW"
-		} else if cfg.Type == "external" {
-			r.Role, r.RoleBadge = "External", "EXT"
-		} else {
-			r.Role, r.RoleBadge = "Punto de acceso", "AP"
-		}
+		r.Role, r.RoleBadge = displayRole(nil, cfg, gw != nil && cfg.ID == gw.ID)
 	}
 	r.Type = cfg.Type
 	r.Status = "offline"
