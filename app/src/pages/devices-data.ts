@@ -39,7 +39,10 @@ export interface ClientDevice extends Device {
 // El grupo 'infra' no deriva del `type`: lo asigna Devices.tsx cruzando
 // device.infra (sellado server-side, SPEC-65 D65-2) o, como fallback,
 // attachTo/lldp con los distributionNodes del provider.
-export const GROUP_ORDER: FilterGroup[] = ['infra', 'moviles', 'ordenadores', 'tv', 'iot', 'red', 'otros']
+// #1981: 'infra' fuera de la lista. Ningun camino de datos en vivo asigna ese
+// grupo (el servidor solo lo escribe en el dataset de demo), asi que la fila
+// siempre marcaba 0. Los switches gestionados ya caen en 'red'.
+export const GROUP_ORDER: FilterGroup[] = ['moviles', 'ordenadores', 'tv', 'iot', 'red', 'otros']
 
 // ---------------------------------------------------------------------------
 // Detalles extra de los dispositivos canónicos: fallback para live cuando la
@@ -114,8 +117,8 @@ const TYPE_TO_GROUP: Record<Device['type'], FilterGroup> = {
   clima: 'iot',
   caldera: 'iot',
   placa: 'iot',
-  altavoz: 'iot',
-  servidor: 'red',
+  altavoz: 'tv',
+  servidor: 'ordenadores',
   switch: 'red',
   modem: 'red',
   desconocido: 'otros',
