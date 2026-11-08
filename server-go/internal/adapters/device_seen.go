@@ -98,6 +98,8 @@ func (l *Live) filterTombstoned(devices []Device) []Device {
 	if err != nil {
 		tomb = map[string]bool{}
 	}
+	// #1984: si el cliente vuelve con una IP real, el borrado se levanta.
+	l.reviveTombstoned(tomb, devices)
 	fleet := l.fleetSeenMACs()
 	if len(tomb) == 0 && len(fleet) == 0 {
 		return devices
@@ -111,6 +113,30 @@ func (l *Live) filterTombstoned(devices []Device) []Device {
 		out = append(out, d)
 	}
 	return out
+}
+
+// reviveTombstoned (#1984): levanta la lapida de un cliente borrado a mano
+// cuando vuelve a verse con evidencia real de presencia, es decir con una IP
+// de lease o ARP. La entrada cacheada de una estacion en el AP no trae IP, que
+// es justo lo que protegia el borrado desde #1278. Best effort: un fallo de la
+// BD deja la lapida como estaba.
+func (l *Live) reviveTombstoned(tomb map[string]bool, devices []Device) {
+	if l.db == nil || len(tomb) == 0 || len(devices) == 0 {
+		return
+	}
+	for _, d := range devices {
+		if !d.Online || saneIP(d.IP) == "" {
+			continue
+		}
+		mac := normSeenMAC(d.MAC)
+		if mac == "" || !tomb[mac] {
+			continue
+		}
+		if err := l.db.DeleteDeletedClient(mac); err != nil {
+			continue
+		}
+		delete(tomb, mac)
+	}
 }
 
 // fleetSeenMACs (#1278/#1307): MACs propias de la flota que nunca deben
@@ -180,6 +206,9 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 	if err != nil {
 		tomb = map[string]bool{}
 	}
+	// #1984: un cliente borrado que vuelve a tener IP (lease o ARP) se da de
+	// alta otra vez; el borrado es un olvido, no un baneo.
+	l.reviveTombstoned(tomb, devices)
 	// MACs ya registradas: la diferencia serán las verdaderamente nuevas.
 	existing := map[string]bool{}
 	if rows, err := l.db.Query("SELECT mac FROM device_seen"); err == nil {
