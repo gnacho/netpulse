@@ -33,6 +33,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - A deleted client comes back when it returns with an IP (#1984). The tombstone also blocked a client that reattached and got a DHCP lease or an ARP entry. A cached station without an IP stays buried.
 
+- Access points and NAS units stop wearing the switch badge (#1892, partial). The badge read the same flag that lets a unit claim clients with its forwarding table, so every external pusher with no routing duty looked like a switch. It now follows the payload: wireless clients and no WAN is an access point, a managed switch or SNMP is a switch, a pusher with several ports and no radios is a switch, and the rest stays external. The claim pass keeps its own rule.
+
 - A node drag in the topology no longer turns into a pan or opens the tagging panel on touch screens (#1983). A second pointer could arm a pan or a pinch during a drag, and the click that ends a chip drag opened the tagging sheet.
 
 ## [2.51.5] - 2026-11-07
