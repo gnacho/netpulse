@@ -57,18 +57,17 @@ export function WanTraffic() {
   const { t } = useTranslation()
   const { traffic: trafficByRange, wan, isDemo } = useNetPulse()
   const [range, setRange] = useState<TimeRange>('24h')
-  // #1975: Line es escalonada (stepAfter); Linear interpola entre puntos;
-  // Bars pinta una barra por bucket. La eleccion se recuerda por navegador.
-  const [view, setView] = useState<'line' | 'linear' | 'bars'>(() => {
+  // #1975: Lineal (interpola entre puntos, la vista de siempre) y Barras (una
+  // barra por bucket). La escalonada se retiro. La eleccion se recuerda por
+  // navegador y Lineal es el default.
+  const [view, setView] = useState<'linear' | 'bars'>(() => {
     try {
-      const saved = localStorage.getItem('netpulse.trafficView')
-      if (saved === 'line' || saved === 'linear' || saved === 'bars') return saved
-      return 'linear' // default desde el 8-Nov: curva continua
+      return localStorage.getItem('netpulse.trafficView') === 'bars' ? 'bars' : 'linear'
     } catch {
       return 'linear'
     }
   })
-  const setTrafficView = (v: 'line' | 'linear' | 'bars') => {
+  const setTrafficView = (v: 'linear' | 'bars') => {
     setView(v)
     try {
       localStorage.setItem('netpulse.trafficView', v)
@@ -146,12 +145,11 @@ export function WanTraffic() {
         <div className="flex shrink-0 items-center gap-2">
           <SegmentedControl
             options={[
-              { value: 'line', label: t('home.traffic.viewLine') },
               { value: 'linear', label: t('home.traffic.viewLinear') },
               { value: 'bars', label: t('home.traffic.viewBars') },
             ]}
             value={view}
-            onChange={(v) => setTrafficView(v as 'line' | 'linear' | 'bars')}
+            onChange={(v) => setTrafficView(v as 'linear' | 'bars')}
             size="sm"
             ariaLabel={t('home.traffic.viewAria')}
           />
@@ -218,7 +216,7 @@ export function WanTraffic() {
             ) : (
               <>
                 <Area
-                  type={view === 'linear' ? 'linear' : 'stepAfter'}
+                  type="linear"
                   dataKey="down"
                   stroke="#22D3EE"
                   strokeWidth={2}
@@ -229,7 +227,7 @@ export function WanTraffic() {
                   animationEasing="ease-out"
                 />
                 <Area
-                  type={view === 'linear' ? 'linear' : 'stepAfter'}
+                  type="linear"
                   dataKey="up"
                   stroke="#A78BFA"
                   strokeWidth={2}

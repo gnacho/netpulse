@@ -9,11 +9,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
-- The WAN traffic chart alternates Linear, Line and Bars, with Linear as the default (#1975). Linear interpolates between buckets for a continuous curve, Line keeps its stepped shape, and the choice is remembered per browser next to the existing Bars view.
+- The WAN traffic chart alternates Linear and Bars, with Linear as the default (#1975). The stepped line was retired; the choice is remembered per browser.
 
 - A Send test button next to the push switch (#1973). Turning notifications on could not be checked: a push only leaves when a real urgent alert fires, so a broken setup stayed silent until an alert was missed. The button sends one notification to this device through the same path as real alerts and reports what the push service answered, including the reason on a rejection. An expired subscription is removed and the switch turns off. One test per user every ten seconds.
 
-- The WAN traffic chart can draw bars instead of the line (#1975). A switch next to the range selector picks Linear, Line or Bars and remembers the choice in the browser. Nothing changes on the server.
+- The WAN traffic chart can draw bars instead of the line (#1975). A switch next to the range selector picks Linear or Bars and remembers the choice in the browser. Nothing changes on the server.
 
 ### Changed
 
