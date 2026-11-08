@@ -69,6 +69,8 @@ interface OwutStatus {
   removeConfigured?: string[]
   rawOutput?: string
   error?: string
+  /** #1977: diagnostico del servidor cuando el check no dejo salida. */
+  message?: string
 }
 
 /** Versiones destino que ASU puede construir (#761). */
@@ -381,14 +383,14 @@ export default function FirmwareUpgrades() {
   }
 
   // #695/#761: comprobar con owut ("Comprobar").
-  const runOwutCheck = async (id: string) => {
+  const runOwutCheck = async (id: string, target?: string) => {
     setOwutBusy((prev) => ({ ...prev, [id]: true }))
     setError('')
     try {
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ targetVersion: target || '' }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.message ?? body.error ?? (await res.text()))
@@ -402,7 +404,18 @@ export default function FirmwareUpgrades() {
         setRemovePkgs((prev) => (prev[id]?.trim() ? prev : { ...prev, [id]: configured.join(' ') }))
       }
     } catch (err) {
-      setError(String(err))
+      // #1977: el fallo se pinta en la propia tarjeta, no solo en el aviso
+      // de la cabecera de la pagina, que queda fuera de vista al hacer scroll.
+      setOwutResult((prev) => ({
+        ...prev,
+        [id]: {
+          owutAvailable: true,
+          checkRan: false,
+          upgradeAvailable: false,
+          buildable: false,
+          error: String(err),
+        },
+      }))
     } finally {
       setOwutBusy((prev) => ({ ...prev, [id]: false }))
     }
@@ -1175,7 +1188,13 @@ export default function FirmwareUpgrades() {
                   {owut?.error && (
                     <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-600 dark:text-rose-400">
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
-                      <span>{t('firmwareUpgrades.owutCheckFailed')}</span>
+                      <span>{t('firmwareUpgrades.owutCheckFailed')} {owut.error}</span>
+                    </div>
+                  )}
+                  {!owut?.error && owut?.message && (
+                    <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+                      <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={1.75} />
+                      <span>{owut.message}</span>
                     </div>
                   )}
                   {owut?.checkRan && owut.buildable && owut.upgradeAvailable && (
@@ -1413,7 +1432,7 @@ export default function FirmwareUpgrades() {
                       >
                         <button
                           type="button"
-                          onClick={() => void runOwutCheck(item.routerId)}
+                          onClick={() => void runOwutCheck(item.routerId, effTarget)}
                           disabled={owutBusy[item.routerId] || !owutAvail}
                           title={!owutAvail ? t('firmwareUpgrades.owutUnavailable') : t('firmwareUpgrades.checkTooltip')}
                           className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-elevated px-4 text-sm font-medium text-text-primary transition-colors hover:bg-canvas disabled:opacity-50"
