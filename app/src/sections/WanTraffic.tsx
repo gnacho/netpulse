@@ -57,18 +57,17 @@ export function WanTraffic() {
   const { t } = useTranslation()
   const { traffic: trafficByRange, wan, isDemo } = useNetPulse()
   const [range, setRange] = useState<TimeRange>('24h')
-  // #1975: Line es escalonada (stepAfter); Linear interpola entre puntos;
-  // Bars pinta una barra por bucket. La eleccion se recuerda por navegador.
-  const [view, setView] = useState<'line' | 'linear' | 'bars'>(() => {
+  // Curva (monotone, el trazo original) o Bars (una barra por bucket). La
+  // vista escalonada se retiro: no aportaba nada sobre la curva.
+  const [view, setView] = useState<'curve' | 'bars'>(() => {
     try {
-      const saved = localStorage.getItem('netpulse.trafficView')
-      if (saved === 'line' || saved === 'linear' || saved === 'bars') return saved
-      return 'linear' // default desde el 8-Nov: curva continua
+      // 'line' y 'linear' eran valores de las vistas retiradas: se migran.
+      return localStorage.getItem('netpulse.trafficView') === 'bars' ? 'bars' : 'curve'
     } catch {
-      return 'linear'
+      return 'curve'
     }
   })
-  const setTrafficView = (v: 'line' | 'linear' | 'bars') => {
+  const setTrafficView = (v: 'curve' | 'bars') => {
     setView(v)
     try {
       localStorage.setItem('netpulse.trafficView', v)
@@ -146,12 +145,11 @@ export function WanTraffic() {
         <div className="flex shrink-0 items-center gap-2">
           <SegmentedControl
             options={[
-              { value: 'line', label: t('home.traffic.viewLine') },
-              { value: 'linear', label: t('home.traffic.viewLinear') },
+              { value: 'curve', label: t('home.traffic.viewCurve') },
               { value: 'bars', label: t('home.traffic.viewBars') },
             ]}
             value={view}
-            onChange={(v) => setTrafficView(v as 'line' | 'linear' | 'bars')}
+            onChange={(v) => setTrafficView(v as 'curve' | 'bars')}
             size="sm"
             ariaLabel={t('home.traffic.viewAria')}
           />
@@ -218,7 +216,7 @@ export function WanTraffic() {
             ) : (
               <>
                 <Area
-                  type={view === 'linear' ? 'linear' : 'stepAfter'}
+                  type="monotone"
                   dataKey="down"
                   stroke="#22D3EE"
                   strokeWidth={2}
@@ -229,7 +227,7 @@ export function WanTraffic() {
                   animationEasing="ease-out"
                 />
                 <Area
-                  type={view === 'linear' ? 'linear' : 'stepAfter'}
+                  type="monotone"
                   dataKey="up"
                   stroke="#A78BFA"
                   strokeWidth={2}
