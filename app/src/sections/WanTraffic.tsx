@@ -57,14 +57,17 @@ export function WanTraffic() {
   const { t } = useTranslation()
   const { traffic: trafficByRange, wan, isDemo } = useNetPulse()
   const [range, setRange] = useState<TimeRange>('24h')
-  const [view, setView] = useState<'line' | 'bars'>(() => {
+  // #1975: Line es escalonada (stepAfter); Linear interpola entre puntos;
+  // Bars pinta una barra por bucket. La eleccion se recuerda por navegador.
+  const [view, setView] = useState<'line' | 'linear' | 'bars'>(() => {
     try {
-      return localStorage.getItem('netpulse.trafficView') === 'bars' ? 'bars' : 'line'
+      const saved = localStorage.getItem('netpulse.trafficView')
+      return saved === 'bars' || saved === 'linear' ? saved : 'line'
     } catch {
       return 'line'
     }
   })
-  const setTrafficView = (v: 'line' | 'bars') => {
+  const setTrafficView = (v: 'line' | 'linear' | 'bars') => {
     setView(v)
     try {
       localStorage.setItem('netpulse.trafficView', v)
@@ -143,10 +146,11 @@ export function WanTraffic() {
           <SegmentedControl
             options={[
               { value: 'line', label: t('home.traffic.viewLine') },
+              { value: 'linear', label: t('home.traffic.viewLinear') },
               { value: 'bars', label: t('home.traffic.viewBars') },
             ]}
             value={view}
-            onChange={(v) => setTrafficView(v as 'line' | 'bars')}
+            onChange={(v) => setTrafficView(v as 'line' | 'linear' | 'bars')}
             size="sm"
             ariaLabel={t('home.traffic.viewAria')}
           />
@@ -213,7 +217,7 @@ export function WanTraffic() {
             ) : (
               <>
                 <Area
-                  type="stepAfter"
+                  type={view === 'linear' ? 'linear' : 'stepAfter'}
                   dataKey="down"
                   stroke="#22D3EE"
                   strokeWidth={2}
@@ -224,7 +228,7 @@ export function WanTraffic() {
                   animationEasing="ease-out"
                 />
                 <Area
-                  type="stepAfter"
+                  type={view === 'linear' ? 'linear' : 'stepAfter'}
                   dataKey="up"
                   stroke="#A78BFA"
                   strokeWidth={2}
