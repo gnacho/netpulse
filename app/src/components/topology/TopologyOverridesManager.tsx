@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Pencil, Plus, Tag, Trash2 } from 'lucide-react'
+import { Check, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Switch } from '@/components/ui/switch'
 import { useNetPulse } from '@/data/DataProvider'
@@ -352,15 +352,17 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
 
       {/* Alta */}
       <div className="border-t border-border pt-3">
-        <button
-          type="button"
-          aria-expanded={showAddForm}
-          onClick={() => setShowAddForm((v) => !v)}
-          className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
-        >
-          <Plus className="h-4 w-4" strokeWidth={1.75} />
-          {t('settings.overrides.add')}
-        </button>
+        {!showAddForm && (
+          <button
+            type="button"
+            aria-expanded={false}
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-2 rounded-lg border border-border bg-elevated px-3.5 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.75} />
+            {t('settings.overrides.add')}
+          </button>
+        )}
         {showAddForm && (
           <form onSubmit={(e) => void submit(e)} className="mt-3 space-y-2.5">
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -392,14 +394,28 @@ export function TopologyOverridesManager({ onSaved, initialMac }: Props) {
             {draft.kind === 'attach' && (
               <ParentPicker value={draft.parent} onChange={(v) => setDraft((d) => ({ ...d, parent: v }))} />
             )}
+            {/* #1982: dos botones "+Add" (el de abrir y el de guardar)
+                dejaban la duda de cual aplicaba y no habia salida explicita.
+                Ahora el alta se guarda con "Save" o se descarta con "Cancel". */}
             <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft(EMPTY)
+                  setError(null)
+                  setShowAddForm(false)
+                }}
+                className="rounded-lg border border-border bg-elevated px-4 py-2 text-sm font-medium text-text-secondary transition-colors duration-150 hover:bg-canvas"
+              >
+                {t('common.cancel')}
+              </button>
               <button
                 type="submit"
                 disabled={submitting || !draft.mac.trim() || (draft.kind === 'attach' && !draft.parent.trim())}
                 className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40"
               >
-                <Plus className="h-4 w-4" strokeWidth={2} />
-                {submitting ? t('settings.overrides.adding') : t('settings.overrides.add')}
+                <Check className="h-4 w-4" strokeWidth={2} />
+                {submitting ? t('settings.overrides.adding') : t('common.save')}
               </button>
             </div>
           </form>
