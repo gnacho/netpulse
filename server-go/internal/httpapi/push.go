@@ -3,11 +3,14 @@
 //	GET  /api/push/vapid-key   → {"key":"<base64url>"} (clave pública VAPID)
 //	POST /api/push/subscribe   {endpoint, keys:{auth,p256dh}, language} → 201/200 (upsert)
 //	POST /api/push/unsubscribe {endpoint} → 204
+//	POST /api/push/test        {endpoint} → {ok, status, reason, expired} (#1973)
 package httpapi
 
 import (
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/db"
@@ -115,4 +118,90 @@ func (s *server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// PushTester lo implementa *push.Notifier; en tests se inyecta un fake para
+// no depender de un push service real.
+type PushTester interface {
+	SendTest(sub push.Subscription) push.TestResult
+}
+
+// pushTestCooldown limita el boton de prueba a un envio por usuario y ventana
+// (#1973). Var de paquete para poder acortarla en tests.
+var pushTestCooldown = 10 * time.Second
+
+// PushTestCooldownForTests cambia la ventana y devuelve la anterior. Solo para
+// tests de otros paquetes: la ventana real no es configurable.
+func PushTestCooldownForTests(d time.Duration) time.Duration {
+	old := pushTestCooldown
+	pushTestCooldown = d
+	return old
+}
+
+// handlePushTest (POST): manda una notificacion de prueba a la suscripcion del
+// propio usuario por el camino real de las alertas y devuelve el resultado.
+// Un endpoint ajeno responde 404, igual que uno desconocido.
+func (s *server) handlePushTest(w http.ResponseWriter, r *http.Request) {
+	me := auth.UserFromContext(r.Context())
+	if me == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if s.pushNotif == nil {
+		writeError(w, http.StatusServiceUnavailable, "push_unavailable", "Web Push no esta configurado")
+		return
+	}
+	var body struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if st := readJSONBody(w, r, &body); st != 0 {
+		writeBodyError(w, st, "invalid_body", "endpoint es obligatorio")
+		return
+	}
+	endpoint := strings.TrimSpace(body.Endpoint)
+	if endpoint == "" || len(endpoint) > maxEndpointLen {
+		writeError(w, http.StatusBadRequest, "invalid_body", "endpoint es obligatorio")
+		return
+	}
+	sub, ok, err := push.SubscriptionForUser(s.db, endpoint, me.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "push_unavailable", "no se pudo leer la suscripcion")
+		return
+	}
+	if !ok {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	now := time.Now()
+	s.pushTestMu.Lock()
+	if s.pushTestAt == nil {
+		s.pushTestAt = map[int64]time.Time{}
+	}
+	if last, seen := s.pushTestAt[me.ID]; seen && now.Sub(last) < pushTestCooldown {
+		s.pushTestMu.Unlock()
+		writeError(w, http.StatusTooManyRequests, "rate_limited", "espera unos segundos antes de enviar otra prueba")
+		return
+	}
+	s.pushTestAt[me.ID] = now
+	s.pushTestMu.Unlock()
+
+	res := s.pushNotif.SendTest(sub)
+	if res.Expired {
+		// El notifier real ya purga; se repite aqui para que el contrato no
+		// dependa de la implementacion (un fake o un futuro canal lo cumplen).
+		if err := push.DeleteSubscription(s.db, endpoint); err != nil {
+			log.Printf("[netpulse] warning: could not purge expired push subscription: %v", err)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": false, "expired": true, "status": res.Status, "reason": res.Reason,
+		})
+		return
+	}
+	if res.Error != "" || res.Status >= 400 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok": false, "status": res.Status, "reason": res.Reason, "error": res.Error,
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": res.Status})
 }

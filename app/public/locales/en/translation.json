@@ -1740,7 +1740,14 @@
       "demoNote": "Not available in the local demo: push notifications need the NetPulse backend (without a server, a subscription would never receive anything).",
       "errorServer": "Could not reach the push server. Please try again.",
       "errorGeneric": "Push notifications could not be enabled on this device.",
-      "note": "Only alerts marked as urgent arrive (configured in Alerts). The notice is shown by the operating system with the NetPulse icon."
+      "note": "Only alerts marked as urgent arrive (configured in Alerts). The notice is shown by the operating system with the NetPulse icon.",
+      "test": "Send test",
+      "testBusy": "Sending…",
+      "testSent": "Test notification sent. Check this device.",
+      "testFailed": "The push service rejected it: {{reason}}",
+      "testExpired": "The subscription had expired and was removed. Turn notifications on again.",
+      "testRateLimited": "Wait a few seconds before sending another test.",
+      "testGeneric": "The test could not be sent."
     },
     "telegram": {
       "title": "Telegram notifications",

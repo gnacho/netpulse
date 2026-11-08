@@ -8,6 +8,7 @@ package push
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -237,11 +238,10 @@ func pushReason(body []byte) string {
 	return s
 }
 
-func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
-	if err := ValidateEndpoint(s.Endpoint); err != nil {
-		slog.Warn("push: endpoint rechazado", "endpoint", s.Endpoint, "error", err)
-		return
-	}
+// push entrega un payload ya cifrado a una suscripción y devuelve el status y
+// el cuerpo del push service. Lo comparten el envio de alertas (sendOne) y el
+// boton de prueba (#1973), para que la prueba use el camino real.
+func (n *Notifier) push(s Subscription, body []byte) (int, []byte, error) {
 	resp, err := webpush.SendNotificationWithContext(context.Background(), body,
 		&webpush.Subscription{
 			Endpoint: s.Endpoint,
@@ -255,23 +255,83 @@ func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
 			TTL:             ttlSeconds,
 		})
 	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	return resp.StatusCode, rb, nil
+}
+
+// TestResult es el resultado de un envio de prueba (#1973).
+type TestResult struct {
+	Status  int    `json:"status,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+	Expired bool   `json:"expired,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+// SendTest manda una notificacion de prueba a UNA suscripcion por el mismo
+// camino que las alertas reales y devuelve el resultado en vez de descartarlo.
+// Un 404/410 purga la suscripcion, igual que sendOne.
+func (n *Notifier) SendTest(s Subscription) TestResult {
+	if err := ValidateEndpoint(s.Endpoint); err != nil {
+		return TestResult{Error: err.Error()}
+	}
+	body, err := payloadJSON(testEvent(s.Language))
+	if err != nil {
+		return TestResult{Error: "payload no serializable"}
+	}
+	status, respBody, err := n.push(s, body)
+	if err != nil {
+		return TestResult{Error: err.Error()}
+	}
+	res := TestResult{Status: status, Reason: pushReason(respBody)}
+	if status == http.StatusNotFound || status == http.StatusGone {
+		res.Expired = true
+		if err := DeleteSubscription(n.db, s.Endpoint); err != nil {
+			slog.Error("push: could not purge dead subscription", "endpoint", s.Endpoint, "error", err)
+		}
+	}
+	return res
+}
+
+// testEvent compone el aviso de prueba en el idioma de la suscripcion.
+func testEvent(lang string) alerts.AlertEvent {
+	title, body := "Test notification", "Push notifications work on this device."
+	if lang == "es" {
+		title, body = "Notificacion de prueba", "Las notificaciones push funcionan en este dispositivo."
+	}
+	return alerts.AlertEvent{
+		ID:          fmt.Sprintf("push-test-%d", time.Now().UnixNano()),
+		Category:    alerts.CatSystem,
+		Severity:    "info",
+		Title:       title,
+		Description: body,
+	}
+}
+
+func (n *Notifier) sendOne(ev alerts.AlertEvent, body []byte, s Subscription) {
+	if err := ValidateEndpoint(s.Endpoint); err != nil {
+		slog.Warn("push: endpoint rechazado", "endpoint", s.Endpoint, "error", err)
+		return
+	}
+	status, respBody, err := n.push(s, body)
+	if err != nil {
 		slog.Warn("push: send failed", "alertId", ev.ID, "endpoint", s.Endpoint, "error", err)
 		return
 	}
-	defer resp.Body.Close()
-	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+	if status == http.StatusNotFound || status == http.StatusGone {
 		// Suscripción muerta (expirada o dada de baja): purgar (SPEC-PUSH §1).
 		if err := DeleteSubscription(n.db, s.Endpoint); err != nil {
 			slog.Error("push: could not purge dead subscription", "endpoint", s.Endpoint, "error", err)
 		}
-		slog.Info("push: subscription purged", "endpoint", s.Endpoint, "status", resp.StatusCode)
+		slog.Info("push: subscription purged", "endpoint", s.Endpoint, "status", status)
 		return
 	}
-	if resp.StatusCode >= 400 {
+	if status >= 400 {
 		// #1974: el cuerpo del push service dice la causa (Apple devuelve
 		// {"reason":"BadJwtToken"}). Sin el, un 403 pelado no diagnostica nada.
 		slog.Warn("push: push service returned an error", "alertId", ev.ID, "endpoint", s.Endpoint,
-			"status", resp.StatusCode, "reason", pushReason(respBody))
+			"status", status, "reason", pushReason(respBody))
 	}
 }

@@ -97,6 +97,27 @@ func nullableUserID(id int64) any {
 	return id
 }
 
+// SubscriptionForUser devuelve la suscripcion de un endpoint SOLO si
+// pertenece al usuario (#1973): otra persona recibe el mismo "no existe" que
+// un endpoint desconocido. El segundo valor es false si no hay fila.
+func SubscriptionForUser(d *db.DB, endpoint string, userID int64) (Subscription, bool, error) {
+	var s Subscription
+	var ua, language sql.NullString
+	var uid sql.NullInt64
+	err := d.QueryRow(`SELECT endpoint, keys_auth, keys_p256dh, user_agent, created_at, user_id, language
+		FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, endpoint, userID).
+		Scan(&s.Endpoint, &s.Auth, &s.P256dh, &ua, &s.CreatedAt, &uid, &language)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Subscription{}, false, nil
+	}
+	if err != nil {
+		return Subscription{}, false, err
+	}
+	s.UserAgent, s.Language = ua.String, language.String
+	s.UserID = uid.Int64
+	return s, true, nil
+}
+
 // DeleteSubscription borra por endpoint (idempotente: no error si no existe).
 func DeleteSubscription(d *db.DB, endpoint string) error {
 	_, err := d.Exec("DELETE FROM push_subscriptions WHERE endpoint = ?", endpoint)

@@ -133,6 +133,9 @@ type Deps struct {
 	// FirmwareImage resuelve la imagen de un router desde el índice de
 	// descargas (downloads.openwrt.org). nil → se construye el por defecto.
 	FirmwareImage *firmware.ImageResolver
+	// Push: notificador Web Push (nil en demo o si VAPID fallo). Lo usa el
+	// endpoint de prueba (#1973).
+	Push PushTester
 	// Speedtest: scheduler del test periódico WAN (#511). nil → 503.
 	Speedtest *speedtest.Scheduler
 	// AlertEmitter: motor de alertas para los resultados de firmware owut
@@ -161,6 +164,11 @@ type server struct {
 	secret  string
 	agents  *adapters.AgentRegistry
 	pushMu  sync.Mutex
+	// #1973: una prueba de push por usuario y ventana (pushTestCooldown).
+	pushTestMu sync.Mutex
+	pushTestAt map[int64]time.Time
+	// pushNotif: notificador Web Push para el boton de prueba (nil en demo).
+	pushNotif PushTester
 	pool    SSHRunner
 	rearmer *rearmer.Rearmer
 	lastOv  func() *adapters.Overview
@@ -296,7 +304,7 @@ type server struct {
 func NewHandler(d Deps) http.Handler {
 	s := &server{
 		cfg: d.Config, db: d.DB, adapter: d.Adapter, hub: d.Hub,
-		secret: d.Secret, agents: d.Agents, pool: d.Pool,
+		secret: d.Secret, agents: d.Agents, pool: d.Pool, pushNotif: d.Push,
 		lastOv: d.LastOverview, pollNow: d.PollNow, started: d.Started,
 		agentHub:        d.AgentHub,
 		serverFP:        d.ServerFP,
@@ -572,6 +580,7 @@ func NewHandler(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/push/vapid-key", s.handlePushVapidKey)
 	mux.HandleFunc("POST /api/push/subscribe", s.handlePushSubscribe)
 	mux.HandleFunc("POST /api/push/unsubscribe", s.handlePushUnsubscribe)
+	mux.HandleFunc("POST /api/push/test", s.handlePushTest)
 
 	// --- Users ---
 	// Idioma y nombre propios: FUERA del gate admin (se registran antes en Node).
