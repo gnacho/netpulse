@@ -9,7 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
-- The WAN traffic chart alternates Linear and Bars, with Linear as the default (#1975). The stepped line was retired; the choice is remembered per browser.
+- The WAN traffic chart alternates Curve and Bars, with Curve as the default (#1975). Curve is the smooth monotone line the chart had before #1790; the stepped variant is gone and the choice is remembered per browser.
 
 - A Send test button next to the push switch (#1973). Turning notifications on could not be checked: a push only leaves when a real urgent alert fires, so a broken setup stayed silent until an alert was missed. The button sends one notification to this device through the same path as real alerts and reports what the push service answered, including the reason on a rejection. An expired subscription is removed and the switch turns off. One test per user every ten seconds.
 

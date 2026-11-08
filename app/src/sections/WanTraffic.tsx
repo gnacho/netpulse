@@ -57,17 +57,17 @@ export function WanTraffic() {
   const { t } = useTranslation()
   const { traffic: trafficByRange, wan, isDemo } = useNetPulse()
   const [range, setRange] = useState<TimeRange>('24h')
-  // #1975: Lineal (interpola entre puntos, la vista de siempre) y Barras (una
-  // barra por bucket). La escalonada se retiro. La eleccion se recuerda por
-  // navegador y Lineal es el default.
-  const [view, setView] = useState<'linear' | 'bars'>(() => {
+  // #1975: Curva (monotone, el trazo original que pide el usuario) y Barras
+  // (una barra por bucket). La eleccion se recuerda por navegador y Curva es
+  // el default.
+  const [view, setView] = useState<'curve' | 'bars'>(() => {
     try {
-      return localStorage.getItem('netpulse.trafficView') === 'bars' ? 'bars' : 'linear'
+      return localStorage.getItem('netpulse.trafficView') === 'bars' ? 'bars' : 'curve'
     } catch {
-      return 'linear'
+      return 'curve'
     }
   })
-  const setTrafficView = (v: 'linear' | 'bars') => {
+  const setTrafficView = (v: 'curve' | 'bars') => {
     setView(v)
     try {
       localStorage.setItem('netpulse.trafficView', v)
@@ -145,11 +145,11 @@ export function WanTraffic() {
         <div className="flex shrink-0 items-center gap-2">
           <SegmentedControl
             options={[
-              { value: 'linear', label: t('home.traffic.viewLinear') },
+              { value: 'curve', label: t('home.traffic.viewCurve') },
               { value: 'bars', label: t('home.traffic.viewBars') },
             ]}
             value={view}
-            onChange={(v) => setTrafficView(v as 'linear' | 'bars')}
+            onChange={(v) => setTrafficView(v as 'curve' | 'bars')}
             size="sm"
             ariaLabel={t('home.traffic.viewAria')}
           />
@@ -216,7 +216,7 @@ export function WanTraffic() {
             ) : (
               <>
                 <Area
-                  type="linear"
+                  type="monotone"
                   dataKey="down"
                   stroke="#22D3EE"
                   strokeWidth={2}
@@ -227,7 +227,7 @@ export function WanTraffic() {
                   animationEasing="ease-out"
                 />
                 <Area
-                  type="linear"
+                  type="monotone"
                   dataKey="up"
                   stroke="#A78BFA"
                   strokeWidth={2}
