@@ -660,7 +660,7 @@
       "total24h": "Total 24h",
       "uploadMbps": "Upload (Mbps)",
       "viewBars": "Bars",
-      "viewLinear": "Linear",
+      "viewCurve": "Curve",
       "viewAria": "Traffic chart view",
       "contracted": "Contracted: ↓ {{down}} / ↑ {{up}} Mbps",
       "contractedLine": "↓ {{mbps}} Mbps",
