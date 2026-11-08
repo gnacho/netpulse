@@ -39,6 +39,18 @@ const owutDetectCmd = "command -v owut"
 // se retira del rawOutput antes de exponerlo.
 const owutCheckCmd = "owut check -v 2>&1; printf '\\n__owut_exit__=%d\\n' $?"
 
+// OwutCheckCmdFor construye el check para una version destino. Con -V, ASU
+// evalua el salto a esa version; sin el, `owut check` compara contra la
+// instalada y responde "There are no changes" aunque el admin haya elegido
+// otra en la UI (#1978). Un target invalido se ignora.
+func OwutCheckCmdFor(target string) string {
+	cmd := "owut check -v"
+	if t := strings.TrimSpace(target); t != "" && ValidOpenWrtVersion(t) {
+		cmd += " -V " + shQuote(t)
+	}
+	return cmd + " 2>&1; printf '\\n__owut_exit__=%d\\n' $?"
+}
+
 // owutUciRemoveCmd lee la lista de exclusión que el propio router tiene
 // configurada para attended sysupgrade (#1769). David la usa para sus
 // paquetes fuera de los feeds, así que NetPulse debe ofrecerla en vez de
@@ -89,20 +101,30 @@ type OwutStatus struct {
 	// Error: fallo de transporte (router inalcanzable, timeout SSH), no un
 	// fallo del check en sí.
 	Error string `json:"error,omitempty"`
+	// Message: diagnostico cuando el check no dejo salida (por ejemplo, el
+	// comando murio antes de escribir). Sin esto la UI no tenia nada que
+	// enseñar y el boton parecia no hacer nada (#1977).
+	Message string `json:"message,omitempty"`
 }
 
 // CheckOwut detecta owut en el router y, si existe, ejecuta `owut check`.
 // Tolerante: un runner nil o un fallo de SSH devuelve un OwutStatus con los
 // flags a false y, si procede, el Error, sin romper el flujo del caller.
 func CheckOwut(runner Runner, host string) OwutStatus {
+	return CheckOwutTarget(runner, host, "")
+}
+
+// CheckOwutTarget es CheckOwut con version destino: el check evalua el salto
+// a `target` (owut -V) en vez de la version instalada (#1978).
+func CheckOwutTarget(runner Runner, host, target string) OwutStatus {
 	if runner == nil || host == "" {
 		return OwutStatus{}
 	}
 	if !detectOwut(runner, host) {
-		return OwutStatus{OwutAvailable: false}
+		return OwutStatus{OwutAvailable: false, Message: "owut is not installed on this unit"}
 	}
 	status := OwutStatus{OwutAvailable: true}
-	out, err := runner.Run(host, owutCheckCmd, owutCheckTimeout)
+	out, err := runner.Run(host, OwutCheckCmdFor(target), owutCheckTimeout)
 	if err != nil {
 		// Fallo de transporte (SSH caído/timeout), no un resultado del check.
 		status.Error = err.Error()
@@ -111,6 +133,9 @@ func CheckOwut(runner Runner, host string) OwutStatus {
 	exitCode, raw := extractExitCode(out)
 	status.CheckRan = raw != ""
 	status.RawOutput = raw
+	if !status.CheckRan {
+		status.Message = "owut check returned no output; see the server journal for the SSH result"
+	}
 	status.UpgradeAvailable, status.Buildable = parseOwutCheck(raw, exitCode)
 	status.MissingPkgs = ParseMissingPkgs(raw)
 	status.VersionTo = parseOwutVersionTo(raw)

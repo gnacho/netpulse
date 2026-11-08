@@ -2,7 +2,10 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -225,7 +228,20 @@ func (s *server) registerFirmwareRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusNotFound, "not_found")
 			return
 		}
-		writeJSON(w, http.StatusOK, firmware.CheckOwut(s.pool, host))
+		// #1978: el target elegido en la UI tiene que llegar al check; sin -V
+		// owut compara contra la version instalada y contesta que no hay
+		// cambios. #1977: una linea en el journal por cada check, con target,
+		// duracion y resultado, para que la accion no sea invisible.
+		var body struct {
+			TargetVersion string `json:"targetVersion"`
+		}
+		_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body)
+		start := time.Now()
+		status := firmware.CheckOwutTarget(s.pool, host, body.TargetVersion)
+		log.Printf("[netpulse] firmware owut check %s: target=%q ran=%t upgrade=%t took=%s error=%q",
+			id, body.TargetVersion, status.CheckRan, status.UpgradeAvailable,
+			time.Since(start).Round(time.Millisecond), status.Error)
+		writeJSON(w, http.StatusOK, status)
 	})))
 
 	// #1769: añadir a attendedsysupgrade.owut.remove los paquetes que ASU
