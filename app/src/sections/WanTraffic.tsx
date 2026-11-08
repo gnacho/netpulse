@@ -62,9 +62,10 @@ export function WanTraffic() {
   const [view, setView] = useState<'line' | 'linear' | 'bars'>(() => {
     try {
       const saved = localStorage.getItem('netpulse.trafficView')
-      return saved === 'bars' || saved === 'linear' ? saved : 'line'
+      if (saved === 'line' || saved === 'linear' || saved === 'bars') return saved
+      return 'linear' // default desde el 8-Nov: curva continua
     } catch {
-      return 'line'
+      return 'linear'
     }
   })
   const setTrafficView = (v: 'line' | 'linear' | 'bars') => {
