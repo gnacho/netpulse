@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.52.0] - 2026-11-11
+
 ### Added
 
 - The WAN traffic chart alternates Curve and Bars, with Curve as the default (#1975). Curve is the smooth monotone line the chart had before #1790; the stepped variant is gone and the choice is remembered per browser.
