@@ -300,13 +300,9 @@ func PinHostKeys(host, keyPath string) error {
 		return nil
 	}
 
-	f, err := os.OpenFile(khPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = f.WriteString(strings.Join(toAdd, "\n") + "\n")
-	return err
+	// #2014: el append va por el lock del paquete, compartido con el pool y
+	// con RemoveHostKey.
+	return AppendKnownHosts(khPath, toAdd)
 }
 
 // pinHostKeysMerge devuelve las líneas de claves escaneadas que faltan para

@@ -43,6 +43,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - A node drag in the topology no longer turns into a pan or opens the tagging panel on touch screens (#1983). A second pointer could arm a pan or a pinch during a drag, and the click that ends a chip drag opened the tagging sheet.
 
+- SSH to the whole fleet survives a corrupt known_hosts entry (#2014). Three writers touched the file without a shared lock, and the re-onboard path rewrote it in place after truncating, so an append landing inside that window left a half-written line. One malformed line makes the host key parser reject the entire file, which took out install, rearm, config backup and polling for every unit while agent pushes kept working. Writes are now serialized and the file is replaced with an atomic rename, so a reader never sees a partial file, and unreadable lines are dropped before loading with a log entry instead of being fatal. A test reproduces the corrupt file and checks that the connection path recovers.
+
 ## [2.51.5] - 2026-11-07
 
 ### Added
