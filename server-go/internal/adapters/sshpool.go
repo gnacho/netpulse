@@ -158,6 +158,15 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 			_ = os.WriteFile(p.khPath, nil, 0o600)
 		}
 	}
+	// #2014: una sola línea ilegible hace que knownhosts.New rechace el
+	// fichero entero, y con él el SSH a TODAS las unidades. Se descarta antes
+	// de cargarlo: el fichero también lo escriben procesos ssh externos, que
+	// no pueden tomar el lock del paquete.
+	if dropped, serr := sshkey.SanitizeKnownHosts(p.khPath); serr != nil {
+		log.Printf("ssh: saneando %s: %v", p.khPath, serr)
+	} else if dropped > 0 {
+		log.Printf("ssh: %d entrada(s) ilegible(s) descartada(s) de %s (#2014)", dropped, p.khPath)
+	}
 	checker, err := knownhosts.New(p.khPath)
 	if err != nil {
 		return nil, err
@@ -184,13 +193,7 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 		}
 		// Host desconocido → accept-new
 		line := knownhosts.Line([]string{knownhosts.Normalize(hostname)}, key)
-		f, ferr := os.OpenFile(p.khPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if ferr != nil {
-			return ferr
-		}
-		defer f.Close()
-		_, ferr = f.WriteString(line + "\n")
-		return ferr
+		return sshkey.AppendKnownHosts(p.khPath, []string{line})
 	}, nil
 }
 
@@ -247,7 +250,12 @@ func (p *SSHPool) RemoveHostKey(hostnames ...string) error {
 		norms[knownhosts.Normalize(h)] = true
 	}
 	var keep []string
-	if data, err := os.ReadFile(p.khPath); err == nil {
+	dropped := 0
+	// #2014: lectura y reescritura bajo el lock del paquete y con rename
+	// atómico. Antes era ReadFile + os.WriteFile (truncate en sitio): un
+	// append concurrente caía entre el truncate y la escritura y dejaba una
+	// línea a medias, que tumbaba el SSH de toda la flota.
+	err := sshkey.UpdateKnownHosts(p.khPath, func(data []byte) ([]byte, error) {
 		for _, ln := range strings.Split(string(data), "\n") {
 			if strings.TrimSpace(ln) == "" {
 				continue
@@ -265,10 +273,16 @@ func (p *SSHPool) RemoveHostKey(hostnames ...string) error {
 			}
 			if !drop {
 				keep = append(keep, ln)
+				continue
 			}
+			dropped++
 		}
-	}
-	return os.WriteFile(p.khPath, []byte(strings.Join(keep, "\n")+"\n"), 0o600)
+		if dropped == 0 {
+			return data, nil
+		}
+		return []byte(strings.Join(keep, "\n") + "\n"), nil
+	})
+	return err
 }
 
 // dial abre (o reabre) la conexión a un host respetando el backoff.
