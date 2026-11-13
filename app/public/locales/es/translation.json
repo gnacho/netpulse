@@ -3134,6 +3134,12 @@
     "betaTitle": "Vista previa: queda mucho trabajo por hacer",
     "betaText": "Esta vista está en desarrollo activo y todavía no es fiable al 100%. No la utilices todavía en producción; esperamos tus comentarios.",
     "disabledTitle": "La vista de rack está desactivada",
-    "disabledText": "Es una vista opcional. Actívala en Ajustes → Servicios → Vista de rack."
+    "disabledText": "Es una vista opcional. Actívala en Ajustes → Servicios → Vista de rack.",
+    "staleTitle": "{{count}} puertos que el dispositivo ya no informa",
+    "staleHint": "El frontal pinta solo las bocas que ve el sondeo. Perfil guardado: {{units}}.",
+    "staleCabled": "{{count}} de ellos aún tienen un cable: quita el cable para poder limpiarlos.",
+    "staleClean": "Limpiar puertos",
+    "staleCleaned": "{{count}} puertos obsoletos quitados del perfil",
+    "staleNothing": "No hay puertos que se puedan limpiar"
   }
 }

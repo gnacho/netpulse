@@ -3134,6 +3134,12 @@
     "betaTitle": "Preview: much work remains",
     "betaText": "This view is under active development and not fully reliable yet. Do not use it in production; feedback is welcome.",
     "disabledTitle": "The rack view is disabled",
-    "disabledText": "It is an optional view. Enable it in Settings → Services → Rack view."
+    "disabledText": "It is an optional view. Enable it in Settings → Services → Rack view.",
+    "staleTitle": "{{count}} ports the device no longer reports",
+    "staleHint": "The faceplate shows only the ports the poller sees. Stored profile: {{units}}.",
+    "staleCabled": "{{count}} of them still have a cable: remove the cable first.",
+    "staleClean": "Clean up ports",
+    "staleCleaned": "{{count}} stale ports removed from the profile",
+    "staleNothing": "No ports can be cleaned up"
   }
 }
