@@ -8,7 +8,7 @@ import type { PeerType, WGPeer } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { StatusPill } from '@/components/StatusPill'
 import { Switch } from '@/components/ui/switch'
-import { WG_TOTALS_30D, wgPeerExtras } from '@/components/routers/routerExtras'
+import { wgPeerExtras } from '@/components/routers/routerExtras'
 import { cn } from '@/lib/utils'
 
 const PEER_ICONS: Record<PeerType, LucideIcon> = {
@@ -240,10 +240,13 @@ export function WireGuardPanel() {
           </div>
         </div>
         <div className="rounded-xl bg-elevated/60 px-3.5 py-3">
-          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{t('routerDetail.wireguard.transfer30d')}</div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-text-muted">{t('routerDetail.wireguard.transfer')}</div>
           <div className="mt-1 font-mono text-mono-sm font-semibold text-text-primary">
-            ↓ {WG_TOTALS_30D.rx} ↑ {WG_TOTALS_30D.tx}
+            ↓ {wireguard.transfer?.rx ?? '—'} ↑ {wireguard.transfer?.tx ?? '—'}
           </div>
+          {/* #2017: es acumulado desde que el túnel arrancó, no una ventana de
+              30 días. Se dice para que el número no se lea como un periodo. */}
+          <div className="mt-0.5 text-[10px] text-text-muted">{t('routerDetail.wireguard.transferHint')}</div>
         </div>
       </div>
 

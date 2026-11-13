@@ -215,6 +215,13 @@ export interface WireGuardStats {
   subnet: string
   status: 'active' | 'inactive'
   peers: WGPeer[]
+  /**
+   * #2017: suma de los contadores de los peers del túnel, formateada por el
+   * servidor. Es acumulada desde que el túnel arrancó: WireGuard no expone
+   * ventanas y sus contadores de interfaz no se mueven. Ausente si no hay
+   * peers sondeados.
+   */
+  transfer?: { rx: string; tx: string }
 }
 
 export type DeviceType =

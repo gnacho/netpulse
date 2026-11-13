@@ -44,7 +44,6 @@ type Demo struct {
 	adguardSeries []AdGuardHour
 	wanLatency    *WANLatency
 	wgPeerExtras  map[string]wgPeerExtra
-	wgTotals30d   *WGTotals
 }
 
 // NewDemo crea el adapter demo con una copia fresca del dataset canónico.
@@ -75,7 +74,6 @@ func NewDemo(engine ...*alerts.Engine) *Demo {
 			Stats:   canonWANLatencyStats(),
 		},
 		wgPeerExtras: canonWGPeerExtras(),
-		wgTotals30d:  canonWGTotals30d(),
 	}
 	for _, p := range wg.Peers {
 		d.wgBytes[p.ID] = &wgByteCounter{rx: parseBytes(p.Rx), tx: parseBytes(p.Tx), active: p.Active}
@@ -236,10 +234,22 @@ func (d *Demo) buildOverview() *Overview {
 func (d *Demo) wireguardSnapshot() WireGuardStats {
 	peers := make([]WGPeer, len(d.wireguard.Peers))
 	copy(peers, d.wireguard.Peers)
-	return WireGuardStats{
+	// #2017: el total del túnel se deriva de los peers (mismo criterio que el
+	// live), así la tarjeta no puede enseñar un número que no cuadre con la
+	// lista que tiene debajo.
+	var sumRx, sumTx float64
+	for _, p := range peers {
+		sumRx += parseBytes(p.Rx)
+		sumTx += parseBytes(p.Tx)
+	}
+	out := WireGuardStats{
 		Interface: d.wireguard.Interface, Subnet: d.wireguard.Subnet,
 		Status: d.wireguard.Status, Peers: peers,
 	}
+	if len(peers) > 0 {
+		out.Transfer = &WGTransfer{Rx: fmtBytes(sumRx), Tx: fmtBytes(sumTx)}
+	}
+	return out
 }
 
 func (d *Demo) routersCopy() []Router {
@@ -334,7 +344,6 @@ func (d *Demo) GetRouterDetail(_ context.Context, id string) (*RouterDetail, err
 		detail.AdguardSeries24h = d.adguardSeries
 		detail.WANLatency = d.wanLatency
 		detail.WGPeerExtras = d.wgPeerExtras
-		detail.WGTotals30d = d.wgTotals30d
 	}
 	return detail, nil
 }
