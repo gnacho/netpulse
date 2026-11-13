@@ -126,16 +126,26 @@ export function fmtUptime(uptime: string): string {
 }
 
 const LEASE_RE = /^renueva en\s+(\d+)\s*h(?:\s*(\d+)\s*min)?$/
+// #1818: concesiones de más de un día ("renueva en 1d 4h 30min").
+const LEASE_DAYS_RE = /^renueva en\s+(\d+)d(?:\s+(\d+)h)?(?:\s+(\d+)min)?$/
 
 /** Concesión DHCP canónica: "renueva en 7 h 48 min" / "IP fija (reserva)" */
 export function dhcpLease(s: string): string {
   const t = s.trim()
   if (t === 'IP fija (reserva)') return i18n.t('common.staticLease')
+  // #1818: un lease caducado es un hecho, no un texto en inglés incrustado.
+  if (t === 'Expirado') return i18n.t('common.leaseExpired')
   const m = LEASE_RE.exec(t)
-  if (!m) return s
-  const h = Number(m[1])
-  if (!m[2]) return i18n.t('common.leaseRenewsH', { h })
-  return i18n.t('common.leaseRenews', { h, min: Number(m[2]) })
+  if (m) {
+    const h = Number(m[1])
+    if (!m[2]) return i18n.t('common.leaseRenewsH', { h })
+    return i18n.t('common.leaseRenews', { h, min: Number(m[2]) })
+  }
+  const md = LEASE_DAYS_RE.exec(t)
+  if (md) {
+    return i18n.t('common.leaseRenewsDays', { d: Number(md[1]), h: Number(md[2] ?? 0), min: Number(md[3] ?? 0) })
+  }
+  return s
 }
 
 const HEALTH_KEYS: Record<string, string> = {
