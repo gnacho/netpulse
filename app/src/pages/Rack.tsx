@@ -20,7 +20,7 @@ import {
   BackgroundVariant,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { Cable, Cctv, Link2, Monitor, Network, Pencil, Plus, Router as RouterIcon, Save, Server, Trash2, TriangleAlert } from 'lucide-react'
+import { Cable, Cctv, Link2, Monitor, Network, Pencil, Plus, RefreshCw, Router as RouterIcon, Save, Server, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -35,6 +35,7 @@ import { COL_PX, U_PX, mountRelPos, rackHeightPx, rackWidthPx, relPosToCell } fr
 import type { CableVisibility, GhostState } from '@/components/rack/types'
 import { findSlot, type Footprint } from '@/lib/rackGeometry'
 import { FACEPLATES, getFaceplate, layoutPhysicalPorts, seedPorts, suggestFaceplate, type RackPortKind } from '@/lib/rackFaceplates'
+import { computeStalePorts } from '@/lib/rackStale'
 import * as api from '@/lib/rackApi'
 import type { CableDTO, MountDTO, ProfileDTO, RackDTO } from '@/lib/rackApi'
 import type { Router } from '@/data/types'
@@ -77,6 +78,12 @@ function RackCanvas() {
     [np.routers],
   )
   const [portLabels, setPortLabels] = useState<Map<string, Record<string, string>>>(new Map())
+  // #2010: bocas que el sondeo ve HOY como físicas, por MAC. Los perfiles
+  // sembrados antes de 2.51.0 guardaron también LAG, VLAN y virtuales y
+  // ninguna ruta los reconciliaba, así que el frontal y el panel de puertos
+  // del detalle no coincidían nunca. Con esto el frontal pinta lo vivo y la
+  // limpieza de lo guardado es explícita.
+  const [livePhysicalPorts, setLivePhysicalPorts] = useState<Map<string, string[]>>(new Map())
   const services = useServicesVisibility()[0]
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
@@ -93,21 +100,29 @@ function RackCanvas() {
     let cancelled = false
     void (async () => {
       for (const mac of labelMacs) {
-        if (portLabels.has(mac)) continue
+        if (portLabels.has(mac) && livePhysicalPorts.has(mac)) continue
         const rid = routerIdByMac.get(mac)
         if (!rid) continue
         try {
           const res = await fetch(`/api/routers/${encodeURIComponent(rid)}`)
           if (!res.ok) continue
           const detail = await res.json()
-          const eth: { id?: string; iface?: string; name?: string; label?: string }[] = detail?.extras?.ethPorts ?? []
+          const eth: { id?: string; iface?: string; name?: string; label?: string; family?: string }[] = detail?.extras?.ethPorts ?? []
           const map: Record<string, string> = {}
+          // #2010: mismo filtro que el sembrado (mountRouter): familia vacía
+          // y nada de wlan. Solo se apunta si el sondeo devolvió algo, para
+          // no dar por obsoleto un perfil cuando la unidad está caída.
+          const live: string[] = []
           for (const p of eth) {
             const id = p.id || p.iface || p.name || ''
             const label = p.label || p.iface || ''
             if (id && label) map[id] = label
+            if (id && !p.family && !id.startsWith('wlan')) live.push(id)
           }
-          if (!cancelled) setPortLabels((prev) => new Map(prev).set(mac, map))
+          if (!cancelled) {
+            setPortLabels((prev) => new Map(prev).set(mac, map))
+            if (live.length > 0) setLivePhysicalPorts((prev) => new Map(prev).set(mac, live))
+          }
         } catch {
           // Sin detalle: el tooltip cae al id, como antes.
         }
@@ -116,7 +131,7 @@ function RackCanvas() {
     return () => {
       cancelled = true
     }
-  }, [labelMacs, routerIdByMac, portLabels])
+  }, [labelMacs, routerIdByMac, portLabels, livePhysicalPorts])
   const [loaded, setLoaded] = useState(false)
   const [activeRackId, setActiveRackId] = useState<string | null>(null)
   const [patchMode, setPatchMode] = useState(false)
@@ -355,10 +370,20 @@ function RackCanvas() {
       if (m.device_mac) {
         const declared = working.profiles.get(m.device_mac)?.ports
         if (declared && declared.length > 0) {
+          const zone = plate.portZone ?? { xStart: 0.24, xEnd: 0.94 }
+          // #2010: si el sondeo ya dice qué bocas son físicas, el frontal pinta
+          // solo esas. Lo guardado sigue intacto hasta que el usuario limpie
+          // (banner de puertos obsoletos), así que esto es solo presentación.
+          const live = livePhysicalPorts.get(m.device_mac.toLowerCase())
+          const liveSet = live && live.length > 0 ? new Set(live) : null
+          const kept = liveSet ? declared.filter((p) => liveSet.has(p.id)) : declared
+          if (liveSet && kept.length !== declared.length) {
+            if (kept.length === 0) return seedPorts(plate)
+            return layoutPhysicalPorts(kept.map((p) => ({ id: p.id, kind: p.kind as RackPortKind })), zone)
+          }
           // Sanado de layouts legacy: si las bocas declaradas invaden la
           // zona de la etiqueta de su plantilla, se re-disponen con la zona
           // correcta (p. ej. perfiles creados antes de la zona por plantilla).
-          const zone = plate.portZone ?? { xStart: 0.24, xEnd: 0.94 }
           const minX = Math.min(...declared.map((p) => p.x))
           if (minX < zone.xStart - 0.02) {
             return layoutPhysicalPorts(
@@ -372,7 +397,7 @@ function RackCanvas() {
       }
       return seedPorts(plate)
     },
-    [working.profiles, plateFor],
+    [working.profiles, plateFor, livePhysicalPorts],
   )
 
 
@@ -409,6 +434,64 @@ function RackCanvas() {
       ),
     [working.cables, deletedCables],
   )
+
+  // #2010: puertos guardados en el perfil que el dispositivo ya no informa
+  // como físicos. Se calcula con el sondeo (una consulta por MAC montada, la
+  // misma del tooltip) y solo cuando ese sondeo dio bocas: una unidad caída o
+  // un perfil sin detalle no marcan nada.
+  const stalePorts = useMemo(
+    () =>
+      computeStalePorts(
+        working.mounts,
+        working.profiles,
+        livePhysicalPorts,
+        (mountId, portId) => cablesOnPort(mountId, portId).length > 0,
+      ),
+    [working.mounts, working.profiles, livePhysicalPorts, cablesOnPort],
+  )
+
+  const staleTotal = stalePorts.reduce((n, s) => n + s.ids.length, 0)
+  const staleRemovable = stalePorts.reduce((n, s) => n + (s.ids.length - s.cabled.length), 0)
+  const staleCabled = stalePorts.reduce((n, s) => n + s.cabled.length, 0)
+  const staleUnits = stalePorts
+    .map((s) => `${routerNameByMac.get(s.mac) ?? s.mac} (${s.ids.length})`)
+    .join(', ')
+
+  // Limpieza explícita: quita del perfil las bocas que ya no existen, dejando
+  // intactas las que tienen cable y los kinds/etiquetas de las que sobreviven.
+  const [cleaningStale, setCleaningStale] = useState(false)
+  const cleanStalePorts = useCallback(async () => {
+    const targets = stalePorts
+      .map((s) => ({ mac: s.mac, drop: s.ids.filter((id) => !s.cabled.includes(id)) }))
+      .filter((s) => s.drop.length > 0)
+    if (targets.length === 0) {
+      toast.error(t('rack.staleNothing'))
+      return
+    }
+    setCleaningStale(true)
+    let removed = 0
+    try {
+      for (const target of targets) {
+        const prof = working.profiles.get(target.mac)
+        if (!prof) continue
+        const drop = new Set(target.drop)
+        await api.upsertProfile(target.mac, {
+          faceplate_id: prof.faceplate_id,
+          u_height: prof.u_height,
+          col_span: prof.col_span,
+          color: prof.color,
+          ports: prof.ports.filter((p) => !drop.has(p.id)),
+        })
+        removed += target.drop.length
+      }
+      toast.success(t('rack.staleCleaned', { count: removed }))
+      reload().catch((e) => toast.error(String(e)))
+    } catch (e) {
+      toast.error(String(e))
+    } finally {
+      setCleaningStale(false)
+    }
+  }, [stalePorts, working.profiles, reload, t])
 
   // --- Nodos ---
   useEffect(() => {
@@ -1202,6 +1285,39 @@ function RackCanvas() {
           </button>
         </div>
       </div>
+
+      {/* #2010: perfiles sembrados antes de 2.51.0 conservan LAG/VLAN/CPU.
+          El frontal ya pinta solo lo vivo; esto ofrece limpiar lo guardado. */}
+      {stalePorts.length > 0 && (
+        <div
+          className="mt-3 flex flex-wrap items-start gap-3 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3"
+          role="note"
+          data-testid="rack-stale-ports"
+        >
+          <TriangleAlert size={16} className="mt-0.5 shrink-0 text-warn" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold text-text-primary">
+              {t('rack.staleTitle', { count: staleTotal })}
+            </p>
+            <p className="mt-0.5 text-[12px] leading-snug text-text-secondary">
+              {t('rack.staleHint', { units: staleUnits })}
+            </p>
+            {staleCabled > 0 && (
+              <p className="mt-1 text-[12px] leading-snug text-warn">
+                {t('rack.staleCabled', { count: staleCabled })}
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => void cleanStalePorts()}
+            disabled={!isAdmin || cleaningStale || staleRemovable === 0}
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-warn/40 bg-surface px-3 text-[12px] font-semibold text-warn transition-colors hover:bg-warn/10 disabled:opacity-40"
+          >
+            <RefreshCw size={14} /> {t('rack.staleClean')}
+          </button>
+        </div>
+      )}
 
       <div ref={canvasWrapRef} className="mt-3 flex gap-3" style={{ height: canvasH }}>
         {/* Picker (izquierda, arrastrable al canvas) */}
