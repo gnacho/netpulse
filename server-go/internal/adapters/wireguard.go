@@ -399,6 +399,7 @@ func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map
 	descs := map[string]string{}
 	idx := 1
 	ok := 0
+	var sumRx, sumTx int64
 	for _, ifc := range ifaces {
 		out, err := pool.Run(host, wgStatsCommand(ifc), 0)
 		if err != nil {
@@ -423,12 +424,21 @@ func GetWireGuardStats(pool sshRunner, host, iface, subnet string, peerNames map
 		}
 		for _, p := range ParseWGDump(dump) {
 			stats.Peers = append(stats.Peers, buildWGPeer(p, peerNames, descs, nowSec, idx, urgent))
+			// #2017: el total del túnel es la suma de los contadores por peer
+			// (todas las interfaces), que es el único dato real que expone
+			// WireGuard. Los contadores de la interfaz en /proc/net/dev no se
+			// mueven con el tráfico, así que no sirven de fuente.
+			sumRx += p.RxBytes
+			sumTx += p.TxBytes
 			idx++
 		}
 	}
 	if ok == 0 {
 		// Ninguna interfaz respondió: túnel inactivo, sin error (#714).
 		stats.Status = "inactive"
+	}
+	if len(stats.Peers) > 0 {
+		stats.Transfer = &WGTransfer{Rx: fmtBytes(float64(sumRx)), Tx: fmtBytes(float64(sumTx))}
 	}
 	return stats, nil
 }

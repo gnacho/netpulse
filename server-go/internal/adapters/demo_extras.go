@@ -334,5 +334,3 @@ func canonWGPeerExtras() map[string]wgPeerExtra {
 		"casa-familia":     {Endpoint: "—", AllowedIPs: "10.0.0.6/32", LastIP: "95.60.x.x"},
 	}
 }
-
-func canonWGTotals30d() *WGTotals { return &WGTotals{Rx: "17,9 GB", Tx: "5,0 GB"} }

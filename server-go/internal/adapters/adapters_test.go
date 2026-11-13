@@ -138,8 +138,11 @@ func TestDemoDetallePatioYFlint(t *testing.T) {
 		t.Fatalf("backhaul flint2 debe ser null: %+v", fdet.Backhaul)
 	}
 	if fdet.Adguard == nil || fdet.Wireguard == nil || fdet.AdguardSeries24h == nil ||
-		fdet.WANLatency == nil || fdet.WGPeerExtras == nil || fdet.WGTotals30d == nil {
+		fdet.WANLatency == nil || fdet.WGPeerExtras == nil {
 		t.Fatal("flint2 sin secciones de gateway")
+	}
+	if fdet.Wireguard.Transfer == nil {
+		t.Fatal("flint2 sin transfer de WireGuard (#2017)")
 	}
 	if len(fdet.AdguardSeries24h) != 24 {
 		t.Fatalf("adguardSeries24h: %d", len(fdet.AdguardSeries24h))

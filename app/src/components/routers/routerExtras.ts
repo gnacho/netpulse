@@ -491,8 +491,6 @@ export const wgPeerExtras: Record<string, PeerExtra> = {
   'casa-familia': { endpoint: '—', allowedIps: '10.0.0.6/32', lastIp: '95.60.x.x' },
 }
 
-export const WG_TOTALS_30D = { rx: '17.9 GB', tx: '5.0 GB' } as const
-
 // ---------------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------------

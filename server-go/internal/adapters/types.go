@@ -144,6 +144,9 @@ type WireGuardStats struct {
 	Subnet    string   `json:"subnet"`
 	Status    string   `json:"status"` // "active"|"inactive"
 	Peers     []WGPeer `json:"peers"`
+	// Transfer (#2017): suma de los contadores de los peers del túnel.
+	// Ausente si no se sondeó ningún peer.
+	Transfer *WGTransfer `json:"transfer,omitempty"`
 }
 
 // Router es la tarjeta de router (demo canon + live buildRouter).
@@ -771,7 +774,6 @@ type RouterDetail struct {
 	AdguardSeries24h []AdGuardHour   `json:"adguardSeries24h,omitempty"`
 	WANLatency       *WANLatency     `json:"wanLatency,omitempty"`
 	WGPeerExtras     any             `json:"wgPeerExtras,omitempty"`
-	WGTotals30d      *WGTotals       `json:"wgTotals30d,omitempty"`
 }
 
 // AdGuardHour es un punto de la serie horaria AdGuard del detalle del gateway
@@ -795,8 +797,12 @@ type WANLatencyStats struct {
 	LossPct  float64 `json:"lossPct"`
 }
 
-// WGTotals {rx, tx} formateados ES.
-type WGTotals struct {
+// WGTransfer: total transferido por los peers del túnel, {rx, tx}
+// formateados ES. Es la suma de los contadores del `wg show dump`, es decir,
+// lo acumulado desde que el túnel (o cada peer) arrancó: WireGuard no guarda
+// ventanas y sus contadores de interfaz en /proc/net/dev no se mueven, así
+// que no hay forma honesta de recortarlo a 30 días (#2017).
+type WGTransfer struct {
 	Rx string `json:"rx"`
 	Tx string `json:"tx"`
 }
