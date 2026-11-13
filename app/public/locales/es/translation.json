@@ -404,7 +404,9 @@
     "never": "nunca",
     "notFound": "Página no encontrada",
     "tunnelIp": "IP túnel",
-    "roleExternal": "Externo"
+    "roleExternal": "Externo",
+    "leaseExpired": "Caducada",
+    "leaseRenewsDays": "renueva en {{d}}d {{h}}h {{min}}min"
   },
   "devices": {
     "badges": {
