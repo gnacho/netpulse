@@ -90,7 +90,17 @@ try {
     assert.equal(response.status(), 200)
     assert.equal(await page.locator('html').getAttribute('lang'), lang)
     assert.equal((await page.locator('h1').innerText()).trim(), h1)
-    assert.equal(await page.locator('#hardware tbody tr').count(), 6)
+    assert.equal(await page.locator('#hardware tbody tr').count(), 7)
+    assert.equal(
+      await page.locator('#hardware tbody th', { hasText: 'OPNsense' }).count(),
+      1,
+      `${lang}: the hardware table must list OPNsense`,
+    )
+    assert.equal(
+      await page.locator('#routers .card.feature h3', { hasText: 'OPNsense' }).count(),
+      1,
+      `${lang}: the external agents must include OPNsense`,
+    )
     await assertNoInlineScripts(page)
     assert.deepEqual(errors, [], `${lang}: browser errors`)
     await page.close()
