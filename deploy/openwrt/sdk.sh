@@ -59,6 +59,33 @@ download_verified_sdk() {
   printf '%s\n' "$work_dir/${name%.tar.zst}"
 }
 
+# ipk_data_tar <ipk>: writes the member data.tar.gz of an ipk to stdout.
+#
+# The ipk container is not always an `ar` archive (#2016): ipkg-build in the
+# 24.10 SDK packs debian-binary, data.tar.gz and control.tar.gz as a gzip tar
+# (members come as ./data.tar.gz), so `ar p` on it dies with "file format not
+# recognized" and the release job failed before uploading anything. Both shapes
+# are valid packages, so detect instead of assuming.
+ipk_data_tar() {
+  local ipk="$1" member listing
+  if ar t "$ipk" >/dev/null 2>&1; then
+    ar p "$ipk" data.tar.gz
+    return
+  fi
+  listing="$(tar -tzf "$ipk" 2>/dev/null)" || {
+    echo "ERROR: $ipk is neither an ar ipk nor a gzip tar one" >&2
+    return 1
+  }
+  for member in ./data.tar.gz data.tar.gz; do
+    if printf '%s\n' "$listing" | grep -qx -- "$member"; then
+      tar -xzOf "$ipk" "$member"
+      return
+    fi
+  done
+  echo "ERROR: no data.tar.gz inside $ipk" >&2
+  return 1
+}
+
 # verify_ipk_modes <ipk> <path>=<octal-mode>... checks that the packaged files
 # carry the expected permission bits inside data.tar.gz (#1701: ipkg-build
 # does not fix permissions, and a non-executable /etc/init.d script breaks
@@ -66,16 +93,24 @@ download_verified_sdk() {
 verify_ipk_modes() {
   local ipk="$1"
   shift
-  local spec path want got line
+  local spec path want got line data_file
   if [ ! -f "$ipk" ]; then
     echo "ERROR: verify_ipk_modes: ipk not found: $ipk" >&2
     exit 1
   fi
   echo "  Verifying packaged file modes in $(basename "$ipk")..."
+  # A temp file, not a variable: data.tar.gz is gzip and command substitution
+  # would drop its NUL bytes.
+  data_file="$(mktemp)"
+  if ! ipk_data_tar "$ipk" > "$data_file"; then
+    rm -f "$data_file"
+    echo "ERROR: verify_ipk_modes: could not read $ipk" >&2
+    exit 1
+  fi
   for spec in "$@"; do
     path="${spec%%=*}"
     want="${spec##*=}"
-    got="$(ar p "$ipk" data.tar.gz | tar -tvzf - 2>/dev/null \
+    got="$(tar -tvzf "$data_file" 2>/dev/null \
       | awk -v p="$path" '$NF ~ ("(^|/)" p "$") {print $1; exit}')"
     if [ -z "$got" ]; then
       echo "ERROR: $path not found inside the ipk" >&2
@@ -92,4 +127,5 @@ verify_ipk_modes() {
     fi
     echo "    $path: $got OK"
   done
+  rm -f "$data_file"
 }
