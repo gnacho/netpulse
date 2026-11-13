@@ -182,6 +182,10 @@ func (s *server) configBackupScheduleTickAt(now time.Time) {
 				continue
 			}
 			servedByAgent[slug] = true
+			// #2011: el backup del agente llega por HTTP unos segundos
+			// después y no sabe de dónde salió. Se anota aquí para que su
+			// línea del journal diga "scheduled" como la de la vía SSH.
+			s.markScheduledAgentBackup(slug, now)
 			sent++
 		}
 	}
@@ -199,6 +203,43 @@ func (s *server) configBackupScheduleTickAt(now time.Time) {
 		return
 	}
 	log.Printf("[netpulse] scheduled config backup: %d unit(s) backed up", sent)
+}
+
+// configBackupAgentWait: cuánto vale la marca de "backup programado pedido a
+// este agente" (#2011). El agente responde en segundos, pero una unidad lenta
+// puede tardar minutos en comprimir y subir. Pasada la ventana, una subida se
+// considera ad hoc: mejor eso que etiquetar de programada una copia manual
+// hecha media hora después.
+const configBackupAgentWait = 10 * time.Minute
+
+// markScheduledAgentBackup anota que el programador acaba de pedir a este
+// agente un backup, para que la subida se registre como programada (#2011).
+func (s *server) markScheduledAgentBackup(slug string, now time.Time) {
+	s.cfgBackupAgentMu.Lock()
+	defer s.cfgBackupAgentMu.Unlock()
+	if s.cfgBackupAgentPending == nil {
+		s.cfgBackupAgentPending = map[string]time.Time{}
+	}
+	for k, at := range s.cfgBackupAgentPending {
+		if now.Sub(at) > configBackupAgentWait {
+			delete(s.cfgBackupAgentPending, k)
+		}
+	}
+	s.cfgBackupAgentPending[slug] = now
+}
+
+// takeScheduledAgentBackup devuelve true si la subida de este slug responde a
+// un backup programado, y consume la marca (una subida, un log). Una marca
+// más vieja que la ventana se descarta.
+func (s *server) takeScheduledAgentBackup(slug string, now time.Time) bool {
+	s.cfgBackupAgentMu.Lock()
+	defer s.cfgBackupAgentMu.Unlock()
+	at, ok := s.cfgBackupAgentPending[slug]
+	if !ok {
+		return false
+	}
+	delete(s.cfgBackupAgentPending, slug)
+	return now.Sub(at) <= configBackupAgentWait
 }
 
 // configBackupSshRetry: una unidad sin agente solo se intenta por SSH cada

@@ -230,8 +230,13 @@ func (s *server) registerFirmwareBackupRoutes(mux *http.ServeMux) {
 		pruneFirmwareBackups(dir, slug)
 		// #1899: la vía SSH ya dejaba esta línea y la del agente no, así que
 		// un backup manual o programado de una unidad con agente no dejaba
-		// rastro en el journal.
-		log.Printf("[netpulse] config backup: %s: agent backup %s (%d bytes)", slug, name, n)
+		// rastro en el journal. #2011: el prefijo distingue el programado del
+		// ad hoc, como en la vía SSH.
+		if s.takeScheduledAgentBackup(slug, time.Now()) {
+			log.Printf("[netpulse] scheduled config backup: %s: agent backup %s (%d bytes)", slug, name, n)
+		} else {
+			log.Printf("[netpulse] config backup: %s: agent backup %s (%d bytes)", slug, name, n)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "name": name, "size": n})
 	})
 
