@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title data-i18n="integrationsPage.metaTitle">Routers y switches compatibles con NetPulse</title>
-  <meta name="description" content="Conecta OpenWrt, MikroTik, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
+  <meta name="description" content="Conecta OpenWrt, MikroTik, OPNsense, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
   <meta name="theme-color" content="#070B12" />
   <link rel="canonical" href="https://netpulse.cloudless.club/integrations" />
   <link rel="alternate" hreflang="es" href="https://netpulse.cloudless.club/integrations" />
@@ -21,7 +21,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="NetPulse" />
   <meta property="og:title" content="Routers y switches compatibles con NetPulse" data-i18n-attr="content" data-i18n="integrationsPage.metaTitle" />
-  <meta property="og:description" content="Conecta OpenWrt, MikroTik, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
+  <meta property="og:description" content="Conecta OpenWrt, MikroTik, OPNsense, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
   <meta property="og:url" content="https://netpulse.cloudless.club/integrations" />
   <meta property="og:image" content="https://netpulse.cloudless.club/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -30,7 +30,7 @@
   <meta property="og:locale:alternate" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Routers y switches compatibles con NetPulse" data-i18n-attr="content" data-i18n="integrationsPage.metaTitle" />
-  <meta name="twitter:description" content="Conecta OpenWrt, MikroTik, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
+  <meta name="twitter:description" content="Conecta OpenWrt, MikroTik, OPNsense, Asus, BBox, UniFi y switches SNMP o Realtek a NetPulse. Fuentes de datos, cobertura, requisitos y límites por plataforma." data-i18n-attr="content" data-i18n="integrationsPage.metaDescription" />
   <meta name="twitter:image" content="https://netpulse.cloudless.club/og.png" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' y1='78' x2='90' y2='20' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='73' cy='60' r='6' fill='url(%23g)'/%3E%3Cpath d='M62.4 49.4 A15 15 0 0 1 83.6 49.4' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M55.3 39.7 A25 25 0 0 1 90.7 39.7' stroke='url(%23g)' stroke-width='5' stroke-linecap='round' opacity='0.6'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="fonts/fonts.css" />
@@ -127,6 +127,12 @@
               <td data-i18n="integrationsPage.hwAsusLimits">Acceso SSH y espacio persistente en /jffs</td>
             </tr>
             <tr>
+              <th scope="row">OPNsense</th>
+              <td data-i18n="integrationsPage.hwOpsSource">Pusher Go externo contra la API</td>
+              <td data-i18n="integrationsPage.hwOpsData">Sistema, interfaces, ARP, tasas WAN, memoria y temperatura</td>
+              <td data-i18n="integrationsPage.hwOpsLimits">Clave de API de solo lectura con privilegios mínimos. Beta</td>
+            </tr>
+            <tr>
               <th scope="row" data-i18n="integrationsPage.hwOtherName">Otras integraciones</th>
               <td data-i18n="integrationsPage.hwOtherSource">Poller de la API de la BBox y beacon RTLPlayground</td>
               <td data-i18n="integrationsPage.hwOtherData">BBox: sistema, WAN, hosts y tasas de puertos. RTL: estado de puertos, tasas y FDB</td>
@@ -176,6 +182,15 @@
             <li data-i18n="integrationsPage.asusL1">Acceso SSH y espacio persistente en /jffs</li>
             <li data-i18n="integrationsPage.asusL2">Clientes, radios, canales y puertos Ethernet</li>
             <li data-i18n="integrationsPage.asusL3">La cobertura depende del firmware y de las herramientas instaladas</li>
+          </ul>
+        </div>
+        <div class="card feature reveal">
+          <h3>OPNsense</h3>
+          <p data-i18n="integrationsPage.opsP">Consulta un firewall OPNsense por su API y envía el sistema, los contadores de las interfaces, la tabla ARP y las tasas WAN.</p>
+          <ul class="feature-list">
+            <li data-i18n="integrationsPage.opsL1">Clave y secreto de solo lectura, limitados a los privilegios ARP, Netstat y Lobby</li>
+            <li data-i18n="integrationsPage.opsL2">Memoria y temperatura del dashboard cuando la clave lo permite, sin costar el resto de la recogida</li>
+            <li data-i18n="integrationsPage.opsL3">Sin tabla de MACs, sin NDP y sin autodetección de la interfaz WAN</li>
           </ul>
         </div>
         <div class="card feature reveal">
@@ -307,6 +322,7 @@ go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
           <li data-i18n="integrationsPage.lim3">El beacon no informa de CPU, RAM o temperatura, y no envía la tabla LLDP.</li>
           <li data-i18n="integrationsPage.lim4">Un switch alimentado por beacon no puede añadir SNMP como segunda fuente en NetPulse.</li>
           <li data-i18n="integrationsPage.lim5">El beacon del fork no forma parte de RTLPlayground upstream.</li>
+          <li data-i18n="integrationsPage.lim6">La integración de OPNsense está en beta: el alta desde la app desactiva la verificación del certificado y no configura la interfaz WAN, así que no produce tasas WAN.</li>
         </ul>
       </div>
     </div>
@@ -384,7 +400,7 @@ go build -o netpulse-integrations ./cmd/integrations-supervisor</code>
     </div>
   </div>
 
-  <script src="i18n.js?v=20261031a"></script>
+  <script src="i18n.js?v=20261113a"></script>
   <script src="app.js?v=20261019a"></script>
 <script defer src="https://stat.domatix.com/script.js" data-website-id="b9a57c48-cfbb-59fb-af00-e21b868371d9" integrity="sha384-FeSgFWhRpNmUWqmtRLZpDSRTuxgovbVqlyM0OaJpq2IanhF2u3xjYziXsyXR9Kg/" crossorigin="anonymous"></script>
 </body>
