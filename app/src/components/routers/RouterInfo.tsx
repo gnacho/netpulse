@@ -49,6 +49,10 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
   // acierta solo en los routers que usan el de por defecto, y en las placas
   // GL.iNet el 8080 es la web de fábrica, así que el panel vive en otro.
   const netgripAgent = useAgentFor(router.id)
+  // #2007: el mismo agente que decide el panel NetGrip sirve para enseñar su
+  // versión en la ficha: la fila de inventario dice "agent" sin decir qué
+  // agente, y el badge de flota solo la tiene en el tooltip.
+  const agent = netgripAgent
   const hasNetgrip = netgripAgent?.kind === 'netgrip'
   const netgripPort = netgripAgent?.panelPort || 8090
   const ex = extras ?? (isDemo ? getRouterExtras(router.id) : EMPTY_EXTRAS)
@@ -108,6 +112,24 @@ export function RouterInfo({ router, extras }: { router: Router; extras?: Router
           {inventorySourceLabel(router.inventorySource, t)}
           <span className="text-text-muted">·</span>
           <span className="text-text-muted">{fmtSeenAgo(router.inventoryAt)}</span>
+        </span>
+      ) : (
+        '—'
+      ),
+    },
+    {
+      // #2007: versión del agente instalado, si lo hay. Cierra "cómo se
+      // recoge esta unidad" junto a la fila de inventario.
+      label: t('routerDetail.info.agent'),
+      node: agent ? (
+        <span className="inline-flex flex-wrap items-center justify-end gap-1.5">
+          <span>{agent.version || '—'}</span>
+          {agent.kind && agent.kind !== 'native' && (
+            <span className="text-text-muted">
+              {agent.kind === 'netgrip' ? 'NetGrip' : t('routerDetail.info.agentExternal')}
+            </span>
+          )}
+          {!agent.fresh && <StatusPill tone="danger" label={t('routers.agent.stale')} />}
         </span>
       ) : (
         '—'

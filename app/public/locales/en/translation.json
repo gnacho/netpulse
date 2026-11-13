@@ -1023,7 +1023,9 @@
       "netgripTip": "The NetGrip panel runs on port 8080",
       "timezone": "Timezone",
       "title": "Information",
-      "updated": "Up to date"
+      "updated": "Up to date",
+      "agent": "Agent",
+      "agentExternal": "External"
     },
     "latency": {
       "24h": "Latency 24 h",
