@@ -112,6 +112,7 @@ the platform:
 | OpenWrt (incl. GL.iNet) | Native `netpulse-agent` package (`.ipk`/`.apk`) | procd, UCI config, `luci-app-netpulse`, in-app install and upgrade |
 | MikroTik (RouterOS) | External `routeros-pusher` in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/routeros) | Read-only over the binary API (REST fallback): system, ports, DHCP, ARP, FDB, temperature, firmware and WAN traffic. Deployed and managed from the Integrations section |
 | Asuswrt / Asuswrt-Merlin | External `asuswrt-pusher` in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/asuswrt) | Static binary under `/jffs/netpulse` (Merlin layout), using `/proc`, `iw` and `lldpd`. Deployed over SSH from the Integrations section, key or password sign-in |
+| OPNsense (firewall) | External `opnsense-pusher` in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/opnsense) | Read-only API key with minimum privileges: system, interface counters, IPv4 ARP, WAN rates with an explicitly selected interface, memory and temperature. Beta |
 | UniFi (self-hosted controller) | External `unifi-pusher` in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations/tree/main/unifi) | Read-only, one site: gateways, switches and APs with ports and uplinks, clients with band and signal, gateway uptime. Deployed from the Integrations section |
 | External router families | Separate Go pusher in [netpulse-integrations](https://github.com/gnacho/netpulse-integrations) | See the [external integrations guide](docs/external-integrations.md) |
 | Managed switches | SNMP | Port states, speeds and LLDP-MIB neighbours |
@@ -171,9 +172,10 @@ one by one, and everything above is clickable in the **[live demo](https://demo.
 ## Get started in about five minutes
 
 You need a Linux box with systemd (x86_64, arm64 or armv7; a small LXC or VM
-is plenty) and OpenWrt/GL.iNet routers on your LAN. MikroTik, Asuswrt/Merlin
-and UniFi controllers are supported through app-managed integrations, and
-anything with SSH or SNMP can be added by hand (see the folded section below).
+is plenty) and OpenWrt/GL.iNet routers on your LAN. MikroTik, Asuswrt/Merlin,
+OPNsense and UniFi controllers are supported through app-managed
+integrations, and anything with SSH or SNMP can be added by hand (see the
+folded section below).
 
 **1. Install the server** on the box:
 
@@ -206,8 +208,8 @@ agent, pushes the right binary for the router's architecture, writes the
 config and starts the service; it shows up as connected within seconds.
 Routers the server cannot SSH into use the pairing token instead
 (**Settings → Agent adoption**, see the folded section below). Asuswrt/Merlin,
-MikroTik and UniFi controllers use the vendor pushers from the Integrations
-section instead.
+MikroTik, OPNsense and UniFi controllers use the vendor pushers from the
+Integrations section instead.
 
 **5. Take it with you.** Install the PWA from your browser (Add to home
 screen / Install app) and enable Web Push in Settings: alerts reach your
