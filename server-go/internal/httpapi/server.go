@@ -205,6 +205,12 @@ type server struct {
 	cfgBackupSshMu   sync.Mutex
 	lastCfgBackupSsh time.Time
 
+	// #2011: unidades con un backup pedido por el programador y aún sin subir.
+	// Cuando llega la subida, esta marca decide si el journal la llama
+	// "scheduled config backup" o "config backup" (ad hoc).
+	cfgBackupAgentMu      sync.Mutex
+	cfgBackupAgentPending map[string]time.Time
+
 	// Rate limit por IP de POST /api/ingest/agent (30/min, SPEC-AGENTE §1).
 	ingestLimit *ipRateLimit
 
