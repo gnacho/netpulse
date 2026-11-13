@@ -303,6 +303,9 @@ const FAMILY_LABEL_KEY: Record<string, string> = {
   tunnel: 'routerDetail.ports.fam_tunnel',
   wifi: 'routerDetail.ports.fam_wifi',
   virtual: 'routerDetail.ports.fam_virtual',
+  // #2009: la interfaz de CPU de algunos switches (ifType other(1)) ya no
+  // cuenta como boca, pero sigue listada en el grupo virtual.
+  cpu: 'routerDetail.ports.fam_cpu',
 }
 
 export function PortPanel({ router, extras, className, snmpStats }: {

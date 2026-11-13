@@ -1107,7 +1107,8 @@
       "fam_bridge": "Bridge",
       "fam_tunnel": "Tunnel",
       "fam_virtual": "Virtual",
-      "fam_wifi": "WiFi"
+      "fam_wifi": "WiFi",
+      "fam_cpu": "CPU"
     },
     "radios": {
       "channel": "Channel",

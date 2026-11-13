@@ -100,7 +100,7 @@ func PollIfTable(s *gosnmp.GoSNMP) ([]PortStats, error) {
 	}
 	out := make([]PortStats, 0, len(byIdx))
 	for _, ps := range byIdx {
-		ps.Family = ifFamily(ps.Type)
+		ps.Family = ifFamilyFor(*ps)
 		out = append(out, *ps)
 	}
 	sortByIndex(out)
@@ -128,6 +128,49 @@ var nonPhysicalIfTypeFamilies = map[int]string{
 // en otro caso la familia del grupo virtual (#1125).
 func ifFamily(t int) string {
 	return nonPhysicalIfTypeFamilies[t]
+}
+
+// ifTypeOther: IANA other(1). No está en el mapa a propósito (la defensa por
+// exclusión de #1115 lo deja como físico), pero hay un caso en que no lo es.
+const ifTypeOther = 1
+
+// ifFamilyFor clasifica la interfaz con lo que el walk dio de ella: el ifType
+// manda, y para other(1) se mira el nombre (#2009).
+func ifFamilyFor(ps PortStats) string {
+	if fam := ifFamily(ps.Type); fam != "" {
+		return fam
+	}
+	// #2009: los Netgear FastPath exponen la interfaz de CPU como other(1) y
+	// con nombre inconfundible ("CPU Interface for Slot: 3 Port: 1" en
+	// ifDescr, "CPU Interface:  3/1" en ifName). Al no estar other(1) en el
+	// mapa pasaba el filtro de físico y sumaba un puerto fantasma al rack y
+	// al panel de puertos. Se reconoce SOLO other(1) con nombre de CPU:
+	// mapear other(1) en bloque rompería #1115, porque hay vendors con
+	// puertos reales en other.
+	if ps.Type == ifTypeOther && (looksLikeCPUInterface(ps.Name) || looksLikeCPUInterface(ps.Descr)) {
+		return "cpu"
+	}
+	return ""
+}
+
+// looksLikeCPUInterface reconoce el nombre de una interfaz de CPU/gestión
+// ("CPU Interface: 0/5/1", "cpu0", "cpu/0"). No se usa como filtro suelto:
+// solo descarta un puerto cuando además su ifType es other(1).
+func looksLikeCPUInterface(s string) bool {
+	s = strings.ToLower(strings.TrimSpace(s))
+	if !strings.HasPrefix(s, "cpu") {
+		return false
+	}
+	if len(s) == 3 {
+		return true
+	}
+	switch c := s[3]; {
+	case c == ' ' || c == '\t' || c == ':' || c == '/' || c == '-' || c == '_':
+		return true
+	case c >= '0' && c <= '9':
+		return true
+	}
+	return false
 }
 
 func applyPortField(ps *PortStats, oid string, pdu gosnmp.SnmpPDU) {
