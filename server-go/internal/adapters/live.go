@@ -1652,7 +1652,10 @@ func (p *routerPolled) inventorySource() string {
 // reclamar clientes con la FDB (#1417). Aqui solo se decide el texto:
 //   - clientes inalambricos y sin WAN -> AP (un AP puente no enruta).
 //   - managed-switch o SNMP -> Switch (un switch de flota se anuncia asi).
-//   - pusher agent-only con 4 o mas bocas y sin radios -> Switch (crs305).
+//   - pusher agent-only con 4 o mas bocas fisicas, sin radios y sin
+//     interfaces que solo expone un host (docker0, sit0, bridges, VLAN) ->
+//     Switch (crs305). Un NAS con Docker anuncia diez interfaces y no es un
+//     chasis: los puertos no fisicos lo delatan (#1892).
 //   - external sin nada de lo anterior -> External (un NAS no es un switch).
 //   - el resto -> AP, que es el papel de las unidades OpenWrt de la flota.
 //
@@ -1679,13 +1682,29 @@ func displayRole(p *routerPolled, cfg RouterConfig, isGw bool) (string, string) 
 	if cfg.Type == "managed-switch" || cfg.SnmpEnabled {
 		return "Switch", "SW"
 	}
-	if cfg.AgentOnly && !wireless && len(p.ports) >= 4 {
+	if cfg.AgentOnly && !wireless && len(p.ports) >= 4 && !hostLikePorts(p.ports) {
 		return "Switch", "SW"
 	}
 	if cfg.Type == "external" {
 		return "External", "EXT"
 	}
 	return "Punto de acceso", "AP"
+}
+
+// hostLikePorts dice si el payload anuncia interfaces que solo expone un host:
+// puentes de Docker, tuneles, VLAN, LAG o WiFi. Un chasis anuncia sus bocas
+// ethernet y nada mas, asi que ver una de estas significa que la unidad es una
+// maquina con varias NICs, no un switch (#1892). Familia vacia o "ethernet" es
+// boca fisica.
+func hostLikePorts(ports []EthPort) bool {
+	for _, port := range ports {
+		switch port.Family {
+		case "", "ethernet":
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
