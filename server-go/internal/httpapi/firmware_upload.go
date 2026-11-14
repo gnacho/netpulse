@@ -106,7 +106,7 @@ func (s *server) registerFirmwareUploadRoutes(mux *http.ServeMux) {
 		}
 		defer f.Close()
 
-		dir := filepath.Join(filepath.Dir(s.db.Path), "firmware-uploads")
+		dir := filepath.Join(s.cfg.DataDir, "firmware-uploads")
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			writeError(w, http.StatusInternalServerError, "firmware_error", err.Error())
 			return
@@ -168,9 +168,9 @@ func (s *server) registerFirmwareUploadRoutes(mux *http.ServeMux) {
 }
 
 // firmwareBackupDir resuelve el directorio de backups de config subidos por
-// los agentes (#1414), junto a la BD (misma política que los backups #741).
+// los agentes (#1414), en DATA_DIR (misma política que los backups #741).
 func (s *server) firmwareBackupDir() string {
-	return filepath.Join(filepath.Dir(s.db.Path), "backups", "firmware")
+	return filepath.Join(s.cfg.DataDir, "backups", "firmware")
 }
 
 // maxFirmwareBackupsPerRouter: retención de backups de config por unidad.
@@ -440,7 +440,7 @@ func (s *server) handleFirmwareImage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "no_db")
 		return
 	}
-	dir := filepath.Join(filepath.Dir(s.db.Path), "firmware-uploads")
+	dir := filepath.Join(s.cfg.DataDir, "firmware-uploads")
 	path, valid := firmwareUploadPath(dir, id)
 	if !valid {
 		writeError(w, http.StatusNotFound, "not_found")

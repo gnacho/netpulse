@@ -26,7 +26,7 @@ HEALTH_URL="http://127.0.0.1:${PORT}/api/health"
 cd "$REPO_ROOT"
 
 SSH_DIR="$DATA_DIR/.ssh"
-DB_FILE="$DATA_DIR/netpulse.db"
+DB_FILE="${DB_DIR:-$DATA_DIR}/netpulse.db"
 BACKUP_DIR="$DATA_DIR/.update-backup-$(date +%Y%m%d-%H%M%S)"
 PREV_BIN="$SERVER_BIN.prev"
 

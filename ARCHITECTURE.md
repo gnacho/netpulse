@@ -133,7 +133,7 @@ del Resumen, ≠ username; columna `users.display_name` migrada como
 - `.env` y `server-go/data/` están en `.gitignore`; CI corre gitleaks sobre todo
   el historial.
 
-## Tablas SQLite (`DATA_DIR/netpulse.db`, WAL + synchronous NORMAL)
+## Tablas SQLite (`DB_DIR/netpulse.db`, por defecto en `DATA_DIR`; WAL + synchronous NORMAL)
 
 | Tabla | Contenido |
 |---|---|
@@ -201,6 +201,7 @@ El `dist` embebido NO se commitea (gitignored): un checkout fresco necesita
 ## Variables de entorno
 
 Ver `server-go/.env.example`. Resumen: `PORT`, `STATIC_DIR`, `DATA_DIR`,
+`DB_DIR` (opcional: directorio de la BD, por defecto `DATA_DIR`),
 `SESSION_SECRET` (opcional), `AUTH_USER`, `AUTH_PASS`, `DEMO_MODE`,
 `MAX_SSE_CLIENTS`, `SSH_KEY_PATH`, `ADGUARD_*`, `WG_INTERFACE`,
 `COOKIE_SECURE`, `UPDATE_*`.

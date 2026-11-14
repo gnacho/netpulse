@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
@@ -29,7 +30,8 @@ const backup2011Slug = "ap1"
 // del agente y el techo del stream.
 func newBackup2011Server(t *testing.T) (*server, string) {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	dataDir := filepath.Join(t.TempDir(), "test.db")
+	d, err := db.Open(dataDir)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
@@ -44,7 +46,7 @@ func newBackup2011Server(t *testing.T) (*server, string) {
 		return slug == backup2011Slug && tok == token
 	})
 	hub.SetAllowInsecureCommands(true)
-	s := &server{db: d, agentHub: hub, firmware: firmware.NewStore(d.DB)}
+	s := &server{cfg: &config.Config{DataDir: dataDir}, db: d, agentHub: hub, firmware: firmware.NewStore(d.DB)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	req := httptest.NewRequest(http.MethodGet, "/api/agents/"+backup2011Slug+"/stream", nil).WithContext(ctx)

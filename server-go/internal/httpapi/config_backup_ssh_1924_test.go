@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
+	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
 )
@@ -61,12 +62,13 @@ func TestConfigBackupSshTargets(t *testing.T) {
 
 func newSshScheduleServer(t *testing.T, pool SSHRunner) *server {
 	t.Helper()
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	dataDir := filepath.Join(t.TempDir(), "test.db")
+	d, err := db.Open(dataDir)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = d.Close() })
-	return &server{db: d, pool: pool}
+	return &server{cfg: &config.Config{DataDir: dataDir}, db: d, pool: pool}
 }
 
 func TestConfigBackupSshPassStoresArchive(t *testing.T) {

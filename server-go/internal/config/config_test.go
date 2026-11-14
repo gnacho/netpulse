@@ -495,3 +495,44 @@ func TestLoadBindAddrInvalido(t *testing.T) {
 		t.Fatalf("NETPULSE_BIND inválido debe fallar señalando la variable: %v", err)
 	}
 }
+
+// TestLoadDBDir: DB_DIR ubica la BD; sin él, DATA_DIR. Un valor
+// relativo se resuelve contra serverRoot como DATA_DIR.
+func TestLoadDBDir(t *testing.T) {
+	root := t.TempDir()
+	abs := filepath.Join(t.TempDir(), "db")
+	cases := []struct{ name, env, want string }{
+		{"sin definir", "", filepath.Join(root, "data")},
+		{"absoluta", abs, abs},
+		{"relativa", "var/db", filepath.Join(root, "var", "db")},
+	}
+	for _, c := range cases {
+		cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "DB_DIR": c.env}, root)
+		if err != nil {
+			t.Fatalf("%s: Load: %v", c.name, err)
+		}
+		if cfg.DBDir != c.want {
+			t.Errorf("%s: DBDir = %q, esperaba %q", c.name, cfg.DBDir, c.want)
+		}
+		if c.env == "" && cfg.DBDir != cfg.DataDir {
+			t.Errorf("sin definir: DBDir = %q != DataDir = %q", cfg.DBDir, cfg.DataDir)
+		}
+	}
+}
+
+// TestLoadBindAddrExistingDBOutsideDataDir: la BD fuera de DATA_DIR cuenta
+// como instalación existente (listener en todas las interfaces).
+func TestLoadBindAddrExistingDBOutsideDataDir(t *testing.T) {
+	root := t.TempDir()
+	dbDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dbDir, "netpulse.db"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(map[string]string{"AUTH_PASS": "segura-y-larga", "DB_DIR": dbDir}, root)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.BindAddr != "" {
+		t.Fatalf("BindAddr = %q, esperaba vacío cuando ya existe la base de datos", cfg.BindAddr)
+	}
+}

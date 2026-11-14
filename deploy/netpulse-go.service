@@ -36,7 +36,9 @@ RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-# La DB vive en DATA_DIR; el auto-actualizador escribe en todo /opt/netpulse
+# La DB vive en DATA_DIR; el auto-actualizador escribe en todo /opt/netpulse.
+# Si DB_DIR saca la BD fuera de /opt/netpulse, añádelo aquí: con
+# ProtectSystem=strict sería de solo lectura y la BD no abriría.
 ReadWritePaths=/opt/netpulse
 # NOTA modo live: ProtectHome=true impide leer claves SSH bajo /home o /root.
 # Coloca la clave de los routers en DATA_DIR/.ssh (o ajusta SSH_KEY_PATH +

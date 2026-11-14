@@ -75,6 +75,7 @@ type Config struct {
 	NodeEnv         string
 	StaticDir       string // resuelta (absoluta)
 	DataDir         string // resuelta (absoluta)
+	DBDir           string // DB_DIR resuelta (absoluta); def. DATA_DIR
 	SessionSecret   string // "" si falta (autogenerado en kv)
 	AuthUser        string
 	AuthPass        string
@@ -219,14 +220,19 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 	}
 
-	staticDir := "../app/dist"
-	if v, ok := env["STATIC_DIR"]; ok && v != "" {
-		staticDir = v
+	resolve := func(key, def string) string {
+		p := def
+		if v, ok := env[key]; ok && v != "" {
+			p = v
+		}
+		if filepath.IsAbs(p) {
+			return filepath.Clean(p)
+		}
+		return filepath.Join(serverRoot, p)
 	}
-	dataDir := "./data"
-	if v, ok := env["DATA_DIR"]; ok && v != "" {
-		dataDir = v
-	}
+	staticDir := resolve("STATIC_DIR", "../app/dist")
+	dataDir := resolve("DATA_DIR", "./data")
+	dbDir := resolve("DB_DIR", dataDir)
 
 	// SESSION_SECRET: min 32, opcional
 	sessionSecret := ""
@@ -635,14 +641,10 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	// decisión se guarda en data/.bind-mode: así un reinicio no vuelve a
 	// abrir una instalación nueva que ya creó la base de datos. Un valor
 	// explícito manda siempre.
-	dataPath := dataDir
-	if !filepath.IsAbs(dataPath) {
-		dataPath = filepath.Join(serverRoot, dataPath)
-	}
-	bindModePath := filepath.Join(dataPath, bindModeFile)
+	bindModePath := filepath.Join(dataDir, bindModeFile)
 	bindMode := readBindMode(bindModePath)
 	if bindMode == "" {
-		if _, err := os.Stat(filepath.Join(dataPath, "netpulse.db")); err == nil {
+		if _, err := os.Stat(filepath.Join(dbDir, "netpulse.db")); err == nil {
 			bindMode = bindModeLAN
 		} else {
 			bindMode = bindModeLoopback
@@ -730,13 +732,6 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		routers = raw
 	}
 
-	resolve := func(p string) string {
-		if filepath.IsAbs(p) {
-			return filepath.Clean(p)
-		}
-		return filepath.Join(serverRoot, p)
-	}
-
 	sshKeyPath := ""
 	if v, ok := env["SSH_KEY_PATH"]; ok && v != "" {
 		home, _ := os.UserHomeDir()
@@ -745,15 +740,16 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 		}
 		sshKeyPath = v
 	} else {
-		sshKeyPath = filepath.Join(resolve(dataDir), ".ssh", "id_ed25519")
+		sshKeyPath = filepath.Join(dataDir, ".ssh", "id_ed25519")
 	}
 
 	return &Config{
 		Port:                       port,
 		BindAddr:                   bindAddr,
 		NodeEnv:                    nodeEnv,
-		StaticDir:                  resolve(staticDir),
-		DataDir:                    resolve(dataDir),
+		StaticDir:                  staticDir,
+		DataDir:                    dataDir,
+		DBDir:                      dbDir,
 		SessionSecret:              sessionSecret,
 		AuthUser:                   authUser,
 		AuthPass:                   authPass,
