@@ -21,6 +21,17 @@ func portsOf(n int) []EthPort {
 	return out
 }
 
+// portsOfFamilies arma puertos con la familia que el agente les asigna. Vacio
+// es boca fisica, el resto (virtual, tunnel, bridge, vlan) solo lo expone un
+// host.
+func portsOfFamilies(families ...string) []EthPort {
+	out := make([]EthPort, 0, len(families))
+	for i, f := range families {
+		out = append(out, EthPort{ID: string(rune('a' + i)), Up: true, Family: f})
+	}
+	return out
+}
+
 func TestDisplayRoleReporterFleet(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -52,9 +63,25 @@ func TestDisplayRoleReporterFleet(t *testing.T) {
 			wantRole: "Punto de acceso", wantBadge: "AP",
 		},
 		{
-			name:     "NAS with one wired client is not a switch",
-			cfg:      RouterConfig{ID: "ds1821plus", Type: "external", AgentOnly: true},
-			p:        &routerPolled{ports: portsOf(1)},
+			name: "NAS with one wired client is not a switch",
+			cfg:  RouterConfig{ID: "ds1821plus", Type: "external", AgentOnly: true},
+			p:    &routerPolled{ports: portsOf(1)},
+			// El fixture original contaba un puerto; el agente real anuncia
+			// diez y el badge salia SW (#1892, comentario del reportero).
+			wantRole: "External", wantBadge: "EXT",
+		},
+		{
+			name: "NAS with Docker: ten interfaces, four of them not physical",
+			cfg:  RouterConfig{ID: "ds1821plus", Type: "external", AgentOnly: true},
+			// wan, eth0, eth1, eth2, eth3 y eth5 fisicas; los puentes de
+			// Docker y el tunel sit son de host.
+			p:        &routerPolled{ports: portsOfFamilies("", "", "", "", "", "", "virtual", "virtual", "virtual", "tunnel")},
+			wantRole: "External", wantBadge: "EXT",
+		},
+		{
+			name:     "host with four NICs and one docker bridge is not a switch",
+			cfg:      RouterConfig{ID: "media-box", Type: "external", AgentOnly: true},
+			p:        &routerPolled{ports: portsOfFamilies("", "", "", "", "bridge")},
 			wantRole: "External", wantBadge: "EXT",
 		},
 		{
