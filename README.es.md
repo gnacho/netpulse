@@ -310,6 +310,7 @@ que viene, en [docs/ROADMAP.md](docs/ROADMAP.md).
 - **[Web del proyecto](https://netpulse.cloudless.club)**: el proyecto en
   cinco minutos, con [tour de funciones](https://netpulse.cloudless.club/features),
   FAQ y capturas.
+- **[Traducciones](docs/translations.md)**: cómo añadir un idioma a la web o al panel, y qué revisamos antes de mergearlo.
 - **[Hoja de ruta](docs/ROADMAP.md)**: qué está hecho y qué viene.
 - **[Discusiones](https://github.com/gnacho/netpulse/discussions)**:
   preguntas, ideas y hablar del futuro.

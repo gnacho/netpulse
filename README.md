@@ -300,6 +300,7 @@ is in [docs/ROADMAP.md](docs/ROADMAP.md).
 - **[Website](https://netpulse.cloudless.club)**: the project in five
   minutes, with a [feature tour](https://netpulse.cloudless.club/features),
   FAQ and screenshots.
+- **[Translations](docs/translations.md)**: how to add a language to the landing or to the panel, and what we check before merging it.
 - **[Roadmap](docs/ROADMAP.md)**: what's done, what's next.
 - **[Discussions](https://github.com/gnacho/netpulse/discussions)**: questions,
   ideas and shape-the-future talk.
