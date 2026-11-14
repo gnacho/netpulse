@@ -246,6 +246,14 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	url := opts.Server + "/api/agents/" + opts.Slug + "/binary?arch=" + arch
 	hc := &http.Client{Transport: transport, Timeout: 2 * time.Minute}
 
+	// #2037: el binario descargado vive en /tmp, que en un router es tmpfs
+	// (RAM). Cualquier salida entre la descarga y el swap (digest ausente,
+	// sha256 distinto, swap fallido, descarga a medias) dejaba el fichero
+	// ocupando memoria hasta el reinicio. Tras un swap correcto la ruta ya no
+	// existe y este Remove no hace nada.
+	temporal := tmpBinPath
+	defer func() { _ = os.Remove(temporal) }()
+
 	reportUpgradeProgress(opts, transport, "downloading", 0)
 	digest, err := downloadBinary(context.Background(), hc, url, opts.Token, tmpBinPath, func(pct int) {
 		reportUpgradeProgress(opts, transport, "downloading", pct)
