@@ -278,6 +278,8 @@ generic SSH failure.
 curl -fsSL --retry 3 -o /tmp/netpulse-install-collector.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh && sh /tmp/netpulse-install-collector.sh
 ```
 
+Each probe is a TCP connection to the router that is closed without authenticating, so a router with dropbear logs it as `Child connection` followed by `Exit before auth: Exited normally`. That is the probe, not a failed login. `PROBE_PORT` (default `22`) points it at a listener that does not log every connection, for example the router's web UI on `80`, and `PROBE_INTERVAL` (default `5s`) sets how often it runs.
+
 **On-box mode.** No spare box? The server itself runs on an OpenWrt router,
 with UCI config and self-signed TLS with SPKI pinning.
 

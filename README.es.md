@@ -288,6 +288,13 @@ opcionales:
 curl -fsSL --retry 3 -o /tmp/netpulse-install-collector.sh https://raw.githubusercontent.com/gnacho/netpulse/main/install-collector.sh && sh /tmp/netpulse-install-collector.sh
 ```
 
+Cada sonda es una conexión TCP al router que se cierra sin autenticar, así que
+un router con dropbear la registra como `Child connection` seguida de
+`Exit before auth: Exited normally`. Eso es la sonda, no un intento de login.
+`PROBE_PORT` (por defecto `22`) la apunta a un listener que no escriba una
+línea por conexión, por ejemplo la web del router en `80`, y `PROBE_INTERVAL`
+(por defecto `5s`) fija cada cuánto se ejecuta.
+
 **Modo on-box.** ¿Sin caja aparte? El servidor corre en el propio router
 OpenWrt, con config UCI y TLS autofirmado con pinning SPKI.
 
