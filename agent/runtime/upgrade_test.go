@@ -424,3 +424,39 @@ func TestUpgradeReportsRestartFailure(t *testing.T) {
 		t.Fatalf("error reportado = %q", msg)
 	}
 }
+
+// #2037: un upgrade fallido no puede dejar el binario descargado en /tmp, que
+// en un router es tmpfs (RAM). El temporal se borra en todas las salidas.
+func TestFailedUpgradeLeavesNoTemporaryBinary(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/agents/patio/binary":
+			// Digest que no casa con el cuerpo: el upgrade muere tras descargar.
+			w.Header().Set("X-Checksum-Sha256", strings.Repeat("0", 64))
+			_, _ = w.Write([]byte("binario nuevo"))
+		case "/api/agents/patio/upgrade-result":
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	tmp := filepath.Join(dir, "netpulse-agent.new")
+	oldTmp := tmpBinPath
+	tmpBinPath = tmp
+	defer func() { tmpBinPath = oldTmp }()
+	oldPath := currentBinPath
+	currentBinPath = func() string { return filepath.Join(dir, "netpulse-agent") }
+	defer func() { currentBinPath = oldPath }()
+
+	handleUpgrade(Options{Server: srv.URL, Slug: "patio", Token: "tok"}, nil, "")
+
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("el temporal sigue en disco tras un upgrade fallido: %v", err)
+	}
+	if left, _ := os.ReadDir(dir); len(left) != 0 {
+		t.Fatalf("el directorio debía quedar vacío, hay %d fichero(s)", len(left))
+	}
+}
