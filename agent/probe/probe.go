@@ -1224,6 +1224,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 	// "eth0.1").
 	netdev := map[string]string{}
 
+	wanDeclared := false
 	if len(layout) > 0 {
 		lanCount := 0
 		lanNames := map[string]bool{}
@@ -1231,6 +1232,9 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			if p.Role == "lan" {
 				lanCount++
 				lanNames[p.Name] = true
+			}
+			if p.Role == "wan" {
+				wanDeclared = true
 			}
 		}
 		for _, p := range layout {
@@ -1389,7 +1393,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		ports = append(ports, extras...)
 	}
 
-	return promoteUplink(ports, netdev, uplink)
+	return promoteUplink(ports, netdev, uplink, brMembers, wanDeclared)
 }
 
 // promoteUplink marca como WAN la boca por la que sale internet cuando
@@ -1411,7 +1415,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 // layout no tiene un netdev físico al que volver (no consta, o se llama
 // literalmente "wan"), no se toca nada: antes mantener la presentación del
 // layout que duplicar el id "wan".
-func promoteUplink(ports []EthPort, netdev map[string]string, uplink string) []EthPort {
+func promoteUplink(ports []EthPort, netdev map[string]string, uplink string, brMembers map[string]bool, wanDeclared bool) []EthPort {
 	if uplink == "" {
 		return ports
 	}
@@ -1419,6 +1423,16 @@ func promoteUplink(ports []EthPort, netdev map[string]string, uplink string) []E
 	base := uplink
 	if i := strings.LastIndexByte(base, '.'); i > 0 {
 		base = base[:i]
+	}
+	// #1976: si el layout ya declara una boca WAN y el uplink runtime cae en un
+	// miembro del bridge LAN, la unidad está haciendo de puente o de AP y el
+	// internet le llega por la LAN. Promover esa boca la pintaba como WAN con
+	// el tráfico de la LAN y devolvía la WAN del layout a "ETH n" (WNDR3700v2:
+	// la WAN declarada en eth1 se quedaba abajo como "ETH 1" y el puerto del
+	// switch eth0 aparecía como WAN y activo). Sin WAN declarada manda el
+	// uplink, que es lo que necesitan los AP sin layout (#1500).
+	if wanDeclared && brMembers[base] {
+		return ports
 	}
 	wanIdx, upIdx := -1, -1
 	for i := range ports {
