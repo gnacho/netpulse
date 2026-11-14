@@ -239,3 +239,47 @@ func TestReconcileStartsNew(t *testing.T) {
 		t.Errorf("started=%v children=%d, quiero 2 y 2", started, len(children))
 	}
 }
+
+// #1893: la cadencia y el puerto de la sonda son configurables, porque cada
+// sonda abre una conexión TCP que el router registra en su log.
+func TestApplyProbeEnv(t *testing.T) {
+	restore := func() {
+		probeInterval = 5 * time.Second
+		probePort = "22"
+	}
+	defer restore()
+
+	for _, tc := range []struct {
+		name     string
+		vars     map[string]string
+		interval time.Duration
+		port     string
+		wantErr  bool
+	}{
+		{name: "sin entorno mantiene los defaults", vars: map[string]string{}, interval: 5 * time.Second, port: "22"},
+		{name: "cadencia y puerto", vars: map[string]string{"PROBE_INTERVAL": "30s", "PROBE_PORT": "80"}, interval: 30 * time.Second, port: "80"},
+		{name: "cadencia con espacios", vars: map[string]string{"PROBE_INTERVAL": "  1m  "}, interval: time.Minute, port: "22"},
+		{name: "cadencia invalida", vars: map[string]string{"PROBE_INTERVAL": "pronto"}, wantErr: true},
+		{name: "cadencia demasiado corta", vars: map[string]string{"PROBE_INTERVAL": "100ms"}, wantErr: true},
+		{name: "cadencia demasiado larga", vars: map[string]string{"PROBE_INTERVAL": "2h"}, wantErr: true},
+		{name: "puerto no numerico", vars: map[string]string{"PROBE_PORT": "ssh"}, wantErr: true},
+		{name: "puerto fuera de rango", vars: map[string]string{"PROBE_PORT": "70000"}, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			restore()
+			err := applyProbeEnv(func(k string) string { return tc.vars[k] })
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("applyProbeEnv(%v) sin error", tc.vars)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("applyProbeEnv(%v): %v", tc.vars, err)
+			}
+			if probeInterval != tc.interval || probePort != tc.port {
+				t.Fatalf("intervalo/puerto = %s/%s, quiero %s/%s", probeInterval, probePort, tc.interval, tc.port)
+			}
+		})
+	}
+}

@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -33,9 +34,17 @@ import (
 )
 
 const (
+	probeTimeout = 2 * time.Second
+	reloadEvery  = 5 * time.Minute
+)
+
+// Defaults de la sonda. Los dos se pueden cambiar por entorno al arrancar
+// (PROBE_INTERVAL y PROBE_PORT): cada sonda abre una conexión TCP contra el
+// router, así que cadencia y puerto deciden cuánto ruido deja en el log del
+// propio router (#1893).
+var (
 	probeInterval = 5 * time.Second
-	probeTimeout  = 2 * time.Second
-	reloadEvery   = 5 * time.Minute
+	probePort     = "22"
 )
 
 // Version del collector (la reporta /healthz y state.json; se fija con
@@ -55,6 +64,16 @@ type probeResult struct {
 
 func main() {
 	slog.Info("netpulse-collector arrancando", "version", Version)
+	if err := applyProbeEnv(os.Getenv); err != nil {
+		slog.Error("config de sonda", "err", err)
+		os.Exit(1)
+	}
+	// La sonda es un dial TCP que se cierra sin autenticar: en un router con
+	// dropbear eso deja "Child connection" + "Exit before auth: Exited
+	// normally" en su log. Se dice al arrancar para que nadie lo confunda con
+	// un intento de login ni con un fallo de SSH (#1893).
+	slog.Info("sonda TCP configurada", "cada", probeInterval.String(), "puerto", probePort,
+		"nota", "cada sonda abre y cierra una conexión TCP sin autenticar; el router la registra como Exit before auth")
 
 	dataDir := envOr("DATA_DIR", "/opt/netpulse-collector/data")
 	// Ruta real donde install.sh del servidor deja netpulse.db
@@ -287,7 +306,7 @@ func loadTargets(netpulseDB string) ([]Target, error) {
 		if err := rows.Scan(&name, &host); err != nil {
 			return nil, err
 		}
-		targets = append(targets, Target{Name: slug(name), Addr: net.JoinHostPort(host, "22")})
+		targets = append(targets, Target{Name: slug(name), Addr: net.JoinHostPort(host, probePort)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -425,6 +444,29 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// applyProbeEnv ajusta cadencia y puerto de la sonda desde el entorno. Ambos
+// son opcionales: sin ellos se mantiene el comportamiento de siempre (puerto
+// 22 cada 5 s). El puerto existe para poder apuntar la sonda a una boca cuyo
+// listener no escriba una línea por conexión (p. ej. la web del router) y
+// dejar el log de dropbear limpio (#1893).
+func applyProbeEnv(getenv func(string) string) error {
+	if raw := strings.TrimSpace(getenv("PROBE_INTERVAL")); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil || d < time.Second || d > time.Hour {
+			return fmt.Errorf("PROBE_INTERVAL inválido: %q (1s..1h, p. ej. 30s)", raw)
+		}
+		probeInterval = d
+	}
+	if raw := strings.TrimSpace(getenv("PROBE_PORT")); raw != "" {
+		port, err := strconv.Atoi(raw)
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("PROBE_PORT inválido: %q (1..65535)", raw)
+		}
+		probePort = strconv.Itoa(port)
+	}
+	return nil
 }
 
 func ptr(f float64) *float64 { return &f }
