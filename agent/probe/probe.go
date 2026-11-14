@@ -1331,6 +1331,15 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 				wanName = "eth1"
 			}
 		}
+		// #1949: un AP con una sola boca fisica no tiene puerto WAN que
+		// ensenar. Su uplink es la propia LAN (eth0 dentro de br-lan), asi que
+		// etiquetarlo WAN lo pinta como enlace a internet y le cuelga los
+		// datos de la conexion (WAX220). Con dos o mas bocas el miembro del
+		// bridge que mira al core si distingue y se conserva (#1500: GT-BE98
+		// Pro, eth0 con vecino LLDP frente a eth1 y eth3).
+		if wanName != "" && brMembers[wanName] && physicalPortCount(states, conduits) < 2 {
+			wanName = ""
+		}
 		if wanName != "" {
 			st := byName[wanName]
 			ep := EthPort{ID: "wan", Label: "WAN", Up: st.Up}
@@ -1393,7 +1402,20 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 		ports = append(ports, extras...)
 	}
 
-	return promoteUplink(ports, netdev, uplink, brMembers, wanDeclared)
+	return promoteUplink(ports, netdev, uplink, brMembers, wanDeclared, physicalPortCount(states, conduits))
+}
+
+// physicalPortCount cuenta las bocas fisicas del payload: ni bridges, ni VLAN,
+// ni tuneles, ni el puerto de CPU de un switch DSA (#1949).
+func physicalPortCount(states []PortState, conduits map[string]bool) int {
+	n := 0
+	for _, st := range states {
+		if st.DSA || skipRe.MatchString(st.Name) || !phyRe.MatchString(st.Name) || conduits[st.Name] {
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 // promoteUplink marca como WAN la boca por la que sale internet cuando
@@ -1415,7 +1437,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 // layout no tiene un netdev físico al que volver (no consta, o se llama
 // literalmente "wan"), no se toca nada: antes mantener la presentación del
 // layout que duplicar el id "wan".
-func promoteUplink(ports []EthPort, netdev map[string]string, uplink string, brMembers map[string]bool, wanDeclared bool) []EthPort {
+func promoteUplink(ports []EthPort, netdev map[string]string, uplink string, brMembers map[string]bool, wanDeclared bool, physical int) []EthPort {
 	if uplink == "" {
 		return ports
 	}
@@ -1431,7 +1453,10 @@ func promoteUplink(ports []EthPort, netdev map[string]string, uplink string, brM
 	// la WAN declarada en eth1 se quedaba abajo como "ETH 1" y el puerto del
 	// switch eth0 aparecía como WAN y activo). Sin WAN declarada manda el
 	// uplink, que es lo que necesitan los AP sin layout (#1500).
-	if wanDeclared && brMembers[base] {
+	// wanDeclared: la unidad declara WAN y el uplink le llega por el bridge
+	// (#1976). physical < 2: un AP de una sola boca no tiene puerto WAN que
+	// enseñar (#1949), aunque no haya layout que lo diga.
+	if brMembers[base] && (wanDeclared || physical < 2) {
 		return ports
 	}
 	wanIdx, upIdx := -1, -1
