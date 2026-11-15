@@ -40,9 +40,13 @@ type integrationItem struct {
 	// no está empujando (mismos códigos que la tarjeta y el detalle desde
 	// #1714). Vacío si está empujando, pausada o sin señal clara.
 	OfflineReason string `json:"offlineReason,omitempty"`
-	LastStartMs   int64  `json:"lastStartMs"`
-	LastPushMs    int64  `json:"lastPushMs"`
-	Fresh         bool   `json:"fresh"`
+	// PollError (#2039): último fallo de poll del pusher, tal cual lo escribió
+	// en su log. Es el dato que se pide en cada reporte y no llegaba a la UI,
+	// así que el usuario solo veía una pista clasificada.
+	PollError   string `json:"pollError,omitempty"`
+	LastStartMs int64  `json:"lastStartMs"`
+	LastPushMs  int64  `json:"lastPushMs"`
+	Fresh       bool   `json:"fresh"`
 }
 
 // vendorView es la vista HTTP del manifiesto de un vendor.
@@ -159,41 +163,47 @@ func (s *server) integrationItemOf(row rintegration.Row) integrationItem {
 	if state == "running" && lastPush > 0 && row.IntervalS > 0 && !fresh {
 		state = "stale"
 	}
+	reason, pollErr := s.integrationOffline(row, fresh)
 	return integrationItem{
 		Slug: row.Slug, Vendor: row.Vendor, Mode: row.Mode, Host: row.Host,
 		Username: row.Username, Version: row.Version, Arch: row.Arch,
 		IntervalS: row.IntervalS, Enabled: row.Enabled, State: state,
 		LastError: row.LastError, LastStartMs: row.LastStartMs,
 		LastPushMs: lastPush, Fresh: fresh,
-		OfflineReason: s.integrationOfflineReason(row, fresh),
+		OfflineReason: reason,
+		PollError:     pollErr,
 	}
 }
 
-// integrationOfflineReason (#1718) clasifica por qué una integración no está
+// integrationOffline (#1718) clasifica por qué una integración no está
 // empujando, con los mismos códigos y la misma precedencia que StatusReasons
 // en el paquete rintegration (que alimenta la tarjeta y el detalle): parada
 // explícita, último error de instalación, o el log del pusher para fallos de
 // poll. Pausada o fresca no tienen motivo.
-func (s *server) integrationOfflineReason(row rintegration.Row, fresh bool) string {
+//
+// Devuelve además el último fallo de poll en crudo (#2039): la UI lo muestra
+// para que un reporte pueda traer el mensaje real en vez de solo la pista
+// clasificada.
+func (s *server) integrationOffline(row rintegration.Row, fresh bool) (code, pollErr string) {
 	if !row.Enabled {
-		return ""
+		return "", ""
 	}
 	if row.State == "stopped" {
-		return rintegration.ReasonStopped
+		return rintegration.ReasonStopped, ""
 	}
 	if fresh {
-		return ""
+		return "", ""
 	}
-	code := ""
+	if s.integrations != nil {
+		pollErr = s.integrations.LastPollError(row.Slug)
+	}
 	if row.State == "error" && row.LastError != "" {
 		code = rintegration.ClassifyPollError(row.LastError)
 	}
-	if (code == "" || code == rintegration.ReasonError) && s.integrations != nil {
-		if msg := s.integrations.LastPollError(row.Slug); msg != "" {
-			code = rintegration.ClassifyPollError(msg)
-		}
+	if (code == "" || code == rintegration.ReasonError) && pollErr != "" {
+		code = rintegration.ClassifyPollError(pollErr)
 	}
-	return code
+	return code, pollErr
 }
 
 func (s *server) integrationList() []integrationItem {

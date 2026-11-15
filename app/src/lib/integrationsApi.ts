@@ -17,6 +17,8 @@ export interface Integration {
   lastError: string
   /** Código estable del motivo offline (#1718): vacío si empuja o está pausada. */
   offlineReason?: string
+  /** Último fallo de poll del pusher, en crudo (#2039). */
+  pollError?: string
   lastStartMs: number
   lastPushMs: number
   fresh: boolean

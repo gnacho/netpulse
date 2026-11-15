@@ -115,9 +115,11 @@ func slogErrValue(line string) string {
 
 // ClassifyPollError mapea el texto de error de un pusher a un código estable
 // de motivo. Los patrones cubren los fallos observables de un poll: credenciales
-// rechazadas (401/unauthorized), endpoint REST ausente (404: firmware viejo,
-// el REST llega en RouterOS 7) y familia de conexión (refused/timeout/route).
-// Cualquier otro error no vacío cae al código genérico.
+// rechazadas (401/unauthorized), endpoint de la API ausente (404: firmware viejo
+// en RouterOS, puerto o prefijo equivocados en cualquier vendor) y familia de
+// conexión (refused/timeout/route). El código es el mismo para todos los
+// vendors, así que el texto que la UI pone a cada uno no puede nombrar uno en
+// concreto (#2039). Cualquier otro error no vacío cae al código genérico.
 func ClassifyPollError(msg string) string {
 	m := strings.ToLower(msg)
 	switch {
