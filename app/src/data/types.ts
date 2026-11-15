@@ -131,6 +131,12 @@ export interface WanInfo {
   peakTodayTime: string
   avgDownMbps: number
   total24h: number // bytes; se formatea en cliente con el locale activo (#899)
+  /**
+   * #2047: resumen por rango ("1h", "24h", "7d", "30d"). Existe para que las
+   * cifras de debajo de la gráfica sigan al rango seleccionado. `samples` = 0
+   * significa que ese rango no tiene datos y no se pinta cifra.
+   */
+  rangeStats?: Record<string, { peakMbps: number; avgMbps: number; totalBytes: number; samples: number; lossPct?: number }>
   /** Conexión WAN real (issue #276), solo live: protocolo, gateway, DNS. */
   proto?: string
   gateway?: string

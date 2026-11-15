@@ -77,12 +77,36 @@ export function WanTraffic() {
   }
   const [liveData, setLiveData] = useState<TrafficPoint[]>(trafficByRange['24h'])
 
-  const FOOTER_METRICS = [
-    { label: t('home.traffic.peakToday'), value: `${wan.peakTodayMbps} Mbps ↓` },
-    { label: t('home.traffic.average'), value: `${wan.avgDownMbps} Mbps ↓` },
-    { label: t('home.traffic.total24h'), value: fmtBytes(wan.total24h) },
-    { label: t('home.traffic.loss'), value: `${wan.lossPct} %` },
-  ] as const
+  // #2047: las cifras siguen al rango seleccionado. El servidor las calcula
+  // con las muestras crudas (los puntos del gráfico son MAX por bucket, así
+  // que promediarlos daría la media de los picos). Sin resumen para un rango
+  // se dice con un guion en vez de inventar un cero.
+  const rangeStat = wan.rangeStats?.[range]
+  const hasRangeStat = rangeStat !== undefined && rangeStat.samples > 1
+  const FOOTER_METRICS = wan.rangeStats
+    ? [
+        {
+          label: t('home.traffic.peakRange'),
+          value: hasRangeStat ? `${rangeStat.peakMbps} Mbps ↓` : '—',
+        },
+        {
+          label: t('home.traffic.avgRange'),
+          value: hasRangeStat ? `${rangeStat.avgMbps} Mbps ↓` : '—',
+        },
+        {
+          label: t('home.traffic.totalRange'),
+          value: hasRangeStat ? fmtBytes(rangeStat.totalBytes) : '—',
+        },
+        // La pérdida no tiene serie histórica: es el último ping, así que se
+        // etiqueta como actual y no se mezcla con las del periodo.
+        { label: t('home.traffic.lossNow'), value: `${wan.lossPct} %` },
+      ]
+    : ([
+        { label: t('home.traffic.peakToday'), value: `${wan.peakTodayMbps} Mbps ↓` },
+        { label: t('home.traffic.average'), value: `${wan.avgDownMbps} Mbps ↓` },
+        { label: t('home.traffic.total24h'), value: fmtBytes(wan.total24h) },
+        { label: t('home.traffic.loss'), value: `${wan.lossPct} %` },
+      ] as const)
   // Carga de datos por rango (crossfade vía key en el chart)
   useEffect(() => {
     setLiveData(trafficByRange[range])

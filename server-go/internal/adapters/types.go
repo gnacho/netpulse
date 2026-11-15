@@ -46,6 +46,19 @@ type Subscore struct {
 	Score int    `json:"score"` // 0-100
 }
 
+// WANRangeStat es el resumen de un rango. Samples = 0 significa que no hay
+// datos para ese rango, y entonces la UI no pinta cifras inventadas.
+type WANRangeStat struct {
+	PeakMbps   float64 `json:"peakMbps"`
+	AvgMbps    float64 `json:"avgMbps"`
+	TotalBytes float64 `json:"totalBytes"`
+	Samples    int64   `json:"samples"`
+	// LossPct: opcional a propósito. Hoy no hay serie histórica de pérdida
+	// (solo el último ping), así que no se rellena. Cuando exista, entra aquí
+	// sin cambiar la forma ni tocar la UI.
+	LossPct *float64 `json:"lossPct,omitempty"`
+}
+
 // WAN stats (vía gateway).
 type WAN struct {
 	Plan          string  `json:"plan"`
@@ -59,6 +72,13 @@ type WAN struct {
 	PeakTodayTime string  `json:"peakTodayTime"`
 	AvgDownMbps   float64 `json:"avgDownMbps"`
 	Total24h      float64 `json:"total24h"` // bytes; el cliente formatea con su locale (#899)
+	// RangeStats (#2047): resumen del tráfico de bajada POR RANGO, indexado
+	// por "1h", "24h", "7d" y "30d". Existe para que las cifras que hay bajo
+	// la gráfica sigan al rango seleccionado en vez de ser cuatro campos
+	// atados a 24 horas. Sale de las muestras crudas, no de los puntos de la
+	// gráfica: esos ya vienen agregados (MAX por bucket) y promediarlos daría
+	// una media de picos, no la media real.
+	RangeStats map[string]WANRangeStat `json:"rangeStats,omitempty"`
 	// Conexión WAN real (issue #276), solo live (el demo las omite):
 	// protocolo ("pppoe"), gateway y DNS. Proto vacío en el demo/datos viejos.
 	Proto   string   `json:"proto,omitempty"`

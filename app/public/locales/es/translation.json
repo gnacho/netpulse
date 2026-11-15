@@ -666,7 +666,11 @@
       "viewAria": "Vista del gráfico de tráfico",
       "contracted": "Contratado: ↓ {{down}} / ↑ {{up}} Mbps",
       "contractedLine": "↓ {{mbps}} Mbps",
-      "utilization": "Pico hoy: {{pct}} % del contratado"
+      "utilization": "Pico hoy: {{pct}} % del contratado",
+      "peakRange": "Pico del periodo",
+      "avgRange": "Media del periodo",
+      "totalRange": "Total del periodo",
+      "lossNow": "Pérdida actual"
     },
     "upload": "Subida",
     "greetingName": ", {{name}}",
