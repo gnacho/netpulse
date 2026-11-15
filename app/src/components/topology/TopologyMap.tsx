@@ -129,6 +129,23 @@ type TooltipData =
 
 type TooltipState = TooltipData & { left: number; top: number; below: boolean }
 
+/** #2049: a dónde navega un nodo del mapa, si es que navega. La usa el
+ *  tooltip para no prometer "Click to view detail" en nodos que solo abren su
+ *  tarjeta (peers, internet, desbordes de anillo y distribuciones). */
+function tooltipNavTarget(tip: TooltipData, tagging: boolean): string | null {
+  switch (tip.kind) {
+    case 'router':
+      return `/routers/${tip.id}`
+    case 'chip':
+      // Un chip con etiquetado abre el panel y un CT anidado no tiene página
+      // propia: en ambos casos no hay "detail" que enseñar.
+      if (tagging || tip.chip.isCt) return null
+      return `/devices?q=${encodeURIComponent(tip.chip.device.mac ?? tip.chip.device.name)}`
+    default:
+      return null
+  }
+}
+
 function MiniStat({ label, value, hot }: { label: string; value: string; hot?: boolean }) {
   return (
     <div className="rounded-lg bg-canvas/60 px-2 py-1.5">
@@ -169,12 +186,15 @@ function TooltipCard({
   wan,
   portOwnerName,
   onTagDevice,
+  onOpen,
   onPointerEnter,
   onPointerLeave,
 }: {
   tip: TooltipState
   touch: boolean
   wan: WanInfo
+  /** #2049: a dónde lleva este nodo. Sin target no se promete navegación. */
+  onOpen?: () => void
   /** nombre del equipo dueño del puerto de un nodo (D8: tooltip dist): el
    *  padre de la cadena si lo hay, y si no el router */
   portOwnerName: (node: DistributionNode) => string
@@ -232,7 +252,18 @@ function TooltipCard({
             <MiniStat label={t('routers.colClients')} value={String(tip.router.clients)} />
           </div>
           <div className="mt-2 text-caption font-semibold text-accent">
-            {touch ? t('topology.tapAgainDetail') : t('topology.clickDetail')}
+            {onOpen && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpen()
+                }}
+                className="text-left text-caption font-semibold text-accent hover:underline"
+              >
+                {touch ? t('topology.tapAgainDetail') : t('topology.clickDetail')}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -335,7 +366,18 @@ function TooltipCard({
             })}
           </div>
           <div className="mt-2 border-t border-border pt-1.5 text-caption font-semibold text-accent">
-            {touch ? t('topology.tapAgainDetail') : t('topology.clickDetail')}
+            {onOpen && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpen()
+                }}
+                className="text-left text-caption font-semibold text-accent hover:underline"
+              >
+                {touch ? t('topology.tapAgainDetail') : t('topology.clickDetail')}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -622,6 +664,9 @@ export function TopologyMap({
 
   const [hoverNode, setHoverNode] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  // #2049: destino del nodo que tiene abierta la tarjeta. null = ese nodo no
+  // navega, así que no se promete "Click to view detail".
+  const tooltipTarget = tooltip ? tooltipNavTarget(tooltip, Boolean(onTagDevice)) : null
 
   const hoverCapable = useMemo(
     () =>
@@ -1761,6 +1806,15 @@ export function TopologyMap({
       {tooltip && (
         <TooltipCard
           tip={tooltip}
+          onOpen={
+            tooltipTarget
+              ? () => {
+                  navigate(tooltipTarget)
+                  setTooltip(null)
+                  setHoverNode(null)
+                }
+              : undefined
+          }
           touch={!hoverCapable}
           wan={wan}
           portOwnerName={portOwnerName}
