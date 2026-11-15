@@ -71,6 +71,14 @@ func canonWAN() WAN {
 		Plan: "600/600 Mbps", DownMbps: 84.2, UpMbps: 12.6, LatencyMs: 8, LossPct: 0,
 		PublicIP: "84.122.x.x", Isp: "Digi", PeakTodayMbps: 412, PeakTodayTime: "21:14",
 		AvgDownMbps: 61, Total24h: 1.32e12,
+		// #2047: el resumen por rango de la demo, coherente con sus series
+		// (pico mayor cuanto más larga la ventana, total proporcional).
+		RangeStats: map[string]WANRangeStat{
+			"1h":  {PeakMbps: 118, AvgMbps: 74, TotalBytes: 33.3e9, Samples: 60},
+			"24h": {PeakMbps: 412, AvgMbps: 61, TotalBytes: 1.32e12, Samples: 1440},
+			"7d":  {PeakMbps: 486, AvgMbps: 58, TotalBytes: 8.8e12, Samples: 10080},
+			"30d": {PeakMbps: 512, AvgMbps: 55, TotalBytes: 35.6e12, Samples: 43200},
+		},
 	}
 }
 

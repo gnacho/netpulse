@@ -1258,6 +1258,101 @@ func (l *Live) wanDayStats(gwID string) wanDayStatsResult {
 	return out
 }
 
+// wanRangeSpans son los rangos que sirve la gráfica de tráfico. La clave es la
+// misma que usa el contrato de las series ("1h", "24h", "7d", "30d").
+var wanRangeSpans = []struct {
+	key  string
+	span time.Duration
+}{
+	{"1h", time.Hour},
+	{"24h", 24 * time.Hour},
+	{"7d", 7 * 24 * time.Hour},
+	{"30d", 30 * 24 * time.Hour},
+}
+
+// wanRawRetention: los samples crudos de metrics se purgan a los 7 días, así
+// que por encima de eso el resumen sale de metrics_buckets.
+const wanRawRetention = 7 * 24 * time.Hour
+
+// wanRangeStats resume el tráfico de bajada del gateway en cada rango (#2047).
+// Sale de las muestras, no de los puntos del gráfico: los puntos ya vienen
+// agregados (MAX por bucket) y promediarlos daría la media de los picos.
+func (l *Live) wanRangeStats(gwID string) map[string]WANRangeStat {
+	if l.db == nil || gwID == "" {
+		return nil
+	}
+	now := time.Now()
+	if l.now != nil {
+		now = l.now()
+	}
+	out := make(map[string]WANRangeStat, len(wanRangeSpans))
+	for _, r := range wanRangeSpans {
+		if st, ok := l.wanRangeStat(gwID, now.Add(-r.span), r.span); ok {
+			out[r.key] = st
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (l *Live) wanRangeStat(gwID string, from time.Time, span time.Duration) (WANRangeStat, bool) {
+	if span > wanRawRetention {
+		// Largo plazo: cada bucket de 5 min guarda la media del tramo, así que
+		// el volumen es SUM(rx_avg) × 300 s entre 8 bits por byte.
+		row := l.db.QueryRow(
+			`SELECT MAX(rx_max), SUM(rx_avg), SUM(rx_avg * n), SUM(n)
+			 FROM metrics_buckets
+			 WHERE router_id = ? AND bucket_ts >= ? AND rx_avg IS NOT NULL`,
+			gwID, from.UnixMilli())
+		var peak, sumAvg, sumAvgN sql.NullFloat64
+		var n sql.NullFloat64
+		if err := row.Scan(&peak, &sumAvg, &sumAvgN, &n); err != nil || !n.Valid || n.Float64 <= 0 {
+			return WANRangeStat{}, false
+		}
+		st := WANRangeStat{Samples: int64(n.Float64)}
+		if peak.Valid {
+			st.PeakMbps = math.Round(peak.Float64/1e6*10) / 10
+		}
+		if sumAvgN.Valid {
+			st.AvgMbps = math.Round(sumAvgN.Float64/n.Float64/1e6*10) / 10
+		}
+		if sumAvg.Valid {
+			st.TotalBytes = sumAvg.Float64 * (float64(db.BucketMS) / 1000) / 8
+		}
+		return st, true
+	}
+
+	// Corto plazo: muestras crudas. El intervalo real entre muestras sale de
+	// los timestamps, no de suponer que cubren el rango entero (un router
+	// instalado hace una hora no ha transferido 24 h de tráfico).
+	row := l.db.QueryRow(
+		`SELECT MAX(rx_bps), AVG(rx_bps), SUM(rx_bps), COUNT(rx_bps), MIN(ts), MAX(ts)
+		 FROM metrics
+		 WHERE router_id = ? AND ts >= ? AND rx_bps IS NOT NULL`,
+		gwID, from.UnixMilli())
+	var peak, avg, sum sql.NullFloat64
+	var n, minTs, maxTs sql.NullInt64
+	if err := row.Scan(&peak, &avg, &sum, &n, &minTs, &maxTs); err != nil || !n.Valid || n.Int64 == 0 {
+		return WANRangeStat{}, false
+	}
+	st := WANRangeStat{Samples: n.Int64}
+	if peak.Valid {
+		st.PeakMbps = math.Round(peak.Float64/1e6*10) / 10
+	}
+	if avg.Valid {
+		st.AvgMbps = math.Round(avg.Float64/1e6*10) / 10
+	}
+	if sum.Valid && minTs.Valid && maxTs.Valid && n.Int64 > 1 {
+		dt := float64(maxTs.Int64-minTs.Int64) / 1000 / float64(n.Int64-1)
+		if dt > 0 {
+			st.TotalBytes = sum.Float64 * dt / 8
+		}
+	}
+	return st, true
+}
+
 // pollRouter sondea un router; error si está inalcanzable. Si el router tiene
 // agente nativo con payload fresco (Tier 2), el sondeo viene del último push
 // y NO se toca SSH; si el agente expiró, se degrada a Tier 0 (SSH) con aviso.
@@ -4164,6 +4259,9 @@ func (l *Live) defaultWan(gw *RouterConfig) WAN {
 		wan.PeakTodayTime = ds.peakTime
 		wan.AvgDownMbps = ds.avgMbps
 		wan.Total24h = ds.totalBytes
+		// #2047: el mismo resumen, por rango, para que las cifras de debajo
+		// de la gráfica sigan al rango seleccionado.
+		wan.RangeStats = l.wanRangeStats(gw.ID)
 	}
 	return wan
 }

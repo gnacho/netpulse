@@ -2597,7 +2597,33 @@
     "peakTodayMbps": 412,
     "peakTodayTime": "21:14",
     "avgDownMbps": 61,
-    "total24h": 1320000000000
+    "total24h": 1320000000000,
+    "rangeStats": {
+      "1h": {
+        "peakMbps": 118,
+        "avgMbps": 74,
+        "totalBytes": 33300000000,
+        "samples": 60
+      },
+      "24h": {
+        "peakMbps": 412,
+        "avgMbps": 61,
+        "totalBytes": 1320000000000,
+        "samples": 1440
+      },
+      "30d": {
+        "peakMbps": 512,
+        "avgMbps": 55,
+        "totalBytes": 35600000000000,
+        "samples": 43200
+      },
+      "7d": {
+        "peakMbps": 486,
+        "avgMbps": 58,
+        "totalBytes": 8800000000000,
+        "samples": 10080
+      }
+    }
   },
   "health": {
     "score": 92,

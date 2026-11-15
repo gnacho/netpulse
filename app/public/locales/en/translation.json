@@ -666,7 +666,11 @@
       "viewAria": "Traffic chart view",
       "contracted": "Contracted: ↓ {{down}} / ↑ {{up}} Mbps",
       "contractedLine": "↓ {{mbps}} Mbps",
-      "utilization": "Today's peak: {{pct}} % of contracted"
+      "utilization": "Today's peak: {{pct}} % of contracted",
+      "peakRange": "Peak in range",
+      "avgRange": "Average in range",
+      "totalRange": "Total in range",
+      "lossNow": "Loss right now"
     },
     "upload": "Upload",
     "greetingName": ", {{name}}",
