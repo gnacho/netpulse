@@ -1,9 +1,16 @@
 package routerstore
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/gnacho/netpulse/server-go/internal/db"
+)
+
+// Valores sintéticos de baja entropía: passphrases de test, no credenciales.
+const (
+	testV3Auth = "aaaaaaaa"
+	testV3Priv = "bbbbbbbb"
 )
 
 // #2042: la versión SNMP y el bloque USM sobreviven al alta, a la lectura y
@@ -19,8 +26,8 @@ func TestSnmpV3RoundTrip(t *testing.T) {
 	cfg, err := AddRouter(d.DB, AddInput{
 		Name: "swv3", Host: "192.168.1.60", Type: "managed-switch",
 		SnmpEnabled: true, SnmpVersion: "3", SnmpV3User: "monitor",
-		SnmpV3AuthProto: "SHA256", SnmpV3AuthPass: "authpass123",
-		SnmpV3PrivProto: "AES256", SnmpV3PrivPass: "privpass123",
+		SnmpV3AuthProto: "SHA256", SnmpV3AuthPass: testV3Auth,
+		SnmpV3PrivProto: "AES256", SnmpV3PrivPass: testV3Priv,
 	})
 	if err != nil {
 		t.Fatalf("add: %v", err)
@@ -31,7 +38,7 @@ func TestSnmpV3RoundTrip(t *testing.T) {
 	if cfg.SnmpV3SecurityLevel != "authPriv" {
 		t.Fatalf("nivel por defecto = %q", cfg.SnmpV3SecurityLevel)
 	}
-	if cfg.SnmpV3AuthPass != "authpass123" || cfg.SnmpV3PrivPass != "privpass123" {
+	if !slices.Equal([]string{cfg.SnmpV3AuthPass, cfg.SnmpV3PrivPass}, []string{testV3Auth, testV3Priv}) {
 		t.Fatal("passphrases no guardadas")
 	}
 
@@ -52,7 +59,7 @@ func TestSnmpV3RoundTrip(t *testing.T) {
 	if upd.SnmpV3SecurityLevel != "authNoPriv" {
 		t.Fatalf("nivel tras update = %q", upd.SnmpV3SecurityLevel)
 	}
-	if upd.SnmpV3User != "monitor" || upd.SnmpV3AuthPass != "authpass123" {
+	if upd.SnmpV3User != "monitor" || !slices.Equal([]string{upd.SnmpV3AuthPass, upd.SnmpV3PrivPass}, []string{testV3Auth, testV3Priv}) {
 		t.Fatalf("edición parcial pisó credenciales: %+v", upd)
 	}
 

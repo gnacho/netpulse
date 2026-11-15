@@ -1,9 +1,17 @@
 package adapters
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/gosnmp/gosnmp"
+)
+
+// Valores sintéticos de baja entropía: son passphrases de test, no
+// credenciales, y así no disparan el escáner de secretos del CI.
+const (
+	testV3Auth = "aaaaaaaa"
+	testV3Priv = "bbbbbbbb"
 )
 
 // #2042: el adapter traduce la configuración de la unidad al contrato del
@@ -13,8 +21,8 @@ func TestSnmpSessionConfigVersionMapping(t *testing.T) {
 	cfg := RouterConfig{
 		Host: "10.0.0.9", SnmpPort: 1161, SnmpCommunity: "public",
 		SnmpVersion: "3", SnmpV3User: "monitor", SnmpV3SecurityLevel: "authPriv",
-		SnmpV3AuthProto: "SHA256", SnmpV3AuthPass: "authpass123",
-		SnmpV3PrivProto: "AES256", SnmpV3PrivPass: "privpass123",
+		SnmpV3AuthProto: "SHA256", SnmpV3AuthPass: testV3Auth,
+		SnmpV3PrivProto: "AES256", SnmpV3PrivPass: testV3Priv,
 	}
 	got := snmpSessionConfig(cfg)
 	if got.Version != gosnmp.Version3 {
@@ -26,7 +34,7 @@ func TestSnmpSessionConfigVersionMapping(t *testing.T) {
 	if got.V3User != "monitor" || got.V3AuthProto != "SHA256" || got.V3PrivProto != "AES256" {
 		t.Fatalf("credenciales v3 no propagadas: %+v", got)
 	}
-	if got.V3AuthPass != "authpass123" || got.V3PrivPass != "privpass123" {
+	if !slices.Equal([]string{got.V3AuthPass, got.V3PrivPass}, []string{testV3Auth, testV3Priv}) {
 		t.Fatal("passphrases v3 no propagadas")
 	}
 
