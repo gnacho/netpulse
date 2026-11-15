@@ -697,6 +697,8 @@ func run() error {
 		// motivo de caída de las unidades empujadas por integraciones.
 		p.SetEnrich(func(ov *adapters.Overview) {
 			httpapi.EnrichOverview(dbHandle.DB, stScheduler, ov, rintegration.StatusReasons(dbHandle.DB, integrationsMgr))
+			// #2019: la ventana de WireGuard sale de las muestras persistidas.
+			httpapi.EnrichWireGuardWindow(ov, dbHandle.WGSeries)
 			// #887: el snapshot SSE también lleva el uptime para la gracia
 			// post-arranque en el frontend.
 			ov.ServerUptimeSec = int64(time.Since(serverStarted).Seconds())

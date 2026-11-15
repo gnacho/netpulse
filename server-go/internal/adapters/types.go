@@ -133,6 +133,11 @@ type WGPeer struct {
 	LastHandshake string `json:"lastHandshake"`
 	Rx            string `json:"rx"`
 	Tx            string `json:"tx"`
+	// RxBytes/TxBytes: los mismos contadores sin formatear (#2019). No van al
+	// contrato JSON; existen para que el poller pueda persistir la serie por
+	// peer y calcular la ventana de 30 días.
+	RxBytes int64 `json:"-"`
+	TxBytes int64 `json:"-"`
 	// Urgent (#1441): el peer merece notificación cuando se cae (túnel
 	// site-to-site, servidor). Un portátil o un móvil que entra y sale no.
 	Urgent bool `json:"urgent"`
@@ -147,6 +152,26 @@ type WireGuardStats struct {
 	// Transfer (#2017): suma de los contadores de los peers del túnel.
 	// Ausente si no se sondeó ningún peer.
 	Transfer *WGTransfer `json:"transfer,omitempty"`
+	// Transfer30d (#2019): transferido en la ventana de 30 días, calculado
+	// con las muestras persistidas. Ausente cuando no hay histórico (una
+	// instalación nueva), que es un estado distinto de "cero bytes".
+	Transfer30d *WGWindow `json:"transfer30d,omitempty"`
+	// RouterID no va al contrato: identifica de quién es la serie que hay que
+	// consultar para rellenar Transfer30d.
+	RouterID string `json:"-"`
+}
+
+// WGWindow es el tráfico de un periodo con la cobertura real del histórico.
+type WGWindow struct {
+	Rx string `json:"rx"`
+	Tx string `json:"tx"`
+	// Peers: peers distintos que han aportado en la ventana.
+	Peers int `json:"peers"`
+	// Days: días que cubre el histórico disponible (puede ser menor que la
+	// ventana pedida en una instalación reciente).
+	Days int `json:"days"`
+	// Since: primera muestra disponible, ya formateada (día y mes).
+	Since string `json:"since,omitempty"`
 }
 
 // Router es la tarjeta de router (demo canon + live buildRouter).

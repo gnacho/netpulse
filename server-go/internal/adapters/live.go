@@ -3060,8 +3060,11 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 	stats, err := GetWireGuardStats(l.pool, gw.SSHAddr(), l.cfg.WGInterface, "", peerNames, urgent)
 	if err != nil {
 		log.Printf("[netpulse] WireGuard no disponible: %v", err)
-		return &WireGuardStats{Interface: l.cfg.WGInterface, Subnet: "", Status: "inactive", Peers: []WGPeer{}}
+		return &WireGuardStats{Interface: l.cfg.WGInterface, Subnet: "", Status: "inactive", Peers: []WGPeer{}, RouterID: gw.ID}
 	}
+	// #2019: el poller necesita saber de qué router son estos peers para
+	// persistir la serie y calcular la ventana de 30 días.
+	stats.RouterID = gw.ID
 	// Transitions run only on a successful poll: a failed poll would mark every
 	// previously active peer as spuriously disconnected.
 	l.applyWireGuardTransitions(stats, gw.ID)

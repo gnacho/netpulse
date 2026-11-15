@@ -17,12 +17,19 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/sse"
+	"github.com/gnacho/netpulse/server-go/internal/wgseries"
 )
 
 // TickMS es el intervalo por defecto del poller (5 s). El valor efectivo lo
 // fija la config (NETPULSE_POLL_INTERVAL, default 30 s) vía New; TickMS solo
 // se usa como respaldo cuando New recibe un intervalo no positivo.
 const TickMS = 5 * time.Second
+
+// wgSampleInterval (#2019): cada cuánto se persiste una muestra por peer de
+// WireGuard. Una ventana de 30 días no necesita la resolución del tick: con 5
+// minutos el error de un reset queda acotado a esos 5 minutos y el raw se
+// queda en ~24k filas por semana con una docena de peers.
+const wgSampleInterval = 5 * time.Minute
 
 // Poller ejecuta el bucle de sondeo.
 type Poller struct {
@@ -52,6 +59,11 @@ type Poller struct {
 
 	// tickMu serializa los ticks (ticker + sondeos manuales PollNow).
 	tickMu sync.Mutex
+
+	// wgMu protege wgLastWrite: último instante en que se persistió una
+	// muestra de peers por router (#2019).
+	wgMu        sync.Mutex
+	wgLastWrite map[string]int64
 }
 
 // New crea el poller. interval fija la cadencia del ticker (segundos de la
@@ -63,6 +75,7 @@ func New(adapter adapters.Snapshotter, d *db.DB, hub *sse.Hub, interval time.Dur
 		hub:         hub,
 		interval:    interval,
 		knownAlerts: map[string]struct{}{},
+		wgLastWrite: map[string]int64{},
 		stopCh:      make(chan struct{}), doneCh: make(chan struct{}),
 	}
 }
@@ -213,4 +226,45 @@ func (p *Poller) persist(overview *adapters.Overview) {
 			log.Printf("[netpulse] error en tick del poller (adguard_stats): %v", err)
 		}
 	}
+	p.persistWireGuard(overview, ts)
+}
+
+// persistWireGuard guarda el acumulado de cada peer de WireGuard para poder
+// sumar la ventana de 30 días (#2019). WireGuard no guarda historia y sus
+// contadores se reinician con el peer, así que el delta lo calcula el store
+// contra la muestra anterior. Se muestrea cada wgSampleInterval, no en cada
+// tick: el histórico es para una ventana de días, no para una gráfica.
+func (p *Poller) persistWireGuard(overview *adapters.Overview, ts int64) {
+	if p.db == nil || p.db.WGSeries == nil {
+		return
+	}
+	wg := overview.Wireguard
+	if wg.RouterID == "" || len(wg.Peers) == 0 {
+		return
+	}
+	p.wgMu.Lock()
+	last := p.wgLastWrite[wg.RouterID]
+	p.wgMu.Unlock()
+	if last != 0 && ts-last < wgSampleInterval.Milliseconds() {
+		return
+	}
+	samples := make([]wgseries.PeerSample, 0, len(wg.Peers))
+	for _, peer := range wg.Peers {
+		if peer.Key == "" {
+			continue
+		}
+		samples = append(samples, wgseries.PeerSample{
+			Key: peer.Key, RxBytes: peer.RxBytes, TxBytes: peer.TxBytes,
+		})
+	}
+	if len(samples) == 0 {
+		return
+	}
+	if err := p.db.WGSeries.RecordSamples(wg.RouterID, time.UnixMilli(ts), samples); err != nil {
+		log.Printf("[netpulse] error en tick del poller (wg peers): %v", err)
+		return
+	}
+	p.wgMu.Lock()
+	p.wgLastWrite[wg.RouterID] = ts
+	p.wgMu.Unlock()
 }

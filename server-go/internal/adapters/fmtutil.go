@@ -74,3 +74,8 @@ func relTime(epochSec, nowSec int64) string {
 		return fmt.Sprintf("hace %d días", diff/86400)
 	}
 }
+
+// FormatBytes expone fmtBytes para otros paquetes. La ventana de WireGuard
+// (#2019) se calcula en el server, no en el adapter, y debe formatear igual
+// que el total del túnel para que la tarjeta hable el mismo idioma.
+func FormatBytes(bytes uint64) string { return fmtBytes(float64(bytes)) }

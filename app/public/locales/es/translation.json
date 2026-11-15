@@ -1203,7 +1203,10 @@
       "showDisconnected": "Mostrar clientes no conectados",
       "showDisconnectedHint": "Pares sin handshake activo. Solo afecta a esta tarjeta en este navegador.",
       "hiddenPeers_one": "1 cliente no conectado oculto",
-      "hiddenPeers_other": "{{count}} clientes no conectados ocultos"
+      "hiddenPeers_other": "{{count}} clientes no conectados ocultos",
+      "transfer30d": "últimos 30 días",
+      "transfer30dShort": "últimos {{days}} días, desde el {{since}}",
+      "transfer30dNone": "sin histórico todavía para la ventana de 30 días"
     },
     "statusReasonTitle": "Por qué está caída esta unidad"
   },

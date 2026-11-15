@@ -22,6 +22,7 @@ import (
 
 	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
+	"github.com/gnacho/netpulse/server-go/internal/wgseries"
 )
 
 const (
@@ -530,6 +531,8 @@ type DB struct {
 	rollbackJournal bool
 	// PortSeries: per-port time series store (issue #302).
 	PortSeries *portseries.Store
+	// WGSeries: contadores por peer de WireGuard con ventana real (#2019).
+	WGSeries *wgseries.Store
 	// ClientBW: per-client bandwidth store (issue #337/#551). Wiring añadido
 	// en el #551: la ingesta escribe samples delta por (mac, router).
 	ClientBW *clientbw.Store
@@ -783,6 +786,12 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 		return nil, fmt.Errorf("port_series store: %w", err)
 	}
 	d.PortSeries = ps
+	wg, err := wgseries.NewStore(sqldb)
+	if err != nil {
+		sqldb.Close()
+		return nil, fmt.Errorf("wg_peer_series store: %w", err)
+	}
+	d.WGSeries = wg
 	cb, err := clientbw.NewStore(sqldb)
 	if err != nil {
 		sqldb.Close()
@@ -925,6 +934,11 @@ func (d *DB) NightlyJob() {
 	// Per-client bandwidth rollup (#337/#551).
 	if d.ClientBW != nil {
 		d.ClientBW.NightlyJob()
+	}
+
+	// Per-peer WireGuard counters (#2019).
+	if d.WGSeries != nil {
+		d.WGSeries.NightlyJob()
 	}
 }
 

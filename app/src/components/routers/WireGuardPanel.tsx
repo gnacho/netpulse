@@ -247,6 +247,27 @@ export function WireGuardPanel() {
           {/* #2017: es acumulado desde que el túnel arrancó, no una ventana de
               30 días. Se dice para que el número no se lea como un periodo. */}
           <div className="mt-0.5 text-[10px] text-text-muted">{t('routerDetail.wireguard.transferHint')}</div>
+          {/* #2019: la ventana real, con los días que cubre el histórico. Si
+              aún no hay muestras no se inventa un cero: se dice que no hay. */}
+          {wireguard.transfer30d ? (
+            <>
+              <div className="mt-2 border-t border-border/50 pt-2 font-mono text-mono-sm font-semibold text-text-primary">
+                ↓ {wireguard.transfer30d.rx} ↑ {wireguard.transfer30d.tx}
+              </div>
+              <div className="mt-0.5 text-[10px] text-text-muted">
+                {wireguard.transfer30d.days < 30
+                  ? t('routerDetail.wireguard.transfer30dShort', {
+                      days: wireguard.transfer30d.days,
+                      since: wireguard.transfer30d.since ?? '',
+                    })
+                  : t('routerDetail.wireguard.transfer30d')}
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 border-t border-border/50 pt-2 text-[10px] text-text-muted">
+              {t('routerDetail.wireguard.transfer30dNone')}
+            </div>
+          )}
         </div>
       </div>
 

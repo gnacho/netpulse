@@ -127,7 +127,9 @@ lo valida, mientras NetPulse mantiene solo el contrato común de ingesta.
 **Y el resto del tour:**
 
 - **WireGuard**: peers con sus nombres reales, últimos handshakes,
-  transferencia por peer.
+  transferencia por peer y el tráfico de los últimos 30 días, calculado con los
+  contadores por peer persistidos, porque los que expone WireGuard vuelven a
+  cero con cada peer.
 - **AdGuard Home**: estadísticas de consultas, porcentaje bloqueado, dominios
   más bloqueados.
 - **Wi-Fi y roaming**: matriz de señal por AP, estado 802.11r, utilización
