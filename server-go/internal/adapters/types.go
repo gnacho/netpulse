@@ -1055,6 +1055,18 @@ type RouterConfig struct {
 	SnmpCommunity    string `json:"snmp_community,omitempty"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"` // segundos; 0 → default 60
+	// SnmpVersion (#2042): "1", "2c" (default) o "3". Con "3" la comunidad
+	// no se usa y mandan los campos USM de abajo.
+	SnmpVersion string `json:"snmp_version,omitempty"`
+	// Credenciales SNMPv3 (USM). SecurityLevel es "noAuthNoPriv",
+	// "authNoPriv" o "authPriv"; los protocolos y passphrases solo se usan
+	// a partir del nivel que los requiere.
+	SnmpV3User          string `json:"-"`
+	SnmpV3SecurityLevel string `json:"-"`
+	SnmpV3AuthProto     string `json:"-"`
+	SnmpV3AuthPass      string `json:"-"`
+	SnmpV3PrivProto     string `json:"-"`
+	SnmpV3PrivPass      string `json:"-"`
 	// AgentInterval (#1476): cadencia de push del agente en segundos. 0 = el
 	// default del agente (30 s). Se escribe en la config UCI del paquete, que
 	// es el conffile que sobrevive a un sysupgrade.

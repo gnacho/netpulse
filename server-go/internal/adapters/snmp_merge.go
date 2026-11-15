@@ -60,11 +60,7 @@ func (l *Live) mergeSNMPSurface(cfg RouterConfig, p *routerPolled) {
 // propios IDs, y duplicarlas aquí intercalaría filas con ids "snmp-N".
 func (l *Live) pollSNMPSurface(cfg RouterConfig, now time.Time) snmpSurfaceEntry {
 	entry := snmpSurfaceEntry{at: now}
-	session, err := npsnmp.NewSession(npsnmp.Config{
-		Host:      cfg.Host,
-		Port:      cfg.SnmpPort,
-		Community: cfg.SnmpCommunity,
-	})
+	session, err := npsnmp.NewSession(snmpSessionConfig(cfg))
 	if err != nil {
 		l.recordSnmpFailure(cfg, err)
 		return entry

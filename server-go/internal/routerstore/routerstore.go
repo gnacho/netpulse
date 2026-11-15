@@ -28,7 +28,7 @@ const probeTimeout = 4 * time.Second
 // ListRouters devuelve la tabla routers ordenada is_gateway DESC,
 // created_at ASC, con is_gateway como booleano.
 func ListRouters(db *sql.DB) []adapters.RouterConfig {
-	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, temp_threshold, console_polling, disabled, inventory_mode FROM routers ORDER BY is_gateway DESC, created_at ASC")
+	rows, err := db.Query("SELECT id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, temp_threshold, console_polling, disabled, inventory_mode, snmp_version, snmp_v3_user, snmp_v3_security_level, snmp_v3_auth_proto, snmp_v3_auth_pass, snmp_v3_priv_proto, snmp_v3_priv_pass FROM routers ORDER BY is_gateway DESC, created_at ASC")
 	if err != nil {
 		return []adapters.RouterConfig{}
 	}
@@ -39,7 +39,8 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 		var gw, ao, snmpEn, snmpPort, snmpInterval, agentInterval, sshPort, consolePoll, disabled int
 		var name, ft, snmpComm, mode sql.NullString
 		var tt sql.NullInt64
-		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &agentInterval, &sshPort, &tt, &consolePoll, &disabled, &mode); err != nil {
+		if err := rows.Scan(&r.ID, &name, &r.Host, &r.Type, &gw, &ao, &ft, &r.CreatedAt, &snmpEn, &snmpComm, &snmpPort, &snmpInterval, &agentInterval, &sshPort, &tt, &consolePoll, &disabled, &mode,
+			&r.SnmpVersion, &r.SnmpV3User, &r.SnmpV3SecurityLevel, &r.SnmpV3AuthProto, &r.SnmpV3AuthPass, &r.SnmpV3PrivProto, &r.SnmpV3PrivPass); err != nil {
 			continue
 		}
 		// DEFAULT 1 de la migración, pero una fila insertada antes de la
@@ -59,6 +60,12 @@ func ListRouters(db *sql.DB) []adapters.RouterConfig {
 			} else {
 				r.InventoryMode = "auto"
 			}
+		}
+		// #2042: versión SNMP. Filas anteriores a la columna caen al default
+		// de la migración, pero un NULL/"" se normaliza aquí (v2c = el
+		// comportamiento histórico con comunidad).
+		if r.SnmpVersion != "1" && r.SnmpVersion != "3" {
+			r.SnmpVersion = "2c"
 		}
 		r.SnmpEnabled = snmpEn == 1
 		r.SnmpCommunity = snmpComm.String
@@ -156,6 +163,14 @@ type AddInput struct {
 	SnmpCommunity    string
 	SnmpPort         int
 	SnmpPollInterval int // issue #414; 0 = default 60
+	// SNMPv3 (#2042): version "1"|"2c"|"3" ("" → "2c") y credenciales USM.
+	SnmpVersion         string
+	SnmpV3User          string
+	SnmpV3SecurityLevel string
+	SnmpV3AuthProto     string
+	SnmpV3AuthPass      string
+	SnmpV3PrivProto     string
+	SnmpV3PrivPass      string
 	// AgentInterval (#1476): cadencia de push del agente en segundos.
 	// 0 = el default del agente (30 s).
 	AgentInterval int
@@ -226,6 +241,24 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 	if snmpPort <= 0 {
 		snmpPort = 161
 	}
+	// #2042: los defaults de v3 se escriben explícitos para que la fila no
+	// dependa del default de la migración ni de la UI.
+	snmpVersion := in.SnmpVersion
+	if snmpVersion != "1" && snmpVersion != "3" {
+		snmpVersion = "2c"
+	}
+	snmpSecLevel := in.SnmpV3SecurityLevel
+	if snmpSecLevel == "" {
+		snmpSecLevel = "authPriv"
+	}
+	snmpAuthProto := in.SnmpV3AuthProto
+	if snmpAuthProto == "" {
+		snmpAuthProto = "SHA"
+	}
+	snmpPrivProto := in.SnmpV3PrivProto
+	if snmpPrivProto == "" {
+		snmpPrivProto = "AES"
+	}
 	sshPort := in.SSHPort
 	if sshPort <= 0 {
 		sshPort = 22
@@ -235,8 +268,9 @@ func AddRouter(db *sql.DB, in AddInput) (adapters.RouterConfig, error) {
 		consolePoll = 0
 	}
 	if _, err := tx.Exec(
-		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, console_polling, inventory_mode) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO routers (id, name, host, type, is_gateway, agent_only, firmware_target, created_at, snmp_enabled, snmp_community, snmp_port, snmp_poll_interval, agent_interval, ssh_port, console_polling, inventory_mode, snmp_version, snmp_v3_user, snmp_v3_security_level, snmp_v3_auth_proto, snmp_v3_auth_pass, snmp_v3_priv_proto, snmp_v3_priv_pass) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		id, name, in.Host, in.Type, gw, ao, in.FirmwareTarget, now, snmpEn, in.SnmpCommunity, snmpPort, snmpInterval, in.AgentInterval, sshPort, consolePoll, mode,
+		snmpVersion, in.SnmpV3User, snmpSecLevel, snmpAuthProto, in.SnmpV3AuthPass, snmpPrivProto, in.SnmpV3PrivPass,
 	); err != nil {
 		return adapters.RouterConfig{}, err
 	}
@@ -282,6 +316,14 @@ type UpdateInput struct {
 	SnmpCommunity    *string
 	SnmpPort         *int
 	SnmpPollInterval *int // issue #414
+	// SNMPv3 (#2042): nil = no tocar. "" en los passphrases los borra.
+	SnmpVersion         *string
+	SnmpV3User          *string
+	SnmpV3SecurityLevel *string
+	SnmpV3AuthProto     *string
+	SnmpV3AuthPass      *string
+	SnmpV3PrivProto     *string
+	SnmpV3PrivPass      *string
 	// AgentInterval (#1476): nil = no tocar; 0 = volver al default.
 	AgentInterval *int
 	// SSHPort (issue #605): puerto SSH; nil = no tocar.
@@ -391,6 +433,52 @@ func UpdateRouter(db *sql.DB, id string, in UpdateInput) (adapters.RouterConfig,
 		}
 		sets = append(sets, "snmp_poll_interval = ?")
 		args = append(args, v)
+	}
+	// #2042: versión y credenciales USM. Los valores llegan ya validados por
+	// la capa HTTP; aquí solo se normaliza la versión desconocida a "2c".
+	if in.SnmpVersion != nil {
+		v := *in.SnmpVersion
+		if v != "1" && v != "3" {
+			v = "2c"
+		}
+		sets = append(sets, "snmp_version = ?")
+		args = append(args, v)
+	}
+	if in.SnmpV3User != nil {
+		sets = append(sets, "snmp_v3_user = ?")
+		args = append(args, *in.SnmpV3User)
+	}
+	if in.SnmpV3SecurityLevel != nil {
+		v := *in.SnmpV3SecurityLevel
+		if v == "" {
+			v = "authPriv"
+		}
+		sets = append(sets, "snmp_v3_security_level = ?")
+		args = append(args, v)
+	}
+	if in.SnmpV3AuthProto != nil {
+		v := *in.SnmpV3AuthProto
+		if v == "" {
+			v = "SHA"
+		}
+		sets = append(sets, "snmp_v3_auth_proto = ?")
+		args = append(args, v)
+	}
+	if in.SnmpV3AuthPass != nil {
+		sets = append(sets, "snmp_v3_auth_pass = ?")
+		args = append(args, *in.SnmpV3AuthPass)
+	}
+	if in.SnmpV3PrivProto != nil {
+		v := *in.SnmpV3PrivProto
+		if v == "" {
+			v = "AES"
+		}
+		sets = append(sets, "snmp_v3_priv_proto = ?")
+		args = append(args, v)
+	}
+	if in.SnmpV3PrivPass != nil {
+		sets = append(sets, "snmp_v3_priv_pass = ?")
+		args = append(args, *in.SnmpV3PrivPass)
 	}
 	// #1476: el intervalo del agente se guarda tal cual. 0 significa "usa el
 	// default del agente", así que no se normaliza aquí.

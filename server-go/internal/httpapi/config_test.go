@@ -766,3 +766,136 @@ func TestConfigRoutersHidesSNMPCommunity(t *testing.T) {
 		})
 	}
 }
+
+// TestConfigRoutersSNMPv3 (#2042): la versión y el bloque USM viajan por la
+// API, y las dos passphrases no salen NUNCA (solo su flag *_set).
+func TestConfigRoutersSNMPv3(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"swv3","host":"192.168.8.40","type":"managed-switch","snmp_enabled":true,`+
+			`"snmp_version":"3","snmp_v3_user":"monitor","snmp_v3_security_level":"authPriv",`+
+			`"snmp_v3_auth_proto":"SHA256","snmp_v3_auth_pass":"authpass123",`+
+			`"snmp_v3_priv_proto":"AES256","snmp_v3_priv_pass":"privpass123"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST router v3: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	router := body["router"].(map[string]any)
+	if router["snmp_version"] != "3" {
+		t.Fatalf("snmp_version: %v", router["snmp_version"])
+	}
+	if router["snmp_v3_user"] != "monitor" {
+		t.Fatalf("snmp_v3_user: %v", router["snmp_v3_user"])
+	}
+	if router["snmp_v3_security_level"] != "authPriv" {
+		t.Fatalf("security level: %v", router["snmp_v3_security_level"])
+	}
+	if router["snmp_v3_auth_proto"] != "SHA256" {
+		t.Fatalf("auth proto: %v", router["snmp_v3_auth_proto"])
+	}
+	if router["snmp_v3_priv_proto"] != "AES256" {
+		t.Fatalf("priv proto: %v", router["snmp_v3_priv_proto"])
+	}
+	if router["snmp_v3_auth_pass_set"] != true || router["snmp_v3_priv_pass_set"] != true {
+		t.Fatalf("pass_set flags: %v / %v", router["snmp_v3_auth_pass_set"], router["snmp_v3_priv_pass_set"])
+	}
+	if _, leaked := router["snmp_v3_auth_pass"]; leaked {
+		t.Fatalf("snmp_v3_auth_pass no debe exponerse: %v", router)
+	}
+	if _, leaked := router["snmp_v3_priv_pass"]; leaked {
+		t.Fatalf("snmp_v3_priv_pass no debe exponerse: %v", router)
+	}
+
+	// El listado pasa por el mismo DTO: tampoco filtra los secretos.
+	res = doReq(t, "GET", srv.URL+"/api/config/routers", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET routers: %d", res.StatusCode)
+	}
+	body = readJSON(t, res)
+	routers, _ := body["routers"].([]any)
+	if len(routers) != 1 {
+		t.Fatalf("routers: %v", body["routers"])
+	}
+	item := routers[0].(map[string]any)
+	if _, leaked := item["snmp_v3_auth_pass"]; leaked {
+		t.Fatal("snmp_v3_auth_pass en el listado")
+	}
+	if _, leaked := item["snmp_v3_priv_pass"]; leaked {
+		t.Fatal("snmp_v3_priv_pass en el listado")
+	}
+	if item["snmp_version"] != "3" || item["snmp_v3_user"] != "monitor" {
+		t.Fatalf("listado v3: %v", item)
+	}
+
+	// Cambiar solo la passphrase de autenticación: no toca la de privacidad.
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/swv3", cookie,
+		`{"snmp_v3_auth_pass":"otrapass123"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT passphrase: %d", res.StatusCode)
+	}
+	rt := readJSON(t, res)["router"].(map[string]any)
+	if rt["snmp_v3_auth_pass_set"] != true || rt["snmp_v3_priv_pass_set"] != true {
+		t.Fatalf("flags tras PUT: %v / %v", rt["snmp_v3_auth_pass_set"], rt["snmp_v3_priv_pass_set"])
+	}
+	if rt["snmp_v3_user"] != "monitor" {
+		t.Fatalf("user tras PUT parcial: %v", rt["snmp_v3_user"])
+	}
+
+	// Borrar una passphrase: se envía el string vacío a propósito.
+	res = doReq(t, "PUT", srv.URL+"/api/config/routers/swv3", cookie,
+		`{"snmp_v3_security_level":"noAuthNoPriv","snmp_v3_auth_pass":"","snmp_v3_priv_pass":""}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT clear passes: %d", res.StatusCode)
+	}
+	rt = readJSON(t, res)["router"].(map[string]any)
+	if rt["snmp_v3_auth_pass_set"] != false || rt["snmp_v3_priv_pass_set"] != false {
+		t.Fatalf("flags tras borrar: %v / %v", rt["snmp_v3_auth_pass_set"], rt["snmp_v3_priv_pass_set"])
+	}
+}
+
+// TestConfigRoutersSNMPv3Rejects valida lo que no debe entrar por la API.
+func TestConfigRoutersSNMPv3Rejects(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"version invalida", `{"name":"a1","host":"192.168.8.51","snmp_version":"2"}`},
+		{"v3 sin usuario", `{"name":"a2","host":"192.168.8.52","snmp_version":"3","snmp_v3_auth_pass":"authpass123","snmp_v3_priv_pass":"privpass123"}`},
+		{"v3 authPriv sin priv pass", `{"name":"a3","host":"192.168.8.53","snmp_version":"3","snmp_v3_user":"u","snmp_v3_auth_pass":"authpass123"}`},
+		{"v3 authNoPriv sin auth pass", `{"name":"a4","host":"192.168.8.54","snmp_version":"3","snmp_v3_user":"u","snmp_v3_security_level":"authNoPriv"}`},
+		{"pass corta", `{"name":"a5","host":"192.168.8.55","snmp_version":"3","snmp_v3_user":"u","snmp_v3_auth_pass":"corta","snmp_v3_priv_pass":"privpass123"}`},
+		{"nivel invalido", `{"name":"a6","host":"192.168.8.56","snmp_version":"3","snmp_v3_user":"u","snmp_v3_security_level":"authPrivX","snmp_v3_auth_pass":"authpass123","snmp_v3_priv_pass":"privpass123"}`},
+		{"auth proto invalido", `{"name":"a7","host":"192.168.8.57","snmp_version":"3","snmp_v3_user":"u","snmp_v3_auth_proto":"SHA3","snmp_v3_auth_pass":"authpass123","snmp_v3_priv_pass":"privpass123"}`},
+		{"priv proto invalido", `{"name":"a8","host":"192.168.8.58","snmp_version":"3","snmp_v3_user":"u","snmp_v3_priv_proto":"CHACHA","snmp_v3_auth_pass":"authpass123","snmp_v3_priv_pass":"privpass123"}`},
+		{"usuario demasiado largo", `{"name":"a9","host":"192.168.8.59","snmp_version":"3","snmp_v3_user":"0123456789012345678901234567890123","snmp_v3_auth_pass":"authpass123","snmp_v3_priv_pass":"privpass123"}`},
+	}
+	for _, c := range cases {
+		res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie, c.body)
+		if res.StatusCode != 400 {
+			t.Errorf("%s: %d; want 400", c.name, res.StatusCode)
+		}
+	}
+}
+
+// TestConfigRoutersSNMPDefaultVersion deja claro que una alta sin versión
+// sigue siendo v2c, el comportamiento histórico.
+func TestConfigRoutersSNMPDefaultVersion(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+	res := doReq(t, "POST", srv.URL+"/api/config/routers", cookie,
+		`{"name":"sw2c","host":"192.168.8.60","type":"managed-switch","snmp_enabled":true,"snmp_community":"public"}`)
+	if res.StatusCode != 201 {
+		t.Fatalf("POST: %d", res.StatusCode)
+	}
+	rt := readJSON(t, res)["router"].(map[string]any)
+	if rt["snmp_version"] != "2c" {
+		t.Fatalf("snmp_version por defecto: %v", rt["snmp_version"])
+	}
+	if rt["snmp_community_set"] != true {
+		t.Fatalf("community_set: %v", rt["snmp_community_set"])
+	}
+}

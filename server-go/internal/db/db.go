@@ -701,6 +701,18 @@ func Open(dataDir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_port", "ALTER TABLE routers ADD COLUMN snmp_port INTEGER NOT NULL DEFAULT 0")
 	// issue #414: intervalo de polling SNMP configurable (segundos; default 60).
 	migrate(sqldb, "routers", "snmp_poll_interval", "ALTER TABLE routers ADD COLUMN snmp_poll_interval INTEGER NOT NULL DEFAULT 60")
+	// #2042: versión de SNMP por unidad ("1", "2c" o "3"). DEFAULT '2c' deja
+	// las filas existentes con el comportamiento actual (comunidad).
+	migrate(sqldb, "routers", "snmp_version", "ALTER TABLE routers ADD COLUMN snmp_version TEXT NOT NULL DEFAULT '2c'")
+	// #2042: credenciales USM para SNMPv3. Sin usuario no hay v3 posible, así
+	// que "" = v3 sin configurar. Los dos passphrases son secretos: no salen
+	// nunca por HTTP (mismo criterio que snmp_community).
+	migrate(sqldb, "routers", "snmp_v3_user", "ALTER TABLE routers ADD COLUMN snmp_v3_user TEXT NOT NULL DEFAULT ''")
+	migrate(sqldb, "routers", "snmp_v3_security_level", "ALTER TABLE routers ADD COLUMN snmp_v3_security_level TEXT NOT NULL DEFAULT 'authPriv'")
+	migrate(sqldb, "routers", "snmp_v3_auth_proto", "ALTER TABLE routers ADD COLUMN snmp_v3_auth_proto TEXT NOT NULL DEFAULT 'SHA'")
+	migrate(sqldb, "routers", "snmp_v3_auth_pass", "ALTER TABLE routers ADD COLUMN snmp_v3_auth_pass TEXT NOT NULL DEFAULT ''")
+	migrate(sqldb, "routers", "snmp_v3_priv_proto", "ALTER TABLE routers ADD COLUMN snmp_v3_priv_proto TEXT NOT NULL DEFAULT 'AES'")
+	migrate(sqldb, "routers", "snmp_v3_priv_pass", "ALTER TABLE routers ADD COLUMN snmp_v3_priv_pass TEXT NOT NULL DEFAULT ''")
 	migrate(sqldb, "routers", "agent_interval", "ALTER TABLE routers ADD COLUMN agent_interval INTEGER NOT NULL DEFAULT 0")
 	// issue #605: puerto SSH por router (dropbear en puerto no estándar).
 	migrate(sqldb, "routers", "ssh_port", "ALTER TABLE routers ADD COLUMN ssh_port INTEGER NOT NULL DEFAULT 22")
