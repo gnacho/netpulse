@@ -3,10 +3,13 @@
 package adapters
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 func TestParseWGUciDescs(t *testing.T) {
@@ -356,14 +359,46 @@ func TestWGInterfacesAmneziaWG(t *testing.T) {
 	if len(got) != 1 || got[0] != "wg0" {
 		t.Errorf("wgInterfaces(auto) sin awg = %v, want [wg0]", got)
 	}
+}
 
-	// AMBOS listados fallan: fallback histórico wg0 (#714).
-	f = &fakeWGRunner{run: func(cmd string) (string, error) {
-		return "", fmt.Errorf("not found")
+// remoteCommandError imita el error del pool cuando el comando SÍ se ejecutó en
+// el router y salió con código distinto de cero (mismo envoltorio que `run`).
+func remoteCommandError(msg string) error {
+	return fmt.Errorf("ssh host: %w: %s", &ssh.ExitError{Waitmsg: ssh.Waitmsg{}}, msg)
+}
+
+// unreachableError imita un fallo ANTES de ejecutar nada: credencial rechazada
+// o host en backoff. No es un exit status y no dice nada del router.
+func unreachableError() error {
+	return errors.New("ssh host: en backoff tras 3 fallos")
+}
+
+// #2041: si el listado no se pudo ejecutar (sin credencial SSH autorizada en el
+// router, host en backoff, timeout) no hay evidencia de ninguna interfaz. El
+// wg0 inventado fijaba la penalización de la nota de salud (#1442) para
+// siempre, porque la guarda solo se salta la penalización con Interface vacío.
+func TestWGInterfacesNotExecutedNoFallback(t *testing.T) {
+	f := &fakeWGRunner{run: func(cmd string) (string, error) {
+		return "", unreachableError()
 	}}
-	got = wgInterfaces(f, "host", "auto")
-	if len(got) != 1 || got[0] != "wg0" {
-		t.Errorf("wgInterfaces(auto) ambos fallan = %v, want [wg0]", got)
+	got := wgInterfaces(f, "host", "auto")
+	if len(got) != 0 {
+		t.Fatalf("wgInterfaces(auto) sin poder ejecutar = %v, want ninguna interfaz", got)
+	}
+
+	// Y el efecto que importa: la nota de salud no penaliza.
+	stats, err := GetWireGuardStats(f, "host", "auto", "", nil, nil)
+	if err != nil {
+		t.Fatalf("GetWireGuardStats: %v", err)
+	}
+	if stats.Interface != "" {
+		t.Errorf("Interface = %q, want \"\" (sin evidencia de interfaz)", stats.Interface)
+	}
+	if stats.Status != "inactive" {
+		t.Errorf("Status = %q, want inactive", stats.Status)
+	}
+	if h := computeHealth(nil, nil, stats); h.Score != 100 {
+		t.Errorf("health = %d, want 100 (sin WireGuard no hay penalización, %+v)", h.Score, h.Breakdown)
 	}
 }
 
@@ -495,11 +530,14 @@ func TestGetWireGuardStatsExplicitFilter(t *testing.T) {
 }
 
 func TestWGInterfacesFallsBackOnListError(t *testing.T) {
+	// #714: el comando SE EJECUTA y falla en el router (un `wg` sin el
+	// subcomando `interfaces`): se conserva el default wg0 para no dejar el
+	// panel sin datos.
 	f := &fakeWGRunner{run: func(cmd string) (string, error) {
 		if cmd == wgListCommand {
-			return "", fmt.Errorf("wg show interfaces no soportado")
+			return "", remoteCommandError("wg: unknown command")
 		}
-		return "", fmt.Errorf("comando inesperado: %s", cmd)
+		return "", remoteCommandError("ash: awg: not found")
 	}}
 	got := wgInterfaces(f, "host", "auto")
 	if len(got) != 1 || got[0] != "wg0" {

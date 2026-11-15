@@ -65,10 +65,10 @@ func parseWGInterfaces(out string) []string {
 // descubre todas con `wg show interfaces` y `awg show interfaces` (AmneziaWG,
 // #776); un valor explícito (una interfaz o una lista separada por comas)
 // actúa como filtro/override sin tocar el router para listarlas (#713). Si
-// AMBOS listados fallan en modo auto (p. ej. un `wg` sin el subcomando
-// `interfaces`), cae al default histórico `wg0` para no dejar el panel sin
-// datos (#714). Un listado que falle individualmente (p. ej. `awg` no
-// instalado) se trata como "sin interfaces de ese tipo".
+// AMBOS listados se ejecutan y fallan (un `wg` sin el subcomando `interfaces`),
+// cae al default histórico `wg0` para no dejar el panel sin datos (#714). Un
+// listado que falle individualmente (p. ej. `awg` no instalado) se trata como
+// "sin interfaces de ese tipo".
 func wgInterfaces(pool sshRunner, host, iface string) []string {
 	v := strings.TrimSpace(iface)
 	if v != "" && v != "auto" {
@@ -83,7 +83,16 @@ func wgInterfaces(pool sshRunner, host, iface string) []string {
 	raw, err := pool.Run(host, wgListCommand, 0)
 	awgRaw, awgErr := pool.Run(host, awgListCommand, 0)
 	if err != nil && awgErr != nil {
-		return []string{"wg0"}
+		// #2041: el fallback wg0 es para routers ALCANZABLES cuyo `wg` no
+		// lista interfaces. Si no se pudo ejecutar el listado (credencial
+		// rechazada, host en backoff, timeout) no hay ninguna evidencia sobre
+		// WireGuard en ese router: inventar wg0 creaba una interfaz caída que
+		// la nota de salud penalizaba -10 para siempre, porque la guarda de
+		// #1442 solo se salta la penalización con Interface vacío.
+		if remoteExited(err) || remoteExited(awgErr) {
+			return []string{"wg0"}
+		}
+		return nil
 	}
 	seen := map[string]bool{}
 	out := []string{}
