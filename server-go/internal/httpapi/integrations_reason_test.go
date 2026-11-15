@@ -93,4 +93,14 @@ func TestIntegrationsOfflineReasonEnFilas(t *testing.T) {
 			t.Fatalf("%s: offlineReason = %q, want %q (item: %v)", slug, got, code, it)
 		}
 	}
+
+	// #2039: el fallo de poll viaja en crudo, que es lo que un reporte puede
+	// pegar. Sin fallo en el log no hay nada que enseñar.
+	log404 := items["log-404"]
+	if got, _ := log404["pollError"].(string); got != "404 Not Found: no REST API" {
+		t.Fatalf("log-404: pollError = %q, want the raw log message (item: %v)", got, log404)
+	}
+	if got, _ := items["stale-noerr"]["pollError"].(string); got != "" {
+		t.Fatalf("stale-noerr: pollError = %q, want empty", got)
+	}
 }

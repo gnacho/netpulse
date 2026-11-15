@@ -674,13 +674,21 @@ export default function Integrations({
                 </div>
                 {/* #1718: motivo offline clasificado (mismos códigos que la
                     tarjeta y el detalle). El tooltip lleva el error crudo del
-                    pusher para quien quiera el detalle técnico. */}
+                    pusher para quien quiera el detalle técnico.
+                    #2039: el fallo de poll en crudo se pinta debajo, porque un
+                    tooltip no se puede copiar y era el único dato que se pide
+                    en cada reporte. */}
                 {it.offlineReason && (
                   <div
-                    title={it.lastError || undefined}
                     className="mt-1.5 text-caption text-danger"
+                    title={it.lastError || it.pollError || undefined}
                   >
                     {t(`routers.statusReason.${it.offlineReason}`, { defaultValue: it.offlineReason })}
+                  </div>
+                )}
+                {it.pollError && (
+                  <div className="mt-0.5 font-mono text-[11px] leading-snug break-all text-text-muted select-all">
+                    {it.pollError}
                   </div>
                 )}
                 {editing?.slug === it.slug && (
