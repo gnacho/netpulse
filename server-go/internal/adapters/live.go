@@ -1316,10 +1316,12 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	cpu, _ := client.GetCPUPercent()
 	temp, _ := client.GetTempC()
 	// NetDev: total agregado + rates POR IFACE (#305) en una sola lectura.
-	net, ifRates := client.GetNetDev()
-	if net == nil {
-		net = &NetDevBps{}
-	}
+	netAgg, ifRates := client.GetNetDev()
+	wanIface := l.probeWanInfo(cfg.ID, client)
+	// #2048: el tráfico del router es el de su WAN, no la suma de todas las
+	// bocas (que cuenta la bajada dos veces: entra por la WAN y sale por la
+	// LAN). Sin WAN identificable se mantiene el agregado.
+	net := pickRouterNet(netAgg, wanIface.Port, ifRates)
 	leases := client.GetDhcpLeases()
 	reservations := client.GetDhcpReservations()
 	arp, arpStale, arpDevs := client.GetArp()
@@ -1328,7 +1330,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	// — coste: una llamada ubus local por poll.
 	glClients := client.GetGlClients()
 	wireless := client.GetWirelessClients()
-	ports := client.GetEthPorts(layout, ifRates, l.probeWanInfo(cfg.ID, client).Port)
+	ports := client.GetEthPorts(layout, ifRates, wanIface.Port)
 	radios := client.GetRadios()
 	fdb := client.GetBridgeFdb()
 	brMac := client.GetBridgeMac()
