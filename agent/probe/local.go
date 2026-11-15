@@ -100,6 +100,10 @@ type Prober struct {
 	// para derivar la sección NetIf (contadores por iface, #305) sin un
 	// segundo cat.
 	lastNetRaw string
+	// lastNetIf/lastNetIfAt: contadores por interfaz del ciclo anterior, para
+	// publicar la tasa de la WAN y no la suma de todas las bocas (#2048).
+	lastNetIf   map[string]IfCounters
+	lastNetIfAt time.Time
 	// lastWan: uplink del último Build, para que probeFDB marque la boca por
 	// la que sale internet sin repetir la llamada a ubus.
 	lastWan *WanInfo
@@ -533,7 +537,21 @@ func (p *Prober) probeSystem(ctx context.Context) *SystemData {
 		now := time.Now()
 		if p.hasLastNet {
 			sd.RxBps, sd.TxBps = NetDevBps(p.lastNetRx, p.lastNetTx, rx, tx, now.Sub(p.lastNetAt).Seconds())
+			// #2048: el agregado suma todas las bocas físicas y en un router
+			// que enruta cuenta la bajada dos veces (entra por la WAN y sale
+			// por la LAN). Si el equipo sabe cuál es su WAN, se publica la
+			// tasa de ESA boca. Sin WAN identificable (AP) manda el agregado.
+			if p.lastWan != nil && p.lastWan.Port != "" && p.lastNetIf != nil {
+				rates := IfRates(p.lastNetIf, ParseNetDevIfaces(out), now.Sub(p.lastNetIfAt).Seconds())
+				if r, ok := rates[p.lastWan.Port]; ok && r.RxBps != nil && r.TxBps != nil {
+					sd.RxBps, sd.TxBps = r.RxBps, r.TxBps
+				}
+			}
 		}
+		// Se guarda SIEMPRE, también en la primera muestra, que es la que abre
+		// la ventana: si no, el ciclo siguiente no tiene con qué comparar.
+		p.lastNetIf = ParseNetDevIfaces(out)
+		p.lastNetIfAt = now
 		p.lastNetRx, p.lastNetTx, p.lastNetAt, p.hasLastNet = rx, tx, now, true
 		p.lastNetRaw = out
 		p.netIfUpdated = true
