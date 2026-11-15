@@ -7,6 +7,35 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.53.0] - 2026-11-16
+
+### Added
+
+- Soporte SNMPv3 (USM) para dispositivos sondeados por SNMP (#2042).
+- Los contadores por peer de WireGuard se persisten, así que el tráfico de 30 d es medido y no estimado (#2019).
+- La gráfica de tráfico de 24 h pinta 96 puntos en lugar de 24, y la de 7 d pinta 28 en lugar de 7 (#2046, reportado por @fsolak47).
+- La tarjeta de información de la unidad muestra la versión del agente y si va por detrás de la embebida (#2007, @crowedavid).
+- Guía para quien quiera traducir NetPulse a su idioma (#2031).
+
+### Changed
+
+- El resumen de tráfico bajo las gráficas sigue el rango seleccionado en la gráfica y no una ventana fija (#2047, @fsolak47).
+- El tráfico WAN se lee de las interfaces WAN y no de todas las físicas, así que los totales dejan de contar dos veces bridges y VLANs (#2048, @fsolak47).
+- La página de integraciones y la tabla de plataformas del README listan OPNsense, que la app ya ofrecía (#2025, #2028).
+- La pista de integración caída ya no nombra RouterOS para cualquier fabricante y muestra el error crudo del sondeo (#2039).
+
+### Fixed
+
+- Una actualización de agente fallida borra el binario descargado y su fichero de staging en todas las salidas (#2037).
+- El widget "Transfer 30 d" de WireGuard muestra el tráfico real del peer en lugar de un valor fijo, y solo cae a `wg0` cuando el listado se ejecutó en el propio router (#2017, #2041).
+- Un AP de un solo puerto ya no etiqueta un puerto como WAN cuando la placa no declara ninguna, y la WAN declarada sobrevive cuando el uplink es miembro de un bridge (#2033, #2034).
+- Una MAC sin datos de lease deja de figurar como reserva estática mientras está online y como expirada al desaparecer (#2029).
+- Un host con interfaces virtuales ya no lleva la insignia de switch (#2032).
+- El mapa de topología solo ofrece el enlace de detalle en los nodos que navegan de verdad (#2049, @fsolak47).
+- Los perfiles de rack creados antes de 2.51.0 muestran puertos vivos y ofrecen limpiar los puertos LAG y virtuales que quedaron atrás (#2010, @Bann-DEV).
+- Una copia de configuración programada servida por un agente se registra como programada, igual que las que lanza el servidor (#2011, @crowedavid).
+- La interfaz de CPU del switch ya no se cuenta como puerto físico del panel frontal (#2009, @Bann-DEV).
+
 ## [2.52.0] - 2026-11-11
 
 ### Added
