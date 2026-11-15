@@ -232,6 +232,17 @@ func isSSHAuthError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "ssh: unable to authenticate")
 }
 
+// remoteExited distingue el fallo de un comando que SÍ se ejecutó en el router
+// (exit status distinto de cero: `wg: unknown command`, binario ausente) de
+// no haber podido ejecutar nada (credencial rechazada, host en backoff,
+// timeout de dial, sesión rota). Quien interprete un error para deducir una
+// capacidad del router tiene que preguntar esto primero: un dial fallido no
+// dice nada del router, solo de nuestro acceso (#2041).
+func remoteExited(err error) bool {
+	var ee *ssh.ExitError
+	return err != nil && errors.As(err, &ee)
+}
+
 // RemoveHostKey elimina las entradas known_hosts de un host (confirmación de
 // re-onboard #603). Quita las líneas previas de ese host (la lista de hosts
 // de una línea puede ser separada por comas); el siguiente sondeo la vuelve a
