@@ -1155,11 +1155,16 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 		span, bucket = 3600e3, 180e3
 		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%02d:%02d", d.Hour(), d.Minute()) }
 	case "24h":
-		span, bucket = 86400e3, 3600e3
-		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%02d", d.Hour()) }
+		// #2046: 15 min en vez de una hora. 96 puntos siguen siendo legibles
+		// en el gráfico y dan la forma real del día (antes se perdían los
+		// picos entre horas).
+		span, bucket = 86400e3, 900e3
+		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%02d:%02d", d.Hour(), d.Minute()) }
 	case "7d":
-		span, bucket = 7*86400e3, 86400e3
-		fmtLabel = func(d time.Time) string { return weekdayES[d.Weekday()] }
+		// #2046: 6 h en vez de un día, 28 puntos. La etiqueta lleva el día y
+		// la hora porque con cuatro puntos por día solo el día no distingue.
+		span, bucket = 7*86400e3, 6*3600e3
+		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%s %02dh", weekdayES[d.Weekday()], d.Hour()) }
 	case "30d":
 		span, bucket = 30*86400e3, 6*3600e3
 		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%d", d.Day()) }
