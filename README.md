@@ -125,7 +125,7 @@ while NetPulse maintains only the shared ingest contract.
 
 **And the rest of the tour:**
 
-- **WireGuard**: peers with real names, latest handshakes, transfer per peer.
+- **WireGuard**: peers with real names, latest handshakes, transfer per peer and the traffic of the last 30 days, built from persisted per-peer counters because the counters WireGuard exposes restart at zero with every peer.
 - **AdGuard Home**: query stats, blocked share, top blocked domains.
 - **Wi-Fi and roaming**: signal matrix per AP, 802.11r status, channel
   utilization, persistent roaming events.

@@ -1203,7 +1203,10 @@
       "showDisconnected": "Show disconnected clients",
       "showDisconnectedHint": "Peers with no live handshake. Only affects this card in this browser.",
       "hiddenPeers_one": "1 disconnected client hidden",
-      "hiddenPeers_other": "{{count}} disconnected clients hidden"
+      "hiddenPeers_other": "{{count}} disconnected clients hidden",
+      "transfer30d": "last 30 days",
+      "transfer30dShort": "last {{days}} days, since {{since}}",
+      "transfer30dNone": "no history yet for the 30 day window"
     },
     "statusReasonTitle": "Why this unit is down"
   },

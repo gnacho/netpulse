@@ -20,6 +20,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/roamcfg"
 	"github.com/gnacho/netpulse/server-go/internal/roamevents"
 	"github.com/gnacho/netpulse/server-go/internal/speedtest"
+	"github.com/gnacho/netpulse/server-go/internal/wgseries"
 )
 
 var bands = []string{"5 GHz", "2.4 GHz", "cable"}
@@ -125,7 +126,48 @@ func (s *server) handleOverview(w http.ResponseWriter, r *http.Request) {
 	out.UnreadAlerts = engine.UnreadCount()
 	out.ServerUptimeSec = int64(time.Since(s.started).Seconds())
 	EnrichOverview(s.db.DB, s.speedtest, &out, s.pusherStatusReasons())
+	if s.db != nil {
+		EnrichWireGuardWindow(&out, s.db.WGSeries)
+	}
 	writeJSON(w, http.StatusOK, &out)
+}
+
+// EnrichWireGuardWindow rellena Transfer30d del túnel del overview (#2019)
+// con las muestras que persiste el poller. Se deja fuera de EnrichOverview a
+// propósito: necesita el store y en demo o en los tests sin base de datos no
+// hay serie, así que con store nil no hace nada.
+func EnrichWireGuardWindow(out *adapters.Overview, store *wgseries.Store) {
+	if out == nil {
+		return
+	}
+	EnrichWireGuardStats(&out.Wireguard, store)
+}
+
+// EnrichWireGuardStats estampa la ventana de 30 días en un WireGuardStats
+// concreto (el overview y el detalle del gateway son sondeos distintos).
+func EnrichWireGuardStats(wg *adapters.WireGuardStats, store *wgseries.Store) {
+	if wg == nil || store == nil || wg.RouterID == "" || wg.Transfer30d != nil {
+		return
+	}
+	now := time.Now()
+	tot, err := store.Window(wg.RouterID, now, wgseries.DefaultWindowDays)
+	if err != nil || tot.First.IsZero() {
+		return
+	}
+	days := int(now.Sub(tot.First).Hours()/24) + 1
+	if days > wgseries.DefaultWindowDays {
+		days = wgseries.DefaultWindowDays
+	}
+	if days < 1 {
+		days = 1
+	}
+	wg.Transfer30d = &adapters.WGWindow{
+		Rx:    adapters.FormatBytes(tot.Rx),
+		Tx:    adapters.FormatBytes(tot.Tx),
+		Peers: tot.Peers,
+		Days:  days,
+		Since: tot.First.Format("2 Jan"),
+	}
 }
 
 // pusherStatusReasons (#1703): motivo de caída por slug de integración, para
@@ -226,6 +268,9 @@ func (s *server) handleRouterDetail(w http.ResponseWriter, r *http.Request) {
 	if detail == nil {
 		writeError(w, http.StatusNotFound, "not_found")
 		return
+	}
+	if s.db != nil {
+		EnrichWireGuardStats(detail.Wireguard, s.db.WGSeries)
 	}
 	writeJSON(w, http.StatusOK, detail)
 }

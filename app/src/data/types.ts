@@ -222,6 +222,14 @@ export interface WireGuardStats {
    * peers sondeados.
    */
   transfer?: { rx: string; tx: string }
+  /**
+   * #2019: transferido en la ventana de 30 días, calculado con las muestras
+   * por peer que persiste el servidor. Ausente cuando no hay histórico
+   * todavía, que es un estado distinto de "cero bytes". `days` es la cobertura
+   * real del histórico (puede ser menor que 30 en una instalación reciente) y
+   * `since` la primera muestra.
+   */
+  transfer30d?: { rx: string; tx: string; peers: number; days: number; since?: string }
 }
 
 export type DeviceType =

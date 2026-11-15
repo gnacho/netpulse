@@ -369,6 +369,7 @@ func buildWGPeer(p WGDumpPeer, peerNames map[string]WGPeerName, descs map[string
 		ID: id, Key: key, Name: name, Type: typ, TunnelIP: tunnelIP,
 		Active: active, LastHandshake: lastHandshake,
 		Rx: fmtBytes(float64(p.RxBytes)), Tx: fmtBytes(float64(p.TxBytes)),
+		RxBytes: p.RxBytes, TxBytes: p.TxBytes,
 		Urgent: urgent[key] || urgent[id],
 	}
 }
