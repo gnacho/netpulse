@@ -18,6 +18,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/discover"
 	"github.com/gnacho/netpulse/server-go/internal/pve"
 	"github.com/gnacho/netpulse/server-go/internal/routerstore"
+	"github.com/gnacho/netpulse/server-go/internal/snmp"
 	"github.com/gnacho/netpulse/server-go/internal/sshkey"
 )
 
@@ -107,10 +108,18 @@ type routerListItem struct {
 	SnmpCommunitySet bool   `json:"snmp_community_set"`
 	SnmpPort         int    `json:"snmp_port,omitempty"`
 	SnmpPollInterval int    `json:"snmp_poll_interval,omitempty"`
-	Disabled         bool   `json:"disabled"`
-	ConsolePolling   bool   `json:"console_polling"`
-	SSHPort          int    `json:"ssh_port,omitempty"`
-	TempThreshold    *int   `json:"temp_threshold,omitempty"`
+	// SNMPv3 (#2042). Las passphrases nunca salen: solo si están guardadas.
+	SnmpVersion         string `json:"snmp_version"`
+	SnmpV3User          string `json:"snmp_v3_user,omitempty"`
+	SnmpV3SecurityLevel string `json:"snmp_v3_security_level,omitempty"`
+	SnmpV3AuthProto     string `json:"snmp_v3_auth_proto,omitempty"`
+	SnmpV3AuthPassSet   bool   `json:"snmp_v3_auth_pass_set"`
+	SnmpV3PrivProto     string `json:"snmp_v3_priv_proto,omitempty"`
+	SnmpV3PrivPassSet   bool   `json:"snmp_v3_priv_pass_set"`
+	Disabled            bool   `json:"disabled"`
+	ConsolePolling      bool   `json:"console_polling"`
+	SSHPort             int    `json:"ssh_port,omitempty"`
+	TempThreshold       *int   `json:"temp_threshold,omitempty"`
 }
 
 func newRouterListItem(rt adapters.RouterConfig) routerListItem {
@@ -128,11 +137,46 @@ func newRouterListItem(rt adapters.RouterConfig) routerListItem {
 		SnmpCommunitySet: rt.SnmpCommunity != "",
 		SnmpPort:         rt.SnmpPort,
 		SnmpPollInterval: rt.SnmpPollInterval,
-		Disabled:         rt.Disabled,
-		ConsolePolling:   rt.ConsolePolling,
-		SSHPort:          rt.SSHPort,
-		TempThreshold:    rt.TempThreshold,
+		SnmpVersion:      normalizeSnmpVersion(rt.SnmpVersion),
+		SnmpV3User:       rt.SnmpV3User,
+		// Los protocolos y el nivel se devuelven porque no son secretos: la UI
+		// los necesita para pintar el formulario al editar.
+		SnmpV3SecurityLevel: defaultIfEmpty(rt.SnmpV3SecurityLevel, "authPriv"),
+		SnmpV3AuthProto:     defaultIfEmpty(rt.SnmpV3AuthProto, "SHA"),
+		SnmpV3AuthPassSet:   rt.SnmpV3AuthPass != "",
+		SnmpV3PrivProto:     defaultIfEmpty(rt.SnmpV3PrivProto, "AES"),
+		SnmpV3PrivPassSet:   rt.SnmpV3PrivPass != "",
+		Disabled:            rt.Disabled,
+		ConsolePolling:      rt.ConsolePolling,
+		SSHPort:             rt.SSHPort,
+		TempThreshold:       rt.TempThreshold,
 	}
+}
+
+// normalizeSnmpVersion deja la versión en uno de los tres valores que habla
+// el poller. Cualquier otra cosa (filas viejas con NULL/"" incluidas) es v2c.
+func normalizeSnmpVersion(v string) string {
+	if v == "1" || v == "3" {
+		return v
+	}
+	return "2c"
+}
+
+// defaultIfEmpty evita que la UI reciba "" en los selects de SNMPv3 cuando la
+// fila es anterior a la migración.
+func defaultIfEmpty(v, fallback string) string {
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+// derefStr lee un *string opcional quedándose con "" cuando no viene.
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 // GET /api/config/routers — lista configurada (no el estado sondeado).
@@ -168,6 +212,16 @@ type routerInput struct {
 	SnmpCommunity    *string `json:"snmp_community"`
 	SnmpPort         *int    `json:"snmp_port"`
 	SnmpPollInterval *int    `json:"snmp_poll_interval"` // issue #414; segundos
+	// SNMPv3 (#2042). "1" | "2c" | "3". Con v3 manda el bloque USM y la
+	// comunidad se ignora. Las passphrases son secretos: nil = no tocar y ""
+	// = borrar (mismo contrato que snmp_community).
+	SnmpVersion         *string `json:"snmp_version"`
+	SnmpV3User          *string `json:"snmp_v3_user"`
+	SnmpV3SecurityLevel *string `json:"snmp_v3_security_level"`
+	SnmpV3AuthProto     *string `json:"snmp_v3_auth_proto"`
+	SnmpV3AuthPass      *string `json:"snmp_v3_auth_pass"`
+	SnmpV3PrivProto     *string `json:"snmp_v3_priv_proto"`
+	SnmpV3PrivPass      *string `json:"snmp_v3_priv_pass"`
 	// SSHPort (issue #605): puerto SSH del router (dropbear en puerto no
 	// estándar). Ausente/0 → 22.
 	SSHPort *int `json:"ssh_port"`
@@ -204,6 +258,86 @@ func validateInventoryMode(v *string) (string, string) {
 		return m, ""
 	}
 	return "", "Invalid enum value. Expected 'auto' | 'agent' | 'ssh'"
+}
+
+// snmpV3Input es el bloque SNMPv3 (#2042) ya normalizado y validado. Los
+// punteros nil significan "no tocar" y se propagan tal cual al store; los
+// valores "" son borrados explícitos (passphrases) o defaults (protocolos).
+type snmpV3Input struct {
+	Version       *string
+	User          *string
+	SecurityLevel *string
+	AuthProto     *string
+	AuthPass      *string
+	PrivProto     *string
+	PrivPass      *string
+}
+
+// validateSnmpV3 valida el bloque USM de una alta o una edición. Devuelve el
+// input normalizado y un mensaje de error ("" = ok).
+func validateSnmpV3(in routerInput) (snmpV3Input, string) {
+	out := snmpV3Input{}
+	if in.SnmpVersion != nil {
+		v := strings.TrimSpace(*in.SnmpVersion)
+		if v == "" {
+			v = "2c"
+		}
+		if v != "1" && v != "2c" && v != "3" {
+			return out, "Invalid enum value. Expected '1' | '2c' | '3'"
+		}
+		out.Version = &v
+	}
+	if in.SnmpV3User != nil {
+		u := strings.TrimSpace(*in.SnmpV3User)
+		if len(u) > 32 {
+			return out, "snmp_v3_user must contain at most 32 characters"
+		}
+		out.User = &u
+	}
+	if in.SnmpV3SecurityLevel != nil {
+		l := strings.TrimSpace(*in.SnmpV3SecurityLevel)
+		if l != "" && !snmp.ValidV3SecurityLevel(l) {
+			return out, "Invalid enum value. Expected 'noAuthNoPriv' | 'authNoPriv' | 'authPriv'"
+		}
+		out.SecurityLevel = &l
+	}
+	if in.SnmpV3AuthProto != nil {
+		p := strings.TrimSpace(*in.SnmpV3AuthProto)
+		if p != "" && !snmp.ValidV3AuthProtocol(p) {
+			return out, "Invalid enum value. Expected 'MD5' | 'SHA' | 'SHA224' | 'SHA256' | 'SHA384' | 'SHA512'"
+		}
+		out.AuthProto = &p
+	}
+	if in.SnmpV3PrivProto != nil {
+		p := strings.TrimSpace(*in.SnmpV3PrivProto)
+		if p != "" && !snmp.ValidV3PrivProtocol(p) {
+			return out, "Invalid enum value. Expected 'DES' | 'AES' | 'AES192' | 'AES256' | 'AES192C' | 'AES256C'"
+		}
+		out.PrivProto = &p
+	}
+	for _, f := range []struct {
+		name string
+		val  *string
+		dst  **string
+	}{
+		{"snmp_v3_auth_pass", in.SnmpV3AuthPass, &out.AuthPass},
+		{"snmp_v3_priv_pass", in.SnmpV3PrivPass, &out.PrivPass},
+	} {
+		if f.val == nil {
+			continue
+		}
+		v := *f.val
+		// La passphrase no se trimea: los espacios pueden ser parte del
+		// secreto que el dispositivo espera.
+		if v != "" && len(v) < snmp.MinV3Passphrase {
+			return out, f.name + " must contain at least 8 characters"
+		}
+		if len(v) > 255 {
+			return out, f.name + " must contain at most 255 characters"
+		}
+		*f.dst = &v
+	}
+	return out, ""
 }
 
 // validateAdGuardHost permite host o host:puerto (1..65535). Devuelve
@@ -303,6 +437,32 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	v3, v3Msg := validateSnmpV3(in)
+	if v3Msg != "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", v3Msg)
+		return
+	}
+	snmpVersion := derefStr(v3.Version)
+	snmpV3User := derefStr(v3.User)
+	snmpSecLevel := defaultIfEmpty(derefStr(v3.SecurityLevel), "authPriv")
+	snmpAuthProto := defaultIfEmpty(derefStr(v3.AuthProto), "SHA")
+	snmpAuthPass := derefStr(v3.AuthPass)
+	snmpPrivProto := defaultIfEmpty(derefStr(v3.PrivProto), "AES")
+	snmpPrivPass := derefStr(v3.PrivPass)
+	if snmpVersion == "3" {
+		if snmpV3User == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "snmp_v3_user is required for SNMPv3")
+			return
+		}
+		if (snmpSecLevel == "authNoPriv" || snmpSecLevel == "authPriv") && snmpAuthPass == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "snmp_v3_auth_pass is required for "+snmpSecLevel)
+			return
+		}
+		if snmpSecLevel == "authPriv" && snmpPrivPass == "" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "snmp_v3_priv_pass is required for authPriv")
+			return
+		}
+	}
 	sshPort := 0
 	if in.SSHPort != nil {
 		p := *in.SSHPort
@@ -323,6 +483,9 @@ func (s *server) handleAddConfigRouter(w http.ResponseWriter, r *http.Request) {
 		InventoryMode:  invMode,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    snmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpInterval,
+		SnmpVersion: snmpVersion, SnmpV3User: snmpV3User, SnmpV3SecurityLevel: snmpSecLevel,
+		SnmpV3AuthProto: snmpAuthProto, SnmpV3AuthPass: snmpAuthPass,
+		SnmpV3PrivProto: snmpPrivProto, SnmpV3PrivPass: snmpPrivPass,
 		SSHPort: sshPort,
 	})
 	if err != nil {
@@ -454,6 +617,16 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		v := strings.TrimSpace(*in.SnmpCommunity)
 		snmpCommunity = &v
 	}
+	// SNMPv3 (#2042). Los punteros nil siguen significando "no tocar".
+	v3, v3Msg := validateSnmpV3(in)
+	if v3Msg != "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", v3Msg)
+		return
+	}
+	if v3.Version != nil && *v3.Version == "3" && v3.User != nil && *v3.User == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "snmp_v3_user is required for SNMPv3")
+		return
+	}
 	var sshPort *int
 	if in.SSHPort != nil {
 		p := *in.SSHPort
@@ -479,6 +652,9 @@ func (s *server) handleUpdateConfigRouter(w http.ResponseWriter, r *http.Request
 		Disabled:       in.Disabled,
 		FirmwareTarget: firmwareTarget,
 		SnmpEnabled:    in.SnmpEnabled, SnmpCommunity: snmpCommunity, SnmpPort: snmpPort, SnmpPollInterval: snmpPollInterval,
+		SnmpVersion: v3.Version, SnmpV3User: v3.User, SnmpV3SecurityLevel: v3.SecurityLevel,
+		SnmpV3AuthProto: v3.AuthProto, SnmpV3AuthPass: v3.AuthPass,
+		SnmpV3PrivProto: v3.PrivProto, SnmpV3PrivPass: v3.PrivPass,
 		SSHPort:        sshPort,
 		TempThreshold:  tempThreshold,
 		ConsolePolling: in.ConsolePolling,

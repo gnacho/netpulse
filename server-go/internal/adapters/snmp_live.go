@@ -15,6 +15,29 @@ import (
 	"golang.org/x/net/ipv4"
 )
 
+// snmpSessionConfig traduce la configuración de la unidad al contrato del
+// poller. En v1/v2c va la comunidad y en v3 las credenciales USM (#2042):
+// mandar las dos cosas no rompe nada, pero deja el error más claro cuando
+// falta lo que la versión pide.
+func snmpSessionConfig(cfg RouterConfig) npsnmp.Config {
+	c := npsnmp.Config{
+		Host:    cfg.Host,
+		Port:    cfg.SnmpPort,
+		Version: npsnmp.ParseVersion(cfg.SnmpVersion),
+	}
+	if cfg.SnmpVersion == "3" {
+		c.V3User = cfg.SnmpV3User
+		c.V3SecurityLevel = cfg.SnmpV3SecurityLevel
+		c.V3AuthProto = cfg.SnmpV3AuthProto
+		c.V3AuthPass = cfg.SnmpV3AuthPass
+		c.V3PrivProto = cfg.SnmpV3PrivProto
+		c.V3PrivPass = cfg.SnmpV3PrivPass
+	} else {
+		c.Community = cfg.SnmpCommunity
+	}
+	return c
+}
+
 func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 	// issue #414: si no ha pasado el intervalo configurado, reutiliza el último
 	// sondeo real para no martillear al switch con SNMP cada 5 s.
@@ -31,11 +54,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		return last, nil
 	}
 
-	session, err := npsnmp.NewSession(npsnmp.Config{
-		Host:      cfg.Host,
-		Port:      cfg.SnmpPort,
-		Community: cfg.SnmpCommunity,
-	})
+	session, err := npsnmp.NewSession(snmpSessionConfig(cfg))
 	if err != nil {
 		// #930: error de sesión = fallo del poll SNMP (lastErr + consecFail).
 		l.recordSnmpFailure(cfg, err)

@@ -15,3 +15,7 @@ c4cd4538a3187d7fa8e0b0fe2bdd5d95aafe245c:server-go/internal/httpapi/migrate_e2e_
 
 # Test fixture password (not a real secret): 12 chars like the rest of the login fixtures
 0fd67095b177b06a25bb95f9d1fdfb059b6e5068:server-go/internal/httpapi/users_uci_password_test.go:generic-api-key:24
+# SNMPv3 USM test fixtures: synthetic passphrases (aaaaaaaa/bbbbbbbb), rewritten
+# in the follow-up commit so only this historical fingerprint remains
+5c2bc9b42c8e8280100ecf3533f23e1646bbf49e:server-go/internal/adapters/snmp_v3_2042_test.go:generic-api-key:29
+5c2bc9b42c8e8280100ecf3533f23e1646bbf49e:server-go/internal/routerstore/snmp_v3_2042_test.go:generic-api-key:34

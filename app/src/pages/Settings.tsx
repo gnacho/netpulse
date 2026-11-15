@@ -314,6 +314,14 @@ function Confetti({ burstKey, reduce }: { burstKey: number; reduce: boolean }) {
 
 type RouterType = 'glinet' | 'openwrt' | 'managed-switch' | 'external'
 
+/** #2042: versiones de SNMP que habla el poller del servidor. */
+type SnmpVersion = '1' | '2c' | '3'
+
+// Protocolos USM que acepta el servidor (internal/snmp/poller.go). Se
+// mantienen aquí para no pedirlos por API: son estáticos.
+const SNMP_V3_AUTH_PROTOS = ['MD5', 'SHA', 'SHA224', 'SHA256', 'SHA384', 'SHA512']
+const SNMP_V3_PRIV_PROTOS = ['DES', 'AES', 'AES192', 'AES256', 'AES192C', 'AES256C']
+
 interface ConfigRouter {
   id: string
   name: string | null
@@ -327,6 +335,14 @@ interface ConfigRouter {
   firmware_target: string
   snmp_enabled: boolean
   snmp_community_set: boolean
+  /** #2042: "1" | "2c" | "3". */
+  snmp_version: SnmpVersion
+  snmp_v3_user?: string
+  snmp_v3_security_level?: string
+  snmp_v3_auth_proto?: string
+  snmp_v3_auth_pass_set: boolean
+  snmp_v3_priv_proto?: string
+  snmp_v3_priv_pass_set: boolean
   snmp_port: number
   snmp_poll_interval: number
   ssh_port?: number
@@ -343,6 +359,167 @@ interface DiscoverCandidate {
   configured: boolean
 }
 
+interface SnmpV3FieldsProps {
+  idPrefix: string
+  user: string
+  onUser: (v: string) => void
+  level: string
+  onLevel: (v: string) => void
+  authProto: string
+  onAuthProto: (v: string) => void
+  authPass: string
+  onAuthPass: (v: string) => void
+  /** Edición: la passphrase está guardada en el servidor. */
+  authPassSet?: boolean
+  onAuthPassClear?: () => void
+  privProto: string
+  onPrivProto: (v: string) => void
+  privPass: string
+  onPrivPass: (v: string) => void
+  privPassSet?: boolean
+  onPrivPassClear?: () => void
+}
+
+// SnmpV3Fields (#2042): bloque USM compartido por el alta y la edición. Los
+// campos se ocultan según el nivel de seguridad, que es lo que manda en
+// gosnmp: noAuthNoPriv no lleva ni auth ni priv, authNoPriv solo auth.
+function SnmpV3Fields(props: SnmpV3FieldsProps) {
+  const { t } = useTranslation()
+  const inputClass =
+    'w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none'
+  const labelClass =
+    'mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted'
+  const needsAuth = props.level !== 'noAuthNoPriv'
+  const needsPriv = props.level === 'authPriv'
+  return (
+    <div className="grid grid-cols-2 gap-2.5">
+      <div className="col-span-2">
+        <label htmlFor={`${props.idPrefix}-user`} className={labelClass}>
+          {t('settings.routers.snmpV3User')}
+        </label>
+        <input
+          id={`${props.idPrefix}-user`}
+          type="text"
+          value={props.user}
+          onChange={(e) => props.onUser(e.target.value)}
+          placeholder="monitor"
+          aria-label={t('settings.routers.snmpV3User')}
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label htmlFor={`${props.idPrefix}-level`} className={labelClass}>
+          {t('settings.routers.snmpV3SecurityLevel')}
+        </label>
+        <select
+          id={`${props.idPrefix}-level`}
+          value={props.level}
+          onChange={(e) => props.onLevel(e.target.value)}
+          aria-label={t('settings.routers.snmpV3SecurityLevel')}
+          className={inputClass}
+        >
+          <option value="noAuthNoPriv">noAuthNoPriv</option>
+          <option value="authNoPriv">authNoPriv</option>
+          <option value="authPriv">authPriv</option>
+        </select>
+      </div>
+      {needsAuth && (
+        <div>
+          <label htmlFor={`${props.idPrefix}-auth-proto`} className={labelClass}>
+            {t('settings.routers.snmpV3AuthProto')}
+          </label>
+          <select
+            id={`${props.idPrefix}-auth-proto`}
+            value={props.authProto}
+            onChange={(e) => props.onAuthProto(e.target.value)}
+            aria-label={t('settings.routers.snmpV3AuthProto')}
+            className={inputClass}
+          >
+            {SNMP_V3_AUTH_PROTOS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {needsAuth && (
+        <div className={needsPriv ? '' : 'col-span-2'}>
+          <label htmlFor={`${props.idPrefix}-auth-pass`} className={labelClass}>
+            {t('settings.routers.snmpV3AuthPass')}
+          </label>
+          <input
+            id={`${props.idPrefix}-auth-pass`}
+            type="password"
+            autoComplete="new-password"
+            value={props.authPass}
+            onChange={(e) => props.onAuthPass(e.target.value)}
+            placeholder={props.authPassSet ? '••••••••' : t('settings.routers.snmpV3PassPlaceholder')}
+            aria-label={t('settings.routers.snmpV3AuthPass')}
+            className={inputClass}
+          />
+          {props.authPassSet && props.onAuthPassClear && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{t('settings.routers.snmpV3PassConfigured')}</span>
+              <button type="button" className="text-primary underline" onClick={props.onAuthPassClear}>
+                {t('settings.routers.snmpV3PassClear')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {needsPriv && (
+        <div>
+          <label htmlFor={`${props.idPrefix}-priv-proto`} className={labelClass}>
+            {t('settings.routers.snmpV3PrivProto')}
+          </label>
+          <select
+            id={`${props.idPrefix}-priv-proto`}
+            value={props.privProto}
+            onChange={(e) => props.onPrivProto(e.target.value)}
+            aria-label={t('settings.routers.snmpV3PrivProto')}
+            className={inputClass}
+          >
+            {SNMP_V3_PRIV_PROTOS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {needsPriv && (
+        <div>
+          <label htmlFor={`${props.idPrefix}-priv-pass`} className={labelClass}>
+            {t('settings.routers.snmpV3PrivPass')}
+          </label>
+          <input
+            id={`${props.idPrefix}-priv-pass`}
+            type="password"
+            autoComplete="new-password"
+            value={props.privPass}
+            onChange={(e) => props.onPrivPass(e.target.value)}
+            placeholder={props.privPassSet ? '••••••••' : t('settings.routers.snmpV3PassPlaceholder')}
+            aria-label={t('settings.routers.snmpV3PrivPass')}
+            className={inputClass}
+          />
+          {props.privPassSet && props.onPrivPassClear && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{t('settings.routers.snmpV3PassConfigured')}</span>
+              <button type="button" className="text-primary underline" onClick={props.onPrivPassClear}>
+                {t('settings.routers.snmpV3PassClear')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      <p className="col-span-2 text-caption leading-relaxed text-text-muted">
+        {t('settings.routers.snmpV3PassHint')}
+      </p>
+    </div>
+  )
+}
+
 function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => void }) {
   const { t } = useTranslation()
   const { refresh } = useNetPulse()
@@ -356,7 +533,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [inventoryMode, setInventoryMode] = useState('auto')
   const [addSshPort, setAddSshPort] = useState(22)
   const [addSnmpEnabled, setAddSnmpEnabled] = useState(false)
+  const [addSnmpVersion, setAddSnmpVersion] = useState<SnmpVersion>('2c')
   const [addSnmpCommunity, setAddSnmpCommunity] = useState('')
+  const [addSnmpV3User, setAddSnmpV3User] = useState('')
+  const [addSnmpV3Level, setAddSnmpV3Level] = useState('authPriv')
+  const [addSnmpV3AuthProto, setAddSnmpV3AuthProto] = useState('SHA')
+  const [addSnmpV3AuthPass, setAddSnmpV3AuthPass] = useState('')
+  const [addSnmpV3PrivProto, setAddSnmpV3PrivProto] = useState('AES')
+  const [addSnmpV3PrivPass, setAddSnmpV3PrivPass] = useState('')
   const [addSnmpPort, setAddSnmpPort] = useState(161)
   const [addSnmpPollInterval, setAddSnmpPollInterval] = useState(60)
   const [submitting, setSubmitting] = useState(false)
@@ -375,6 +559,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editFirmwareTarget, setEditFirmwareTarget] = useState('')
   const [editSnmpEnabled, setEditSnmpEnabled] = useState(false)
   const [editConsolePolling, setEditConsolePolling] = useState(true)
+  const [editSnmpVersion, setEditSnmpVersion] = useState<SnmpVersion>('2c')
+  const [editSnmpV3User, setEditSnmpV3User] = useState('')
+  const [editSnmpV3Level, setEditSnmpV3Level] = useState('authPriv')
+  const [editSnmpV3AuthProto, setEditSnmpV3AuthProto] = useState('SHA')
+  const [editSnmpV3AuthPass, setEditSnmpV3AuthPass] = useState('')
+  const [editSnmpV3AuthPassSet, setEditSnmpV3AuthPassSet] = useState(false)
+  const [editSnmpV3AuthPassTouched, setEditSnmpV3AuthPassTouched] = useState(false)
+  const [editSnmpV3PrivProto, setEditSnmpV3PrivProto] = useState('AES')
+  const [editSnmpV3PrivPass, setEditSnmpV3PrivPass] = useState('')
+  const [editSnmpV3PrivPassSet, setEditSnmpV3PrivPassSet] = useState(false)
+  const [editSnmpV3PrivPassTouched, setEditSnmpV3PrivPassTouched] = useState(false)
   const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
   const [editSnmpCommunitySet, setEditSnmpCommunitySet] = useState(false)
   const [editSnmpCommunityTouched, setEditSnmpCommunityTouched] = useState(false)
@@ -525,7 +720,19 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           inventory_mode: inventoryMode,
           ssh_port: addSshPort,
           snmp_enabled: addSnmpEnabled,
-          snmp_community: addSnmpCommunity.trim() || undefined,
+          snmp_version: addSnmpVersion,
+          // En v3 la comunidad no se usa: se omite para no guardar basura.
+          snmp_community: addSnmpVersion === '3' ? undefined : addSnmpCommunity.trim() || undefined,
+          snmp_v3_user: addSnmpVersion === '3' ? addSnmpV3User.trim() || undefined : undefined,
+          snmp_v3_security_level: addSnmpVersion === '3' ? addSnmpV3Level : undefined,
+          snmp_v3_auth_proto: addSnmpVersion === '3' ? addSnmpV3AuthProto : undefined,
+          snmp_v3_auth_pass:
+            addSnmpVersion === '3' && addSnmpV3Level !== 'noAuthNoPriv'
+              ? addSnmpV3AuthPass
+              : undefined,
+          snmp_v3_priv_proto: addSnmpVersion === '3' ? addSnmpV3PrivProto : undefined,
+          snmp_v3_priv_pass:
+            addSnmpVersion === '3' && addSnmpV3Level === 'authPriv' ? addSnmpV3PrivPass : undefined,
           snmp_port: addSnmpPort,
           snmp_poll_interval: addSnmpPollInterval,
         }),
@@ -542,7 +749,14 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setInventoryMode('auto')
       setAddSshPort(22)
       setAddSnmpEnabled(false)
+      setAddSnmpVersion('2c')
       setAddSnmpCommunity('')
+      setAddSnmpV3User('')
+      setAddSnmpV3Level('authPriv')
+      setAddSnmpV3AuthProto('SHA')
+      setAddSnmpV3AuthPass('')
+      setAddSnmpV3PrivProto('AES')
+      setAddSnmpV3PrivPass('')
       setAddSnmpPort(161)
       setAddSnmpPollInterval(60)
       setShowAddForm(false)
@@ -567,6 +781,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     setEditFirmwareTarget(r.firmware_target ?? '')
     setEditSnmpEnabled(r.snmp_enabled ?? false)
     setEditConsolePolling(r.console_polling ?? true)
+    setEditSnmpVersion(r.snmp_version === '1' || r.snmp_version === '3' ? r.snmp_version : '2c')
+    setEditSnmpV3User(r.snmp_v3_user ?? '')
+    setEditSnmpV3Level(r.snmp_v3_security_level ?? 'authPriv')
+    setEditSnmpV3AuthProto(r.snmp_v3_auth_proto ?? 'SHA')
+    setEditSnmpV3AuthPass('')
+    setEditSnmpV3AuthPassSet(r.snmp_v3_auth_pass_set ?? false)
+    setEditSnmpV3AuthPassTouched(false)
+    setEditSnmpV3PrivProto(r.snmp_v3_priv_proto ?? 'AES')
+    setEditSnmpV3PrivPass('')
+    setEditSnmpV3PrivPassSet(r.snmp_v3_priv_pass_set ?? false)
+    setEditSnmpV3PrivPassTouched(false)
     setEditSnmpCommunity('')
     setEditSnmpCommunitySet(r.snmp_community_set)
     setEditSnmpCommunityTouched(false)
@@ -595,7 +820,16 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           disabled: editDisabled,
           firmware_target: editFirmwareTarget.trim(),
           snmp_enabled: editSnmpEnabled,
+          snmp_version: editSnmpVersion,
           snmp_community: editSnmpCommunityTouched ? editSnmpCommunity.trim() : undefined,
+          snmp_v3_user: editSnmpVersion === '3' ? editSnmpV3User.trim() : undefined,
+          snmp_v3_security_level: editSnmpVersion === '3' ? editSnmpV3Level : undefined,
+          snmp_v3_auth_proto: editSnmpVersion === '3' ? editSnmpV3AuthProto : undefined,
+          // Las passphrases solo viajan si el usuario las toca: nil conserva
+          // el secreto guardado y "" lo borra.
+          snmp_v3_auth_pass: editSnmpVersion === '3' && editSnmpV3AuthPassTouched ? editSnmpV3AuthPass : undefined,
+          snmp_v3_priv_proto: editSnmpVersion === '3' ? editSnmpV3PrivProto : undefined,
+          snmp_v3_priv_pass: editSnmpVersion === '3' && editSnmpV3PrivPassTouched ? editSnmpV3PrivPass : undefined,
           snmp_port: editSnmpPort,
           snmp_poll_interval: editSnmpPollInterval,
           ssh_port: editSshPort,
@@ -886,50 +1120,86 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
               <InfoTip text={t('settings.routers.snmpEnabledHint')} />
             </label>
             {addSnmpEnabled && (
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label htmlFor="add-snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                    {t('settings.routers.snmpCommunity')}
-                  </label>
-                  <input
-                    id="add-snmp-community"
-                    type="text"
-                    value={addSnmpCommunity}
-                    onChange={(e) => setAddSnmpCommunity(e.target.value)}
-                    placeholder="public"
-                    aria-label={t('settings.routers.snmpCommunity')}
-                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                    {t('settings.routers.snmpVersion')}
+                  </span>
+                  <SegmentedControl
+                    options={[
+                      { value: '1', label: 'v1' },
+                      { value: '2c', label: 'v2c' },
+                      { value: '3', label: 'v3' },
+                    ]}
+                    value={addSnmpVersion}
+                    onChange={setAddSnmpVersion}
+                    ariaLabel={t('settings.routers.snmpVersion')}
                   />
+                  <InfoTip text={t('settings.routers.snmpVersionHint')} />
                 </div>
-                <div>
-                  <label htmlFor="add-snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                    {t('settings.routers.snmpPort')}
-                  </label>
-                  <input
-                    id="add-snmp-port"
-                    type="text"
-                    min={1}
-                    max={65535}
-                    value={addSnmpPort}
-                    onChange={(e) => setAddSnmpPort(Number(e.target.value))}
-                    aria-label={t('settings.routers.snmpPort')}
-                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                {addSnmpVersion === '3' ? (
+                  <SnmpV3Fields
+                    idPrefix="add-snmp"
+                    user={addSnmpV3User}
+                    onUser={setAddSnmpV3User}
+                    level={addSnmpV3Level}
+                    onLevel={setAddSnmpV3Level}
+                    authProto={addSnmpV3AuthProto}
+                    onAuthProto={setAddSnmpV3AuthProto}
+                    authPass={addSnmpV3AuthPass}
+                    onAuthPass={setAddSnmpV3AuthPass}
+                    privProto={addSnmpV3PrivProto}
+                    onPrivProto={setAddSnmpV3PrivProto}
+                    privPass={addSnmpV3PrivPass}
+                    onPrivPass={setAddSnmpV3PrivPass}
                   />
-                </div>
-                <div>
-                  <label htmlFor="add-snmp-poll-interval" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                    {t('settings.routers.snmpPollInterval')}
-                  </label>
-                  <input
-                    id="add-snmp-poll-interval"
-                    type="text"
-                    min={10}
-                    max={3600}
-                    value={addSnmpPollInterval}
-                    onChange={(e) => setAddSnmpPollInterval(Number(e.target.value))}
-                    aria-label={t('settings.routers.snmpPollInterval')}
-                    className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                  />
+                ) : (
+                  <div>
+                    <label htmlFor="add-snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                      {t('settings.routers.snmpCommunity')}
+                    </label>
+                    <input
+                      id="add-snmp-community"
+                      type="text"
+                      value={addSnmpCommunity}
+                      onChange={(e) => setAddSnmpCommunity(e.target.value)}
+                      placeholder="public"
+                      aria-label={t('settings.routers.snmpCommunity')}
+                      className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                    />
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label htmlFor="add-snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                      {t('settings.routers.snmpPort')}
+                    </label>
+                    <input
+                      id="add-snmp-port"
+                      type="text"
+                      min={1}
+                      max={65535}
+                      value={addSnmpPort}
+                      onChange={(e) => setAddSnmpPort(Number(e.target.value))}
+                      aria-label={t('settings.routers.snmpPort')}
+                      className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="add-snmp-poll-interval" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                      {t('settings.routers.snmpPollInterval')}
+                    </label>
+                    <input
+                      id="add-snmp-poll-interval"
+                      type="text"
+                      min={10}
+                      max={3600}
+                      value={addSnmpPollInterval}
+                      onChange={(e) => setAddSnmpPollInterval(Number(e.target.value))}
+                      aria-label={t('settings.routers.snmpPollInterval')}
+                      className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -1089,37 +1359,98 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     <InfoTip text={t('settings.routers.snmpEnabledHint')} />
                   </label>
                   {editSnmpEnabled && (
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <label htmlFor="snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                          {t('settings.routers.snmpCommunity')}
-                        </label>
-                        <input
-                          id="snmp-community"
-                          type="text"
-                          value={editSnmpCommunity}
-                          onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
-                          placeholder="public"
-                          aria-label={t('settings.routers.snmpCommunity')}
-                          className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                    <div className="space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                          {t('settings.routers.snmpVersion')}
+                        </span>
+                        <SegmentedControl
+                          options={[
+                            { value: '1', label: 'v1' },
+                            { value: '2c', label: 'v2c' },
+                            { value: '3', label: 'v3' },
+                          ]}
+                          value={editSnmpVersion}
+                          onChange={setEditSnmpVersion}
+                          ariaLabel={t('settings.routers.snmpVersion')}
                         />
-                        {editSnmpCommunitySet && !editSnmpCommunityTouched && (
-                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{t('settings.routers.snmpCommunityConfigured')}</span>
-                            <button
-                              type="button"
-                              className="text-primary underline"
-                              onClick={() => {
-                                setEditSnmpCommunity('')
-                                setEditSnmpCommunitySet(false)
-                                setEditSnmpCommunityTouched(true)
-                              }}
-                            >
-                              {t('settings.routers.snmpCommunityClear')}
-                            </button>
-                          </div>
-                        )}
+                        <InfoTip text={t('settings.routers.snmpVersionHint')} />
                       </div>
+                      {editSnmpVersion === '3' ? (
+                        <SnmpV3Fields
+                          idPrefix="edit-snmp"
+                          user={editSnmpV3User}
+                          onUser={setEditSnmpV3User}
+                          level={editSnmpV3Level}
+                          onLevel={setEditSnmpV3Level}
+                          authProto={editSnmpV3AuthProto}
+                          onAuthProto={setEditSnmpV3AuthProto}
+                          authPass={editSnmpV3AuthPass}
+                          onAuthPass={(v) => {
+                            setEditSnmpV3AuthPass(v)
+                            setEditSnmpV3AuthPassTouched(true)
+                          }}
+                          authPassSet={editSnmpV3AuthPassSet}
+                          onAuthPassClear={
+                            editSnmpV3AuthPassSet
+                              ? () => {
+                                  setEditSnmpV3AuthPass('')
+                                  setEditSnmpV3AuthPassSet(false)
+                                  setEditSnmpV3AuthPassTouched(true)
+                                }
+                              : undefined
+                          }
+                          privProto={editSnmpV3PrivProto}
+                          onPrivProto={setEditSnmpV3PrivProto}
+                          privPass={editSnmpV3PrivPass}
+                          onPrivPass={(v) => {
+                            setEditSnmpV3PrivPass(v)
+                            setEditSnmpV3PrivPassTouched(true)
+                          }}
+                          privPassSet={editSnmpV3PrivPassSet}
+                          onPrivPassClear={
+                            editSnmpV3PrivPassSet
+                              ? () => {
+                                  setEditSnmpV3PrivPass('')
+                                  setEditSnmpV3PrivPassSet(false)
+                                  setEditSnmpV3PrivPassTouched(true)
+                                }
+                              : undefined
+                          }
+                        />
+                      ) : (
+                        <div>
+                          <label htmlFor="snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                            {t('settings.routers.snmpCommunity')}
+                          </label>
+                          <input
+                            id="snmp-community"
+                            type="text"
+                            value={editSnmpCommunity}
+                            onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
+                            placeholder="public"
+                            aria-label={t('settings.routers.snmpCommunity')}
+                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                          />
+                          {editSnmpCommunitySet && !editSnmpCommunityTouched && (
+                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{t('settings.routers.snmpCommunityConfigured')}</span>
+                              <button
+                                type="button"
+                                className="text-primary underline"
+                                onClick={() => {
+                                  setEditSnmpCommunity('')
+                                  setEditSnmpCommunitySet(false)
+                                  setEditSnmpCommunityTouched(true)
+                                }}
+                              >
+                                {t('settings.routers.snmpCommunityClear')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-2.5">
                         <div>
                           <label htmlFor="snmp-port" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
                             {t('settings.routers.snmpPort')}
@@ -1150,6 +1481,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                             className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                           />
                         </div>
+                      </div>
                     </div>
                   )}
                 </div>
