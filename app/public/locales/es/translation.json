@@ -1133,8 +1133,8 @@
     },
     "vlans": {
       "id": "ID",
+      "interface": "Interfaz",
       "mode": "Modo",
-      "port": "Puerto",
       "pvid": "PVID",
       "subnet": "Subred",
       "tagged": "Tagged",
@@ -1151,6 +1151,7 @@
       "network": "Red",
       "noCounters": "Esta unidad no reporta contadores por interfaz",
       "subnet": "Subred",
+      "source": "Origen",
       "title": "Redes",
       "toggleAria": "Redes de OpenWrt ({{count}})",
       "traffic": "Tráfico",

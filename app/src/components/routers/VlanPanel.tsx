@@ -69,7 +69,7 @@ export function VlanPanel({ vlans }: { vlans: VlanPort[] }) {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-border/60 text-[10px] font-semibold uppercase tracking-[0.06em] text-text-muted">
-                    <th className="pb-2 pr-4">{t('routerDetail.vlans.port')}</th>
+                    <th className="pb-2 pr-4">{t('routerDetail.vlans.interface')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.vlans.vlanId')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.vlans.subnet')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.vlans.mode')}</th>
