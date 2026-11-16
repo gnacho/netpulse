@@ -134,7 +134,7 @@ func NewScheduler(store *Store, db *sql.DB, runner Runner) *Scheduler {
 	return &Scheduler{
 		store: store, db: db, runner: runner,
 		now:  time.Now,
-		logf: func(f string, a ...any) { log.Printf("[speedtest] "+f, a...) },
+		logf: func(f string, a ...any) { log.Printf("[netpulse:speedtest] "+f, a...) },
 	}
 }
 
@@ -733,6 +733,6 @@ func kvSet(db *sql.DB, key, val string) {
 	if _, err := db.Exec(
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, val); err != nil {
-		log.Printf("[speedtest] kv set %s: %v", key, err)
+		log.Printf("[netpulse:speedtest] kv set %s: %v", key, err)
 	}
 }

@@ -267,6 +267,6 @@ func recKVSet(db *sql.DB, key, val string) {
 	if _, err := db.Exec(
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, val); err != nil {
-		log.Printf("[firmware] kv set %s: %v", key, err)
+		log.Printf("[netpulse:firmware] kv set %s: %v", key, err)
 	}
 }

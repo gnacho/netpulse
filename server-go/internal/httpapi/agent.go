@@ -327,7 +327,7 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	// perder la muestra recién recibida.
 	if s.channelPlan != nil && p.Data.Wireless != nil && len(p.Data.Wireless.Scans) > 0 {
 		if err := s.channelPlan.SaveScan(p.Router, p.Ts, p.Data.Wireless.Scans); err != nil {
-			log.Printf("[netpulse] error guardando scans de %s: %v", p.Router, err)
+			log.Printf("[netpulse] error saving scans from %s: %v", p.Router, err)
 		}
 		// #1358: con el scan recién guardado, reevalúa impostores de SSID
 		// (BSSID ajeno anunciando un SSID de la flota). Solo adaptadores que
@@ -346,7 +346,7 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	// vacia".
 	if s.channelPlan != nil && p.Data.Wireless != nil && len(p.Data.Wireless.ScanOutcomes) > 0 {
 		if err := s.channelPlan.SaveScanOutcomes(p.Router, p.Ts, p.Data.Wireless.ScanOutcomes); err != nil {
-			log.Printf("[netpulse] error guardando scanOutcomes de %s: %v", p.Router, err)
+			log.Printf("[netpulse] error saving scanOutcomes from %s: %v", p.Router, err)
 		}
 	}
 	// #1214: survey crudo del agente para la lente "Ahora" en unidades
@@ -1249,7 +1249,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 	// #1894: al journal SIEMPRE, éxito o fallo, para que el servidor tenga el
 	// rastro aunque el operador cierre la pestaña.
 	if tail := outputTail(scriptOut, 4000); tail != "" {
-		log.Printf("netpulse:agent reinstall %s: installation script output:\n%s", slug, tail)
+		log.Printf("[netpulse:agent] reinstall %s: installation script output:\n%s", slug, tail)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{
@@ -1419,7 +1419,7 @@ func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
 	// había pasado dentro de la unidad.
 	out, err := runScript(s.pool, host, uninstall.Script(), 60*time.Second)
 	if tail := outputTail(out, 4000); tail != "" {
-		log.Printf("netpulse:agent uninstall %s: uninstall script output:\n%s", slug, tail)
+		log.Printf("[netpulse:agent] uninstall %s: uninstall script output:\n%s", slug, tail)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusBadGateway, map[string]any{

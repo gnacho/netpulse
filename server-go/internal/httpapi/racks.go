@@ -256,9 +256,9 @@ func (s *server) handleRacksGet(w http.ResponseWriter, r *http.Request) {
 	hints := s.buildRackHints(r.Context(), mounts)
 	if s.adapter.Mode() == "live" {
 		if res, err := rack.SyncDetectedCables(s.db.DB, hints); err != nil {
-			log.Printf("[rack] sync detected cables: %v", err)
+			log.Printf("[netpulse:rack] sync detected cables: %v", err)
 		} else if res.Removed > 0 || len(res.Created) > 0 {
-			log.Printf("[rack] sync detected cables: %d creados, %d retirados", len(res.Created), res.Removed)
+			log.Printf("[netpulse:rack] sync detected cables: %d created, %d removed", len(res.Created), res.Removed)
 		}
 	}
 	cables, err := rack.ListCables(s.db.DB)

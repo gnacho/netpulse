@@ -153,7 +153,7 @@ func (p *Poller) Stop() {
 func (p *Poller) tick() {
 	defer func() {
 		if rec := recover(); rec != nil {
-			log.Printf("[netpulse] error en tick del poller: %v\n%s", rec, debug.Stack())
+			log.Printf("[netpulse] poller tick error: %v\n%s", rec, debug.Stack())
 		}
 	}()
 	ctx := context.Background()
@@ -163,7 +163,7 @@ func (p *Poller) tick() {
 	overview, err := p.adapter.GetOverview(ctx)
 	if err != nil || overview == nil {
 		if err != nil {
-			log.Printf("[netpulse] error en tick del poller: %v", err)
+			log.Printf("[netpulse] poller tick error: %v", err)
 		}
 		return
 	}
@@ -212,7 +212,7 @@ func (p *Poller) persist(overview *adapters.Overview) {
 			"INSERT INTO metrics (router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
 			row.RouterID, ts, row.CPU, row.RAM, row.Temp, row.LatencyMs, row.RxBps, row.TxBps,
 		); err != nil {
-			log.Printf("[netpulse] error en tick del poller (metrics): %v", err)
+			log.Printf("[netpulse] poller tick error (metrics): %v", err)
 		}
 	}
 	p.mu.RLock()
@@ -223,7 +223,7 @@ func (p *Poller) persist(overview *adapters.Overview) {
 			"INSERT INTO adguard_stats (ts, queries, blocked) VALUES (?, ?, ?)",
 			ts, ag.Queries24h, ag.Blocked24h,
 		); err != nil {
-			log.Printf("[netpulse] error en tick del poller (adguard_stats): %v", err)
+			log.Printf("[netpulse] poller tick error (adguard_stats): %v", err)
 		}
 	}
 	p.persistWireGuard(overview, ts)
@@ -261,7 +261,7 @@ func (p *Poller) persistWireGuard(overview *adapters.Overview, ts int64) {
 		return
 	}
 	if err := p.db.WGSeries.RecordSamples(wg.RouterID, time.UnixMilli(ts), samples); err != nil {
-		log.Printf("[netpulse] error en tick del poller (wg peers): %v", err)
+		log.Printf("[netpulse] poller tick error (wg peers): %v", err)
 		return
 	}
 	p.wgMu.Lock()

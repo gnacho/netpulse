@@ -158,7 +158,7 @@ func (p *Publisher) Enabled() bool { return p.cfg.Enabled && !p.demo && p.snapsh
 func (p *Publisher) Start(ctx context.Context) {
 	if !p.Enabled() {
 		if p.cfg.Enabled && p.demo {
-			log.Printf("[mqtt] disabled in demo mode")
+			log.Printf("[netpulse:mqtt] disabled in demo mode")
 		}
 		return
 	}
@@ -175,7 +175,7 @@ func (p *Publisher) Run(ctx context.Context) {
 		}
 		client, err := p.dial(ctx)
 		if err != nil {
-			log.Printf("[mqtt] connect to %s:%d failed: %v", p.cfg.Host, p.cfg.Port, err)
+			log.Printf("[netpulse:mqtt] connect to %s:%d failed: %v", p.cfg.Host, p.cfg.Port, err)
 			if !sleepCtx(ctx, backoff) {
 				return
 			}
@@ -186,7 +186,7 @@ func (p *Publisher) Run(ctx context.Context) {
 			continue
 		}
 		backoff = initialBackoff
-		log.Printf("[mqtt] connected to %s:%d as instance %q", p.cfg.Host, p.cfg.Port, p.cfg.Instance)
+		log.Printf("[netpulse:mqtt] connected to %s:%d as instance %q", p.cfg.Host, p.cfg.Port, p.cfg.Instance)
 
 		p.loop(ctx, client)
 
@@ -215,7 +215,7 @@ func (p *Publisher) dial(ctx context.Context) (*mq.Client, error) {
 			p.publishCycle(c)
 		}),
 		mq.WithOnConnectionLost(func(_ *mq.Client, err error) {
-			log.Printf("[mqtt] connection lost: %v", err)
+			log.Printf("[netpulse:mqtt] connection lost: %v", err)
 		}),
 	}
 	if opt, ok := tlsOption(p.cfg); ok {
@@ -246,7 +246,7 @@ func (p *Publisher) loop(ctx context.Context, client *mq.Client) {
 			return
 		case <-t.C:
 			if n := client.GetStats().ReconnectCount; n > loggedReconnects {
-				log.Printf("[mqtt] client reconnected %d time(s): broker connection unstable", n)
+				log.Printf("[netpulse:mqtt] client reconnected %d time(s): broker connection unstable", n)
 				loggedReconnects = n
 			}
 			if client.IsConnected() {
@@ -341,7 +341,7 @@ func publishWithTimeout(client *mq.Client, topic string, payload []byte, retain 
 		opts = append(opts, mq.WithRetain(true))
 	}
 	if err := client.Publish(ctx, topic, payload, opts...).Wait(ctx); err != nil {
-		log.Printf("[mqtt] publish %s: %v", topic, err)
+		log.Printf("[netpulse:mqtt] publish %s: %v", topic, err)
 	}
 }
 

@@ -33,7 +33,7 @@ selfheal_binary() {
         https|HTTPS) ;;
         *)
             [ "${NETPULSE_ALLOW_INSECURE_COMMANDS:-}" = "1" ] || {
-                logger -t netpulse-agent "self-heal: HTTP sin NETPULSE_ALLOW_INSECURE_COMMANDS=1, binario no descargado"
+                logger -t netpulse-agent "self-heal: HTTP without NETPULSE_ALLOW_INSECURE_COMMANDS=1, binary not downloaded"
                 return 1
             }
             ;;
@@ -52,7 +52,7 @@ selfheal_binary() {
     esac
     local url tmp hdr digest sum
     url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"
-    logger -t netpulse-agent "self-heal: binario ausente, descargando de $NETPULSE_SERVER"
+    logger -t netpulse-agent "self-heal: binary missing, downloading from $NETPULSE_SERVER"
     tmp=/tmp/netpulse-agent.$$
     hdr=/tmp/netpulse-agent.hdr.$$
     if command -v curl >/dev/null 2>&1; then
@@ -64,19 +64,19 @@ selfheal_binary() {
     rm -f "$hdr"
     case "$digest" in
         ""|*[!0123456789abcdefABCDEF]*)
-            logger -t netpulse-agent "self-heal: sin X-Checksum-Sha256 válido, binario descartado"
+            logger -t netpulse-agent "self-heal: no valid X-Checksum-Sha256, binary discarded"
             rm -f "$tmp"
             return 1 ;;
     esac
-    [ "${#digest}" -eq 64 ] || { logger -t netpulse-agent "self-heal: digest con longitud inválida, binario descartado"; rm -f "$tmp"; return 1; }
+    [ "${#digest}" -eq 64 ] || { logger -t netpulse-agent "self-heal: digest with invalid length, binary discarded"; rm -f "$tmp"; return 1; }
     sum=$(sha256sum "$tmp" 2>/dev/null | awk '{print $1}')
     if [ -z "$sum" ] || [ "$(printf '%s' "$sum" | tr 'A-F' 'a-f')" != "$(printf '%s' "$digest" | tr 'A-F' 'a-f')" ]; then
-        logger -t netpulse-agent "self-heal: SHA-256 no coincide, binario descartado"
+        logger -t netpulse-agent "self-heal: SHA-256 mismatch, binary discarded"
         rm -f "$tmp"
         return 1
     fi
     chmod 0755 "$tmp" && mv "$tmp" /usr/sbin/netpulse-agent || { rm -f "$tmp"; return 1; }
-    logger -t netpulse-agent "self-heal: binario restaurado"
+    logger -t netpulse-agent "self-heal: binary restored"
     BIN=/usr/sbin/netpulse-agent
     return 0
 }
@@ -89,12 +89,12 @@ cleanup_stale_watchdog_cron() {
     [ -f /usr/sbin/netpulse-watchdog ] && return 0
     crontab -l 2>/dev/null | grep -q netpulse-watchdog || return 0
     ( crontab -l 2>/dev/null | grep -v netpulse-watchdog ) | crontab - 2>/dev/null || true
-    logger -t netpulse-agent "watchdog cron huérfano retirado (#879)"
+    logger -t netpulse-agent "orphan watchdog cron entry removed (#879)"
 }
 
 start_service() {
     cleanup_stale_watchdog_cron
-    selfheal_binary || logger -t netpulse-agent "self-heal: no se pudo restaurar el binario"
+    selfheal_binary || logger -t netpulse-agent "self-heal: could not restore the binary"
     procd_open_instance netpulse-agent
     procd_set_param command "$BIN"
     # respawn: si muere, procd lo levanta (5 s entre intentos, 5 intentos/hora)

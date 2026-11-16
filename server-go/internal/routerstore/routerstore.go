@@ -666,10 +666,10 @@ func EnsureInitialRouters(db *sql.DB, cfg *config.Config) []adapters.RouterConfi
 				IsGateway: r.Type == "glinet" || i == 0,
 			})
 			if err != nil {
-				log.Printf("[netpulse] error sembrando router %s: %v", r.Host, err)
+				log.Printf("[netpulse] error seeding router %s: %v", r.Host, err)
 			}
 		}
-		log.Printf("[netpulse] routers sembrados desde ROUTERS_JSON (%d)", len(cfg.Routers))
+		log.Printf("[netpulse] routers seeded from ROUTERS_JSON (%d)", len(cfg.Routers))
 		return ListRouters(db)
 	}
 
@@ -689,7 +689,7 @@ func EnsureInitialRouters(db *sql.DB, cfg *config.Config) []adapters.RouterConfi
 	}
 	created, err := AddRouter(db, AddInput{Name: name, Host: gwIP, Type: typ, IsGateway: true})
 	if err != nil {
-		log.Printf("[netpulse] error creando gateway autodetectado: %v", err)
+		log.Printf("[netpulse] error creating the autodetected gateway: %v", err)
 		return ListRouters(db)
 	}
 	if model == "" {

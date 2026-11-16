@@ -50,7 +50,7 @@ func TestScriptEnvDocumentsDefaults(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
 		"# NETPULSE_INTERVAL=30",
-		`# NETPULSE_SCAN_INTERVAL: "0" = sin scans periódicos`,
+		`# NETPULSE_SCAN_INTERVAL: "0" = no periodic scans`,
 		"NETPULSE_SCAN_INTERVAL=$SCAN_VALUE",
 		"# NETPULSE_WAN_TARGET=1.1.1.1",
 		"# NETPULSE_GW_TARGET=192.168.8.1",
@@ -146,8 +146,8 @@ func TestScriptSelfHealInit(t *testing.T) {
 	for _, want := range []string{
 		"selfheal_binary()",
 		`url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"`,
-		"logger -t netpulse-agent \"self-heal: binario restaurado\"",
-		"self-heal: no se pudo restaurar el binario; el servicio no arranca",
+		"logger -t netpulse-agent \"self-heal: binary restored\"",
+		"self-heal: could not restore the binary, the service will not start",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("init sin self-heal: falta %q", want)
@@ -267,8 +267,8 @@ func TestScriptSelfHealVerifiesDigest(t *testing.T) {
 	for _, want := range []string{
 		"x-checksum-sha256:",
 		`sha256sum "$tmp"`,
-		"self-heal: sin X-Checksum-Sha256 válido, binario descartado",
-		"self-heal: SHA-256 no coincide, binario descartado",
+		"self-heal: no valid X-Checksum-Sha256, binary discarded",
+		"self-heal: SHA-256 mismatch, binary discarded",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("init embebido sin %q en el self-heal", want)
@@ -279,7 +279,7 @@ func TestScriptSelfHealVerifiesDigest(t *testing.T) {
 func TestSelfHealRequiresHTTPSOrExplicitOptIn(t *testing.T) {
 	want := []string{
 		`[ "${NETPULSE_ALLOW_INSECURE_COMMANDS:-}" = "1" ]`,
-		"self-heal: HTTP sin NETPULSE_ALLOW_INSECURE_COMMANDS=1, binario no descargado",
+		"self-heal: HTTP without NETPULSE_ALLOW_INSECURE_COMMANDS=1, binary not downloaded",
 	}
 	generated := scriptForTest()
 	for _, w := range want {

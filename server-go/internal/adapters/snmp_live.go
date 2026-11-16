@@ -142,7 +142,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 		l.snmpFdbCount[cfg.ID] = len(fdb)
 		l.mu.Unlock()
 		if !seen || last != len(fdb) {
-			log.Printf("[netpulse] SNMP FDB %s: %d entradas (fuente %s; pdus dot1d=%d dot1q=%d)", cfg.LogLabel(), len(fdb), fdbPoll.Source, fdbPoll.RawDot1d, fdbPoll.RawDot1q)
+			log.Printf("[netpulse] SNMP FDB %s: %d entries (source %s, pdus dot1d=%d dot1q=%d)", cfg.LogLabel(), len(fdb), fdbPoll.Source, fdbPoll.RawDot1d, fdbPoll.RawDot1q)
 		}
 	}
 

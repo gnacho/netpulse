@@ -140,11 +140,11 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 	}
 	var p beaconPacket
 	if err := json.Unmarshal(raw, &p); err != nil {
-		log.Printf("[netpulse:beacon] datagrama malformado desde %s (%d B)", src, len(raw))
+		log.Printf("[netpulse:beacon] malformed datagram from %s (%d B)", src, len(raw))
 		return
 	}
 	if p.V != 1 {
-		log.Printf("[netpulse:beacon] esquema v%d no soportado desde %s", p.V, src)
+		log.Printf("[netpulse:beacon] unsupported schema v%d from %s", p.V, src)
 		return
 	}
 	// ANUNCIO de descubrimiento (#291): broadcast sin token pero con
@@ -363,7 +363,7 @@ func (s *server) handleBeaconEvent(p beaconPacket) {
 		ev.Type = alerts.TypeLinkUp
 		ev.Vars = map[string]string{"port": portName}
 	default:
-		log.Printf("[netpulse:beacon] evento desconocido %q de %s", p.Ev, p.Slug)
+		log.Printf("[netpulse:beacon] unknown event %q from %s", p.Ev, p.Slug)
 		return
 	}
 	eng.Emit(ev)

@@ -7,6 +7,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Changed
+
+- Las líneas del journal llevan un solo timestamp, el de systemd, y todos los prefijos siguen la forma `[netpulse:<subsistema>]`, con `mqtt`, `firmware`, `speedtest`, `rack`, `pve` y `agent` incluidos (#2058, reportado por @crowedavid).
+
+### Fixed
+
+- Los mensajes de log que quedaban en castellano están en inglés, también los del script de reinstalación del agente, el instalador one-liner y el init del agente (#1955).
+
 ## [2.53.0] - 2026-11-16
 
 ### Added

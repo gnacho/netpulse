@@ -109,7 +109,7 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", code, time.Since(startedAt))
 		u.clearPendingApply()
-		fmt.Printf("[netpulse:update] apply estable fallido: %s\n", code)
+		fmt.Printf("[netpulse:update] stable apply failed: %s\n", code)
 	}
 
 	if u.dataDir == "" {
@@ -123,7 +123,7 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 	u.setStepLocked("download")
 	u.broadcastLocked()
 	u.mu.Unlock()
-	fmt.Printf("[netpulse:update] estable: descargando %s (%s)\n", asset, tag)
+	fmt.Printf("[netpulse:update] stable: downloading %s (%s)\n", asset, tag)
 
 	staging := filepath.Join(u.dataDir, "updates")
 	_ = os.RemoveAll(staging) // restos de intentos previos
@@ -139,12 +139,12 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 	tgz := filepath.Join(staging, asset)
 	base := fmt.Sprintf("%s/%s/releases/download/%s", downloadBase, u.repo, tag)
 	if err := downloadToFile(base+"/"+asset, tgz); err != nil {
-		fmt.Printf("[netpulse:update] descarga de %s falló: %v\n", asset, err)
+		fmt.Printf("[netpulse:update] download of %s failed: %v\n", asset, err)
 		fail("stable_download_failed")
 		return
 	}
 	if err := downloadToFile(base+"/checksums.txt", filepath.Join(staging, "checksums.txt")); err != nil {
-		fmt.Printf("[netpulse:update] descarga de checksums.txt falló: %v\n", err)
+		fmt.Printf("[netpulse:update] download of checksums.txt failed: %v\n", err)
 		fail("stable_download_failed")
 		return
 	}
@@ -165,7 +165,7 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 		return
 	}
 	if !strings.EqualFold(want, got) {
-		fmt.Printf("[netpulse:update] sha256 mismatch del tarball: want %s got %s\n", want, got)
+		fmt.Printf("[netpulse:update] tarball sha256 mismatch: want %s got %s\n", want, got)
 		fail("stable_checksum_mismatch")
 		return
 	}
@@ -204,7 +204,7 @@ func (u *Updater) applyStable(historyID int64, tag string, startedAt time.Time) 
 	u.setStepLocked("restart")
 	u.broadcastLocked()
 	u.mu.Unlock()
-	fmt.Printf("[netpulse:update] estable %s en escena; esperando swap+restart (unidad root)\n", tag)
+	fmt.Printf("[netpulse:update] stable %s staged, waiting for swap+restart (root unit)\n", tag)
 
 	// En producción el helper reinicia el servicio y el proceso muere aquí
 	// con el binario nuevo. En tests, Stop() desbloquea sin marcar nada

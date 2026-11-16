@@ -50,7 +50,7 @@ func (u *Updater) recordStart(from string, to *string, initiatedBy string) int64
 		 VALUES (?, ?, ?, ?, ?, ?, ?, 'running')`,
 		newEventID(), time.Now().UnixMilli(), "apply", u.mode, from, to, initiatedBy)
 	if err != nil {
-		fmt.Printf("[netpulse] no se pudo registrar el historial de update: %v\n", err)
+		fmt.Printf("[netpulse] could not record the update history: %v\n", err)
 		return -1
 	}
 	id, _ := res.LastInsertId()
@@ -70,7 +70,7 @@ func (u *Updater) finishHistory(id int64, status, errStr string, dur time.Durati
 	if _, err := u.db.Exec(
 		`UPDATE update_history SET status = ?, duration_ms = ?, error = ? WHERE id = ?`,
 		status, ms, errVal, id); err != nil {
-		fmt.Printf("[netpulse] no se pudo finalizar el historial de update: %v\n", err)
+		fmt.Printf("[netpulse] could not finish the update history: %v\n", err)
 	}
 }
 
@@ -83,7 +83,7 @@ func (u *Updater) finalizeInterrupted() {
 	msg := "interrupted_by_restart"
 	if _, err := u.db.Exec(
 		`UPDATE update_history SET status = 'failed', error = ? WHERE status = 'running'`, msg); err != nil {
-		fmt.Printf("[netpulse] no se pudo finalizar historial interrumpido: %v\n", err)
+		fmt.Printf("[netpulse] could not finish the interrupted history entry: %v\n", err)
 	}
 }
 
@@ -103,11 +103,11 @@ func (u *Updater) markInterruptedAsSuccess(to string) {
 		                AND version_to = ?
 		              ORDER BY ts DESC LIMIT 1)`, to)
 	if err != nil {
-		fmt.Printf("[netpulse] no se pudo re-marcar el historial de update: %v\n", err)
+		fmt.Printf("[netpulse] could not re-mark the update history: %v\n", err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n > 0 {
-		fmt.Printf("[netpulse] historial: apply estable a %s registrado como éxito\n", to)
+		fmt.Printf("[netpulse] history: stable apply to %s recorded as successful\n", to)
 	}
 }
 
@@ -165,6 +165,6 @@ func (u *Updater) updateHistoryTarget(id int64, to string) {
 		return
 	}
 	if _, err := u.db.Exec(`UPDATE update_history SET version_to = ? WHERE id = ?`, to, id); err != nil {
-		fmt.Printf("[netpulse] no se pudo rectificar el target del historial: %v\n", err)
+		fmt.Printf("[netpulse] could not correct the history target: %v\n", err)
 	}
 }

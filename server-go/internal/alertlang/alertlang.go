@@ -74,7 +74,7 @@ func SetLocalesFS(f fs.FS) {
 			supported[e.Name()] = true
 		}
 	}
-	log.Printf("[netpulse] alertlang: idiomas disponibles para push: %v", keys(supported))
+	log.Printf("[netpulse] alertlang: languages available for push: %v", keys(supported))
 }
 
 func keys(m map[string]bool) []string {

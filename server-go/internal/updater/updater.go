@@ -576,7 +576,7 @@ func (u *Updater) Check(ctx context.Context) Status {
 		u.compareURL = ""
 	}
 	if u.updateAvail {
-		fmt.Printf("[netpulse] nueva versión disponible: %s → %s (%s)\n", current, latest, latestMsg)
+		fmt.Printf("[netpulse] new version available: %s → %s (%s)\n", current, latest, latestMsg)
 	}
 	return u.statusLocked()
 }
@@ -727,7 +727,7 @@ func (u *Updater) ApplyBy(initiatedBy string) bool {
 		u.broadcastLocked()
 		u.mu.Unlock()
 		u.finishHistory(historyID, "failed", code, time.Since(startedAt))
-		fmt.Printf("[netpulse] no se pudo copiar update.sh: %v\n", err)
+		fmt.Printf("[netpulse] could not copy update.sh: %v\n", err)
 		return false
 	}
 

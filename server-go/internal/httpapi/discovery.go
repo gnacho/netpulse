@@ -175,7 +175,7 @@ func (s *server) answerDiscovery(pc net.PacketConn, src net.Addr) {
 	if resp.Autoenroll {
 		tok, err := s.getAutoenrollToken()
 		if err != nil {
-			log.Printf("[netpulse:discovery] token de alta no disponible: %v", err)
+			log.Printf("[netpulse:discover] onboarding token unavailable: %v", err)
 			return
 		}
 		resp.PairingToken = tok
@@ -185,6 +185,6 @@ func (s *server) answerDiscovery(pc net.PacketConn, src net.Addr) {
 		return
 	}
 	if _, err := conn.Write(payload); err != nil {
-		log.Printf("[netpulse:discovery] respuesta a %s: %v", host, err)
+		log.Printf("[netpulse:discover] response to %s: %v", host, err)
 	}
 }

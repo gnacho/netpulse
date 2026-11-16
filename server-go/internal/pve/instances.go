@@ -47,7 +47,7 @@ func LoadInstances(db *sql.DB) []Instance {
 	if err := db.QueryRow("SELECT value FROM kv WHERE key = ?", kvInstances).Scan(&raw); err == nil && strings.TrimSpace(raw) != "" {
 		var list []Instance
 		if err := json.Unmarshal([]byte(raw), &list); err != nil {
-			log.Printf("[pve] instances corruptas, se regeneran: %v", err)
+			log.Printf("[netpulse:pve] corrupt instances, regenerating: %v", err)
 		} else {
 			return list
 		}
@@ -62,7 +62,7 @@ func LoadInstances(db *sql.DB) []Instance {
 	}
 	list := []Instance{{ID: "default", Name: "Proxmox", Config: Config{URL: url, TokenID: tokenID, Secret: secret}}}
 	if err := SaveInstances(db, list); err != nil {
-		log.Printf("[pve] legacy migration: %v", err)
+		log.Printf("[netpulse:pve] legacy migration: %v", err)
 		return list // devolverla igual: funciona aunque no persista
 	}
 	for _, k := range []string{"proxmox_url", "proxmox_token_id", "proxmox_token_secret"} {

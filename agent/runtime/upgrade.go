@@ -268,7 +268,7 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	// ANTES del swap. Sin digest no se instala nada.
 	if digest == "" {
 		err := errors.New("el servidor no envió X-Checksum-Sha256; upgrade rechazado")
-		log.Error("[netpulse-agent] upgrade: falta el digest", "err", err)
+		log.Error("[netpulse-agent] upgrade: missing digest", "err", err)
 		reportUpgradeResult(opts, transport, false, err.Error())
 		return
 	}

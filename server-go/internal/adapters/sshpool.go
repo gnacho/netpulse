@@ -163,9 +163,9 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 	// de cargarlo: el fichero también lo escriben procesos ssh externos, que
 	// no pueden tomar el lock del paquete.
 	if dropped, serr := sshkey.SanitizeKnownHosts(p.khPath); serr != nil {
-		log.Printf("ssh: saneando %s: %v", p.khPath, serr)
+		log.Printf("[netpulse:ssh] saneando %s: %v", p.khPath, serr)
 	} else if dropped > 0 {
-		log.Printf("ssh: %d entrada(s) ilegible(s) descartada(s) de %s (#2014)", dropped, p.khPath)
+		log.Printf("[netpulse:ssh] %d unreadable known_hosts line(s) dropped from %s (#2014)", dropped, p.khPath)
 	}
 	checker, err := knownhosts.New(p.khPath)
 	if err != nil {
@@ -188,7 +188,7 @@ func (p *SSHPool) hostKeyCallback() (ssh.HostKeyCallback, error) {
 				oldFP = ssh.FingerprintSHA256(keyErr.Want[0].Key)
 			}
 			newFP := ssh.FingerprintSHA256(key)
-			log.Printf("ssh %s: host key changed (%s -> %s); re-onboard requerido", hostname, oldFP, newFP)
+			log.Printf("[netpulse:ssh] %s: host key changed (%s -> %s), re-onboard required", hostname, oldFP, newFP)
 			return &HostKeyChangedError{Host: hostname, OldFP: oldFP, NewFP: newFP}
 		}
 		// Host desconocido → accept-new

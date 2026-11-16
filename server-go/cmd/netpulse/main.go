@@ -100,7 +100,7 @@ func isSSEStreamPath(p string) bool {
 func webhookHostForLog(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" {
-		return "(sin host)"
+		return "(no host)"
 	}
 	return u.Host
 }
@@ -139,9 +139,21 @@ func newHTTPServer(addr string, h http.Handler) *http.Server {
 	}
 }
 
+// #2058: systemd's journal already stamps every line with the date and the
+// time, and the default prefix of the log package wrote a second one in front
+// of it. JOURNAL_STREAM is set for any process whose output goes to the
+// journal, so the prefix is dropped only there: in a terminal or in a
+// redirected file that timestamp is the only one there is.
+func configureLogging() {
+	if os.Getenv("JOURNAL_STREAM") != "" {
+		log.SetFlags(0)
+	}
+}
+
 func main() {
+	configureLogging()
 	if err := run(); err != nil {
-		log.Printf("[netpulse] error fatal en arranque: %v", err)
+		log.Printf("[netpulse] fatal error during startup: %v", err)
 		os.Exit(1)
 	}
 }
@@ -389,7 +401,7 @@ func run() error {
 	var webhookNotifier *webhook.Notifier
 	if cfg.Webhook != nil && cfg.Webhook.Enabled {
 		webhookNotifier = webhook.NewNotifier(*cfg.Webhook, dbHandle)
-		log.Printf("[netpulse] webhook saliente activo: %s", webhookHostForLog(cfg.Webhook.URL))
+		log.Printf("[netpulse] outgoing webhook active: %s", webhookHostForLog(cfg.Webhook.URL))
 	}
 
 	// Telegram (#326): transport nativo si está configurado en kv.
@@ -398,14 +410,14 @@ func run() error {
 	tgCfg := telegram.LoadConfig(tgKV)
 	if tgCfg.Enabled && tgCfg.BotToken != "" && tgCfg.ChatID != "" {
 		telegramNotifier = telegram.NewNotifier(tgKV)
-		log.Printf("[netpulse] telegram activo: chat %s", tgCfg.ChatID)
+		log.Printf("[netpulse] telegram active: chat %s", tgCfg.ChatID)
 	}
 
 	// ntfy (#766): el notifier vive SIEMPRE (el worker decide por config en
 	// cada evento): activable desde la UI sin reiniciar el servicio.
 	ntfyNotifier := ntfy.NewNotifier(&mainKVAdapter{db: dbHandle.DB})
 	if ntfyCfg := ntfy.LoadConfig(&mainKVAdapter{db: dbHandle.DB}); ntfyCfg.Enabled && ntfyCfg.Topic != "" {
-		log.Printf("[netpulse] ntfy activo: %s/%s", ntfyCfg.Server, ntfy.MaskTopic(ntfyCfg.Topic))
+		log.Printf("[netpulse] ntfy active: %s/%s", ntfyCfg.Server, ntfy.MaskTopic(ntfyCfg.Topic))
 	}
 
 	// Notifier compuesto: push + webhook + telegram + ntfy (SetNotifier solo admite UNO).
@@ -515,7 +527,7 @@ func run() error {
 		if cooldown <= 0 {
 			cooldown = rearmer.AutoCooldownDefault
 		}
-		log.Printf("[netpulse] supervisor de auto-rearme activo (cooldown %d s)", int(cooldown.Seconds()))
+		log.Printf("[netpulse] auto-rearm supervisor active (cooldown %ds)", int(cooldown.Seconds()))
 	}
 
 	// Fase 7.3: SSE bidireccional agente↔servidor (AgentHub permite al
@@ -751,7 +763,7 @@ func run() error {
 					return
 				}
 				if n := adapter.AlertsEngine().PruneLogByRetention(); n > 0 {
-					log.Printf("[netpulse] poda del log de alertas: %d entradas por antigüedad", n)
+					log.Printf("[netpulse] alert log prune: %d entries by age", n)
 				}
 			}
 			prune() // primera pasada al arrancar
@@ -784,7 +796,7 @@ func run() error {
 			Engine:       engine,
 			Version:      httpapi.Version,
 		})
-		log.Printf("[netpulse] MCP server activo en /mcp (streamable-HTTP, auth: API token Bearer, LAN-only)")
+		log.Printf("[netpulse] MCP server active on /mcp (streamable HTTP, auth: API token Bearer, LAN-only)")
 	} else if cfg.MCPEnabled {
 		log.Printf("[netpulse] warning: NETPULSE_MCP_ENABLED=1 but no token store, MCP disabled")
 	}
@@ -899,7 +911,7 @@ func run() error {
 		if listenHost == "" {
 			listenHost = "0.0.0.0"
 		}
-		log.Printf("[netpulse] v%s · modo %s · %s://%s:%d", httpapi.Version, adapter.Mode(), scheme, listenHost, cfg.Port)
+		log.Printf("[netpulse] v%s · mode %s · %s://%s:%d", httpapi.Version, adapter.Mode(), scheme, listenHost, cfg.Port)
 		if cfg.BindAddr == "127.0.0.1" || cfg.BindAddr == "localhost" {
 			log.Print("[netpulse] listener solo en loopback: la UI no responde desde la LAN (NETPULSE_BIND=0.0.0.0 para abrirla, o activa TLS)")
 		}

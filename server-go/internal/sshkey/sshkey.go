@@ -54,7 +54,7 @@ func EnsureKeypair(keyPath string) error {
 		if privateParses(keyPath) {
 			return nil
 		}
-		log.Printf("[netpulse] sshkey: la clave en %s no es legible por crypto/ssh (formato externo, tipicamente Dropbear de OpenWrt 21.02); se respalda como .bak.<epoch> y se regenera en proceso (#1701)", keyPath)
+		log.Printf("[netpulse] sshkey: crypto/ssh cannot read the key at %s (foreign format, usually Dropbear on OpenWrt 21.02), backing it up as .bak.<epoch> and regenerating it in process (#1701)", keyPath)
 		bak := fmt.Sprintf("%s.bak.%d", keyPath, time.Now().Unix())
 		if err := os.Rename(keyPath, bak); err != nil {
 			return err
@@ -338,7 +338,7 @@ func scanHostKeys(host string) ([]khEntry, error) {
 	}
 	entries, perr := parseKnownHosts(string(out))
 	if perr == nil {
-		log.Printf("[netpulse:ssh] ssh-keyscan %s: %d clave(s) de host", host, len(entries))
+		log.Printf("[netpulse:ssh] ssh-keyscan %s: %d host key(s)", host, len(entries))
 	}
 	return entries, perr
 }
