@@ -40,7 +40,7 @@ type pushSubscribeBody struct {
 		Auth   string `json:"auth"`
 		P256dh string `json:"p256dh"`
 	} `json:"keys"`
-	// Language (#1334): idioma efectivo de la UI en el alta (es|en); el push
+	// Language (#1334): idioma efectivo de la UI en el alta (es|en|zh); el push
 	// se compone en ese idioma por suscriptor.
 	Language string `json:"language"`
 }
@@ -63,7 +63,7 @@ func (s *server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		body.Keys.Auth == "" || len(body.Keys.Auth) > maxPushKeyLen ||
 		body.Keys.P256dh == "" || len(body.Keys.P256dh) > maxPushKeyLen ||
 		(body.Language != "es" && body.Language != "en" && body.Language != "zh") {
-		writeError(w, http.StatusBadRequest, "invalid_body", "endpoint, keys.auth, keys.p256dh y language (es|en) son obligatorios")
+		writeError(w, http.StatusBadRequest, "invalid_body", "endpoint, keys.auth, keys.p256dh and language (es|en|zh) are required")
 		return
 	}
 	if err := push.ValidateEndpoint(body.Endpoint); err != nil {

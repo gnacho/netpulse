@@ -874,16 +874,16 @@
       "summary": "SNMP：{{ok}} 次轮询成功 / {{fail}} 次失败"
     },
     "vlans": {
+      "id": "ID",
+      "interface": "接口",
       "mode": "模式",
-      "port": "端口",
       "pvid": "PVID",
+      "subnet": "子网",
       "tagged": "带标签",
       "title": "VLAN",
       "toggleAria": "网桥 VLAN（{{count}}）",
       "untagged": "不带标签",
-      "vlanId": "VLAN ID",
-      "id": "ID",
-      "subnet": "子网"
+      "vlanId": "VLAN ID"
     },
     "wan": {
       "chartAria": "网关 WAN 流量。当前下载 {{down}} Mbps，上传 {{up}} Mbps。",
@@ -941,16 +941,17 @@
     },
     "statusReasonTitle": "该设备离线的原因",
     "networks": {
-      "title": "网络",
-      "network": "网络",
-      "subnet": "子网",
-      "members": "成员",
       "clients": "客户端",
       "clientsTip": "VLAN 已知的客户端",
       "device": "设备",
-      "traffic": "流量",
+      "members": "成员",
+      "network": "网络",
       "noCounters": "该设备不上报每接口计数器",
+      "subnet": "子网",
+      "source": "来源",
+      "title": "网络",
       "toggleAria": "OpenWrt 网络（{{count}}）",
+      "traffic": "流量",
       "vlan": "VLAN {{id}}",
       "showClients": "显示客户端",
       "hideClients": "隐藏客户端"

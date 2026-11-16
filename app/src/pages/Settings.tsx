@@ -6701,8 +6701,8 @@ export default function Settings() {
                 className="h-9 shrink-0 rounded-lg border border-border bg-elevated px-2.5 text-sm text-text-primary"
               >
                 <option value="auto">🌐 {t('settings.languageAuto')}</option>
-                <option value="es">Español</option>
-                <option value="en">English</option>
+                <option value="es">🇪🇸 Español</option>
+                <option value="en">🇬🇧 English</option>
                 <option value="zh">中文</option>
               </select>
 
