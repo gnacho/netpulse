@@ -92,7 +92,7 @@ func ndtRunPhase(
 		}
 	}
 	if last == nil || last.ElapsedTime <= 0 {
-		return 0, 0, fmt.Errorf("sin mediciones del servidor")
+		return 0, 0, fmt.Errorf("no measurements from the server")
 	}
 	bps := float64(last.NumBytes) * 8 / (float64(last.ElapsedTime) / 1e6)
 	return bps / 1e6, rtt, nil

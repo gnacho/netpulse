@@ -20,11 +20,11 @@ import (
 // flujo manual ya devolvía (no_target 400, upgrade_in_progress 409,
 // agent_not_connected 503, insecure_agent_transport 409).
 var (
-	ErrNoTarget          = errors.New("firmware: no target configurado")
-	ErrInvalidTarget     = errors.New("firmware: target invalido")
-	ErrUpgradeInProgress = errors.New("firmware: upgrade en curso")
-	ErrAgentNotConnected = errors.New("firmware: agente no conectado")
-	ErrInsecureTransport = errors.New("firmware: el agente no usa HTTPS")
+	ErrNoTarget          = errors.New("firmware: no target configured")
+	ErrInvalidTarget     = errors.New("firmware: invalid target")
+	ErrUpgradeInProgress = errors.New("firmware: upgrade in progress")
+	ErrAgentNotConnected = errors.New("firmware: agent not connected")
+	ErrInsecureTransport = errors.New("firmware: the agent does not use HTTPS")
 )
 
 func validateFirmwareTarget(rawURL, checksum string) error {

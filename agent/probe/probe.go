@@ -703,7 +703,7 @@ func ParseDhcpUbus(raw []byte) ([]DhcpLease, error) {
 		leases = data.Leases
 	}
 	if leases == nil {
-		return nil, fmt.Errorf("ubus dhcp: sin clave lease/leases")
+		return nil, fmt.Errorf("ubus dhcp: no lease/leases key")
 	}
 	out := make([]DhcpLease, 0, len(leases))
 	for _, l := range leases {
@@ -981,7 +981,7 @@ func ParseGlClients(raw []byte) ([]DhcpLease, error) {
 		return nil, err
 	}
 	if data.Clients == nil {
-		return nil, fmt.Errorf("gl-clients: sin clave clients")
+		return nil, fmt.Errorf("gl-clients: no clients key")
 	}
 	out := make([]DhcpLease, 0, len(data.Clients))
 	for key, c := range data.Clients {

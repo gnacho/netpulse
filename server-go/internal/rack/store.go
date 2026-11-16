@@ -18,16 +18,16 @@ import (
 
 // ErrOverlap indica que el estado final del layout tiene dos montajes
 // solapados o fuera de rack.
-var ErrOverlap = errors.New("rack: montajes solapados o fuera de rack")
+var ErrOverlap = errors.New("rack: overlapping or out-of-rack mounts")
 
 // ErrPortBusy indica que el puerto ya tiene todos los cables que admite.
-var ErrPortBusy = errors.New("rack: puerto sin capacidad para otro cable")
+var ErrPortBusy = errors.New("rack: port has no capacity for another cable")
 
 // ErrUnknownMount / ErrUnknownPort referencian montajes o puertos inexistentes.
 var ErrUnknownMount = errors.New("rack: montaje inexistente")
 
 // ErrUnknownPort indica un puerto que el dispositivo no declara en su perfil.
-var ErrUnknownPort = errors.New("rack: puerto no declarado por el dispositivo")
+var ErrUnknownPort = errors.New("rack: port not declared by the device")
 
 func newID() string {
 	b := make([]byte, 8)
@@ -81,7 +81,7 @@ func CreateRack(db *sql.DB, in Rack) (Rack, error) {
 		in.StyleJSON = "{}"
 	}
 	if !in.Valid() {
-		return Rack{}, fmt.Errorf("rack: rack inválido")
+		return Rack{}, fmt.Errorf("rack: invalid rack")
 	}
 	_, err := db.Exec(`INSERT INTO racks (id, name, u_height, width_standard, numbering, style_json, location, position_x, position_y)
 		VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?)`,
@@ -91,7 +91,7 @@ func CreateRack(db *sql.DB, in Rack) (Rack, error) {
 
 func UpdateRack(db *sql.DB, r Rack) error {
 	if !r.Valid() {
-		return fmt.Errorf("rack: rack inválido")
+		return fmt.Errorf("rack: invalid rack")
 	}
 	// Guarda: no reducir el rack por debajo de lo ya montado (la geometría
 	// quedaría fuera del grid; el anti-solape se valida al guardar layouts).
@@ -355,7 +355,7 @@ func validateLayout(rackUHeight int, mounts []MountRow) error {
 	for _, m := range mounts {
 		f := m.Footprint()
 		if !FitsRack(rackUHeight, f) {
-			return fmt.Errorf("%w: montaje %s fuera de rack", ErrOverlap, m.ID)
+			return fmt.Errorf("%w: mount %s out of rack", ErrOverlap, m.ID)
 		}
 		footprints = append(footprints, f)
 	}

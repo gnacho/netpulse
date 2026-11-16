@@ -597,7 +597,7 @@ func Open(dir string, opts ...OpenOption) (*DB, error) {
 	// Node, backup + importación (preserva users/kv/sessions/routers/metrics).
 	rep, err := MigrateNodeDB(dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("migración Node→Go: %w", err)
+		return nil, fmt.Errorf("Node→Go migration: %w", err)
 	}
 	if rep != nil {
 		rep.Log()

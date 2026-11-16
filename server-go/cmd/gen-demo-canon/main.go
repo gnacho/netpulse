@@ -27,7 +27,7 @@ func repoRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("no se encuentra la raíz del repo (server-go/go.mod) desde el cwd")
+			return "", fmt.Errorf("cannot find the repo root (server-go/go.mod) from the cwd")
 		}
 		dir = parent
 	}

@@ -61,15 +61,15 @@ func pairWithServer(opts Options) error {
 		ServerFP string `json:"server_fp"`
 	}
 	if err := json.NewDecoder(res.Body).Decode(&pr); err != nil {
-		return fmt.Errorf("parsear respuesta pairing: %w", err)
+		return fmt.Errorf("parse pairing response: %w", err)
 	}
 	if pr.Token == "" {
-		return fmt.Errorf("pairing: token vacío en respuesta")
+		return fmt.Errorf("pairing: empty token in response")
 	}
 
 	// Escribir el token real al env file (reemplaza PAIRING_TOKEN por TOKEN).
 	if err := writePairedToken(opts.EnvFile, pr.Token, learnedFP); err != nil {
-		return fmt.Errorf("escribir token al env file: %w", err)
+		return fmt.Errorf("write token to env file: %w", err)
 	}
 
 	log.Info("[netpulse-agent] pairing OK", "slug", pr.Slug, "env_file", opts.EnvFile)

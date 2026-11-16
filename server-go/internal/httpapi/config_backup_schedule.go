@@ -79,11 +79,11 @@ func (s *server) saveConfigBackupSchedule(sched ConfigBackupSchedule) error {
 
 func validateConfigBackupSchedule(sched ConfigBackupSchedule) error {
 	if sched.DayOfWeek < 0 || sched.DayOfWeek > 6 {
-		return fmt.Errorf("dayOfWeek debe estar entre 0 y 6")
+		return fmt.Errorf("dayOfWeek must be between 0 and 6")
 	}
 	parsed, err := time.Parse("15:04", sched.Time)
 	if err != nil || parsed.Format("15:04") != sched.Time {
-		return fmt.Errorf("time debe ser HH:MM")
+		return fmt.Errorf("time must be HH:MM")
 	}
 	return nil
 }

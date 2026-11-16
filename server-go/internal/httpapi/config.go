@@ -1012,7 +1012,7 @@ func (s *server) handleTestProxmoxConfig(w http.ResponseWriter, r *http.Request)
 		cfg.Insecure = *in.Insecure
 	}
 	if !cfg.Enabled() {
-		writeError(w, http.StatusBadRequest, "invalid_input", "faltan url, tokenId o secret")
+		writeError(w, http.StatusBadRequest, "invalid_input", "missing url, tokenId or secret")
 		return
 	}
 	// Un fallo es un RESULTADO, no un error HTTP: el formulario tiene que

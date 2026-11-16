@@ -245,7 +245,7 @@ func (s *Scheduler) executeLocked(st Settings, origin string) error {
 	// servidor equivocado (p. ej. la web de Ookla como server_url): se
 	// descarta SIN persistir para no ensuciar la serie ni las gráficas.
 	if res.DownMbps <= 0 || res.UpMbps <= 0 {
-		err := fmt.Errorf("resultado descartado (down %.1f / up %.1f Mbps): servidor de pruebas inválido o inalcanzable, revisa la URL del servidor o déjala vacía para autoselección", res.DownMbps, res.UpMbps)
+		err := fmt.Errorf("discarded result (down %.1f / up %.1f Mbps): invalid or unreachable test server, check the server URL or leave it empty for auto-selection", res.DownMbps, res.UpMbps)
 		s.setLastError(err)
 		return err
 	}
@@ -447,36 +447,36 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 		st.ScheduleKind = "interval"
 	}
 	if !validScheduleKind(st.ScheduleKind) {
-		return errors.New("scheduleKind debe ser interval, auto, weekly o monthly")
+		return errors.New("scheduleKind must be interval, auto, weekly or monthly")
 	}
 	switch st.ScheduleKind {
 	case "weekly":
 		if st.DayOfWeek == nil || *st.DayOfWeek < 0 || *st.DayOfWeek > 6 {
-			return errors.New("weekly exige dayOfWeek 0-6 (0 = domingo)")
+			return errors.New("weekly requires dayOfWeek 0-6 (0 = Sunday)")
 		}
 		if !validTimeStr(st.Time) {
-			return errors.New("weekly exige time HH:MM")
+			return errors.New("weekly requires time HH:MM")
 		}
 	case "monthly":
 		if st.DayOfMonth == nil || *st.DayOfMonth < 1 || *st.DayOfMonth > 31 {
-			return errors.New("monthly exige dayOfMonth 1-31")
+			return errors.New("monthly requires dayOfMonth 1-31")
 		}
 		if !validTimeStr(st.Time) {
-			return errors.New("monthly exige time HH:MM")
+			return errors.New("monthly requires time HH:MM")
 		}
 	case scheduleKindAuto:
 		// sin campos extra: la hora la deriva el scheduler del histórico y
 		// lo que llegue en Time se ignora (no se afirma una hora concreta).
 	default:
 		if !validInterval(st.IntervalHours) {
-			return fmt.Errorf("intervalo inválido (%d): permite %v", st.IntervalHours, ValidIntervals)
+			return fmt.Errorf("invalid interval (%d): allowed %v", st.IntervalHours, ValidIntervals)
 		}
 	}
 	if strings.TrimSpace(st.ServerURL) != "" && !validServerURL(st.ServerURL) {
 		if trapServerURL(st.ServerURL) {
-			return errors.New("speedtest.net es la web de Ookla, no un servidor de pruebas: deja el campo vacío para usar el más cercano automáticamente")
+			return errors.New("speedtest.net is Ookla's website, not a test server: leave the field empty to auto-select the nearest one")
 		}
-		return errors.New("serverUrl debe ser una URL http(s) válida")
+		return errors.New("serverUrl must be a valid http(s) URL")
 	}
 	// Provider (#976): librespeed necesita la URL base de la instancia y
 	// custom (#1001) la URL completa del endpoint; los demás la ignoran
@@ -487,16 +487,16 @@ func (s *Scheduler) SaveSettings(st Settings) error {
 		st.Provider = ProviderNDT
 	}
 	if !validProvider(st.Provider) {
-		return errors.New("provider debe ser ookla, cloudflare, librespeed, custom o ndt")
+		return errors.New("provider must be ookla, cloudflare, librespeed, custom or ndt")
 	}
 	if st.Provider == ProviderLibrespeed && strings.TrimSpace(st.ServerURL) == "" {
-		return errors.New("librespeed exige serverUrl con la URL base de la instancia")
+		return errors.New("librespeed requires serverUrl with the instance base URL")
 	}
 	if st.Provider == ProviderCustom && strings.TrimSpace(st.ServerURL) == "" {
-		return errors.New("custom exige serverUrl con la URL del endpoint de medición")
+		return errors.New("custom requires serverUrl with the measurement endpoint URL")
 	}
 	if st.AlertPct < 0 || st.AlertPct > 90 {
-		return errors.New("alertPct debe estar entre 0 y 90 (0 = desactivada)")
+		return errors.New("alertPct must be between 0 and 90 (0 = disabled)")
 	}
 	kvSet(s.db, kvEnabled, boolStr(st.Enabled))
 	kvSet(s.db, kvInterval, fmt.Sprintf("%d", st.IntervalHours))

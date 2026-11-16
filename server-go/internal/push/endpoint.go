@@ -21,33 +21,33 @@ const maxRedirects = 5
 func ValidateEndpoint(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
-		return fmt.Errorf("endpoint invalido: %w", err)
+		return fmt.Errorf("invalid endpoint: %w", err)
 	}
 	if !strings.EqualFold(u.Scheme, "https") {
-		return errors.New("el endpoint debe usar https")
+		return errors.New("the endpoint must use https")
 	}
 	if u.User != nil {
-		return errors.New("el endpoint no puede incluir credenciales")
+		return errors.New("the endpoint must not include credentials")
 	}
 	host := u.Hostname()
 	if host == "" {
-		return errors.New("el endpoint no tiene host")
+		return errors.New("the endpoint has no host")
 	}
 	if port := u.Port(); port != "" {
 		n, err := strconv.Atoi(port)
 		if err != nil || n < 1 || n > 65535 {
-			return errors.New("el endpoint tiene un puerto invalido")
+			return errors.New("the endpoint has an invalid port")
 		}
 	}
 	if ip := net.ParseIP(host); ip != nil {
 		if blockedIP(ip) {
-			return errors.New("el endpoint apunta a una direccion no publica")
+			return errors.New("the endpoint points to a non-public address")
 		}
 		return nil
 	}
 	name := strings.ToLower(strings.TrimSuffix(host, "."))
 	if name == "localhost" || strings.HasSuffix(name, ".localhost") {
-		return errors.New("el endpoint apunta a localhost")
+		return errors.New("the endpoint points to localhost")
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func resolvePushHost(ctx context.Context, host string) ([]net.IP, error) {
 		ips = append(ips, addr.IP)
 	}
 	if len(ips) == 0 {
-		return nil, fmt.Errorf("resolver %s: sin direcciones", host)
+		return nil, fmt.Errorf("resolve %s: no addresses", host)
 	}
 	return ips, nil
 }
@@ -115,7 +115,7 @@ func resolvePushHost(ctx context.Context, host string) ([]net.IP, error) {
 func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return nil, fmt.Errorf("direccion de push invalida: %w", err)
+		return nil, fmt.Errorf("invalid push address: %w", err)
 	}
 	ips, err := resolvePushHost(ctx, host)
 	if err != nil {
@@ -134,9 +134,9 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 		lastErr = err
 	}
 	if lastErr != nil {
-		return nil, fmt.Errorf("conectar con %s: %w", host, lastErr)
+		return nil, fmt.Errorf("connect to %s: %w", host, lastErr)
 	}
-	return nil, fmt.Errorf("el endpoint %s resuelve a una direccion no publica", host)
+	return nil, fmt.Errorf("the endpoint %s resolves to a non-public address", host)
 }
 
 func newSafeHTTPClient() *http.Client {
@@ -153,7 +153,7 @@ func newSafeHTTPClient() *http.Client {
 		},
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= maxRedirects {
-				return errors.New("demasiadas redirecciones")
+				return errors.New("too many redirects")
 			}
 			return ValidateEndpoint(req.URL.String())
 		},

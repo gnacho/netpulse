@@ -93,14 +93,14 @@ func SaveConfig(kv kvStore, cfg Config) error {
 		cfg.Server = DefaultServer
 	}
 	if !strings.HasPrefix(cfg.Server, "http://") && !strings.HasPrefix(cfg.Server, "https://") {
-		return fmt.Errorf("server debe ser una URL http(s)")
+		return fmt.Errorf("server must be an http(s) URL")
 	}
 	topic := strings.TrimSpace(cfg.Topic)
 	if topic == "" {
 		// Vacío = limpiar el canal (disabled): se permite.
 		cfg.Topic = ""
 	} else if !validTopic(topic) {
-		return fmt.Errorf("topic inválido (letras, números, - y _, máx 64)")
+		return fmt.Errorf("invalid topic (letters, numbers, - and _, max 64)")
 	}
 	if err := kv.Set(kvKeyServer, cfg.Server); err != nil {
 		return fmt.Errorf("save server: %w", err)
@@ -411,7 +411,7 @@ func MaskTopic(topic string) string {
 func SendTest(kv kvStore) error {
 	cfg := LoadConfig(kv)
 	if !cfg.Enabled {
-		return fmt.Errorf("el canal ntfy está desactivado")
+		return fmt.Errorf("the ntfy channel is disabled")
 	}
 	if cfg.Topic == "" {
 		return fmt.Errorf("topic es requerido")

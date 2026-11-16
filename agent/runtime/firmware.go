@@ -51,13 +51,13 @@ type pendingFirmware struct {
 func validateFirmwareTarget(rawURL, checksum string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil || u.Host == "" || !strings.EqualFold(u.Scheme, "https") {
-		return fmt.Errorf("la imagen debe servirse por https")
+		return fmt.Errorf("image must be served over https")
 	}
 	if len(checksum) != 64 {
-		return fmt.Errorf("checksum sha256 invalido")
+		return fmt.Errorf("invalid sha256 checksum")
 	}
 	if _, err := hex.DecodeString(checksum); err != nil {
-		return fmt.Errorf("checksum sha256 invalido")
+		return fmt.Errorf("invalid sha256 checksum")
 	}
 	return nil
 }
@@ -145,7 +145,7 @@ func checkPendingFirmwareUpgrade(opts Options, transport http.RoundTripper) {
 // downloadImage descarga la imagen y verifica el sha256. onPct recibe 0-100.
 func downloadImage(ctx context.Context, hc *http.Client, url, dest, checksum string, onPct func(int)) error {
 	if checksum == "" {
-		return fmt.Errorf("checksum requerido")
+		return fmt.Errorf("checksum required")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -157,7 +157,7 @@ func downloadImage(ctx context.Context, hc *http.Client, url, dest, checksum str
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("imagen no disponible (HTTP %d)", res.StatusCode)
+		return fmt.Errorf("image unavailable (HTTP %d)", res.StatusCode)
 	}
 
 	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
@@ -180,11 +180,11 @@ func downloadImage(ctx context.Context, hc *http.Client, url, dest, checksum str
 	}
 	if n == 0 {
 		_ = os.Remove(dest)
-		return fmt.Errorf("imagen vacía")
+		return fmt.Errorf("empty image")
 	}
 	if n > maxFirmwareImageBytes {
 		_ = os.Remove(dest)
-		return fmt.Errorf("imagen mayor de %d MB", maxFirmwareImageBytes>>20)
+		return fmt.Errorf("image larger than %d MB", maxFirmwareImageBytes>>20)
 	}
 	if err := verifyImageSha256(dest, checksum); err != nil {
 		_ = os.Remove(dest)
@@ -205,7 +205,7 @@ func verifyImageSha256(path, want string) error {
 	}
 	got := hex.EncodeToString(h.Sum(nil))
 	if !strings.EqualFold(got, want) {
-		return fmt.Errorf("sha256 no coincide (esperado %s, descargado %s)", want, got)
+		return fmt.Errorf("sha256 mismatch (expected %s, downloaded %s)", want, got)
 	}
 	return nil
 }

@@ -103,7 +103,7 @@ func (s *server) backupConfigOverSsh(ctx context.Context, id, host string) (stri
 func decodeSshBackup(out string) ([]byte, error) {
 	i := strings.Index(out, sshBackupMarker)
 	if i < 0 {
-		return nil, errors.New("la unidad no devolvió ningún backup")
+		return nil, errors.New("the unit returned no backup")
 	}
 	rest := out[i+len(sshBackupMarker):]
 	if j := strings.IndexByte(rest, '\n'); j >= 0 {
@@ -112,10 +112,10 @@ func decodeSshBackup(out string) ([]byte, error) {
 		rest = ""
 	}
 	if rest == "" {
-		return nil, errors.New("la unidad no devolvió ningún backup")
+		return nil, errors.New("the unit returned no backup")
 	}
 	if len(rest) < 2 || rest[0] != 0x1f || rest[1] != 0x8b {
-		return nil, errors.New("la salida de la unidad no es un backup válido")
+		return nil, errors.New("the unit output is not a valid backup")
 	}
 	return []byte(rest), nil
 }

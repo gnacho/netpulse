@@ -61,7 +61,7 @@ func TestDownloadImageRejectsOversize(t *testing.T) {
 
 	dest := filepath.Join(t.TempDir(), "image.bin")
 	err := downloadImage(context.Background(), srv.Client(), srv.URL, dest, strings.Repeat("0", 64), nil)
-	if err == nil || !strings.Contains(err.Error(), "mayor") {
+	if err == nil || !strings.Contains(err.Error(), "larger") {
 		t.Fatalf("esperaba error de tamano, got %v", err)
 	}
 	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {

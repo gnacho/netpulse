@@ -41,24 +41,24 @@ func ValidateRecurrence(rc Recurrence) error {
 	switch rc.Kind {
 	case RecurrenceOnce:
 		if rc.AtMs <= 0 {
-			return fmt.Errorf("once exige atMs (epoch ms)")
+			return fmt.Errorf("once requires atMs (epoch ms)")
 		}
 	case RecurrenceWeekly:
 		if rc.DayOfWeek == nil || *rc.DayOfWeek < 0 || *rc.DayOfWeek > 6 {
-			return fmt.Errorf("weekly exige dayOfWeek 0-6 (0 = domingo)")
+			return fmt.Errorf("weekly requires dayOfWeek 0-6 (0 = Sunday)")
 		}
 		if !validRecTime(rc.Time) {
-			return fmt.Errorf("weekly exige time HH:MM")
+			return fmt.Errorf("weekly requires time HH:MM")
 		}
 	case RecurrenceMonthly:
 		if rc.DayOfMonth == nil || *rc.DayOfMonth < 1 || *rc.DayOfMonth > 31 {
-			return fmt.Errorf("monthly exige dayOfMonth 1-31")
+			return fmt.Errorf("monthly requires dayOfMonth 1-31")
 		}
 		if !validRecTime(rc.Time) {
-			return fmt.Errorf("monthly exige time HH:MM")
+			return fmt.Errorf("monthly requires time HH:MM")
 		}
 	default:
-		return fmt.Errorf("kind debe ser once, weekly o monthly")
+		return fmt.Errorf("kind must be once, weekly or monthly")
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func LoadRecurrence(db *sql.DB, routerID string) Recurrence {
 // SaveRecurrence persiste la programación completa (UPSERT por clave).
 func SaveRecurrence(db *sql.DB, routerID string, rc Recurrence) error {
 	if db == nil || routerID == "" {
-		return fmt.Errorf("firmware: db o router vacío")
+		return fmt.Errorf("firmware: empty db or router")
 	}
 	if err := ValidateRecurrence(rc); err != nil {
 		return err

@@ -71,7 +71,7 @@ func (l *Live) pollSNMPSurface(cfg RouterConfig, now time.Time) snmpSurfaceEntry
 	if ifErr != nil || len(ports) == 0 {
 		pollErr := ifErr
 		if pollErr == nil {
-			pollErr = fmt.Errorf("snmp ifTable %s: sin puertos", cfg.Host)
+			pollErr = fmt.Errorf("snmp ifTable %s: no ports", cfg.Host)
 		}
 		l.recordSnmpFailure(cfg, pollErr)
 		return entry

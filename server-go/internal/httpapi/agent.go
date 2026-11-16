@@ -233,13 +233,13 @@ func (s *server) checkAgentToken(slug, token string) bool {
 // Devuelve nil si la firma es correcta; error si falta o no coincide.
 func checkHMAC(token string, body []byte, sig string) error {
 	if sig == "" {
-		return errors.New("falta X-Agent-Signature")
+		return errors.New("missing X-Agent-Signature")
 	}
 	mac := hmac.New(sha256.New, []byte(token))
 	mac.Write(body)
 	expected := hex.EncodeToString(mac.Sum(nil))
 	if subtle.ConstantTimeCompare([]byte(sig), []byte(expected)) != 1 {
-		return errors.New("HMAC no coincide")
+		return errors.New("HMAC mismatch")
 	}
 	return nil
 }
@@ -1195,7 +1195,7 @@ func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if host == "" {
-		writeError(w, http.StatusConflict, "router_unknown", "no hay router con ese slug en la tabla routers")
+		writeError(w, http.StatusConflict, "router_unknown", "no router with that slug in the routers table")
 		return
 	}
 	// Solo agentes nativos OpenWrt: un dispositivo managed-switch/external es
@@ -1402,7 +1402,7 @@ func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if host == "" {
-		writeError(w, http.StatusConflict, "router_unknown", "no hay router con ese slug en la tabla routers")
+		writeError(w, http.StatusConflict, "router_unknown", "no router with that slug in the routers table")
 		return
 	}
 	// Solamente agentes nativos OpenWrt: un managed-switch/external es un

@@ -1393,7 +1393,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 	cached := l.extrasCache[cfg.ID]
 	l.mu.Unlock()
 	if client == nil {
-		return nil, fmt.Errorf("router %s sin cliente", cfg.ID)
+		return nil, fmt.Errorf("router %s has no client", cfg.ID)
 	}
 
 	// Calienta la conexión SSH en serie (equivalente al `ssh true` del JS:
@@ -2114,7 +2114,7 @@ func (l *Live) hostKeyChanged(routerID string) bool {
 // error para que el router deje de mostrarse como "host key changed".
 func (l *Live) AcceptHostKey(routerID string) error {
 	if l.pool == nil {
-		return errors.New("ssh pool no configurado")
+		return errors.New("ssh pool not configured")
 	}
 	l.mu.Lock()
 	var cfg *RouterConfig
@@ -2126,7 +2126,7 @@ func (l *Live) AcceptHostKey(routerID string) error {
 	}
 	l.mu.Unlock()
 	if cfg == nil {
-		return fmt.Errorf("router %q no configurado", routerID)
+		return fmt.Errorf("router %q not configured", routerID)
 	}
 	// #1524: la entrada known_hosts se escribe con la forma de la dirección
 	// que diala el pool ([host]:puerto en puertos no estándar, host pelado en

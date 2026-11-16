@@ -564,7 +564,7 @@ func (s *server) beaconSeqNote(slug string, seq uint32) {
 // (útil con :0 en tests).
 func (s *server) startBeaconListener(addr string) (net.Addr, error) {
 	if s.agents == nil {
-		return nil, fmt.Errorf("sin registry de agentes")
+		return nil, fmt.Errorf("no agent registry")
 	}
 	pc, err := net.ListenPacket("udp", addr)
 	if err != nil {

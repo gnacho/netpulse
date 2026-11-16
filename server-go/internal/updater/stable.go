@@ -266,7 +266,7 @@ func checksumFor(sumsFile, asset string) (string, error) {
 			return fields[0], nil
 		}
 	}
-	return "", fmt.Errorf("%s no está en %s", asset, sumsFile)
+	return "", fmt.Errorf("%s not found in %s", asset, sumsFile)
 }
 
 // extractBinary extrae la entrada "netpulse" (posible prefijo ./) del
@@ -286,7 +286,7 @@ func extractBinary(tgz, staging string) (string, error) {
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
-			return "", fmt.Errorf("tarball sin entrada %s", stableBinName)
+			return "", fmt.Errorf("tarball has no entry %s", stableBinName)
 		}
 		if err != nil {
 			return "", err
@@ -296,7 +296,7 @@ func extractBinary(tgz, staging string) (string, error) {
 			continue
 		}
 		if hdr.Size > stableMaxBinSize {
-			return "", fmt.Errorf("entrada %s demasiado grande (%d)", name, hdr.Size)
+			return "", fmt.Errorf("entry %s too large (%d)", name, hdr.Size)
 		}
 		dst := filepath.Join(staging, "netpulse.new")
 		out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o750)

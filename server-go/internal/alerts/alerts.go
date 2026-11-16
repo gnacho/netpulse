@@ -522,7 +522,7 @@ func (e *Engine) SetConfig(patch map[string]string) error {
 		if len(badVals) > 0 {
 			parts = append(parts, "niveles inválidos: "+strings.Join(badVals, ", "))
 		}
-		return fmt.Errorf("config inválida (%s)", strings.Join(parts, "; "))
+		return fmt.Errorf("invalid config (%s)", strings.Join(parts, "; "))
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()

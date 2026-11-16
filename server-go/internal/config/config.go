@@ -717,16 +717,16 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 	if v, ok := env["ROUTERS_JSON"]; ok && v != "" {
 		var raw []RouterSeed
 		if err := json.Unmarshal([]byte(v), &raw); err != nil {
-			return nil, fmt.Errorf("[netpulse] ROUTERS_JSON inválido: %w", err)
+			return nil, fmt.Errorf("[netpulse] invalid ROUTERS_JSON: %w", err)
 		}
 		for i, r := range raw {
 			if r.ID == "" || r.Host == "" {
-				return nil, fmt.Errorf("[netpulse] ROUTERS_JSON inválido: entrada %d requiere id y host", i)
+				return nil, fmt.Errorf("[netpulse] invalid ROUTERS_JSON: entry %d requires id and host", i)
 			}
 			if r.Type == "" {
 				raw[i].Type = "openwrt"
 			} else if r.Type != "glinet" && r.Type != "openwrt" {
-				return nil, fmt.Errorf("[netpulse] ROUTERS_JSON inválido: type debe ser glinet|openwrt")
+				return nil, fmt.Errorf("[netpulse] invalid ROUTERS_JSON: type must be glinet|openwrt")
 			}
 		}
 		routers = raw

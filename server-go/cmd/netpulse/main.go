@@ -242,7 +242,7 @@ func run() error {
 		if n == 0 {
 			pass, err := config.GenerateInitialPassword()
 			if err != nil {
-				return fmt.Errorf("onbox: generando contraseña inicial: %w", err)
+				return fmt.Errorf("onbox: generating initial password: %w", err)
 			}
 			cfg.AuthPass = pass
 			if err := config.PersistUCIAuthPass(pass); err != nil {
@@ -251,7 +251,7 @@ func run() error {
 				log.Print("[netpulse] onbox: auth_pass saved in UCI (uci get netpulse.server.auth_pass)")
 			}
 			log.Print("[netpulse] ==================================================")
-			log.Print("[netpulse] ONBOX primer arranque — credenciales de la webapp")
+			log.Print("[netpulse] ONBOX first boot - webapp credentials")
 			log.Printf("[netpulse]   usuario:    %s", cfg.AuthUser)
 			log.Printf("[netpulse]   password: %s", pass)
 			log.Print("[netpulse] ==================================================")
@@ -913,7 +913,7 @@ func run() error {
 		}
 		log.Printf("[netpulse] v%s · mode %s · %s://%s:%d", httpapi.Version, adapter.Mode(), scheme, listenHost, cfg.Port)
 		if cfg.BindAddr == "127.0.0.1" || cfg.BindAddr == "localhost" {
-			log.Print("[netpulse] listener solo en loopback: la UI no responde desde la LAN (NETPULSE_BIND=0.0.0.0 para abrirla, o activa TLS)")
+			log.Print("[netpulse] listener on loopback only: the UI is not reachable from the LAN (NETPULSE_BIND=0.0.0.0 to open it, or enable TLS)")
 		}
 		staticDesc := staticDir
 		if staticDesc == "" {

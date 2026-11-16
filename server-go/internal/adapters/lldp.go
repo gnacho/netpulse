@@ -23,7 +23,7 @@ const lldpDownTTL = 5 * time.Minute
 // ErrLldpUnavailable: lldpd no instalado en el router (lldpcli no existe:
 // exit 127 / "not found"). El caller lo trata como "sin datos LLDP", no como
 // fallo del router.
-var ErrLldpUnavailable = errors.New("lldpd no disponible")
+var ErrLldpUnavailable = errors.New("lldpd unavailable")
 
 // LldpNeighbor es un vecino LLDP anunciado en un puerto local. Todos los
 // campos son opcionales en el anuncio; vacío = no anunciado.

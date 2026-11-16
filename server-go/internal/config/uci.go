@@ -152,7 +152,7 @@ func uciUnquote(s string) string {
 // trae el paquete netpulse-server; si falta (instalación manual) se crea.
 func PersistUCIAuthPass(pass string) error {
 	if _, err := exec.LookPath("uci"); err != nil {
-		return fmt.Errorf("uci no disponible: %w", err)
+		return fmt.Errorf("uci unavailable: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), uciExecTimeout)
 	defer cancel()
@@ -199,7 +199,7 @@ func uciRun(ctx context.Context, args ...string) error {
 // devuelve error y el caller decide (log y seguir).
 func ClearUCIAuthPass() error {
 	if _, err := exec.LookPath("uci"); err != nil {
-		return fmt.Errorf("uci no disponible: %w", err)
+		return fmt.Errorf("uci unavailable: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), uciExecTimeout)
 	defer cancel()

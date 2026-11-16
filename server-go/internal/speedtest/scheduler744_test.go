@@ -137,7 +137,7 @@ func TestExecuteDiscardsGarbageResult(t *testing.T) {
 	if err == nil {
 		t.Fatal("el resultado basura debe devolver error")
 	}
-	if !strings.Contains(err.Error(), "descartado") {
+	if !strings.Contains(err.Error(), "discarded") {
 		t.Fatalf("mensaje inesperado: %v", err)
 	}
 	if last, _ := st.Latest(); last != nil {

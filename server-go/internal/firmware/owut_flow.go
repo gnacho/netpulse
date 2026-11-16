@@ -44,7 +44,7 @@ var (
 // versión instalada actual (vacía = todas sin comparar).
 func ListOwutVersions(runner Runner, host, current string) ([]OwutVersion, error) {
 	if runner == nil || host == "" {
-		return nil, fmt.Errorf("firmware: runner o host vacío")
+		return nil, fmt.Errorf("firmware: empty runner or host")
 	}
 	out, err := runner.Run(host, "owut versions 2>&1", owutVersionsTimeout)
 	if err != nil {
@@ -148,7 +148,7 @@ const owutInstallCmd = `if command -v apk >/dev/null 2>&1; then ` +
 // transporte SSH.
 func InstallOwut(runner Runner, host string) (string, error) {
 	if runner == nil || host == "" {
-		return "", fmt.Errorf("firmware: runner o host vacío")
+		return "", fmt.Errorf("firmware: empty runner or host")
 	}
 	out, err := runner.Run(host, owutInstallCmd, owutInstallTimeout)
 	if err != nil {
@@ -156,14 +156,14 @@ func InstallOwut(runner Runner, host string) (string, error) {
 	}
 	exit, raw := extractExitCode(out)
 	if strings.Contains(raw, "__no_pm__") {
-		return raw, fmt.Errorf("firmware: el router no tiene apk ni opkg")
+		return raw, fmt.Errorf("firmware: the router has neither apk nor opkg")
 	}
 	if exit != 0 {
 		tail := raw
 		if len(tail) > 300 {
 			tail = "..." + tail[len(tail)-300:]
 		}
-		return raw, fmt.Errorf("instalación de owut falló (exit %d): %s", exit, strings.TrimSpace(tail))
+		return raw, fmt.Errorf("owut install failed (exit %d): %s", exit, strings.TrimSpace(tail))
 	}
 	return raw, nil
 }

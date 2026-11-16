@@ -175,7 +175,7 @@ func (c *rtlConsoleCache) fetch(host string) (*rtlConsoleEntry, error) {
 		return nil, fmt.Errorf("login HTTP %d", resp.StatusCode)
 	}
 	if cookie == "" {
-		return nil, fmt.Errorf("login sin cookie de sesión")
+		return nil, fmt.Errorf("login without session cookie")
 	}
 
 	// 2) /information.json → sw_ver + hw_ver
@@ -195,7 +195,7 @@ func (c *rtlConsoleCache) fetch(host string) (*rtlConsoleEntry, error) {
 	}
 	var info rtlConsoleInfo
 	if err := json.Unmarshal(infoBody, &info); err != nil {
-		return nil, fmt.Errorf("information.json inválido: %w", err)
+		return nil, fmt.Errorf("invalid information.json: %w", err)
 	}
 
 	// 3) POST /cmd "time" → uptime en segundos (hex, p. ej. "0x00028e9d").
@@ -246,12 +246,12 @@ func parseTimeUptime(body string) (uint64, error) {
 		if sec, err := strconv.ParseUint(rest, 16, 32); err == nil {
 			return sec, nil
 		}
-		return 0, fmt.Errorf("/cmd time: Sec Counter no es hex (%q)", strings.TrimSpace(body))
+		return 0, fmt.Errorf("/cmd time: Sec Counter is not hex (%q)", strings.TrimSpace(body))
 	}
 	upHex := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X"))
 	upSec, err := strconv.ParseUint(upHex, 16, 32)
 	if err != nil {
-		return 0, fmt.Errorf("/cmd time no es un contador hex (%q): %w", s, err)
+		return 0, fmt.Errorf("/cmd time is not a hex counter (%q): %w", s, err)
 	}
 	return upSec, nil
 }

@@ -236,7 +236,7 @@ func ReleasesIntervalHours(db *sql.DB) int {
 // SetReleasesIntervalHours valida y persiste la cadencia (horas).
 func SetReleasesIntervalHours(db *sql.DB, h int) error {
 	if h < minReleasesIntervalHours || h > maxReleasesIntervalHours {
-		return fmt.Errorf("intervalHours debe estar entre %d y %d", minReleasesIntervalHours, maxReleasesIntervalHours)
+		return fmt.Errorf("intervalHours must be between %d and %d", minReleasesIntervalHours, maxReleasesIntervalHours)
 	}
 	if db == nil {
 		return nil

@@ -105,7 +105,7 @@ func (r *Resolver) store(host string, ips []net.IP, ttl time.Duration) {
 func (r *Resolver) exchange(ctx context.Context, host string) ([]net.IP, time.Duration, error) {
 	servers, err := resolvConfServers()
 	if err != nil || len(servers) == 0 {
-		return nil, 0, errors.New("sin nameservers en resolv.conf")
+		return nil, 0, errors.New("no nameservers in resolv.conf")
 	}
 	var ips []net.IP
 	ttl := maxCacheTTL
@@ -123,7 +123,7 @@ func (r *Resolver) exchange(ctx context.Context, host string) ([]net.IP, time.Du
 		}
 	}
 	if len(ips) == 0 {
-		return nil, 0, errors.New("respuesta vacía")
+		return nil, 0, errors.New("empty response")
 	}
 	return ips, ttl, nil
 }
@@ -220,7 +220,7 @@ func queryOne(ctx context.Context, server, host string, qtype dnsmessage.Type) (
 		}
 	}
 	if len(ips) == 0 {
-		return nil, 0, errors.New("respuesta vacía")
+		return nil, 0, errors.New("empty response")
 	}
 	return ips, ttl, nil
 }
@@ -269,7 +269,7 @@ func (r *Resolver) DialContext(ctx context.Context, network, addr string) (net.C
 	}
 	ips := r.Lookup(ctx, host)
 	if len(ips) == 0 {
-		return nil, fmt.Errorf("dnscache: sin IPs para %s", host)
+		return nil, fmt.Errorf("dnscache: no IPs for %s", host)
 	}
 	var lastErr error
 	for _, ip := range ips {

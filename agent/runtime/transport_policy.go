@@ -13,10 +13,10 @@ import (
 func privilegedEventAllowed(server string, allowInsecure bool) error {
 	u, err := url.Parse(strings.TrimSpace(server))
 	if err != nil {
-		return fmt.Errorf("URL de servidor invalida: %w", err)
+		return fmt.Errorf("invalid server URL: %w", err)
 	}
 	if u.Scheme == "" || u.Host == "" {
-		return fmt.Errorf("URL de servidor sin esquema o host: %q", server)
+		return fmt.Errorf("server URL without scheme or host: %q", server)
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "https":
@@ -25,8 +25,8 @@ func privilegedEventAllowed(server string, allowInsecure bool) error {
 		if allowInsecure {
 			return nil
 		}
-		return fmt.Errorf("comandos privilegiados rechazados sobre HTTP; usa HTTPS o NETPULSE_ALLOW_INSECURE_COMMANDS=1")
+		return fmt.Errorf("privileged commands rejected over HTTP; use HTTPS or NETPULSE_ALLOW_INSECURE_COMMANDS=1")
 	default:
-		return fmt.Errorf("esquema %q no soportado para comandos privilegiados", u.Scheme)
+		return fmt.Errorf("scheme %q unsupported for privileged commands", u.Scheme)
 	}
 }

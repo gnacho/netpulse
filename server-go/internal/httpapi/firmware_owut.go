@@ -26,8 +26,8 @@ import (
 // Cinturones de plataforma (#761): firmware de fabricante fuera, y sin owut
 // instalado no se lanza nada.
 var (
-	errVendorFirmware   = errors.New("firmware de fabricante (GL.iNet) sin soporte")
-	ErrOwutNotInstalled = errors.New("owut no está instalado en el router")
+	errVendorFirmware   = errors.New("vendor firmware (GL.iNet) unsupported")
+	ErrOwutNotInstalled = errors.New("owut is not installed on the router")
 )
 
 // alertEmitter lo cumple *alerts.Engine (mismo patrón que speedtest).
@@ -164,7 +164,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 				"El router lleva firmware del fabricante (GL.iNet): NetPulse no gestiona sus actualizaciones, usa su propio panel.")
 		case errors.Is(err, ErrOwutNotInstalled):
 			writeError(w, http.StatusPreconditionFailed, "owut_not_installed",
-				"owut no está instalado en el router: instálalo primero con el botón Instalar owut.")
+				"owut is not installed on the router: instálalo primero con el botón Instalar owut.")
 		case errors.Is(err, errRouterNotFound):
 			writeError(w, http.StatusNotFound, "not_found")
 		case err != nil:
@@ -196,7 +196,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 		}
 		if !plat.Owut {
 			writeError(w, http.StatusPreconditionFailed, "owut_not_installed",
-				"owut no está instalado en el router: instálalo primero con el botón Instalar owut.")
+				"owut is not installed on the router: instálalo primero con el botón Instalar owut.")
 			return
 		}
 		var body struct {
@@ -241,7 +241,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 		}
 		if !plat.Owut {
 			writeError(w, http.StatusPreconditionFailed, "owut_not_installed",
-				"owut no está instalado en el router: instálalo primero con el botón Instalar owut.")
+				"owut is not installed on the router: instálalo primero con el botón Instalar owut.")
 			return
 		}
 		// #1769: sin imagen descargada no se entra en la máquina de estados:
@@ -314,7 +314,7 @@ func (s *server) startOwutUpgrade(routerID, targetVersion, origin string, remove
 		return 0, errRouterNotFound
 	}
 	if s.pool == nil {
-		return 0, errors.New("sin pool SSH")
+		return 0, errors.New("no SSH pool")
 	}
 	// Cinturones de platform (#761): firmware de fabricante fuera, y sin
 	// owut instalado no se lanza nada (el comando moriría en 127).

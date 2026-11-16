@@ -51,7 +51,7 @@ func BuildTransport(serverURL, fps string) (*http.Transport, error) {
 		if u, err := url.Parse(serverURL); err == nil && u.Host != "" {
 			host = u.Host
 		}
-		return nil, fmt.Errorf("HTTPS requiere NETPULSE_SERVER_FP (pinning SPKI, sin InsecureSkipVerify); consíguelo con install-agent.sh (lo deriva del certificado automáticamente) o con: openssl s_client -connect %s </dev/null 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum", host)
+		return nil, fmt.Errorf("HTTPS requires NETPULSE_SERVER_FP (SPKI pinning, without InsecureSkipVerify); get it with install-agent.sh (it derives it from the certificate automatically) or with: openssl s_client -connect %s </dev/null 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform DER | sha256sum", host)
 	}
 	u, err := url.Parse(serverURL)
 	if err != nil {
@@ -116,7 +116,7 @@ func ParsePins(fps string) ([]string, error) {
 // in for it.
 func Verify(chain []*x509.Certificate, host string, pins []string, now time.Time) error {
 	if len(chain) == 0 {
-		return fmt.Errorf("sin certificados del peer")
+		return fmt.Errorf("no peer certificates")
 	}
 	leaf := chain[0]
 	// The handshake has already proved the peer holds the leaf's private key,
@@ -190,7 +190,7 @@ func spki(c *x509.Certificate) string {
 // fingerprint esperado (SHA-256 hex del DER del SubjectPublicKeyInfo).
 func VerifySPKI(rawCerts [][]byte, wantHex string) error {
 	if len(rawCerts) == 0 {
-		return fmt.Errorf("sin certificados del peer")
+		return fmt.Errorf("no peer certificates")
 	}
 	leaf, err := x509.ParseCertificate(rawCerts[0])
 	if err != nil {
