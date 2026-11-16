@@ -1133,8 +1133,8 @@
     },
     "vlans": {
       "id": "ID",
+      "interface": "Interface",
       "mode": "Mode",
-      "port": "Port",
       "pvid": "PVID",
       "subnet": "Subnet",
       "tagged": "Tagged",
@@ -1151,6 +1151,7 @@
       "network": "Network",
       "noCounters": "This unit does not report per-interface counters",
       "subnet": "Subnet",
+      "source": "Source",
       "title": "Networks",
       "toggleAria": "OpenWrt networks ({{count}})",
       "traffic": "Traffic",

@@ -75,6 +75,7 @@ export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; 
                     <th className="pb-2 pr-4">{t('routerDetail.networks.network')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.networks.device')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.networks.subnet')}</th>
+                    <th className="pb-2 pr-4">{t('routerDetail.networks.source')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.networks.members')}</th>
                     <th className="pb-2 pr-4">{t('routerDetail.networks.clients')}</th>
                     <th className="pb-2">{t('routerDetail.networks.traffic')}</th>
@@ -102,6 +103,7 @@ export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; 
                         </td>
                         <td className="py-2 pr-4 font-mono text-mono-sm text-text-secondary">{n.device ?? '-'}</td>
                         <td className="py-2 pr-4 font-mono text-mono-sm text-text-secondary">{n.subnet ?? '-'}</td>
+                        <td className="py-2 pr-4 font-mono text-mono-sm text-text-secondary">{n.proto && n.proto !== 'none' ? n.proto.toUpperCase() : '-'}</td>
                         <td className="py-2 pr-4 font-mono text-mono-sm text-text-secondary">
                           {n.ports && n.ports.length > 0 ? n.ports.join(' ') : '-'}
                         </td>
@@ -133,7 +135,7 @@ export function NetworksPanel({ networks, clients }: { networks: NetworkInfo[]; 
                       </tr>
                       {expanded && macs ? (
                         <tr className="border-b border-border/30 last:border-0">
-                          <td colSpan={6} className="pb-3 pl-[22px] pr-4">
+                          <td colSpan={7} className="pb-3 pl-[22px] pr-4">
                             <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
                               {macs.map((mac) => {
                                 const d = byMac.get(mac.toUpperCase())
