@@ -12,7 +12,10 @@
 // siempre manda sobre el recuerdo.
 package adapters
 
-import "time"
+import (
+	"maps"
+	"time"
+)
 
 // fdbStickyTTL: frescura de la memo. Los dispositivos AV despiertan y hablan
 // (refrescando la memo) mucho antes; 30 min es un margen holgado que además
@@ -118,7 +121,9 @@ func (l *Live) updateFdbMemo(polled map[string]*routerPolled, nowMs int64) map[s
 			delete(l.fdbMemo, mac)
 		}
 	}
-	return l.fdbMemo
+	// Una copia: los llamadores la leen tras soltar l.mu mientras otras
+	// peticiones siguen actualizando la memo.
+	return maps.Clone(l.fdbMemo)
 }
 
 // overlayStickyFdb devuelve una copia de `polled` donde cada router lleva, ADEMÁS
