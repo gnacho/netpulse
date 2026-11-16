@@ -278,7 +278,9 @@ const CANON_DEVICE_BY_ID = new Map(mockDevices.map((d) => [d.id, d]))
  * previo, así un EN → ES → EN no degrada datos.
  */
 function localizeDemoBundle(prev: NetPulseData, lang: string): NetPulseData {
-  const en = lang.startsWith('en')
+  // El canon demo solo tiene ES y EN: cualquier idioma que no sea español
+  // muestra los nombres EN (el fallback del proyecto).
+  const en = !lang.startsWith('es')
   const nameOf = <T extends { id: string; name: string }>(item: T, canonById: Map<string, T>): string => {
     const esName = canonById.get(item.id)?.name ?? item.name
     return en ? (DEMO_NAME_EN[item.id] ?? esName) : esName

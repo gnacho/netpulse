@@ -26,7 +26,7 @@ import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import type { ServicesVisibility } from '@/hooks/useServicesVisibility'
 import { useIntegrations } from '@/hooks/useIntegrations'
 import type { IntegrationsState } from '@/hooks/useIntegrations'
-import { relTimeFromTs } from '@/i18n'
+import { dateLocale, relTimeFromTs } from '@/i18n'
 import { cn, copyToClipboard, exitDemo } from '@/lib/utils'
 import { useTempUnit } from '@/lib/temperature'
 import { notifyBanner } from '@/lib/update-check'
@@ -2966,7 +2966,7 @@ function AlertRetentionRow({ onSaved }: { onSaved: () => void }) {
 }
 
 function BackupsPanel() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [cfg, setCfg] = useState<{ enabled: boolean; frequency_h: number; retention_days: number; last_run: string; time: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
@@ -3016,12 +3016,12 @@ function BackupsPanel() {
     }
   }
 
-  const locale = i18n.language?.startsWith('en') ? 'en' : 'es'
+  const locale = dateLocale()
 
   const fmtDate = (iso: string | null) => {
     if (!iso) return '—'
     try {
-      return new Date(iso).toLocaleString(locale === 'en' ? 'en-GB' : 'es-ES', {
+      return new Date(iso).toLocaleString(locale, {
         day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
       })
     } catch { return iso }
@@ -3413,7 +3413,7 @@ function WanSpeedCard({ onSaved, disabled = false }: { onSaved: () => void; disa
 // ---------------------------------------------------------------------------
 
 function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; disabled?: boolean }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [enabled, setEnabled] = useState(false)
   const [intervalHours, setIntervalHours] = useState(12)
   const [alertPct, setAlertPct] = useState(50)
@@ -3752,7 +3752,7 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
                 aria-label={t('settings.speedtest.dayLabel')}
                 className="mt-1 w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
               >
-                {weekdayNames(i18n.language).map((name, i) => (
+                {weekdayNames().map((name, i) => (
                   <option key={i} value={i}>{name}</option>
                 ))}
               </select>
@@ -3899,8 +3899,8 @@ function SpeedtestCard({ onSaved, disabled = false }: { onSaved: () => void; dis
 
 // weekdayNames: nombres localizados de domingo..sábado (0..6). 2026-09-06 fue
 // domingo; se formatea esa semana completa con el locale activo.
-function weekdayNames(locale: string): string[] {
-  const fmt = new Intl.DateTimeFormat(locale.startsWith('en') ? 'en-GB' : 'es-ES', { weekday: 'long' })
+function weekdayNames(): string[] {
+  const fmt = new Intl.DateTimeFormat(dateLocale(), { weekday: 'long' })
   return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2026, 8, 6 + i)))
 }
 
@@ -3917,7 +3917,7 @@ type SpeedtestHistoryItem = {
 // SpeedtestRecent (#744): lista de los últimos tests con origen (auto/manual),
 // servidor, ping y jitter. Los datos ya viajan en /api/speedtest/history.
 function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [items, setItems] = useState<SpeedtestHistoryItem[]>([])
   const [count, setCount] = useState(5)
   const [open, setOpen] = useState(false)
@@ -3938,7 +3938,7 @@ function SpeedtestRecent({ disabled = false }: { disabled?: boolean }) {
     }
   }, [disabled])
 
-  const locale = i18n.language?.startsWith('en') ? 'en-GB' : 'es-ES'
+  const locale = dateLocale()
   const fmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   if (!open) {
@@ -4557,12 +4557,16 @@ function PushNotificationsCard({ onSaved }: { onSaved: () => void }) {
       const json = sub.toJSON()
       // #1334: el idioma efectivo (resuelto) viaja con la suscripción; el
       // server compone el push en ese idioma. 'auto' nunca se persiste: se
-      // resuelve aquí a es|en (i18n.language ya está resuelto por el detector
-      // / el ajuste del usuario).
+      // resuelve aquí a es|en|ru (i18n.language ya está resuelto por el
+      // detector / el ajuste del usuario).
       const ok = await postPushSubscribe({
         endpoint: sub.endpoint,
         keys: { auth: json.keys?.auth ?? '', p256dh: json.keys?.p256dh ?? '' },
-        language: i18n.language.startsWith('es') ? 'es' : 'en',
+        language: i18n.language.startsWith('es')
+          ? 'es'
+          : i18n.language.startsWith('ru')
+            ? 'ru'
+            : 'en',
       })
       if (!ok) {
         // El servidor no la guardó: baja local para no dejar estado fantasma
@@ -5511,11 +5515,11 @@ export default function Settings() {
   // selector shows English rather than "Auto": it has to say what is
   // actually happening. Picking "Auto" here still goes back to following
   // the browser, and every choice is persisted.
-  const [lang, setLang] = useState<'auto' | 'es' | 'en'>(() => {
+  const [lang, setLang] = useState<'auto' | 'es' | 'en' | 'ru'>(() => {
     const raw = localStorage.getItem('netpulse-lang')
-    return raw === 'es' || raw === 'en' || raw === 'auto' ? raw : 'en'
+    return raw === 'es' || raw === 'en' || raw === 'ru' || raw === 'auto' ? raw : 'en'
   })
-  const setLanguage = useCallback((v: 'auto' | 'es' | 'en') => {
+  const setLanguage = useCallback((v: 'auto' | 'es' | 'en' | 'ru') => {
     setLang(v)
     localStorage.setItem('netpulse-lang', v)
     if (v === 'auto') {
@@ -6693,7 +6697,7 @@ export default function Settings() {
                 aria-label={t('settings.language')}
                 value={lang}
                 onChange={(e) => {
-                  setLanguage(e.target.value as 'auto' | 'es' | 'en')
+                  setLanguage(e.target.value as 'auto' | 'es' | 'en' | 'ru')
                   notify()
                 }}
                 className="h-9 shrink-0 rounded-lg border border-border bg-elevated px-2.5 text-sm text-text-primary"
@@ -6701,6 +6705,7 @@ export default function Settings() {
                 <option value="auto">🌐 {t('settings.languageAuto')}</option>
                 <option value="es">🇪🇸 Español</option>
                 <option value="en">🇬🇧 English</option>
+                <option value="ru">🇷🇺 Русский</option>
               </select>
 
               {/* Contraseña */}
