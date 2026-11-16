@@ -125,7 +125,7 @@ export default function SnmpCommunityField({
           id={`${id}-suggestions`}
           role="listbox"
           aria-label={ariaLabel}
-          className="mt-1 overflow-hidden rounded-lg border border-border bg-elevated py-1"
+          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-elevated py-1 shadow-lg"
         >
           {filtered.map((option, index) => (
             <li key={option} role="option" aria-selected={index === active}>
