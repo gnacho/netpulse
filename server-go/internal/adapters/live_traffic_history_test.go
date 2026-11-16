@@ -1,6 +1,7 @@
 package adapters
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -114,5 +115,36 @@ func TestMetricsHistoryResolution(t *testing.T) {
 	week := l.metricsHistory("gw", "7d")
 	if len(week) < 27 || len(week) > 29 {
 		t.Fatalf("7d tiene %d puntos; want ~28 (buckets de 6 h)", len(week))
+	}
+}
+
+// #2062: la etiqueta del eje 7d debe ser neutra en idioma. El día de la
+// semana dependía del idioma (weekdayES lo pintaba en español también en una
+// UI en inglés). El día del mes no tiene ese problema y coincide con el rango
+// 30d. Este test fija que ninguna etiqueta de 7d lleva un nombre de día de la
+// semana, en español ni en inglés.
+func TestMetricsHistorySevenDayLabelIsLocaleNeutral(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	now := time.Now()
+	for i := 0; i < 28; i++ {
+		if _, err := d.Exec(`INSERT OR REPLACE INTO metrics
+			(router_id, ts, cpu, ram, temp, latency_ms, rx_bps, tx_bps)
+			VALUES ('gw', ?, 10, 20, 40, 0, 1e6, 1e6)`,
+			now.Add(-time.Duration(i)*6*time.Hour).UnixMilli()); err != nil {
+			t.Fatalf("insert metric: %v", err)
+		}
+	}
+	got := l.metricsHistory("gw", "7d")
+	if len(got) == 0 {
+		t.Fatal("sin puntos en 7d")
+	}
+	weekdays := []string{"Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	for _, p := range got {
+		for _, w := range weekdays {
+			if strings.Contains(p.t, w) {
+				t.Fatalf("etiqueta %q lleva un día de la semana (%s): debe ser neutra", p.t, w)
+			}
+		}
 	}
 }
