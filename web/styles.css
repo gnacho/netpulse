@@ -44,6 +44,10 @@ html.light {
 }
 
 /* ---------- base ---------- */
+/* `hidden` debe ganar siempre: sin esto, los chips con display propio
+   (p. ej. .chip) se muestran con su texto de respaldo antes de que JS
+   los rellene (#2065). */
+[hidden] { display: none !important; }
 * { box-sizing: border-box; border-color: rgb(var(--border)); }
 html { scroll-behavior: smooth; scroll-padding-top: 4.25rem; -webkit-tap-highlight-color: transparent; }
 body {
