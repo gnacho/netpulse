@@ -123,3 +123,21 @@ func TestGuessDeviceTypeModem(t *testing.T) {
 		}
 	}
 }
+
+// Un aspirador con hostname opaco: "ROCK-ROBO" (Roborock real) no casa
+// "roborock" y caía en iot por el OUI. La marca de aspirador decide.
+func TestGuessDeviceTypeVacuumVendor(t *testing.T) {
+	for _, tc := range []struct{ name, hostname, manufacturer, want string }{
+		{"roborock with opaque name", "ROCK-ROBO", "Beijing Roborock Technology Co., Ltd.", "aspirador"},
+		{"roborock by vendor alone", "", "Beijing Roborock Technology Co., Ltd.", "aspirador"},
+		{"irobot by vendor alone", "", "iRobot Corporation", "aspirador"},
+		{"ecovacs by vendor alone", "", "Ecovacs Robotics Co., Ltd.", "aspirador"},
+		{"hostname still wins", "roborock-s8-max", "", "aspirador"},
+		{"camera vendor is not a vacuum", "", "Reolink Innovation Limited", "camara"},
+		{"generic iot vendor stays iot", "", "Tuya Smart Inc.", "iot"},
+	} {
+		if got := GuessDeviceType(tc.hostname, tc.manufacturer, "", "", ""); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

@@ -109,6 +109,23 @@ var cameraVendors = []string{
 	"annke",
 }
 
+// vacuumVendors: marcas de aspiradores robots, las mismas que ya asume la
+// regla de hostname. Roborock e iRobot solo hacen aspiradores; Ecovacs y
+// Dreame son marcas de aspirador primero (igual que la regla de hostname
+// los trata). Un OUI suyo con hostname opaco ("ROCK-ROBO") es un aspirador,
+// no un cacharro genérico.
+var vacuumVendors = []string{
+	"roborock",
+	"irobot",
+	"ecovacs",
+	"dreame",
+}
+
+// IsVacuumVendor reports whether a manufacturer is a robot vacuum brand.
+func IsVacuumVendor(manufacturer string) bool {
+	return vendorMatches(manufacturer, vacuumVendors)
+}
+
 // IsCameraVendor reports whether a manufacturer only makes surveillance gear.
 func IsCameraVendor(manufacturer string) bool {
 	return vendorMatches(manufacturer, cameraVendors)

@@ -36,7 +36,7 @@ var typeRules = []struct {
 	// Camara antes que tv: "cctv-..." contiene "tv-" y caeria en TV (#1327).
 	{"camara", []string{"camara", "camera", "cctv", "nvr", "reolink", "ezviz", "tapo-c", "-cam", "cam-"}},
 	{"tv", []string{"appletv", "apple-tv", "bravia", "webos", "firetv", "fire-tv", "chromecast", "mibox", "mi-box", "shield", "television", "smart-tv", "smarttv", "-tv", "tv-"}},
-	{"aspirador", []string{"roomba", "irobot", "roborock", "aspirador", "vacuum", "deebot", "ecovacs", "dreame", "qrevo", "s8-max", "s8-pro", "k10"}},
+	{"aspirador", []string{"roomba", "irobot", "roborock", "rock-robo", "aspirador", "vacuum", "deebot", "ecovacs", "dreame", "qrevo", "s8-max", "s8-pro", "k10"}},
 	// Caldera: calefaccion/boiler/radiador eran 'desconocido' o caian mal;
 	// #1340 les da tipo propio. ADITIVO: "caldera" se QUEDA en iot (regla
 	// antigua), no se roba: una caldera ya clasificada no cambia de icono.
@@ -111,9 +111,14 @@ func GuessDeviceType(hostname, manufacturer, dhcpVendorClass, dhcpClientID, lldp
 	}
 	// Fabricante como refuerzo cuando el hostname no dice nada (OUI DB).
 	// Cámaras primero: un fabricante de videovigilancia es más específico
-	// que "iot", y hay un tipo propio para ello.
+	// que "iot", y hay un tipo propio para ello. Aspiradores igual: un
+	// Roborock llamado "ROCK-ROBO" no casa ninguna regla de hostname, pero
+	// el fabricante sí dice qué es.
 	if oui.IsCameraVendor(m) {
 		return "camara"
+	}
+	if oui.IsVacuumVendor(m) {
+		return "aspirador"
 	}
 	if oui.IsIoTVendor(m) {
 		return "iot"
