@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { BadgeCheck, CalendarClock, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, Database, Download, ExternalLink, Eye, EyeOff, FileText, FlaskConical, Gauge, HardDrive, History, KeyRound, Loader2, Lock, LogOut, MonitorSmartphone, Moon, Pencil, Plus, Power, Radar, RefreshCw, Send, RotateCcw, RotateCw, Router as RouterIcon, Server, Settings2, Shield, ShieldCheck, Star, Sun, Trash2, TriangleAlert, UserCog, Users, Volume2, Wifi, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import Integrations from './Integrations'
+import SnmpCommunityField from '@/components/routers/SnmpCommunityField'
 import { HealthRing } from '@/components/HealthRing'
 import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -322,9 +323,6 @@ type SnmpVersion = '1' | '2c' | '3'
 const SNMP_V3_AUTH_PROTOS = ['MD5', 'SHA', 'SHA224', 'SHA256', 'SHA384', 'SHA512']
 const SNMP_V3_PRIV_PROTOS = ['DES', 'AES', 'AES192', 'AES256', 'AES192C', 'AES256C']
 
-// Sugerencias para el campo libre de community (#2079): son las cadenas que
-// más se ven en equipos reales. El campo sigue aceptando cualquier valor.
-const SNMP_COMMUNITY_SUGGESTIONS = ['public', 'private', 'monitor', 'monitor-ro']
 
 interface ConfigRouter {
   id: string
@@ -1165,23 +1163,12 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                       </label>
                       <InfoTip text={t('settings.routers.snmpCommunityHint')} />
                     </div>
-                    <input
+                    <SnmpCommunityField
                       id="add-snmp-community"
-                      type="text"
                       value={addSnmpCommunity}
-                      onChange={(e) => setAddSnmpCommunity(e.target.value)}
-                      placeholder="public"
-                      list="snmp-community-suggestions"
-                      aria-label={t('settings.routers.snmpCommunity')}
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      onChange={setAddSnmpCommunity}
+                      ariaLabel={t('settings.routers.snmpCommunity')}
                     />
-                    <datalist id="snmp-community-suggestions">
-                      {SNMP_COMMUNITY_SUGGESTIONS.map((c) => (
-                        <option key={c} value={c} />
-                      ))}
-                    </datalist>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2.5">
@@ -1441,23 +1428,12 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                             </label>
                             <InfoTip text={t('settings.routers.snmpCommunityHint')} />
                           </div>
-                          <input
+                          <SnmpCommunityField
                             id="snmp-community"
-                            type="text"
                             value={editSnmpCommunity}
-                            onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
-                            placeholder="public"
-                            list="snmp-community-suggestions"
-                            aria-label={t('settings.routers.snmpCommunity')}
-                            autoComplete="off"
-                            spellCheck={false}
-                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            onChange={(v) => { setEditSnmpCommunity(v); setEditSnmpCommunityTouched(true) }}
+                            ariaLabel={t('settings.routers.snmpCommunity')}
                           />
-                          <datalist id="snmp-community-suggestions">
-                            {SNMP_COMMUNITY_SUGGESTIONS.map((c) => (
-                              <option key={c} value={c} />
-                            ))}
-                          </datalist>
                           {editSnmpCommunitySet && !editSnmpCommunityTouched && (
                             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                               <span>{t('settings.routers.snmpCommunityConfigured')}</span>
