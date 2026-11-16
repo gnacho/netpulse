@@ -50,7 +50,7 @@ func LoadMethod(db *sql.DB, routerID string) string {
 // SaveMethod persiste el método del router. Valida antes de escribir.
 func SaveMethod(db *sql.DB, routerID, method string) error {
 	if db == nil {
-		return fmt.Errorf("no db")
+		return fmt.Errorf("no database")
 	}
 	method = strings.TrimSpace(method)
 	if !ValidMethod(method) {

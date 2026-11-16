@@ -25,14 +25,14 @@ const owutExcludeTimeout = 30 * time.Second
 var owutPkgNameRe = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._+-]*$`)
 
 // ErrOwutInvalidPkg: nombre de paquete rechazado por la validación.
-var ErrOwutInvalidPkg = errors.New("firmware: nombre de paquete inválido")
+var ErrOwutInvalidPkg = errors.New("firmware: invalid package name")
 
 // AddOwutRemovePkgs añade paquetes a attendedsysupgrade.owut.remove y hace
 // commit. Devuelve la lista resultante leída del router. Los paquetes que ya
 // estaban no se duplican, y sin paquetes nuevos no se toca la configuración.
 func AddOwutRemovePkgs(runner Runner, host string, pkgs []string) ([]string, error) {
 	if runner == nil || host == "" {
-		return nil, fmt.Errorf("firmware: runner o host vacío")
+		return nil, fmt.Errorf("firmware: empty runner or host")
 	}
 	clean := make([]string, 0, len(pkgs))
 	seen := map[string]bool{}

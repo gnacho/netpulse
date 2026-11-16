@@ -56,7 +56,7 @@ func GetRule(d *db.DB, id string) (*Rule, error) {
 			return &r, nil
 		}
 	}
-	return nil, fmt.Errorf("regla %s no encontrada", id)
+	return nil, fmt.Errorf("rule %s not found", id)
 }
 
 func SaveRules(d *db.DB, rules []Rule) error {
@@ -97,7 +97,7 @@ func UpdateRule(d *db.DB, r Rule) error {
 			return SaveRules(d, rules)
 		}
 	}
-	return fmt.Errorf("regla %s no encontrada", r.ID)
+	return fmt.Errorf("rule %s not found", r.ID)
 }
 
 func DeleteRule(d *db.DB, id string) error {
@@ -111,5 +111,5 @@ func DeleteRule(d *db.DB, id string) error {
 			return SaveRules(d, rules)
 		}
 	}
-	return fmt.Errorf("regla %s no encontrada", id)
+	return fmt.Errorf("rule %s not found", id)
 }

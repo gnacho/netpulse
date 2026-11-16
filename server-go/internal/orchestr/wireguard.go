@@ -238,7 +238,7 @@ func WireGuardHealthcheck(run CommandRunner, host, iface string) error {
 		return fmt.Errorf("tunnel %s not up: %w", iface, err)
 	}
 	if !strings.Contains(out, "interface: "+iface) {
-		return fmt.Errorf("tunnel %s not up (wg show sin interfaz)", iface)
+		return fmt.Errorf("tunnel %s not up (wg show has no interface)", iface)
 	}
 	return nil
 }

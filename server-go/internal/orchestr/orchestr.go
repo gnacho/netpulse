@@ -132,9 +132,9 @@ func (m *Manager) SetRollingBack(id, actor string) error {
 func (m *Manager) RestoreTransition(id, from, to, actor, reason string) error {
 	switch {
 	case from != "applying" && from != "rolling_back":
-		return fmt.Errorf("%w: no se restaura desde %q", ErrInvalidTransition, from)
+		return fmt.Errorf("%w: cannot restore from %q", ErrInvalidTransition, from)
 	case to != "pending" && to != "applied":
-		return fmt.Errorf("%w: no se restaura a %q", ErrInvalidTransition, to)
+		return fmt.Errorf("%w: cannot restore to %q", ErrInvalidTransition, to)
 	}
 	detail := from + " -> " + to
 	if reason != "" {

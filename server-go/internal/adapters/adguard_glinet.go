@@ -85,14 +85,14 @@ func (c *AdGuardGlinetClient) Login() (string, error) {
 	m := regexp.MustCompile(`(?m)^SID:(\S+)$`).FindStringSubmatch(out)
 	if m == nil {
 		c.loginFailUntil = time.Now().Add(glLoginCooldown)
-		return "", fmt.Errorf("login GL falló (revisa usuario/contraseña de la UI)")
+		return "", fmt.Errorf("GL login failed (check the UI username/password)")
 	}
 	c.loginFailUntil = time.Time{}
 	c.sid = m[1]
 	return c.sid, nil
 }
 
-var errGL401 = fmt.Errorf("401 no autorizado")
+var errGL401 = fmt.Errorf("401 unauthorized")
 
 // glGet: GET http://<host>:3000/control/<path> con cookie Admin-Token.
 func (c *AdGuardGlinetClient) glGet(ctx context.Context, path string, dst any) error {

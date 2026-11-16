@@ -501,15 +501,15 @@ func unsafeTarTypes(out string) bool {
 func Validate(op Op) error {
 	spec, ok := allowlist[op.Kind]
 	if !ok {
-		return fmt.Errorf("kind %q no allowlistedado", op.Kind)
+		return fmt.Errorf("kind %q not allowlisted", op.Kind)
 	}
 	for arg, re := range spec.required {
 		val, present := op.Args[arg]
 		if !present || val == "" {
-			return fmt.Errorf("arg %q requerido para %s", arg, op.Kind)
+			return fmt.Errorf("arg %q required for %s", arg, op.Kind)
 		}
 		if !re.MatchString(val) {
-			return fmt.Errorf("arg %q=%q no válido para %s (no casa con %s)", arg, val, op.Kind, re)
+			return fmt.Errorf("arg %q=%q invalid for %s (does not match %s)", arg, val, op.Kind, re)
 		}
 	}
 	// Defense in depth: args marcados como path no pueden contener ".." ni
@@ -517,7 +517,7 @@ func Validate(op Op) error {
 	for _, arg := range spec.pathArgs {
 		val := op.Args[arg]
 		if strings.Contains(val, "..") || filepath.Clean(val) != val {
-			return fmt.Errorf("arg %q=%q contiene traversal (..) para %s", arg, val, op.Kind)
+			return fmt.Errorf("arg %q=%q contains traversal (..) for %s", arg, val, op.Kind)
 		}
 	}
 	return nil

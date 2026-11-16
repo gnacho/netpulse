@@ -347,7 +347,7 @@ type TestResult struct {
 // does the token authenticate, and can it actually see anything.
 func (c *Client) Test(ctx context.Context) (*TestResult, error) {
 	if !c.cfg.Enabled() {
-		return nil, fmt.Errorf("faltan url, tokenId o secret")
+		return nil, fmt.Errorf("missing url, tokenId or secret")
 	}
 	var version struct {
 		Version string `json:"version"`

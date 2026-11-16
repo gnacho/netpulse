@@ -173,17 +173,17 @@ func (e ErrCooldown) Error() string {
 
 // Errores tipificados (el handler HTTP los mapea a 404/409/503).
 var (
-	ErrNoToken  = fmt.Errorf("ese slug no tiene agente registrado")
-	ErrNoRouter = fmt.Errorf("no hay router con ese slug en la tabla routers")
+	ErrNoToken  = fmt.Errorf("that slug has no registered agent")
+	ErrNoRouter = fmt.Errorf("no router with that slug in the routers table")
 	// ErrExternalAgent: el slug es un pusher EXTERNO (tipo no OpenWrt,
 	// p. ej. switch gestionado por beacon): sin SSH, no se instala, no se
 	// rearmera ni se actualiza - solo alerta (#291).
-	ErrExternalAgent = fmt.Errorf("agente externo: sin SSH ni rearme")
+	ErrExternalAgent = fmt.Errorf("external agent: no SSH and no rearm")
 	// ErrNetgripAgent (#363): el agente de este slug es el NetGrip embebido;
 	// no se rearma ni se reinstala desde el servidor.
-	ErrNetgripAgent = fmt.Errorf("agente embebido en NetGrip: gestionarlo desde el panel NetGrip")
-	ErrNoSSH        = fmt.Errorf("el servidor no tiene pool SSH (modo demo o clave ausente)")
-	ErrNoDB         = fmt.Errorf("db no disponible")
+	ErrNetgripAgent = fmt.Errorf("agent embedded in NetGrip: manage it from the NetGrip panel")
+	ErrNoSSH        = fmt.Errorf("the server has no SSH pool (demo mode or missing key)")
+	ErrNoDB         = fmt.Errorf("db unavailable")
 )
 
 // Rearmer ejecuta rearmes (compartido entre el handler manual y el
@@ -311,7 +311,7 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 		slug, host, SSHWait)
 	if _, err := r.pool.Run(host, cmd, SSHWait); err != nil {
 		log.Printf("[netpulse] rearmer: SSH to %s (%s) failed: %v", slug, host, err)
-		return Result{}, fmt.Errorf("no pude reiniciar el servicio en %s: %w", host, err)
+		return Result{}, fmt.Errorf("could not restart the service on %s: %w", host, err)
 	}
 
 	log.Printf("[netpulse] rearmer: service restarted on %s, waiting for a new agent push (up to %v)", slug, r.pollWait)
@@ -370,7 +370,7 @@ func (r *Rearmer) Reinstall(slug, agentURL string) (Result, error) {
 		return Result{}, ErrNoDB
 	}
 	if agentURL == "" {
-		return Result{}, fmt.Errorf("reinstall automático sin NETPULSE_PUBLIC_URL")
+		return Result{}, fmt.Errorf("automatic reinstall without NETPULSE_PUBLIC_URL")
 	}
 	if r.agents != nil {
 		if _, _, kind, _, ok := r.agents.Info(slug); ok && kind == "netgrip" {
@@ -424,7 +424,7 @@ func (r *Rearmer) Reinstall(slug, agentURL string) (Result, error) {
 		_, err := runScript(r.pool, host, reinstall.ScriptWithTargets(slug, t, agentURL, reinstall.ServerFP(agentURL), reinstall.Digests(), targets, trust...), ReinstallSSHWait)
 		return err
 	}); err != nil {
-		return Result{}, fmt.Errorf("no se pudo instalar el agente en %s: %w", host, err)
+		return Result{}, fmt.Errorf("could not install the agent on %s: %w", host, err)
 	}
 
 	recovered := r.waitForPush(slug, prevSeen, before)

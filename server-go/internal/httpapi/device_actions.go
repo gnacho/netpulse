@@ -110,7 +110,7 @@ func (s *server) reservationTargetHost(mac string) string {
 // uciShow ejecuta `uci show <config>` en un host y devuelve líneas parseables.
 func (s *server) uciShow(host, config string) ([]string, error) {
 	if s.pool == nil {
-		return nil, fmt.Errorf("no hay pool SSH")
+		return nil, fmt.Errorf("no SSH pool")
 	}
 	out, err := s.pool.Run(host, fmt.Sprintf("uci show %s", config), uciShowTimeout)
 	if err != nil {
@@ -124,7 +124,7 @@ func (s *server) uciShow(host, config string) ([]string, error) {
 // el `&&` corta y /etc/config queda intacto (staging descartado).
 func (s *server) runUCICommands(host, config string, commands []string) error {
 	if s.pool == nil {
-		return fmt.Errorf("no hay pool SSH")
+		return fmt.Errorf("no SSH pool")
 	}
 	script := strings.Join(append(commands, "uci commit "+config), " && ")
 	_, err := s.pool.Run(host, script, uciApplyTimeout)
@@ -134,7 +134,7 @@ func (s *server) runUCICommands(host, config string, commands []string) error {
 // reloadService reinicia el servicio procd que aplica la config commitada.
 func (s *server) reloadService(host, service string) error {
 	if s.pool == nil {
-		return fmt.Errorf("no hay pool SSH")
+		return fmt.Errorf("no SSH pool")
 	}
 	_, err := s.pool.Run(host, "/etc/init.d/"+service+" restart", uciApplyTimeout)
 	return err

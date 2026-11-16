@@ -580,39 +580,39 @@ func invertDesired(resource string, desired json.RawMessage) (json.RawMessage, e
 	case "adguard":
 		var d orchestr.AdGuardDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
-			return nil, fmt.Errorf("desired inválido: %w", err)
+			return nil, fmt.Errorf("invalid desired: %w", err)
 		}
 		d.Enabled = !d.Enabled
 		return json.Marshal(d)
 	case "guestwifi":
 		var d orchestr.GuestWiFiDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
-			return nil, fmt.Errorf("desired inválido: %w", err)
+			return nil, fmt.Errorf("invalid desired: %w", err)
 		}
 		d.Enabled = !d.Enabled
 		return json.Marshal(d)
 	case "ddns":
 		var d orchestr.DdnsDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
-			return nil, fmt.Errorf("desired inválido: %w", err)
+			return nil, fmt.Errorf("invalid desired: %w", err)
 		}
 		d.Enabled = !d.Enabled
 		return json.Marshal(d)
 	case "sqm":
 		var d orchestr.SqmDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
-			return nil, fmt.Errorf("desired inválido: %w", err)
+			return nil, fmt.Errorf("invalid desired: %w", err)
 		}
 		d.Enabled = !d.Enabled
 		return json.Marshal(d)
 	case "usteer":
 		var d orchestr.UsteerDesired
 		if err := json.Unmarshal(desired, &d); err != nil {
-			return nil, fmt.Errorf("desired inválido: %w", err)
+			return nil, fmt.Errorf("invalid desired: %w", err)
 		}
 		d.Enabled = !d.Enabled
 		return json.Marshal(d)
 	default:
-		return nil, fmt.Errorf("rollback no soportado para el módulo %q", resource)
+		return nil, fmt.Errorf("rollback unsupported for module %q", resource)
 	}
 }

@@ -113,7 +113,7 @@ func MigrateNodeDB(dbPath string) (*MigrationReport, error) {
 		"INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
 		migrationMarkerKey, time.Now().Format(time.RFC3339),
 	); err != nil {
-		return nil, fmt.Errorf("marcador de migración: %w", err)
+		return nil, fmt.Errorf("migration marker: %w", err)
 	}
 
 	return rep, nil

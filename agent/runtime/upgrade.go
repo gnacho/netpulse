@@ -106,7 +106,7 @@ func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest strin
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("binario no disponible (HTTP %d)", res.StatusCode)
+		return "", fmt.Errorf("binary unavailable (HTTP %d)", res.StatusCode)
 	}
 	digest := strings.TrimSpace(strings.TrimPrefix(res.Header.Get("X-Checksum-Sha256"), "sha256:"))
 
@@ -128,7 +128,7 @@ func downloadBinary(ctx context.Context, hc *http.Client, url, token, dest strin
 		return "", closeErr
 	}
 	if n == 0 {
-		return "", errors.New("binario vacío")
+		return "", errors.New("empty binary")
 	}
 	if err := os.Chmod(dest, 0o755); err != nil {
 		return "", err
@@ -179,7 +179,7 @@ func restartService(bin string) error {
 		bin = currentBinPath()
 	}
 	if err := execSelf(bin, os.Args, os.Environ()); err != nil {
-		return fmt.Errorf("sin %s y exec de %s falló: %w", agentInitScript, bin, err)
+		return fmt.Errorf("no %s and exec of %s failed: %w", agentInitScript, bin, err)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func restartService(bin string) error {
 // esperado (hex, sin prefijo). Vacío o distinto → error (#284).
 func verifySha256(path, want string) error {
 	if want == "" {
-		return errors.New("el servidor no publicó digest de integridad")
+		return errors.New("the server did not publish an integrity digest")
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -201,7 +201,7 @@ func verifySha256(path, want string) error {
 	}
 	got := hex.EncodeToString(h.Sum(nil))
 	if !strings.EqualFold(got, want) {
-		return fmt.Errorf("sha256 no coincide (esperado %s, descargado %s)", want, got)
+		return fmt.Errorf("sha256 mismatch (expected %s, downloaded %s)", want, got)
 	}
 	return nil
 }
@@ -267,7 +267,7 @@ func handleUpgrade(opts Options, transport http.RoundTripper, data string) {
 	// Integridad (#284): sha256 obligatorio contra la cabecera del servidor,
 	// ANTES del swap. Sin digest no se instala nada.
 	if digest == "" {
-		err := errors.New("el servidor no envió X-Checksum-Sha256; upgrade rechazado")
+		err := errors.New("the server did not send X-Checksum-Sha256; upgrade rejected")
 		log.Error("[netpulse-agent] upgrade: missing digest", "err", err)
 		reportUpgradeResult(opts, transport, false, err.Error())
 		return

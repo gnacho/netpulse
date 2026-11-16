@@ -157,7 +157,7 @@ func (l *Live) pollRouterSNMP(cfg RouterConfig) (*routerPolled, error) {
 			if sysErr != nil {
 				pollErr = sysErr
 			} else {
-				pollErr = fmt.Errorf("snmp ifTable %s: sin puertos", cfg.Host)
+				pollErr = fmt.Errorf("snmp ifTable %s: no ports", cfg.Host)
 			}
 		}
 		l.recordSnmpFailure(cfg, pollErr)

@@ -135,7 +135,7 @@ func (s *Store) Get(id int64) ([]byte, *Snapshot, error) {
 	defer s.mu.Unlock()
 
 	if s.db == nil {
-		return nil, nil, fmt.Errorf("no db")
+		return nil, nil, fmt.Errorf("no database")
 	}
 	var snap Snapshot
 	var data []byte

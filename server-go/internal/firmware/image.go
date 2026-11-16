@@ -44,7 +44,7 @@ func NewImageResolver() *ImageResolver {
 }
 
 // ErrNoProfile se devuelve cuando el board_name no casa con ningún perfil.
-var ErrNoProfile = fmt.Errorf("firmware: perfil no encontrado para el board_name")
+var ErrNoProfile = fmt.Errorf("firmware: no profile found for board_name")
 
 // RestrictToTarget helper no usado por ahora; se añade si hay que filtrar.
 type profilesJSON struct {
@@ -64,10 +64,10 @@ type profilesJSON struct {
 // version+target+boardName consultando profiles.json del release.
 func (r *ImageResolver) Resolve(ctx context.Context, version, target, boardName string) (*ResolvedImage, error) {
 	if r == nil || r.Client == nil {
-		return nil, fmt.Errorf("firmware: resolutor no inicializado")
+		return nil, fmt.Errorf("firmware: resolver not initialized")
 	}
 	if version == "" || target == "" || boardName == "" {
-		return nil, fmt.Errorf("firmware: version/target/board vacíos")
+		return nil, fmt.Errorf("firmware: empty version/target/board")
 	}
 	// El target es una subruta ("qualcommax/ipq807x") con su slash real, no
 	// un segmento escapado; version e imageName sí se escapan.
@@ -126,7 +126,7 @@ func (r *ImageResolver) Resolve(ctx context.Context, version, target, boardName 
 		}
 	}
 	if chosenName == "" {
-		return nil, fmt.Errorf("firmware: perfil sin imágenes")
+		return nil, fmt.Errorf("firmware: profile has no images")
 	}
 	_ = chosenType
 	imgURL := fmt.Sprintf("%s/releases/%s/targets/%s/%s", r.BaseURL, url.PathEscape(version), target, url.PathEscape(chosenName))

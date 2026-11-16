@@ -183,20 +183,20 @@ func ValidateAutoUpdate(st AutoUpdateSettings) error {
 		}
 	case AutoWeekly:
 		if st.DayOfWeek == nil || *st.DayOfWeek < 0 || *st.DayOfWeek > 6 {
-			return fmt.Errorf("weekly exige dayOfWeek 0-6 (0 = domingo)")
+			return fmt.Errorf("weekly requires dayOfWeek 0-6 (0 = Sunday)")
 		}
 		if !validAutoTime(st.Time) {
-			return fmt.Errorf("weekly exige time HH:MM")
+			return fmt.Errorf("weekly requires time HH:MM")
 		}
 	case AutoMonthly:
 		if st.DayOfMonth == nil || *st.DayOfMonth < 1 || *st.DayOfMonth > 31 {
-			return fmt.Errorf("monthly exige dayOfMonth 1-31")
+			return fmt.Errorf("monthly requires dayOfMonth 1-31")
 		}
 		if !validAutoTime(st.Time) {
-			return fmt.Errorf("monthly exige time HH:MM")
+			return fmt.Errorf("monthly requires time HH:MM")
 		}
 	default:
-		return fmt.Errorf("kind debe ser daily, weekly o monthly")
+		return fmt.Errorf("kind must be daily, weekly or monthly")
 	}
 	return nil
 }
@@ -299,7 +299,7 @@ func LoadAutoUpdateSettings(db *sql.DB) AutoUpdateSettings {
 // SaveAutoUpdateSettings valida y persiste los ajustes (sin tocar last_run).
 func SaveAutoUpdateSettings(db *sql.DB, st AutoUpdateSettings) error {
 	if db == nil {
-		return fmt.Errorf("autoupdate: sin base de datos")
+		return fmt.Errorf("autoupdate: no database")
 	}
 	if err := ValidateAutoUpdate(st); err != nil {
 		return err

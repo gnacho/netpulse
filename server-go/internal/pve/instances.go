@@ -74,7 +74,7 @@ func LoadInstances(db *sql.DB) []Instance {
 // SaveInstances persiste la lista completa (UPSERT).
 func SaveInstances(db *sql.DB, list []Instance) error {
 	if db == nil {
-		return fmt.Errorf("pve: sin base de datos")
+		return fmt.Errorf("pve: no database")
 	}
 	raw, err := json.Marshal(list)
 	if err != nil {
@@ -90,7 +90,7 @@ func SaveInstances(db *sql.DB, list []Instance) error {
 // conservar el existente (la UI no reenvía secretos). ID no editable.
 func UpsertInstance(db *sql.DB, in Instance) error {
 	if !ValidInstanceID(in.ID) {
-		return fmt.Errorf("id inválido (slug minúsculas, guiones, máx 32)")
+		return fmt.Errorf("invalid id (lowercase slug, hyphens, max 32)")
 	}
 	if in.URL == "" || in.TokenID == "" {
 		return fmt.Errorf("url y tokenId son requeridos")
@@ -106,7 +106,7 @@ func UpsertInstance(db *sql.DB, in Instance) error {
 		}
 	}
 	if in.Secret == "" {
-		return fmt.Errorf("secret requerido para una instancia nueva")
+		return fmt.Errorf("secret required for a new instance")
 	}
 	return SaveInstances(db, append(list, in))
 }

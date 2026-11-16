@@ -43,7 +43,7 @@ func Ensure(certPath, keyPath string) (*tls.Config, string, error) {
 // autofirmado en las rutas configuradas.
 func Load(certPath, keyPath string) (*tls.Config, string, error) {
 	if !fileExists(certPath) || !fileExists(keyPath) {
-		return nil, "", fmt.Errorf("cert o clave no encontrados en %s / %s", certPath, keyPath)
+		return nil, "", fmt.Errorf("cert or key not found at %s / %s", certPath, keyPath)
 	}
 	return loadExisting(certPath, keyPath)
 }

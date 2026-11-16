@@ -52,10 +52,10 @@ func OpenWrtArch(goarch string) string {
 func BuildIPK(goarch, version string, binary []byte) ([]byte, error) {
 	arch := OpenWrtArch(goarch)
 	if arch == "" {
-		return nil, fmt.Errorf("openwrt pkg: arquitectura no soportada %q", goarch)
+		return nil, fmt.Errorf("openwrt pkg: unsupported architecture %q", goarch)
 	}
 	if len(binary) == 0 {
-		return nil, fmt.Errorf("openwrt pkg: binario vacio")
+		return nil, fmt.Errorf("openwrt pkg: empty binary")
 	}
 	if version == "" {
 		version = "0.0.0"

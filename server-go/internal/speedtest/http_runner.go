@@ -94,11 +94,11 @@ func (r HTTPRunner) endpoints(serverURL string) (down, up, ping string, err erro
 	case ProviderLibrespeed:
 		base := strings.TrimRight(strings.TrimSpace(serverURL), "/")
 		if base == "" {
-			return "", "", "", fmt.Errorf("librespeed exige la URL base de la instancia")
+			return "", "", "", fmt.Errorf("librespeed requires the instance base URL")
 		}
 		u, perr := url.Parse(base)
 		if perr != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return "", "", "", fmt.Errorf("URL de instancia librespeed invalida: %q", serverURL)
+			return "", "", "", fmt.Errorf("invalid librespeed instance URL: %q", serverURL)
 		}
 		down, up, ping = base+"/backend/garbage.php", base+"/backend/empty.php", base+"/backend/empty.php"
 	case ProviderCustom:
@@ -109,15 +109,15 @@ func (r HTTPRunner) endpoints(serverURL string) (down, up, ping string, err erro
 		// de un proveedor concreto.
 		u := strings.TrimSpace(serverURL)
 		if u == "" {
-			return "", "", "", fmt.Errorf("custom exige la URL del endpoint de medicion")
+			return "", "", "", fmt.Errorf("custom requires the measurement endpoint URL")
 		}
 		parsed, perr := url.Parse(u)
 		if perr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-			return "", "", "", fmt.Errorf("URL de endpoint custom invalida: %q", serverURL)
+			return "", "", "", fmt.Errorf("invalid custom endpoint URL: %q", serverURL)
 		}
 		down, up, ping = u, u, u
 	default:
-		return "", "", "", fmt.Errorf("proveedor HTTP desconocido %q", r.Provider)
+		return "", "", "", fmt.Errorf("unknown HTTP provider %q", r.Provider)
 	}
 	if r.DownURL != "" {
 		down = r.DownURL

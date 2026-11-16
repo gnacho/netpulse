@@ -139,7 +139,7 @@ func TestVerifyCAPins(t *testing.T) {
 			[]string{spki(ca.cert)}, "not issued"},
 		{"a leaf not meant for servers", []*x509.Certificate{clientOnly, ca.cert}, "192.0.2.10",
 			[]string{spki(ca.cert)}, "not issued"},
-		{"no certificate", nil, "192.0.2.10", []string{spki(ca.cert)}, "sin certificados"},
+		{"no certificate", nil, "192.0.2.10", []string{spki(ca.cert)}, "no peer certificates"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := Verify(tc.chain, tc.host, tc.pins, now)

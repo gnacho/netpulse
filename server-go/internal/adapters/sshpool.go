@@ -330,7 +330,7 @@ func (p *SSHPool) dial(host string) (*ssh.Client, error) {
 	}
 	if time.Now().Before(entry.notUntil) {
 		p.mu.Unlock()
-		return nil, fmt.Errorf("ssh %s: en backoff tras %d fallos", host, entry.failures)
+		return nil, fmt.Errorf("ssh %s: in backoff after %d failures", host, entry.failures)
 	}
 	entry.dialing = make(chan struct{})
 	p.mu.Unlock()
