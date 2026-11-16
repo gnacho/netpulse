@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"maps"
 	"math"
 	"runtime/debug"
 	"sort"
@@ -3708,15 +3709,17 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	// por última vez en una boca local. Solo corrige ATRIBUCIÓN: no crea
 	// presencia (el dispositivo ya estaba en `seen`). Si el gateway lo ve en una
 	// boca NO-uplink, esa evidencia fresca manda y no se toca.
-	if gwID != "" && len(l.fdbMemo) > 0 {
+	// Copia bajo l.mu: otras peticiones concurrentes actualizan la memo
+	// mientras este bucle la lee.
+	l.mu.Lock()
+	memo := maps.Clone(l.fdbMemo)
+	l.mu.Unlock()
+	if gwID != "" && len(memo) > 0 {
 		gwPolled := polled[gwID]
 		gwInfraPorts := map[string]bool{}
 		if gwPolled != nil {
 			gwInfraPorts = l.uplinkPortsFor(gwID, gwPolled.fdb, brMacByRouter)
 		}
-		l.mu.Lock()
-		memo := l.fdbMemo
-		l.mu.Unlock()
 		nowMs := time.Now().UnixMilli()
 		ttlMs := fdbStickyTTL.Milliseconds()
 		for mac, s := range seen {
