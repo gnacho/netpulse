@@ -55,7 +55,7 @@ export function AnnouncementBanner() {
 
   if (!a || a.id === dismissed) return null
 
-  const lang = i18n.language?.startsWith('en') ? 'en' : 'es'
+  const lang = (i18n.language ?? 'en').slice(0, 2).toLowerCase()
   const title = pick(a.title, lang)
   const body = pick(a.body, lang)
   const urlLabel = pick(a.urlLabel, lang) || t('announcement.link')

@@ -112,7 +112,7 @@ func (s *server) handleMyLanguage(w http.ResponseWriter, r *http.Request) {
 		writeBodyError(w, st, "invalid_input", "language debe ser auto|es|en")
 		return
 	}
-	if body.Language != "auto" && body.Language != "es" && body.Language != "en" {
+	if body.Language != "auto" && body.Language != "es" && body.Language != "en" && body.Language != "zh" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "language debe ser auto|es|en")
 		return
 	}
@@ -208,7 +208,7 @@ func (s *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	language := "auto"
 	if body.Language != nil {
-		if *body.Language != "auto" && *body.Language != "es" && *body.Language != "en" {
+		if *body.Language != "auto" && *body.Language != "es" && *body.Language != "en" && *body.Language != "zh" {
 			writeError(w, http.StatusBadRequest, "invalid_input",
 				"Invalid enum value. Expected 'auto' | 'es' | 'en'")
 			return

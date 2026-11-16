@@ -18,8 +18,7 @@ export interface PushSubscriptionPayload {
   endpoint: string
   keys: { auth: string; p256dh: string }
   /** Idioma efectivo de la UI (#1334); el push se compone en este idioma. */
-  language: 'es' | 'en'
-}
+  language: 'es' | 'en' | 'zh'}
 
 function redirectLogin(): never {
   window.dispatchEvent(new Event('netpulse-unauthorized'))

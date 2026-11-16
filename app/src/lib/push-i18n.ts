@@ -30,9 +30,10 @@ export interface LocalizedPush {
   hint?: string
 }
 
-/** Idioma de la notificación a partir del idioma del navegador (en* → en, resto → es). */
-export function pushLang(navLang: string | undefined): 'es' | 'en' {
-  return (navLang ?? '').toLowerCase().startsWith('en') ? 'en' : 'es'
+/** Idioma de la notificación a partir del idioma del navegador (zh*→zh, en*→en, resto→es). */
+export function pushLang(navLang: string | undefined): 'es' | 'en' | 'zh' {
+  const l = (navLang ?? '').toLowerCase()
+  return l.startsWith('zh') ? 'zh' : l.startsWith('en') ? 'en' : 'es'
 }
 
 /** Interpola `{{var}}` con las variables del evento (mismo formato que i18next). */

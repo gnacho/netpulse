@@ -87,7 +87,7 @@ const I18N_CACHE = 'netpulse-i18n-v1'
  * viven en public/ y se sirven como estáticos; el SW los cachea la primera vez
  * para no depender de la red en cada push.
  */
-async function pushCatalog(lang: 'es' | 'en'): Promise<PushCatalog | null> {
+async function pushCatalog(lang: 'es' | 'en' | 'zh'): Promise<PushCatalog | null> {
   const url = `/locales/${lang}/translation.json`
   try {
     const cache = await caches.open(I18N_CACHE)

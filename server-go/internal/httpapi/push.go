@@ -62,7 +62,7 @@ func (s *server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 	if body.Endpoint == "" || len(body.Endpoint) > maxEndpointLen ||
 		body.Keys.Auth == "" || len(body.Keys.Auth) > maxPushKeyLen ||
 		body.Keys.P256dh == "" || len(body.Keys.P256dh) > maxPushKeyLen ||
-		(body.Language != "es" && body.Language != "en") {
+		(body.Language != "es" && body.Language != "en" && body.Language != "zh") {
 		writeError(w, http.StatusBadRequest, "invalid_body", "endpoint, keys.auth, keys.p256dh y language (es|en) son obligatorios")
 		return
 	}

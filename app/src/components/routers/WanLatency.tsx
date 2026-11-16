@@ -8,7 +8,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Sparkline } from '@/components/Sparkline'
 import { LatencyGauge } from '@/components/routers/LatencyGauge'
-import { relTimeFromTs } from '@/i18n'
+import { dateLocale, relTimeFromTs } from '@/i18n'
 import type { RouterExtras } from '@/components/routers/routerExtras'
 
 function WanTooltip({
@@ -284,7 +284,7 @@ function useSpeedtestState() {
 }
 
 export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { running, lastError, last, points, items, starting, run } = useSpeedtestState()
   const [recentOpen, setRecentOpen] = useState(false)
 
@@ -294,7 +294,7 @@ export function SpeedtestStrip({ contractDown }: { contractDown?: number }) {
   const when = last ? (relTimeFromTs(Math.floor(new Date(last.ts).getTime() / 1000)) ?? '') : ''
   const planPct =
     contractDown && contractDown > 0 && last ? Math.round((last.downMbps / contractDown) * 100) : null
-  const recentFmt = new Intl.DateTimeFormat(i18n.language?.startsWith('en') ? 'en-GB' : 'es-ES', {
+  const recentFmt = new Intl.DateTimeFormat(dateLocale(), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
