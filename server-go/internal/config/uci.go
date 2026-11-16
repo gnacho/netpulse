@@ -37,6 +37,7 @@ var uciEnvMap = []struct{ uci, env string }{
 	{"port", "PORT"},
 	{"static_dir", "STATIC_DIR"},
 	{"data_dir", "DATA_DIR"},
+	{"db_dir", "DB_DIR"},
 	{"session_secret", "SESSION_SECRET"},
 	{"auth_user", "AUTH_USER"},
 	{"auth_pass", "AUTH_PASS"},

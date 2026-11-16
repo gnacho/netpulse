@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 )
 
@@ -29,7 +30,7 @@ func newBackupTestServer(t *testing.T) (*server, string) {
 		t.Fatalf("db: %v", err)
 	}
 	t.Cleanup(func() { d.Close() })
-	return &server{db: d}, dataDir
+	return &server{cfg: &config.Config{DataDir: dataDir}, db: d}, dataDir
 }
 
 // TestBackupTickRunsWhenDue: con last_run de hace 25h y frecuencia 24h, un

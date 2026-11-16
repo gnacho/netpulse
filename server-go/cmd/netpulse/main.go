@@ -185,7 +185,7 @@ func run() error {
 		dbOpts = append(dbOpts, db.WithRollbackJournal())
 	}
 	dbOpts = append(dbOpts, db.WithTempStore(cfg.DBTempStore))
-	dbHandle, err := db.Open(cfg.DataDir, dbOpts...)
+	dbHandle, err := db.Open(cfg.DBDir, dbOpts...)
 	if err != nil {
 		return err
 	}
@@ -907,7 +907,7 @@ func run() error {
 		if staticDesc == "" {
 			staticDesc = "(embed)"
 		}
-		log.Printf("[netpulse] data: %s · static: %s", cfg.DataDir, staticDesc)
+		log.Printf("[netpulse] data: %s · db: %s · static: %s", cfg.DataDir, cfg.DBDir, staticDesc)
 		// Aviso anónimo diario de instancia activa (#822). Fail-silent.
 		telemetry.New(dbHandle, httpapi.Version, cfg.DemoMode).Start(context.Background())
 		p.Start()

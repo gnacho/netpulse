@@ -107,7 +107,7 @@ func (s *server) runBackup() (string, error) {
 	defer s.backupMu.Unlock()
 
 	cfg := getBackupConfig(s.db)
-	backupDir := filepath.Join(filepath.Dir(s.db.Path), "backups")
+	backupDir := filepath.Join(s.cfg.DataDir, "backups")
 	if err := ensureBackupDir(backupDir); err != nil {
 		return "", err
 	}
@@ -119,7 +119,7 @@ func (s *server) runBackup() (string, error) {
 	// que el archivo lleva el conjunto: netpulse.db, .ssh y tls. Va en tar.gz
 	// para que sea un único fichero, con la purga tratándolo como uno solo.
 	dst := filepath.Join(backupDir, "netpulse-"+ts+".tar.gz")
-	if err := writeBackupArchive(s.db.DB, filepath.Dir(s.db.Path), s.db.Path, dst); err != nil {
+	if err := writeBackupArchive(s.db.DB, s.cfg.DataDir, s.db.Path, dst); err != nil {
 		return "", err
 	}
 
@@ -258,7 +258,7 @@ func (s *server) registerBackupRoutes(mux *http.ServeMux) {
 	// X-Netpulse-Backup-Contains-Credentials; y una línea de auditoría en el
 	// log on-box con el admin que descargó.
 	mux.Handle("GET /api/backup/download", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		backupDir := filepath.Join(filepath.Dir(s.db.Path), "backups")
+		backupDir := filepath.Join(s.cfg.DataDir, "backups")
 		_ = ensureBackupDir(backupDir)
 		tmpFile := filepath.Join(backupDir, "export-temp.db")
 		if err := copyFile(s.db.Path, tmpFile); err != nil {

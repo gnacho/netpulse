@@ -575,22 +575,23 @@ func WithTempStore(mode string) OpenOption {
 	return func(o *openOptions) { o.tempStore = strings.ToLower(mode) }
 }
 
-// Open abre (o crea) DATA_DIR/netpulse.db, ejecuta la migración Node→Go si la
+// Open abre (o crea) dir/netpulse.db, ejecuta la migración Node→Go si la
 // DB ya existía con esquema Node (backup atómico antes de tocar nada),
-// aplica pragmas, crea el schema y arranca el mantenimiento horario.
-func Open(dataDir string, opts ...OpenOption) (*DB, error) {
+// aplica pragmas, crea el schema y arranca el mantenimiento horario. dir es
+// DB_DIR, que por defecto es DATA_DIR.
+func Open(dir string, opts ...OpenOption) (*DB, error) {
 	var o openOptions
 	for _, opt := range opts {
 		opt(&o)
 	}
 	// #1795: el grupo del servicio puede leer backups y datos sin ser owner.
-	if err := os.MkdirAll(dataDir, 0o770); err != nil {
+	if err := os.MkdirAll(dir, 0o770); err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(dataDir, 0o770); err != nil {
+	if err := os.Chmod(dir, 0o770); err != nil {
 		return nil, err
 	}
-	dbPath := filepath.Join(dataDir, databaseFile)
+	dbPath := filepath.Join(dir, databaseFile)
 
 	// Migración Node→Go (§12 del SPEC): si el fichero ya existe con esquema
 	// Node, backup + importación (preserva users/kv/sessions/routers/metrics).

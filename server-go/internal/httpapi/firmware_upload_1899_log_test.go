@@ -14,12 +14,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gnacho/netpulse/server-go/internal/config"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 )
 
 func TestAgentBackupUploadLogsTheArchiveName(t *testing.T) {
-	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	dataDir := filepath.Join(t.TempDir(), "test.db")
+	d, err := db.Open(dataDir)
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
@@ -30,7 +32,7 @@ func TestAgentBackupUploadLogsTheArchiveName(t *testing.T) {
 		agentTokenKey("rt1"), hashAgentToken(token)); err != nil {
 		t.Fatalf("token: %v", err)
 	}
-	s := &server{db: d, firmware: firmware.NewStore(d.DB)}
+	s := &server{cfg: &config.Config{DataDir: dataDir}, db: d, firmware: firmware.NewStore(d.DB)}
 	mux := http.NewServeMux()
 	s.registerFirmwareBackupRoutes(mux)
 
