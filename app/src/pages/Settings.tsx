@@ -1155,9 +1155,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   />
                 ) : (
                   <div>
-                    <label htmlFor="add-snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                      {t('settings.routers.snmpCommunity')}
-                    </label>
                     <div className="mb-1 flex items-center gap-1">
                       <label htmlFor="add-snmp-community" className="block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
                         {t('settings.routers.snmpCommunity')}
@@ -1428,9 +1425,6 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                         />
                       ) : (
                         <div>
-                          <label htmlFor="snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                            {t('settings.routers.snmpCommunity')}
-                          </label>
                           <div className="mb-1 flex items-center gap-1">
                             <label htmlFor="snmp-community" className="block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
                               {t('settings.routers.snmpCommunity')}
