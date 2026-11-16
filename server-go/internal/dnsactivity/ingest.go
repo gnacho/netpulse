@@ -26,6 +26,11 @@ const (
 	kvState  = "adguard_querylog_state"
 	kvStateT = "adguard_querylog_state_ts"
 	kvGap    = "adguard_querylog_gap"
+	// kvHost guarda la instancia cuyo log se está siguiendo: el cursor de una
+	// instancia no vale para otra (hosts distintos, historiales distintos).
+	kvHost = "adguard_querylog_host"
+	// kvConfigHost es la clave de configuración de la integración.
+	kvConfigHost = "adguard_host"
 )
 
 // Source es la lectura del log: la implementan el cliente estándar, el GL y
@@ -153,6 +158,13 @@ func (i *Ingestor) ingest(ctx context.Context) (TickResult, error) {
 	}
 
 	now := i.now()
+	// Un cambio de instancia invalida el cursor: seguir con el de la anterior
+	// mezclaría dos historiales y declararía huecos falsos.
+	cfgHost := i.kvGet(ctx, kvConfigHost)
+	if prev := i.kvGet(ctx, kvHost); prev != cfgHost {
+		_ = i.kvSet(ctx, kvCursor, "")
+		_ = i.kvSet(ctx, kvHost, cfgHost)
+	}
 	cursor, firstRun := i.cursor(ctx, now)
 
 	macs, err := resolveMACs(ctx, i.db)

@@ -263,3 +263,44 @@ func TestIngestErrorKeepsState(t *testing.T) {
 		t.Errorf("state = %q", res.State)
 	}
 }
+
+func TestIngestResetsCursorWhenInstanceChanges(t *testing.T) {
+	now := time.Date(2026, 11, 16, 11, 0, 30, 0, time.UTC)
+	src := &fakeSource{seq: []*adapters.QueryLogPage{
+		{Oldest: time.Date(2026, 11, 16, 10, 30, 0, 0, time.UTC), Queries: []adapters.DNSQuery{
+			q("2026-11-16T10:59:00Z", "192.168.1.42", "a.example", false),
+		}},
+		{Oldest: time.Date(2026, 11, 16, 10, 45, 0, 0, time.UTC), Queries: []adapters.DNSQuery{
+			q("2026-11-16T10:58:00Z", "192.168.1.42", "a.example", false),
+		}},
+	}}
+	ing, d := newTestIngestor(t, src, now)
+	if _, err := d.Exec(`INSERT INTO kv (key, value) VALUES (?, ?)`, kvConfigHost, "adguard.lan"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ing.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Otra instancia: cursor a cero, primera lectura de una hora hacia atrás.
+	// La consulta de 10:58 es más antigua que el cursor de la instancia previa
+	// (10:59), así que solo entra si el cursor se reseteó.
+	if _, err := d.Exec(`UPDATE kv SET value = 'otra.lan' WHERE key = ?`, kvConfigHost); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ing.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var host string
+	_ = d.QueryRow(`SELECT value FROM kv WHERE key = ?`, kvHost).Scan(&host)
+	if host != "otra.lan" {
+		t.Errorf("host = %q, want otra.lan", host)
+	}
+	// Gate del reset: sin él, la entrada de 10:58 quedaría por debajo del
+	// cursor anterior y no se ingeriría.
+	var total int
+	_ = d.QueryRow(`SELECT COALESCE(SUM(queries),0) FROM dns_activity WHERE domain = 'a.example'`).Scan(&total)
+	if total != 2 {
+		t.Errorf("queries = %d, want 2 (la segunda instancia reingiere su hora)", total)
+	}
+}
