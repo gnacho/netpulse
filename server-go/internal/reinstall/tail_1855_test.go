@@ -22,11 +22,11 @@ func TestScriptSurvivesAFailedConfigStep(t *testing.T) {
 	for _, want := range []string{
 		`ENV_TMP="$ENV_FILE.new.$$"`,
 		`mv -f "$ENV_TMP" "$ENV_FILE" || return 1`,
-		`warn "no pude escribir $ENV_FILE; se queda el anterior"`,
+		`warn "could not write $ENV_FILE, keeping the previous one"`,
 		`INIT_TMP="/tmp/netpulse-agent.init.$$"`,
-		`warn "no pude instalar $INIT"`,
+		`warn "could not install $INIT"`,
 		`rm -f /usr/sbin/netpulse-watchdog || warn`,
-		`"$INIT" enable >/dev/null 2>&1 || warn "no pude habilitar $INIT"`,
+		`"$INIT" enable >/dev/null 2>&1 || warn "could not enable $INIT"`,
 		`if ! "$INIT" restart >/dev/null 2>&1; then`,
 		`exit 24`,
 	} {

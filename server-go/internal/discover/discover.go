@@ -390,7 +390,7 @@ func Routers(ctx context.Context, db *sql.DB, keyPath string, force bool) Respon
 	// #1893: el barrido abre y cierra TCP/22 en todo el /24 sin autenticar, que
 	// en dropbear aparece como "Exit before auth". Una sola línea por barrido
 	// basta para atribuir ese tráfico (y descartar que sea un sondeo de flota).
-	log.Printf("[netpulse:discover] barrido %s: %d de %d hosts con el 22 abierto", subnet, len(alive), len(hosts))
+	log.Printf("[netpulse:discover] sweep %s: %d of %d hosts with port 22 open", subnet, len(alive), len(hosts))
 
 	// #1895: "ya añadido" no puede ser una comparación de cadenas en crudo. El
 	// alta admite un nombre DNS o una IP con puerto y el barrido solo ve IPs,

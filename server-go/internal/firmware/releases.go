@@ -301,7 +301,7 @@ func NewReleasesRefresher(db *sql.DB, base string) *ReleasesRefresher {
 		base:   base,
 		stop:   make(chan struct{}),
 		now:    time.Now,
-		logf:   func(f string, a ...any) { log.Printf("[firmware] "+f, a...) },
+		logf:   func(f string, a ...any) { log.Printf("[netpulse:firmware] "+f, a...) },
 	}
 }
 

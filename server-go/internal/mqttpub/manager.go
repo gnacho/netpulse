@@ -47,7 +47,7 @@ func (m *Manager) Start() {
 func (m *Manager) startLocked() {
 	if !m.cfg.Enabled || m.demo || m.snapshot == nil {
 		if m.cfg.Enabled && m.demo {
-			log.Printf("[mqtt] disabled in demo mode")
+			log.Printf("[netpulse:mqtt] disabled in demo mode")
 		}
 		return
 	}
@@ -77,7 +77,7 @@ func (m *Manager) stopLocked() {
 		select {
 		case <-m.done:
 		case <-time.After(shutdownWait):
-			log.Printf("[mqtt] publisher shutdown timed out after %s; starting the new one anyway", shutdownWait)
+			log.Printf("[netpulse:mqtt] publisher shutdown timed out after %s; starting the new one anyway", shutdownWait)
 		}
 		m.done = nil
 	}

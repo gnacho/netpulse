@@ -40,7 +40,7 @@ func (u *Updater) persistPendingApply(from string, to *string) {
 	if _, err := u.db.Exec(
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		pendingApplyKey, string(data)); err != nil {
-		fmt.Printf("[netpulse] no se pudo persistir el marcador de update: %v\n", err)
+		fmt.Printf("[netpulse] could not persist the update marker: %v\n", err)
 	}
 }
 
@@ -113,7 +113,7 @@ func (u *Updater) loadStablePending() {
 	}
 	marker := readAppliedMarker(u.appliedMarkerPath())
 	if marker == "" || (p.To != "" && marker != strings.TrimSpace(p.To)) {
-		fmt.Printf("[netpulse] apply estable sin marcador de éxito (marker=%q, target=%q); no se confirma\n", marker, p.To)
+		fmt.Printf("[netpulse] stable apply without a success marker (marker=%q, target=%q), not confirming\n", marker, p.To)
 		return
 	}
 	_ = os.Remove(u.appliedMarkerPath())

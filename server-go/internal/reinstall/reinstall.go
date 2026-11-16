@@ -148,10 +148,10 @@ write_env() {
 NETPULSE_SERVER=$SERVER
 NETPULSE_SLUG=$SLUG
 NETPULSE_TOKEN=$TOKEN
-# NETPULSE_SERVER_FP=<sha256>    # pin SPKI del server (https); lo rellena el instalador
+# NETPULSE_SERVER_FP=<sha256>    # server SPKI pin (https), filled by the installer
 # NETPULSE_INTERVAL=30           # segundos entre pushes
-# NETPULSE_SCAN_INTERVAL: "0" = sin scans periódicos (bajo demanda desde
-# "Análisis de canales"); "30m" u otro valor los reactiva.
+# NETPULSE_SCAN_INTERVAL: "0" = no periodic scans (on demand from
+# "Channel analysis"), "30m" or another value re-enables them.
 NETPULSE_SCAN_INTERVAL=$SCAN_VALUE
 ` + func() string {
 		wanLine := "# NETPULSE_WAN_TARGET=1.1.1.1    # solo si este equipo es el gateway"
@@ -179,7 +179,7 @@ mv -f "$ENV_TMP" "$ENV_FILE" || return 1
 }
 if ! write_env; then
 	rm -f "$ENV_TMP"
-	warn "no pude escribir $ENV_FILE; se queda el anterior"
+	warn "could not write $ENV_FILE, keeping the previous one"
 fi
 `
 }
@@ -327,11 +327,11 @@ case "$ARCH" in
 		case "$(head -c 6 /bin/sh | tail -c 1 | tr '\001\002' '12')" in
 			1) GOARCH=mipsle; SHA256="` + digests["mipsle"] + `" ;;
 			2) GOARCH=mips;  SHA256="` + digests["mips"] + `" ;;
-			*) echo "no pude detectar el endianness de $ARCH" >&2; exit 20 ;;
+			*) echo "could not detect the endianness of $ARCH" >&2; exit 20 ;;
 		esac ;;
-	*) echo "arch no soportado: $ARCH" >&2; exit 20 ;;
+	*) echo "unsupported arch: $ARCH" >&2; exit 20 ;;
 esac
-say "arquitectura $ARCH ($GOARCH)"
+say "architecture $ARCH ($GOARCH)"
 
 # #1476: si el router habla opkg o apk, instala el paquete que sirve el propio
 # servidor. Deja binario, init y /etc/config/netpulse-agent, que es conffile y
@@ -354,7 +354,7 @@ if command -v opkg >/dev/null 2>&1; then
 	if [ -s /tmp/netpulse-agent.ipk ] && opkg install --force-reinstall /tmp/netpulse-agent.ipk >/dev/null 2>&1; then
 		PKG_OK=1
 	else
-		echo "netpulse-agent: el paquete .ipk no se pudo instalar; sigo con los ficheros sueltos" >&2
+		echo "netpulse-agent: the .ipk package did not install, continuing with the loose files" >&2
 	fi
 	rm -f /tmp/netpulse-agent.ipk
 elif command -v apk >/dev/null 2>&1; then
@@ -362,29 +362,29 @@ elif command -v apk >/dev/null 2>&1; then
 	if [ -s /tmp/netpulse-agent.apk ] && apk add --allow-untrusted /tmp/netpulse-agent.apk >/dev/null 2>&1; then
 		PKG_OK=1
 	else
-		echo "netpulse-agent: el paquete .apk no se pudo instalar; sigo con los ficheros sueltos" >&2
+		echo "netpulse-agent: the .apk package did not install, continuing with the loose files" >&2
 	fi
 	rm -f /tmp/netpulse-agent.apk
 fi
-if [ "$PKG_OK" = "1" ]; then say "paquete instalado"; else say "sin paquete; instalo el binario suelto"; fi
+if [ "$PKG_OK" = "1" ]; then say "package installed"; else say "no package, installing the loose binary"; fi
 if [ "$PKG_OK" != "1" ]; then
 # Descargar el binario del propio server (auth por token)
 # #1737: sin estos mensajes el fallo llega como "Process exited with status
 # 1" y nada mas. wget -q no imprime su motivo, asi que la descarga fallida
 # por wget era completamente muda.
 if command -v curl >/dev/null 2>&1; then
-	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new || { echo "netpulse-agent: no pude descargar el binario de $SERVER (curl)" >&2; exit 22; }
+	curl -fsSL $CURL_TLS --connect-timeout 10 -m 600 -H "Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" -o /tmp/netpulse-agent.new || { echo "netpulse-agent: could not download the binary from $SERVER (curl)" >&2; exit 22; }
 else
-	wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" || { echo "netpulse-agent: no pude descargar el binario de $SERVER (wget)" >&2; exit 22; }
+	wget -q $WGET_TLS -T 60 -O /tmp/netpulse-agent.new --header="Authorization: Bearer $TOKEN" "$SERVER/api/agents/$SLUG/binary?arch=$GOARCH" || { echo "netpulse-agent: could not download the binary from $SERVER (wget)" >&2; exit 22; }
 fi
 
 # Verificación sha256 contra el digest embebido (#463); vacío = sin verificar
 if [ -n "$SHA256" ]; then
 	GOT=$(sha256sum /tmp/netpulse-agent.new | awk '{print $1}')
-	[ "$GOT" = "$SHA256" ] || { echo "sha256 no coincide (esperado $SHA256, obtenido $GOT)" >&2; exit 21; }
+	[ "$GOT" = "$SHA256" ] || { echo "sha256 mismatch (want $SHA256, got $GOT)" >&2; exit 21; }
 fi
 chmod 0755 /tmp/netpulse-agent.new
-say "binario descargado y verificado"
+say "binary downloaded and verified"
 # #1853: el servicio se para AQUI, con el binario ya descargado y verificado.
 # Pararlo antes dejaba el router sin agente si la descarga fallaba. Hay que
 # pararlo igualmente: /tmp es tmpfs y /usr es overlay, asi que mv escribe el
@@ -392,7 +392,7 @@ say "binario descargado y verificado"
 # vuelve a arrancar el anterior en vez de dejarlo caido.
 [ -f "$INIT" ] && "$INIT" stop >/dev/null 2>&1 || true
 if ! mv -f /tmp/netpulse-agent.new "$BIN"; then
-	echo "netpulse-agent: no pude reemplazar $BIN; vuelvo a arrancar el agente anterior" >&2
+	echo "netpulse-agent: could not replace $BIN, restarting the previous agent" >&2
 	[ -f "$INIT" ] && "$INIT" start >/dev/null 2>&1 || true
 	exit 23
 fi
@@ -431,7 +431,7 @@ selfheal_binary() {
 		https|HTTPS) ;;
 		*)
 			[ "${NETPULSE_ALLOW_INSECURE_COMMANDS:-}" = "1" ] || {
-				logger -t netpulse-agent "self-heal: HTTP sin NETPULSE_ALLOW_INSECURE_COMMANDS=1, binario no descargado"
+				logger -t netpulse-agent "self-heal: HTTP without NETPULSE_ALLOW_INSECURE_COMMANDS=1, binary not downloaded"
 				return 1
 			}
 			;;
@@ -450,7 +450,7 @@ selfheal_binary() {
 	esac
 	local url tmp hdr digest sum
 	url="${NETPULSE_SERVER%/}/api/agents/${NETPULSE_SLUG}/binary?arch=${ARCH}"
-	logger -t netpulse-agent "self-heal: binario ausente, descargando de $NETPULSE_SERVER"
+	logger -t netpulse-agent "self-heal: binary missing, downloading from $NETPULSE_SERVER"
 	tmp=/tmp/netpulse-agent.$$
 	hdr=/tmp/netpulse-agent.hdr.$$
 	local ctls="" wtls=""
@@ -464,19 +464,19 @@ selfheal_binary() {
 	rm -f "$hdr"
 	case "$digest" in
 		""|*[!0123456789abcdefABCDEF]*)
-			logger -t netpulse-agent "self-heal: sin X-Checksum-Sha256 válido, binario descartado"
+			logger -t netpulse-agent "self-heal: no valid X-Checksum-Sha256, binary discarded"
 			rm -f "$tmp"
 			return 1 ;;
 	esac
-	[ "${#digest}" -eq 64 ] || { logger -t netpulse-agent "self-heal: digest con longitud inválida, binario descartado"; rm -f "$tmp"; return 1; }
+	[ "${#digest}" -eq 64 ] || { logger -t netpulse-agent "self-heal: digest with invalid length, binary discarded"; rm -f "$tmp"; return 1; }
 	sum=$(sha256sum "$tmp" 2>/dev/null | awk '{print $1}')
 	if [ -z "$sum" ] || [ "$(printf '%s' "$sum" | tr 'A-F' 'a-f')" != "$(printf '%s' "$digest" | tr 'A-F' 'a-f')" ]; then
-		logger -t netpulse-agent "self-heal: SHA-256 no coincide, binario descartado"
+		logger -t netpulse-agent "self-heal: SHA-256 mismatch, binary discarded"
 		rm -f "$tmp"
 		return 1
 	fi
 	chmod 0755 "$tmp" && mv "$tmp" /usr/sbin/netpulse-agent || { rm -f "$tmp"; return 1; }
-	logger -t netpulse-agent "self-heal: binario restaurado"
+	logger -t netpulse-agent "self-heal: binary restored"
 	BIN=/usr/sbin/netpulse-agent
 	return 0
 }
@@ -489,7 +489,7 @@ cleanup_stale_watchdog_cron() {
 	[ -f /usr/sbin/netpulse-watchdog ] && return 0
 	crontab -l 2>/dev/null | grep -q netpulse-watchdog || return 0
 	( crontab -l 2>/dev/null | grep -v netpulse-watchdog ) | crontab - 2>/dev/null || true
-	logger -t netpulse-agent "watchdog cron huérfano retirado (#879)"
+	logger -t netpulse-agent "orphan watchdog cron entry removed (#879)"
 }
 
 # #1857: si el binario no está y el self-heal no lo trae, no se registra la
@@ -499,7 +499,7 @@ cleanup_stale_watchdog_cron() {
 start_service() {
 	cleanup_stale_watchdog_cron
 	if ! selfheal_binary; then
-		logger -t netpulse-agent "self-heal: no se pudo restaurar el binario; el servicio no arranca"
+		logger -t netpulse-agent "self-heal: could not restore the binary, the service will not start"
 		return 0
 	fi
 	procd_open_instance netpulse-agent
@@ -512,30 +512,30 @@ start_service() {
 }
 INITEOF
 then
-	chmod 0755 "$INIT_TMP" && mv -f "$INIT_TMP" "$INIT" || { rm -f "$INIT_TMP"; warn "no pude instalar $INIT"; }
+	chmod 0755 "$INIT_TMP" && mv -f "$INIT_TMP" "$INIT" || { rm -f "$INIT_TMP"; warn "could not install $INIT"; }
 else
 	rm -f "$INIT_TMP"
-	warn "no pude preparar $INIT"
+	warn "could not prepare $INIT"
 fi
 fi
 
 # #851: el watchdog cron YA NO se instala (un reinicio a ciegas de un crash
 # loop no arregla nada y ensucia el log; la detección es el dead-man del
 # servidor). Si el router viene de una instalación que sí lo tenía, limpiarlo.
-rm -f /usr/sbin/netpulse-watchdog || warn "no pude borrar /usr/sbin/netpulse-watchdog"
+rm -f /usr/sbin/netpulse-watchdog || warn "could not remove /usr/sbin/netpulse-watchdog"
 if [ -f /etc/crontabs/root ]; then
-	sed -i '/netpulse-watchdog/d' /etc/crontabs/root || warn "no pude limpiar el cron del watchdog"
+	sed -i '/netpulse-watchdog/d' /etc/crontabs/root || warn "could not clean the watchdog cron entry"
 fi
 
 # #1853: de aqui al final nada puede abortar en silencio: el binario nuevo ya
 # esta en su sitio y el servicio sigue parado, asi que se avisa y se arranca.
-"$INIT" enable >/dev/null 2>&1 || warn "no pude habilitar $INIT"
+"$INIT" enable >/dev/null 2>&1 || warn "could not enable $INIT"
 ` + preserveOnSysupgrade + `
 if ! "$INIT" restart >/dev/null 2>&1; then
-	warn "el agente no arranco tras el reinstall; revisa $INIT"
+	warn "the agent did not start after the reinstall, check $INIT"
 	exit 24
 fi
-say "agente arrancado"
+say "agent started"
 `
 }
 
@@ -551,7 +551,7 @@ set -e
 ENV_FILE=/etc/netpulse-agent.env
 INIT=/etc/init.d/netpulse-agent
 # El env debe existir: el router ya tenía el agente instalado.
-[ -f "$ENV_FILE" ] || { echo "netpulse-agent.env no existe; token no actualizado" >&2; exit 30; }
+[ -f "$ENV_FILE" ] || { echo "netpulse-agent.env does not exist, token not updated" >&2; exit 30; }
 # Conservar el server y el slug del env existente para no romper la config.
 SERVER=$(sed -n 's/^NETPULSE_SERVER=//p' "$ENV_FILE" | head -n1)
 SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
@@ -562,7 +562,7 @@ SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
 # aplica una vez emparejado.
 FP=$(sed -n 's/^NETPULSE_SERVER_FP=//p' "$ENV_FILE" | head -n1)
 USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)=') || true
-[ -n "$SLUG" ] || { echo "netpulse-agent.env sin NETPULSE_SLUG" >&2; exit 31; }
+[ -n "$SLUG" ] || { echo "netpulse-agent.env has no NETPULSE_SLUG" >&2; exit 31; }
 umask 077
 cat > "$ENV_FILE.tmp" <<EOF
 NETPULSE_SERVER=$SERVER

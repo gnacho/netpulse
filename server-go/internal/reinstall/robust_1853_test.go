@@ -19,7 +19,7 @@ func TestScriptStopsOnlyOnceItCanInstall(t *testing.T) {
 	)
 
 	download := strings.Index(s, "/binary?arch=$GOARCH")
-	digest := strings.Index(s, "sha256 no coincide")
+	digest := strings.Index(s, "sha256 mismatch")
 	stop := strings.Index(s, `"$INIT" stop`)
 	replace := strings.Index(s, `mv -f /tmp/netpulse-agent.new "$BIN"`)
 	if download < 0 || digest < 0 || stop < 0 || replace < 0 {
@@ -29,7 +29,7 @@ func TestScriptStopsOnlyOnceItCanInstall(t *testing.T) {
 		t.Errorf("orden incorrecto: download=%d digest=%d stop=%d replace=%d", download, digest, stop, replace)
 	}
 
-	if !strings.Contains(s, "vuelvo a arrancar el agente anterior") {
+	if !strings.Contains(s, "restarting the previous agent") {
 		t.Error("el fallo al reemplazar el binario debe avisar del rollback")
 	}
 	if !strings.Contains(s, `"$INIT" start`) {
@@ -41,9 +41,9 @@ func TestScriptStopsOnlyOnceItCanInstall(t *testing.T) {
 
 	// Los diagnosticos tienen que ir a stderr: el servidor solo captura stderr.
 	for _, want := range []string{
-		`sha256 no coincide (esperado $SHA256, obtenido $GOT)" >&2`,
-		`no pude detectar el endianness de $ARCH" >&2`,
-		`arch no soportado: $ARCH" >&2`,
+		`sha256 mismatch (want $SHA256, got $GOT)" >&2`,
+		`could not detect the endianness of $ARCH" >&2`,
+		`unsupported arch: $ARCH" >&2`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("mensaje sin stderr: %s", want)

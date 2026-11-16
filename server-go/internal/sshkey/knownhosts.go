@@ -139,7 +139,7 @@ func SanitizeKnownHosts(khPath string) (int, error) {
 	if dropped == 0 {
 		return 0, nil
 	}
-	log.Printf("[netpulse:ssh] known_hosts %s: %d línea(s) ilegible(s) descartada(s), la primera en la %d (#2014)", khPath, dropped, firstBad)
+	log.Printf("[netpulse:ssh] known_hosts %s: %d unreadable line(s) dropped, first on line %d (#2014)", khPath, dropped, firstBad)
 	if err := replaceKnownHostsLocked(khPath, []byte(strings.Join(keep, "\n")+"\n")); err != nil {
 		return 0, err
 	}

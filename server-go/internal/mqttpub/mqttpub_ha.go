@@ -139,7 +139,7 @@ func routerSetKey(ov *adapters.Overview) string {
 func (p *Publisher) publishStatus(client *mq.Client, ov *adapters.Overview) {
 	payload, err := json.Marshal(buildStatus(p.cfg.Instance, p.version, ov))
 	if err != nil {
-		log.Printf("[mqtt] marshal status: %v", err)
+		log.Printf("[netpulse:mqtt] marshal status: %v", err)
 		return
 	}
 	publish(client, statusTopic(p.cfg.Instance), payload, true)
@@ -155,7 +155,7 @@ func (p *Publisher) publishRouters(client *mq.Client, ov *adapters.Overview) {
 		}
 		payload, err := json.Marshal(buildRouterState(r))
 		if err != nil {
-			log.Printf("[mqtt] marshal router %s: %v", r.ID, err)
+			log.Printf("[netpulse:mqtt] marshal router %s: %v", r.ID, err)
 			continue
 		}
 		publish(client, topic, payload, true)
@@ -194,7 +194,7 @@ func (p *Publisher) publishDiscovery(client *mq.Client) {
 			var err error
 			payload, err = json.Marshal(e.config)
 			if err != nil {
-				log.Printf("[mqtt] marshal discovery %s: %v", e.objectID, err)
+				log.Printf("[netpulse:mqtt] marshal discovery %s: %v", e.objectID, err)
 				continue
 			}
 		}

@@ -12,9 +12,9 @@ func TestScriptProgress_1894(t *testing.T) {
 	s := scriptForTest()
 	for _, want := range []string{
 		`say() { echo "netpulse-agent: $*"; }`,
-		`say "arquitectura $ARCH ($GOARCH)"`,
-		`say "binario descargado y verificado"`,
-		`say "agente arrancado"`,
+		`say "architecture $ARCH ($GOARCH)"`,
+		`say "binary downloaded and verified"`,
+		`say "agent started"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("el script no lleva %q", want)

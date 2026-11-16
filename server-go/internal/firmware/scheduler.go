@@ -39,7 +39,7 @@ func NewScheduler(store *Store, launcher Launcher) *Scheduler {
 		store:    store,
 		launcher: launcher,
 		now:      time.Now,
-		logf:     func(f string, a ...any) { log.Printf("[firmware] "+f, a...) },
+		logf:     func(f string, a ...any) { log.Printf("[netpulse:firmware] "+f, a...) },
 		stop:     make(chan struct{}),
 	}
 }

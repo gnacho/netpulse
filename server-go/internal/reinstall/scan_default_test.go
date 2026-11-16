@@ -24,7 +24,7 @@ func envBlockForTest(t *testing.T) string {
 	if start < 0 {
 		t.Fatal("no encuentro el bloque de env en el script")
 	}
-	marker := "warn \"no pude escribir $ENV_FILE; se queda el anterior\"\nfi"
+	marker := "warn \"could not write $ENV_FILE, keeping the previous one\"\nfi"
 	end := strings.Index(s[start:], marker)
 	if end < 0 {
 		t.Fatal("el bloque de env no termina con el guard de write_env")

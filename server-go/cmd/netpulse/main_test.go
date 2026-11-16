@@ -109,7 +109,7 @@ func TestWebhookHostForLog(t *testing.T) {
 		"https://user:pass@hooks.example.com/hook/abc": "hooks.example.com",
 		"https://hooks.example.com/path":               "hooks.example.com",
 		"http://192.168.1.50:8080/h":                   "192.168.1.50:8080",
-		"no-es-una-url":                                "(sin host)",
+		"no-es-una-url":                                "(no host)",
 	}
 	for raw, want := range cases {
 		if got := webhookHostForLog(raw); got != want {

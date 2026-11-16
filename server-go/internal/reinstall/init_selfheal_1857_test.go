@@ -72,7 +72,7 @@ func TestInitSkipsStartWhenTheBinaryIsMissing(t *testing.T) {
 	if strings.Contains(out, "OPEN") {
 		t.Errorf("registro la instancia sin binario:\n%s", out)
 	}
-	if !strings.Contains(out, "self-heal: no se pudo restaurar el binario; el servicio no arranca") {
+	if !strings.Contains(out, "self-heal: could not restore the binary, the service will not start") {
 		t.Errorf("no dijo por que no arranca:\n%s", out)
 	}
 }

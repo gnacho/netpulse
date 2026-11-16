@@ -638,7 +638,7 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		if err := d.QueryRow("SELECT value FROM kv WHERE key = 'attrib_v2'").Scan(&flag); err == sql.ErrNoRows {
 			_, _ = d.Exec("DELETE FROM device_attrib")
 			_, _ = d.Exec("INSERT INTO kv (key, value) VALUES ('attrib_v2', '1')")
-			log.Printf("[netpulse] device_attrib limpiada (attrib_v2: solo wireless persiste)")
+			log.Printf("[netpulse] device_attrib cleared (attrib_v2: only wireless persists)")
 		}
 		// issue #248: memoria per-MAC de "desconocido ya alertado", persistida
 		// en kv para que un reinicio del servidor no vuelva a alertar las
@@ -3161,7 +3161,7 @@ func (l *Live) pollWireGuard(devices []Device) *WireGuardStats {
 	l.mu.Unlock()
 	stats, err := GetWireGuardStats(l.pool, gw.SSHAddr(), l.cfg.WGInterface, "", peerNames, urgent)
 	if err != nil {
-		log.Printf("[netpulse] WireGuard no disponible: %v", err)
+		log.Printf("[netpulse] WireGuard unavailable: %v", err)
 		return &WireGuardStats{Interface: l.cfg.WGInterface, Subnet: "", Status: "inactive", Peers: []WGPeer{}, RouterID: gw.ID}
 	}
 	// #2019: el poller necesita saber de qué router son estos peers para

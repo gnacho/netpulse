@@ -77,7 +77,7 @@ func NewScheduler(db *sql.DB, ua CheckerApplier) *Scheduler {
 		ua:  ua,
 		now: time.Now,
 		logf: func(f string, a ...any) {
-			log.Printf("[autoupdate] "+f, a...)
+			log.Printf("[netpulse:autoupdate] "+f, a...)
 		},
 	}
 }
@@ -413,7 +413,7 @@ func setAutoKv(db *sql.DB, key, val string) {
 	if _, err := db.Exec(
 		`INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		autoKvPrefix+key, val); err != nil {
-		log.Printf("[autoupdate] kv set %s: %v", key, err)
+		log.Printf("[netpulse:autoupdate] kv set %s: %v", key, err)
 	}
 }
 

@@ -395,7 +395,7 @@ func NewHandler(d Deps) http.Handler {
 		if la, err := s.startBeaconListener(d.Config.BeaconListen); err != nil {
 			log.Printf("[netpulse] warning: UDP beacon failed to start on %s (%v)", d.Config.BeaconListen, err)
 		} else {
-			log.Printf("[netpulse] beacon UDP escuchando en %s", la)
+			log.Printf("[netpulse] beacon UDP listening on %s", la)
 		}
 	}
 	// #639: sondeo HTTP de consola RTLPlayground para beacons external. El

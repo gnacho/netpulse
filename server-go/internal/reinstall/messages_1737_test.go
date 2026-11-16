@@ -19,10 +19,10 @@ func TestScriptExplainsItsFailures(t *testing.T) {
 	)
 
 	for _, want := range []string{
-		`no pude descargar el binario de $SERVER (curl)`,
-		`no pude descargar el binario de $SERVER (wget)`,
-		`el paquete .ipk no se pudo instalar`,
-		`el paquete .apk no se pudo instalar`,
+		`could not download the binary from $SERVER (curl)`,
+		`could not download the binary from $SERVER (wget)`,
+		`the .ipk package did not install`,
+		`the .apk package did not install`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("el script no explica el fallo: %q", want)

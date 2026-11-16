@@ -103,7 +103,7 @@ func (s *server) firmwareSweepRouter(routerID, host string) {
 		return
 	}
 	if err := kvSetStr(s.db.DB, fwSweepCheckedKey(routerID), strconv.FormatInt(time.Now().Unix(), 10)); err != nil {
-		log.Printf("[firmware] sweep %s: could not mark check: %v", routerID, err)
+		log.Printf("[netpulse:firmware] sweep %s: could not mark check: %v", routerID, err)
 		return
 	}
 
@@ -118,7 +118,7 @@ func (s *server) firmwareSweepRouter(routerID, host string) {
 		return // ya avisada: una alerta por router+versión (#1777)
 	}
 	if err := kvSetStr(s.db.DB, fwSweepAlertedKey(routerID), status.VersionTo); err != nil {
-		log.Printf("[firmware] sweep %s: no pude guardar el dedup: %v", routerID, err)
+		log.Printf("[netpulse:firmware] sweep %s: could not save the dedup: %v", routerID, err)
 	}
 	s.emitFirmwareAvailable(routerID, installed, status.VersionTo)
 }

@@ -838,27 +838,27 @@ func (d *DB) Maintenance() {
 	}
 	for _, q := range steps {
 		if _, err := d.Exec(q, cutoff); err != nil {
-			log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+			log.Printf("[netpulse] DB maintenance error: %v", err)
 		}
 	}
 	if _, err := d.Exec("DELETE FROM sessions WHERE expires_at < ?", NowMS()); err != nil {
-		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+		log.Printf("[netpulse] DB maintenance error: %v", err)
 	}
 	// Atributos de dispositivos que no se ven desde hace 90 días (se fueron
 	// para siempre): sin esta purga device_attrib crece sin límite y alimenta
 	// el listado de dispositivos offline (issue #206).
 	attribCutoff := NowMS() - AttribRetentionMS
 	if _, err := d.Exec("DELETE FROM device_attrib WHERE last_seen < ?", attribCutoff); err != nil {
-		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+		log.Printf("[netpulse] DB maintenance error: %v", err)
 	}
 	// Purga de buckets > 1 año (el raw ya se purgó arriba; daily nunca).
 	bucketCutoff := NowMS() - BucketsRetentionMS
 	if _, err := d.Exec("DELETE FROM metrics_buckets WHERE bucket_ts < ?", bucketCutoff); err != nil {
-		log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+		log.Printf("[netpulse] DB maintenance error: %v", err)
 	}
 	if !d.rollbackJournal {
 		if _, err := d.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-			log.Printf("[netpulse] error en mantenimiento DB: %v", err)
+			log.Printf("[netpulse] DB maintenance error: %v", err)
 		}
 	}
 }
