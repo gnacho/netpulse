@@ -3091,6 +3091,20 @@ func (l *Live) recordPortSamples(routerID string, ports []EthPort) {
 	}
 }
 
+// AdguardClients expone el cliente configurado (estándar o GL) para la
+// ingesta del query log (#2078). Respeta el toggle de servicios: desactivado
+// devuelve nil, nil. Se resuelve en cada llamada: la integración se puede
+// configurar o apagar en caliente.
+func (l *Live) AdguardClients() (*AdGuardClient, *AdGuardGlinetClient) {
+	if l.db != nil {
+		var v string
+		if err := l.db.QueryRow("SELECT value FROM kv WHERE key = 'settings.services.adguard'").Scan(&v); err == nil && (v == "0" || v == "false") {
+			return nil, nil
+		}
+	}
+	return l.getAdguardClient()
+}
+
 // pollAdGuard: stats del cliente configurado; fallback inactivo si falla.
 func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
 	// Servicio desactivado en Ajustes > Servicios (#813): ni sondeo ni
