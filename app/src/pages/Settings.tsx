@@ -535,6 +535,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [addSnmpEnabled, setAddSnmpEnabled] = useState(false)
   const [addSnmpVersion, setAddSnmpVersion] = useState<SnmpVersion>('2c')
   const [addSnmpCommunity, setAddSnmpCommunity] = useState('')
+  const [addSnmpCommunityReveal, setAddSnmpCommunityReveal] = useState(false)
   const [addSnmpV3User, setAddSnmpV3User] = useState('')
   const [addSnmpV3Level, setAddSnmpV3Level] = useState('authPriv')
   const [addSnmpV3AuthProto, setAddSnmpV3AuthProto] = useState('SHA')
@@ -573,6 +574,7 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const [editSnmpCommunity, setEditSnmpCommunity] = useState('')
   const [editSnmpCommunitySet, setEditSnmpCommunitySet] = useState(false)
   const [editSnmpCommunityTouched, setEditSnmpCommunityTouched] = useState(false)
+  const [editSnmpCommunityReveal, setEditSnmpCommunityReveal] = useState(false)
   const [editSnmpPort, setEditSnmpPort] = useState(161)
   const [editSnmpPollInterval, setEditSnmpPollInterval] = useState(60)
   const [editSshPort, setEditSshPort] = useState(22)
@@ -1158,15 +1160,29 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                     <label htmlFor="add-snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
                       {t('settings.routers.snmpCommunity')}
                     </label>
-                    <input
-                      id="add-snmp-community"
-                      type="text"
-                      value={addSnmpCommunity}
-                      onChange={(e) => setAddSnmpCommunity(e.target.value)}
-                      placeholder="public"
-                      aria-label={t('settings.routers.snmpCommunity')}
-                      className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                    />
+                    <div className="relative">
+                      <input
+                        id="add-snmp-community"
+                        type={addSnmpCommunityReveal ? 'text' : 'password'}
+                        value={addSnmpCommunity}
+                        onChange={(e) => setAddSnmpCommunity(e.target.value)}
+                        placeholder="public"
+                        aria-label={t('settings.routers.snmpCommunity')}
+                        autoComplete="off"
+                        spellCheck={false}
+                        className="w-full rounded-lg border border-border bg-elevated px-3 py-2 pr-9 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setAddSnmpCommunityReveal((v) => !v)}
+                        aria-label={addSnmpCommunityReveal ? t('settings.routers.snmpCommunityHide') : t('settings.routers.snmpCommunityShow')}
+                        title={addSnmpCommunityReveal ? t('settings.routers.snmpCommunityHide') : t('settings.routers.snmpCommunityShow')}
+                        className="absolute inset-y-0 right-1 my-auto flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-hover hover:text-text-secondary"
+                      >
+                        {addSnmpCommunityReveal ? <EyeOff className="h-3.5 w-3.5" strokeWidth={1.75} /> : <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.snmpCommunityHint')}</p>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2.5">
@@ -1423,15 +1439,29 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                           <label htmlFor="snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
                             {t('settings.routers.snmpCommunity')}
                           </label>
-                          <input
-                            id="snmp-community"
-                            type="text"
-                            value={editSnmpCommunity}
-                            onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
-                            placeholder="public"
-                            aria-label={t('settings.routers.snmpCommunity')}
-                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                          />
+                          <div className="relative">
+                            <input
+                              id="snmp-community"
+                              type={editSnmpCommunityReveal ? 'text' : 'password'}
+                              value={editSnmpCommunity}
+                              onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
+                              placeholder="public"
+                              aria-label={t('settings.routers.snmpCommunity')}
+                              autoComplete="off"
+                              spellCheck={false}
+                              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 pr-9 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setEditSnmpCommunityReveal((v) => !v)}
+                              aria-label={editSnmpCommunityReveal ? t('settings.routers.snmpCommunityHide') : t('settings.routers.snmpCommunityShow')}
+                              title={editSnmpCommunityReveal ? t('settings.routers.snmpCommunityHide') : t('settings.routers.snmpCommunityShow')}
+                              className="absolute inset-y-0 right-1 my-auto flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-hover hover:text-text-secondary"
+                            >
+                              {editSnmpCommunityReveal ? <EyeOff className="h-3.5 w-3.5" strokeWidth={1.75} /> : <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                            </button>
+                          </div>
+                          <p className="mt-1 text-caption leading-relaxed text-text-muted">{t('settings.routers.snmpCommunityHint')}</p>
                           {editSnmpCommunitySet && !editSnmpCommunityTouched && (
                             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                               <span>{t('settings.routers.snmpCommunityConfigured')}</span>
