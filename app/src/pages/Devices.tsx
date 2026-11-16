@@ -31,6 +31,7 @@ import { fmtEs, signalLevel } from '@/data/mock'
 import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
+import { DeviceDNSPanel } from '@/components/DeviceDNSPanel'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
@@ -901,9 +902,10 @@ function DeviceDetail({
   onEdit: () => void
 }) {
   const { t } = useTranslation()
-  const { adguard } = useNetPulse()
+  const { adguard, isDemo } = useNetPulse()
   const hasAdGuard = Boolean(adguard.host)
   return (
+    <div>
     <div className="relative grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4 md:grid-cols-3 md:px-5">
       <DetailItem label="MAC" mono>
         {device.mac}
@@ -973,6 +975,8 @@ function DeviceDetail({
         <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
         {t('devices.edit.action')}
       </button>
+    </div>
+    {!isDemo && <DeviceDNSPanel mac={device.mac} />}
     </div>
   )
 }

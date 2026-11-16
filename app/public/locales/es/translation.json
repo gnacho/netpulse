@@ -607,6 +607,17 @@
       "unpinHint": "Dejar de restaurar este conjunto al abrir clientes",
       "pinned": "Filtros fijados como defecto",
       "unpinned": "Filtros sin fijar"
+    },
+    "dns": {
+      "title": "Actividad DNS",
+      "queries": "{{n}} consultas",
+      "blocked": "{{n}} bloqueadas",
+      "unavailable": "La actividad DNS necesita la integración con AdGuard Home. Añádela en Ajustes > Integraciones.",
+      "disabled": "El registro de consultas de AdGuard está desactivado, así que no hay nada que atribuir a este dispositivo.",
+      "anonymized": "AdGuard está anonimizando las IPs de los clientes, así que las consultas no se pueden atribuir. Desactiva anonymize_client_ip.",
+      "error": "No se pudo leer la actividad DNS. Comprueba que AdGuard Home responde.",
+      "empty": "No hay consultas DNS registradas para este dispositivo en la ventana elegida.",
+      "gap": "Parte de las entradas rotaron del registro de AdGuard antes de poder leerse, así que falta un tramo de esta ventana."
     }
   },
   "home": {
@@ -3165,5 +3176,18 @@
     "staleClean": "Limpiar puertos",
     "staleCleaned": "{{count}} puertos obsoletos quitados del perfil",
     "staleNothing": "No hay puertos que se puedan limpiar"
+  },
+  "dns": {
+    "overview": {
+      "title": "Actividad DNS (24 h)",
+      "totals": "{{queries}} consultas, {{blocked}} bloqueadas",
+      "newDomains": "Dominios nuevos",
+      "unavailable": "Añade la integración con AdGuard Home para ver qué dominios pide la red.",
+      "disabled": "El registro de consultas de AdGuard está desactivado, así que no hay actividad por dominio.",
+      "anonymized": "AdGuard anonimiza las IPs de los clientes: los dominios se registran pero no se pueden asociar a un dispositivo.",
+      "error": "No se pudo leer la actividad DNS de AdGuard.",
+      "empty": "Aún no hay actividad DNS registrada. La primera lectura puede tardar un minuto.",
+      "gap": "Falta un tramo de la ventana porque el registro de AdGuard rotó antes de leerse."
+    }
   }
 }
