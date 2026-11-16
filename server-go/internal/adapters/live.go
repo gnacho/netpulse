@@ -1093,8 +1093,6 @@ type histPoint struct {
 	cpu, ram, temp int
 }
 
-var weekdayES = []string{"Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"}
-
 // metricsHistory consulta las métricas históricas (index.js:122-147).
 // metricsHistoryBuckets lee el histórico largo desde la escalera de retención
 // (metrics_buckets, 5 min → 1 año). Usado para el rango 30d, cuyo raw ya se
@@ -1164,8 +1162,11 @@ func (l *Live) metricsHistory(routerID, rang string) []histPoint {
 	case "7d":
 		// #2046: 6 h en vez de un día, 28 puntos. La etiqueta lleva el día y
 		// la hora porque con cuatro puntos por día solo el día no distingue.
+		// #2062: el día de la semana dependía del idioma (weekdayES lo
+		// pintaba en español también en una UI en inglés). El día del mes es
+		// neutro y coincide con el formato del rango 30d.
 		span, bucket = 7*86400e3, 6*3600e3
-		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%s %02dh", weekdayES[d.Weekday()], d.Hour()) }
+		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%02d %02dh", d.Day(), d.Hour()) }
 	case "30d":
 		span, bucket = 30*86400e3, 6*3600e3
 		fmtLabel = func(d time.Time) string { return fmt.Sprintf("%d", d.Day()) }
