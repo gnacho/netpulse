@@ -58,7 +58,7 @@ func TestPushEndpointsContract(t *testing.T) {
 		return n
 	}
 
-	// POST subscribe: 201 la primera vez. #1334: language (es|en) obligatorio.
+	// POST subscribe: 201 la primera vez. #1334: language (es|en|ru) obligatorio.
 	body := `{"endpoint":"https://push.example/abc","keys":{"auth":"a1","p256dh":"p1"},"language":"en"}`
 	res = doJSON(t, "POST", ts.URL, "/api/push/subscribe", cookie, body)
 	if res.StatusCode != 201 {
@@ -87,6 +87,16 @@ func TestPushEndpointsContract(t *testing.T) {
 	var auth string
 	if err := ts.db.QueryRow("SELECT keys_auth FROM push_subscriptions WHERE endpoint = ?", "https://push.example/abc").Scan(&auth); err != nil || auth != "a2" {
 		t.Fatalf("upsert no actualizó claves: auth=%q err=%v", auth, err)
+	}
+	// ru también es un idioma válido: upsert y persistencia.
+	body = `{"endpoint":"https://push.example/abc","keys":{"auth":"a3","p256dh":"p3"},"language":"ru"}`
+	res = doJSON(t, "POST", ts.URL, "/api/push/subscribe", cookie, body)
+	if res.StatusCode != 200 {
+		t.Fatalf("subscribe upsert ru: %d, esperaba 200", res.StatusCode)
+	}
+	res.Body.Close()
+	if err := ts.db.QueryRow("SELECT language FROM push_subscriptions WHERE endpoint = ?", "https://push.example/abc").Scan(&lang); err != nil || lang != "ru" {
+		t.Fatalf("upsert ru no persistió language: lang=%q err=%v", lang, err)
 	}
 	// Cuerpos inválidos → 400.
 	for _, bad := range []string{
