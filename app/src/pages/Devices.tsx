@@ -1086,7 +1086,7 @@ function RouterChipLink({ routerId, onNavigate }: { routerId: string; onNavigate
 function BandChip({ band }: { band: ClientDevice['band'] }) {
   const { t } = useTranslation()
   return (
-    <span className="inline-flex w-fit items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 font-mono text-caption text-text-secondary">
+    <span className="inline-flex w-fit shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-border-strong px-2.5 py-1 font-mono text-caption text-text-secondary">
       {band === 'cable' ? t('common.cable') : band}
     </span>
   )
@@ -1095,7 +1095,7 @@ function BandChip({ band }: { band: ClientDevice['band'] }) {
 function SignalCell({ device }: { device: ClientDevice }) {
   if (!device.online) return <span className="font-mono text-mono-sm text-text-muted">—</span>
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <SignalIcon dbm={device.signalDbm} />
       {device.signalDbm !== null && (
         <span className={cn('font-mono text-mono-sm', signalTextClass(device.signalDbm))}>
@@ -1127,21 +1127,21 @@ function LeaseCell({ device }: { device: ClientDevice }) {
 // Pesos fr NATURALES de cada columna (con todo visible, la plantilla es
 // idéntica al ROW_GRID original).
 const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number; xlOnly?: boolean }> = {
-  type: { lg: 0.55 },
+  type: { lg: 0.68 },
   ip: { lg: 0.95 },
-  lease: { lg: 0.7 },
-  router: { md: 1.1, lg: 0.85 },
-  band: { md: 0.85, lg: 0.6 },
-  signal: { md: 0.95, lg: 0.75 },
-  traffic: { md: 0.75, lg: 0.75, xl: 0.7 },
-  firstSeen: { lg: 1.0, xlOnly: true },
-  lastSeen: { lg: 1.0, xlOnly: true },
+  lease: { lg: 0.78 },
+  router: { md: 1.1, lg: 0.9 },
+  band: { md: 0.9, lg: 0.8 },
+  signal: { md: 0.95, lg: 0.85 },
+  traffic: { md: 0.8, lg: 0.85, xl: 0.8 },
+  firstSeen: { lg: 0.95, xlOnly: true },
+  lastSeen: { lg: 0.95, xlOnly: true },
 }
 
 // #1360: la columna de dispositivo repartía holgura que las fechas (sin
 // nowrap y a 0.7fr) pagaban con wraps feos; el peso baja a 2.8 y las fechas
 // suben a 1.0fr para que "Primera vez"/"Última vez" quepan en una línea.
-const DEVICE_COL_FR = { md: 3, lg: 2.8, xl: 2.8 } as const
+const DEVICE_COL_FR = { md: 2.8, lg: 2.5, xl: 2.5 } as const
 
 /** Reparto al ocultar columnas: el fr liberado se distribuye A PARTES IGUALES
  *  entre las columnas visibles (dispositivo incluida). El reparto nativo de
@@ -1287,14 +1287,14 @@ function ListRow({
         )}
         {/* Señal */}
         {vis.has('signal') && (
-          <div>
+          <div className="flex justify-end">
             <SignalCell device={device} />
           </div>
         )}
         {/* Tráfico en vivo (#799): la columna que ordena el default */}
         {vis.has('traffic') && (
-          <div>
-            <span className="font-mono text-mono-sm text-accent">
+          <div className="text-right">
+            <span className="whitespace-nowrap font-mono text-mono-sm text-accent">
               {device.online
                 ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
                 : '—'}
@@ -2152,8 +2152,8 @@ export default function Devices() {
             )}
             {visibleColumns.has('router') && <SortHeader label={t('devices.colRouter')} k="router" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('band') && <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />}
-            {visibleColumns.has('signal') && <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />}
-            {visibleColumns.has('traffic') && <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('signal') && <span className="flex justify-end"><SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} /></span>}
+            {visibleColumns.has('traffic') && <span className="flex justify-end"><SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} /></span>}
             {visibleColumns.has('firstSeen') && (
               <span className="hidden xl:block">
                 <SortHeader label={t('devices.colFirstSeen')} k="firstSeen" sort={sort} onSort={toggleSort} />
