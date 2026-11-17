@@ -1134,8 +1134,8 @@ const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number;
   band: { md: 0.9, lg: 0.8 },
   signal: { md: 0.95, lg: 0.85 },
   traffic: { md: 0.8, lg: 0.85, xl: 0.8 },
-  firstSeen: { lg: 0.95, xlOnly: true },
-  lastSeen: { lg: 0.95, xlOnly: true },
+  firstSeen: { lg: 0.7, xlOnly: true },
+  lastSeen: { lg: 0.7, xlOnly: true },
 }
 
 // #1360: la columna de dispositivo repartía holgura que las fechas (sin
@@ -1287,13 +1287,13 @@ function ListRow({
         )}
         {/* Señal */}
         {vis.has('signal') && (
-          <div className="flex justify-end">
+          <div>
             <SignalCell device={device} />
           </div>
         )}
         {/* Tráfico en vivo (#799): la columna que ordena el default */}
         {vis.has('traffic') && (
-          <div className="text-right">
+          <div>
             <span className="whitespace-nowrap font-mono text-mono-sm text-accent">
               {device.online
                 ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
@@ -1305,12 +1305,12 @@ function ListRow({
             #1360: whitespace-nowrap - con 1.0fr caben; sin nowrap partían
             el texto ("hace 2 días") en dos líneas. */}
         {vis.has('firstSeen') && (
-          <div className="hidden xl:block">
+          <div className="hidden text-right xl:block">
             <span className="whitespace-nowrap text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
           </div>
         )}
         {vis.has('lastSeen') && (
-          <div className="hidden xl:block">
+          <div className="hidden text-right xl:block">
             <span className="whitespace-nowrap text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
           </div>
         )}
@@ -2152,15 +2152,15 @@ export default function Devices() {
             )}
             {visibleColumns.has('router') && <SortHeader label={t('devices.colRouter')} k="router" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('band') && <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />}
-            {visibleColumns.has('signal') && <span className="flex justify-end"><SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} /></span>}
-            {visibleColumns.has('traffic') && <span className="flex justify-end"><SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} /></span>}
+            {visibleColumns.has('signal') && <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('traffic') && <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('firstSeen') && (
-              <span className="hidden xl:block">
+              <span className="hidden xl:flex xl:justify-end">
                 <SortHeader label={t('devices.colFirstSeen')} k="firstSeen" sort={sort} onSort={toggleSort} />
               </span>
             )}
             {visibleColumns.has('lastSeen') && (
-              <span className="hidden xl:block">
+              <span className="hidden xl:flex xl:justify-end">
                 <SortHeader label={t('devices.colLastSeen')} k="lastSeen" sort={sort} onSort={toggleSort} />
               </span>
             )}
