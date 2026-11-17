@@ -170,16 +170,20 @@ export function RouterPerformance({ router, liveSeries, totalRamMb, usedRamMb }:
       {/* Descripción + tabla accesible (visually-hidden). El texto va en un
           span sr-only: <caption> escapa del clip del table sr-only (#63). */}
       <span className="sr-only">{t('routerDetail.perf.tableCaption', { range })}</span>
-      <table className="sr-only">
-        <thead>
-          <tr><th>{t('home.traffic.time')}</th><th>CPU (%)</th><th>{t('common.memory')} (%)</th><th>{t('common.temperature')} ({tempUnitSymbol(tempUnit)})</th></tr>
-        </thead>
-        <tbody>
-          {data.map((p: PerfPoint) => (
-            <tr key={p.t}><td>{p.t}</td><td>{p.cpu}</td><td>{p.ram}</td><td>{p.temp}</td></tr>
-          ))}
-        </tbody>
-      </table>
+      {/* sr-only on a wrapper div, not the table (see WanTraffic): a table
+          ignores height:1px and its box stretched the document scroll height. */}
+      <div className="sr-only">
+        <table>
+          <thead>
+            <tr><th>{t('home.traffic.time')}</th><th>CPU (%)</th><th>{t('common.memory')} (%)</th><th>{t('common.temperature')} ({tempUnitSymbol(tempUnit)})</th></tr>
+          </thead>
+          <tbody>
+            {data.map((p: PerfPoint) => (
+              <tr key={p.t}><td>{p.t}</td><td>{p.cpu}</td><td>{p.ram}</td><td>{p.temp}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }
