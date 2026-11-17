@@ -1128,7 +1128,7 @@ function LeaseCell({ device }: { device: ClientDevice }) {
 // idéntica al ROW_GRID original).
 const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number; xlOnly?: boolean }> = {
   type: { lg: 0.68 },
-  ip: { lg: 0.95 },
+  ip: { lg: 1.15 },
   lease: { lg: 0.78 },
   router: { md: 1.1, lg: 0.9 },
   band: { md: 0.9, lg: 0.8 },
@@ -1141,7 +1141,7 @@ const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number;
 // #1360: la columna de dispositivo repartía holgura que las fechas (sin
 // nowrap y a 0.7fr) pagaban con wraps feos; el peso baja a 2.8 y las fechas
 // suben a 1.0fr para que "Primera vez"/"Última vez" quepan en una línea.
-const DEVICE_COL_FR = { md: 2.8, lg: 2.5, xl: 2.5 } as const
+const DEVICE_COL_FR = { md: 2.8, lg: 2.35, xl: 2.35 } as const
 
 /** Reparto al ocultar columnas: el fr liberado se distribuye A PARTES IGUALES
  *  entre las columnas visibles (dispositivo incluida). El reparto nativo de
@@ -1260,15 +1260,15 @@ function ListRow({
               onCopyIp(device.ip)
             }}
             title={t('devices.copyIp')}
-            className="hidden w-fit min-w-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition-colors hover:bg-elevated lg:flex"
+            className="hidden w-full min-w-0 max-w-full flex-col items-start overflow-hidden rounded-md px-1 py-0.5 text-left transition-colors hover:bg-elevated lg:flex"
           >
-            <span className="font-mono text-mono-sm text-text-primary">{device.ip}</span>
-            <span className="font-mono text-caption text-text-muted">{device.mac}</span>
+            <span className="block w-full truncate font-mono text-mono-sm text-text-primary" title={device.ip}>{device.ip}</span>
+            <span className="block w-full truncate font-mono text-caption text-text-muted" title={device.mac}>{device.mac}</span>
           </button>
         )}
         {/* Tiempo restante del lease */}
         {vis.has('lease') && (
-          <div className="hidden lg:block">
+          <div className="hidden min-w-0 overflow-hidden lg:block">
             <LeaseCell device={device} />
           </div>
         )}
