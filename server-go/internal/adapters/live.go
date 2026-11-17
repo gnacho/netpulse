@@ -230,6 +230,10 @@ type routerPolled struct {
 	// ("" = sondeo SSH/SNMP directo). "external" = pusher beacon/scraper sin
 	// sección system → sin vitals.
 	agentKind string
+	// agentStale: agent-only unit whose pusher is past the down-confirm
+	// window. The cached payload is still served (#850) but the card reads
+	// offline, not online, so it agrees with the probe table.
+	agentStale bool
 	// selfExpose (#832): el equipo se expone él mismo a Home Assistant por
 	// MQTT (NetGrip con su MQTT activado) → el publisher de flota no publica
 	// sus entidades por router.
@@ -1873,6 +1877,10 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	status := "online"
 	if p.temp > thr || p.cpu > 85 {
 		status = "warn"
+	}
+	if p.agentStale {
+		status = "offline"
+		health = 0
 	}
 	sparkline := make([]float64, 0, len(history))
 	for _, h := range history {

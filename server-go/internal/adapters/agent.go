@@ -628,7 +628,14 @@ func (l *Live) pollRouterAgent(cfg RouterConfig) (bool, *routerPolled) {
 		}
 		if cfg.AgentOnly {
 			if p != nil {
-				return true, l.polledFromAgent(cfg, p)
+				rp := l.polledFromAgent(cfg, p)
+				// #850 keeps serving cached data so the card never goes blank,
+				// but a pusher dead past the down-confirm window is not
+				// "online": flag it so buildRouter reads offline while keeping
+				// the last readings. Same window as the agent-down alert, so
+				// the status does not flap on a momentary blip.
+				rp.agentStale = reg.StaleFor(slug, confirm)
+				return true, rp
 			}
 		}
 	}

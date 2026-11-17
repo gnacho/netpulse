@@ -277,3 +277,34 @@ func TestLiveAgentDownAgentOnlyIsUrgentRouter(t *testing.T) {
 		t.Fatalf("alerta recuperación agent-only: %+v", ok)
 	}
 }
+
+// The cached payload keeps the card populated (#850), but a pusher dead past
+// the down-confirm window must read offline, agreeing with the probe table
+// instead of claiming "online" with frozen vitals.
+func TestLiveAgentOnlyStaleCardReadsOffline(t *testing.T) {
+	reg := NewAgentRegistry(50 * time.Millisecond)
+	l := newLiveAgentTest(t, reg)
+	cfg := RouterConfig{ID: "patio", Name: "Patio", Host: "127.0.0.1", AgentOnly: true}
+	reg.Ingest(testPayload())
+	p, err := l.pollRouter(t.Context(), cfg)
+	if err != nil || p == nil {
+		t.Fatalf("fresh poll: p=%v err=%v", p, err)
+	}
+	if r := l.buildRouter(p, nil); r.Status == "offline" {
+		t.Fatalf("fresh agent-only must not read offline: %q", r.Status)
+	}
+	time.Sleep(60 * time.Millisecond)
+	p, err = l.pollRouter(t.Context(), cfg)
+	if err != nil || p == nil {
+		t.Fatalf("stale agent-only still serves cached payload: p=%v err=%v", p, err)
+	}
+	r := l.buildRouter(p, nil)
+	if r.Status != "offline" || r.Health != 0 {
+		t.Fatalf("stale agent-only card must read offline/health 0, got %q/%d", r.Status, r.Health)
+	}
+	reg.Ingest(testPayload())
+	p, _ = l.pollRouter(t.Context(), cfg)
+	if r := l.buildRouter(p, nil); r.Status == "offline" {
+		t.Fatalf("recovered agent-only must not read offline")
+	}
+}
