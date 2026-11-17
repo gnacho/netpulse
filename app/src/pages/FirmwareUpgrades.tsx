@@ -71,6 +71,10 @@ interface OwutStatus {
   error?: string
   /** #1977: diagnostico del servidor cuando el check no dejo salida. */
   message?: string
+  /** #1978: comando exacto que se lanzo en la unidad. */
+  command?: string
+  /** #1978: owut pide --force (downgrades en un salto de version mayor). */
+  needsForce?: boolean
 }
 
 /** Versiones destino que ASU puede construir (#761). */
@@ -189,6 +193,8 @@ export default function FirmwareUpgrades() {
   const [excludeConfirmId, setExcludeConfirmId] = useState<string | null>(null)
   // #761: paquetes a excluir de la build ASU (locales sin feed, p. ej. netgrip).
   const [removePkgs, setRemovePkgs] = useState<Record<string, string>>({})
+  // #1978: confirmacion explicita para aceptar los avisos de owut (--force).
+  const [owutForce, setOwutForce] = useState<Record<string, boolean>>({})
   // #761: upgrade done cuya fiesta ya se cerro (routerId -> upgrade.id).
   const [dismissedDone, setDismissedDone] = useState<Record<string, number>>({})
   // #761: programación recurrente.
@@ -587,6 +593,7 @@ export default function FirmwareUpgrades() {
         body: JSON.stringify({
           targetVersion: e.targetVersion,
           removePackages: (removePkgs[id] ?? '').split(/[\s,]+/).filter(Boolean),
+          force: !!owutForce[id],
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -653,7 +660,7 @@ export default function FirmwareUpgrades() {
   // #1769: acepta SOLO la lista de exclusión que el usuario escribió a mano
   // (owut -r). Sin lista, ASU rechaza los routers con paquetes de terceros
   // y su mensaje es el que hay que ver: nada de exclusión silenciosa.
-  const runOwutDownload = async (id: string, targetOverride?: string) => {
+  const runOwutDownload = async (id: string, targetOverride?: string, force = false) => {
     const e = edits[id]
     setOwutDlBusy((prev) => ({ ...prev, [id]: true }))
     setOwutDlOk((prev) => ({ ...prev, [id]: false }))
@@ -664,7 +671,7 @@ export default function FirmwareUpgrades() {
       const res = await fetch(`/api/firmware-upgrades/${encodeURIComponent(id)}/owut-download`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetVersion: targetOverride || e?.targetVersion || '', removePackages }),
+        body: JSON.stringify({ targetVersion: targetOverride || e?.targetVersion || '', removePackages, force }),
       })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
@@ -1239,6 +1246,7 @@ export default function FirmwareUpgrades() {
                         {t('firmwareUpgrades.owutOutput')}
                       </summary>
                       <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-text-secondary">
+                        {owut.command ? `$ ${owut.command}\n\n` : ''}
                         {owut.rawOutput}
                       </pre>
                     </details>
@@ -1419,6 +1427,25 @@ export default function FirmwareUpgrades() {
                             })}
                           </span>
                         )}
+                        {/* #1978: los saltos de version mayor bajan algunos
+                            paquetes y owut no sigue sin --force. Se pide
+                            confirmacion, nunca se fuerza por defecto. */}
+                        {owutResult[item.routerId]?.needsForce && (
+                          <label className="mt-1 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+                            <input
+                              type="checkbox"
+                              checked={!!owutForce[item.routerId]}
+                              onChange={(ev) =>
+                                setOwutForce((prev) => ({ ...prev, [item.routerId]: ev.target.checked }))
+                              }
+                              className="mt-0.5"
+                            />
+                            <span>
+                              {t('firmwareUpgrades.forceDowngrades')}
+                              <span className="block text-text-muted">{t('firmwareUpgrades.forceDowngradesHint')}</span>
+                            </span>
+                          </label>
+                        )}
                       </label>
                     )}
                     {/* #1414 (feedback #1414): los tres pasos owut van juntos
@@ -1448,7 +1475,7 @@ export default function FirmwareUpgrades() {
                                 // #1769: la exclusión es explícita; si ASU
                                 // necesita quitar paquetes, fallará y su
                                 // salida es la que guía al usuario.
-                                void runOwutDownload(item.routerId, effTarget)
+                                void runOwutDownload(item.routerId, effTarget, !!owutForce[item.routerId])
                               }}
                               disabled={owutDlBusy[item.routerId] || !!active}
                               title={t('firmwareUpgrades.tipOwutDownload')}

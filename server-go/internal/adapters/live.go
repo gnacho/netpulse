@@ -230,6 +230,10 @@ type routerPolled struct {
 	// ("" = sondeo SSH/SNMP directo). "external" = pusher beacon/scraper sin
 	// sección system → sin vitals.
 	agentKind string
+	// agentStale: agent-only unit whose pusher is past the down-confirm
+	// window. The cached payload is still served (#850) but the card reads
+	// offline, not online, so it agrees with the probe table.
+	agentStale bool
 	// selfExpose (#832): el equipo se expone él mismo a Home Assistant por
 	// MQTT (NetGrip con su MQTT activado) → el publisher de flota no publica
 	// sus entidades por router.
@@ -1811,6 +1815,40 @@ func hostLikePorts(ports []EthPort) bool {
 	return false
 }
 
+// overrideInfo es el override manual persistido por MAC (#437/#797).
+type overrideInfo struct {
+	Icon          string
+	Name          string
+	DeviceType    string
+	BannedBands   string
+	NotifyOffline bool
+}
+
+// loadDeviceOverrides lee los overrides manuales, con clave en minúsculas
+// para que el lookup sea robusto al caso de la MAC (#797). Lo usan tanto
+// buildDevices (clientes vivos) como ghostDevices (retenidos offline):
+// un override debe verse igual esté el cliente online u offline.
+func (l *Live) loadDeviceOverrides() map[string]overrideInfo {
+	out := map[string]overrideInfo{}
+	if l.db == nil {
+		return out
+	}
+	rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands, notify_offline FROM device_overrides")
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var mac, name, deviceType, bannedBands string
+		var icon sql.NullString
+		var notifyOffline bool
+		if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands, &notifyOffline); err == nil {
+			out[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
+		}
+	}
+	return out
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -1874,6 +1912,10 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.temp > thr || p.cpu > 85 {
 		status = "warn"
 	}
+	if p.agentStale {
+		status = "offline"
+		health = 0
+	}
 	sparkline := make([]float64, 0, len(history))
 	for _, h := range history {
 		sparkline = append(sparkline, h.down)
@@ -1904,6 +1946,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	// agente en una unidad que se inventaria por SSH.
 	r.InventoryMode = p.cfg.InventoryMode
 	r.InventoryAt = p.polledAt
+	// #2086: la unidad agent-only stale lee offline con sus últimas lecturas.
+	// El motivo: las integraciones pusher reciben su código pusher_* más
+	// específico desde EnrichOverview; un agent nativo no tiene ninguno, así
+	// que lleva agent_stale para que la tarjeta no quede roja sin explicación.
+	if p.agentStale {
+		r.StatusReason = "agent_stale"
+	}
 	// #1741: la serie de 24 h de una unidad sin throughput nativo (SNMP o
 	// pusher external) sale de sus puertos. Se decide aquí, donde se conoce el
 	// agent kind, porque Router no lo expone y VitalsAvailable ya no sirve de
@@ -3858,30 +3907,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	}
 	// issue #437/#797: overrides manuales de dispositivo (icono, nombre
 	// visible y tipo) sobre el dispositivo auto-descubierto.
-	type overrideInfo struct {
-		Icon          string
-		Name          string
-		DeviceType    string
-		BannedBands   string
-		NotifyOffline bool
-	}
-	deviceOverrides := map[string]overrideInfo{}
-	if l.db != nil {
-		if rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands, notify_offline FROM device_overrides"); err == nil {
-			for rows.Next() {
-				var mac, name, deviceType, bannedBands string
-				var icon sql.NullString
-				var notifyOffline bool
-				if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands, &notifyOffline); err == nil {
-					// Clave en minúsculas: las MACs de los sondeos pueden
-					// llegar en cualquier caso y el lookup debe ser robusto
-					// (#797: icon overrides que "desaparecían" por caso).
-					deviceOverrides[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
-				}
-			}
-			rows.Close()
-		}
-	}
+	deviceOverrides := l.loadDeviceOverrides()
 	lldpCapsByMac := map[string]string{}
 	for _, p := range polled {
 		for _, nb := range p.lldp {

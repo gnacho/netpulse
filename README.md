@@ -280,6 +280,20 @@ curl -fsSL --retry 3 -o /tmp/netpulse-install-collector.sh https://raw.githubuse
 
 Each probe is a TCP connection to the router that is closed without authenticating, so a router with dropbear logs it as `Child connection` followed by `Exit before auth: Exited normally`. That is the probe, not a failed login. `PROBE_PORT` (default `22`) points it at a listener that does not log every connection, for example the router's web UI on `80`, and `PROBE_INTERVAL` (default `5s`) sets how often it runs.
 
+**Docker.** If you prefer containers over systemd, a server image with the
+embedded UI and agent binaries is published on every release:
+
+```bash
+docker run -d --name netpulse -p 127.0.0.1:3000:3000 -e AUTH_PASS=choose-one \
+  -v netpulse-data:/data --restart unless-stopped ghcr.io/gnacho/netpulse:latest
+```
+
+`AUTH_PASS` is required at boot (10+ characters); the port above is
+published on loopback — publish on a LAN interface instead if you want the
+panel reachable from other machines. Updates are `docker pull` + recreate;
+leave the in-app updater alone in this mode. Full guide:
+[docs/docker.md](docs/docker.md).
+
 **On-box mode.** No spare box? The server itself runs on an OpenWrt router,
 with UCI config and self-signed TLS with SPKI pinning.
 
@@ -299,6 +313,8 @@ is in [docs/ROADMAP.md](docs/ROADMAP.md).
 - **[User manual](docs/manual.en.md)** (also in
   [Spanish](docs/manual.es.md)): every screen explained, menu by menu, with
   step-by-step procedures.
+- **[Docker](docs/docker.md)**: optional container install path for the
+  server, with compose and GHCR images.
 - **[Website](https://netpulse.cloudless.club)**: the project in five
   minutes, with a [feature tour](https://netpulse.cloudless.club/features),
   FAQ and screenshots.

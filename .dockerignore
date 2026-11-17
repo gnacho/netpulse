@@ -1,0 +1,22 @@
+# Build context hygiene: the image builds everything it needs inside its own
+# builder stages, so local build artifacts and unrelated trees stay out of the
+# context (smaller uploads, no stale-artifact leaks).
+
+.git
+.github
+data
+deploy
+docs
+web
+
+# Local frontend build output (rebuilt inside the image)
+app/dist
+app/node_modules
+
+# Embedded frontend dist (copied in from the frontend stage)
+server-go/internal/staticspa/dist
+
+# Host-built agent binaries (rebuilt inside the agents stage). Keep .gitkeep
+# so the embed pattern still matches in a dev-style build.
+server-go/internal/agentbin/agents/*
+!server-go/internal/agentbin/agents/.gitkeep

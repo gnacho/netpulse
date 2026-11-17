@@ -40,3 +40,26 @@ collector:
 
 clean:
 	rm -rf app/dist server-go/internal/staticspa/dist
+
+# --- Docker (optional install path, docs/docker.md) -------------------------
+# Not part of `make check`: helpers to build and run the server image. The
+# image builds the frontend and the agent binaries itself, so a plain
+# `docker build` is self-contained and needs no toolchain on the host.
+DOCKER_IMAGE ?= netpulse:local
+VERSION ?= 0.0.0-docker
+BUILD_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+
+.PHONY: docker-build docker-up docker-down
+
+docker-build:
+	docker build \
+	  --build-arg VERSION=$(VERSION) \
+	  --build-arg BUILD_COMMIT=$(BUILD_COMMIT) \
+	  --build-arg AGENT_VERSION=$(shell tr -d '[:space:]' < agent/VERSION 2>/dev/null || echo 0.0.0-dev) \
+	  -t $(DOCKER_IMAGE) .
+
+docker-up:
+	docker compose up -d --build
+
+docker-down:
+	docker compose down

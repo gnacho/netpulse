@@ -469,6 +469,7 @@
     "listView": "Vista de lista",
     "nameUpdated": "Nombre actualizado",
     "colLease": "Tiempo restante",
+    "colRouter": "Unidad",
     "leaseDaysHours": "{{days}}d {{hours}}h",
     "leaseHoursMinutes": "{{hours}}h {{minutes}}min",
     "leaseMinutes": "{{minutes}}min",
@@ -1413,7 +1414,8 @@
       "pusher_api_not_found": "El equipo no expone el endpoint esperado de la API en esta dirección: revisa el host, el puerto y el esquema.",
       "pusher_conn_refused": "Conexión rechazada: el equipo no responde en el puerto de la API. Revisa el servicio, el puerto y el cortafuegos.",
       "pusher_stopped": "El pusher de la integración está parado: arráncalo desde Ajustes > Integraciones.",
-      "pusher_error": "El pusher de la integración registró un error; revisa su detalle en Ajustes > Integraciones."
+      "pusher_error": "El pusher de la integración registró un error; revisa su detalle en Ajustes > Integraciones.",
+      "agent_stale": "Sin datos recientes del agent: la unidad se muestra offline con sus últimas lecturas. Revisa el servicio del agent o el dispositivo."
     }
   },
   "reports": {
@@ -2687,6 +2689,8 @@
     "resetStale": "Reiniciar estado",
     "resetStaleHint": "Borra el registro de un intento que lleva más de 15 minutos sin avanzar (el router no volvió o el SSH murió), para poder lanzarlo otra vez.",
     "excludePkgsFromRouter": "El router ya excluye estos paquetes de sus propias builds: {{pkgs}}. El campo se ha rellenado con esa lista, revísala antes de descargar.",
+    "forceDowngrades": "Aceptar degradados de paquetes (--force)",
+    "forceDowngradesHint": "El check avisa de que este salto baja la versión de algunos paquetes. Sin esta casilla owut se detiene con \"upgrade still possible with --force\".",
     "excludeAddRouter": "Añadir a la lista del router",
     "excludeAddTitle": "Añadir paquetes a la lista del router",
     "excludeAddBody": "Se añadirán {{pkgs}} a attendedsysupgrade.owut.remove y se guardará la configuración. A partir de ahí, owut download, install y upgrade se comportan igual que lanzados a mano en la unidad.",

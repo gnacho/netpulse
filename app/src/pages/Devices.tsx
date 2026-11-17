@@ -194,7 +194,7 @@ function ColumnPicker({ hidden, onToggle }: { hidden: DeviceColumn[]; onToggle: 
     type: t('devices.colType'),
     ip: 'IP / MAC',
     lease: t('devices.colLease'),
-    router: 'Router',
+    router: t('devices.colRouter'),
     band: t('devices.colBand'),
     signal: t('devices.colSignal'),
     traffic: t('devices.colTraffic'),
@@ -771,7 +771,7 @@ function FilterBar(p: FilterBarProps) {
               <SelectItem value="name">{t('devices.colDevice')}</SelectItem>
               <SelectItem value="traffic">{t('devices.colTraffic')}</SelectItem>
               <SelectItem value="ip">IP / MAC</SelectItem>
-              <SelectItem value="router">Router</SelectItem>
+              <SelectItem value="router">{t('devices.colRouter')}</SelectItem>
               <SelectItem value="band">{t('devices.colBand')}</SelectItem>
               <SelectItem value="signal">{t('devices.colSignal')}</SelectItem>
               <SelectItem value="lease">{t('devices.colLease')}</SelectItem>
@@ -2154,7 +2154,7 @@ export default function Devices() {
                 <SortHeader label={t('devices.colLease')} k="lease" sort={sort} onSort={toggleSort} />
               </span>
             )}
-            {visibleColumns.has('router') && <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('router') && <SortHeader label={t('devices.colRouter')} k="router" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('band') && <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('signal') && <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('traffic') && <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />}

@@ -2669,6 +2669,8 @@
     "excludeAddRouter": "加入路由器列表",
     "excludeAddTitle": "将软件包加入路由器列表",
     "excludePkgsFromRouter": "路由器自身构建已经排除这些软件包：{{pkgs}}。该字段已按此列表填好，下载前请核对。",
+    "forceDowngrades": "接受软件包降级（--force）",
+    "forceDowngradesHint": "检查提示此次升级会降低部分软件包的版本。不勾选此项时 owut 会以 \"upgrade still possible with --force\" 停止。",
     "resetStale": "重置状态",
     "resetStaleHint": "清除卡住超过 15 分钟的尝试记录（路由器没有回来，或 SSH 会话中断），以便重新发起。",
     "tipOwutInstallNeedsDownload": "请先下载镜像：「安装镜像」刷写的是「下载镜像」生成的文件"

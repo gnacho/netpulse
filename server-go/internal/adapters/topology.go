@@ -69,6 +69,19 @@ func fdbByPort(fdb map[string]string) map[string][]string {
 	return byPort
 }
 
+// fdbPortOf devuelve el puerto donde el FDB aprendio `mac`, comparando sin
+// distinguir mayusculas (las claves del FDB no vienen normalizadas). #2084:
+// si el vecino LLDP ya se aprende por otro puerto, el anuncio de este no es
+// un enlace hacia ese equipo.
+func fdbPortOf(fdb map[string]string, mac string) (string, bool) {
+	for m, port := range fdb {
+		if strings.EqualFold(m, mac) {
+			return port, true
+		}
+	}
+	return "", false
+}
+
 // keptMacsForPort: MACs del puerto `port` que cuentan como clientes reales
 // del router (excluye las bridge-MACs de routers y los clientes de OTROS
 // routers: los clientes wifi de un AP aparecen en el FDB del gateway por el
@@ -205,6 +218,20 @@ func inferLldpLinks(polled map[string]*routerPolled, devices []Device, byMAC map
 					continue
 				}
 				// Router de tipo managed-switch: es un switch (issue #252).
+				//
+				// #2084: pero si este router ya aprende la MAC del vecino por
+				// OTRO puerto, el enlace real es ese y el LLDP que llega aqui
+				// viene de un segmento L2 compartido (un AP en medio). El caso
+				// medido: A aprende la MAC de B en su LAG y recibe los LLDP de
+				// B por un access port que spanning tree tiene en Discarding.
+				// Materializar el nodo ahi dibujaba el mismo switch dos veces,
+				// sobre una entrada FDB que oscila con cada trama LLDP.
+				if ri.BrMac != "" {
+					if learned, ok := fdbPortOf(p.fdb, ri.BrMac); ok && !strings.EqualFold(learned, nb.Port) {
+						markHandled(routerID, nb.Port)
+						continue
+					}
+				}
 			} else if nb.ChassisMac == "" || !containsMAC(kept, nb.ChassisMac) {
 				// Ni identidad de router ni chassis-MAC aprendida en el puerto:
 				// no hay evidencia de que sea el equipo que multiplexa.
@@ -632,7 +659,11 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				}
 				occupied := false
 				for _, d2 := range dists {
-					if d2.RouterID == switchID && d2.Port == port && (d2.Kind == "managed" || d2.Kind == "inferred") {
+					// #2084: cualquier nodo del mismo puerto lo ocupa, tambien
+					// el de hipervisor. Antes solo se miraban managed/inferred,
+					// asi que un puerto con hipervisor recibia ademas un nodo
+					// inferred con el MISMO id y el grafo emitia dos entradas.
+					if d2.RouterID == switchID && d2.Port == port {
 						occupied = true
 						break
 					}
@@ -679,8 +710,30 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 			}
 		}
 	}
+	dists = dedupeDistributionNodes(dists)
 	fillNodeSpeeds(polled, dists)
 	return devices, dists
+}
+
+// dedupeDistributionNodes: un mismo puerto puede calificar por varias vias y
+// acabar con el mismo id mas de una vez (#2084). Se queda una sola entrada,
+// con precedencia determinista hypervisor > managed > inferred: manda la
+// evidencia mas fuerte y el orden de aparicion se conserva para el resto.
+func dedupeDistributionNodes(dists []DistributionNode) []DistributionNode {
+	rank := map[string]int{"hypervisor": 3, "managed": 2, "inferred": 1}
+	pos := make(map[string]int, len(dists))
+	out := make([]DistributionNode, 0, len(dists))
+	for _, d := range dists {
+		if i, ok := pos[d.ID]; ok {
+			if rank[d.Kind] > rank[out[i].Kind] {
+				out[i] = d
+			}
+			continue
+		}
+		pos[d.ID] = len(out)
+		out = append(out, d)
+	}
+	return out
 }
 
 // portLabel devuelve la etiqueta LuCI del puerto (issue #258) si el router
