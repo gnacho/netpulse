@@ -5,7 +5,7 @@
 # is passed into the container.
 #
 #   docker compose up -d --build   # build from this checkout
-#   NETPULSE_IMAGE=ghcr.io/sers88/netpulse:latest docker compose up -d
+#   NETPULSE_IMAGE=ghcr.io/gnacho/netpulse:latest docker compose up -d
 #                                  # use a prebuilt image
 #
 # Full guide: docs/docker.md

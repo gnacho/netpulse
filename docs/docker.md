@@ -29,7 +29,7 @@ docker run -d --name netpulse \
   -e AUTH_PASS=choose-one \
   -v netpulse-data:/data \
   --restart unless-stopped \
-  ghcr.io/sers88/netpulse:latest
+  ghcr.io/gnacho/netpulse:latest
 ```
 
 Open `http://localhost:3000` on the docker host and log in with `AUTH_PASS`.
@@ -94,7 +94,7 @@ Image deploys update by pulling a new image and recreating the container —
 the data volume survives:
 
 ```bash
-docker pull ghcr.io/sers88/netpulse:latest
+docker pull ghcr.io/gnacho/netpulse:latest
 docker compose up -d             # with compose
 # or, plain docker:
 docker stop netpulse && docker rm netpulse && <your docker run line again>

@@ -285,7 +285,7 @@ embedded UI and agent binaries is published on every release:
 
 ```bash
 docker run -d --name netpulse -p 127.0.0.1:3000:3000 -e AUTH_PASS=choose-one \
-  -v netpulse-data:/data --restart unless-stopped ghcr.io/sers88/netpulse:latest
+  -v netpulse-data:/data --restart unless-stopped ghcr.io/gnacho/netpulse:latest
 ```
 
 `AUTH_PASS` is required at boot (10+ characters); the port above is
