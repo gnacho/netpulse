@@ -1,0 +1,34 @@
+# NetPulse server in Docker. The image contains the server with the embedded
+# web UI and the embedded agent binaries; nothing agent-related runs in the
+# container. Configuration is the same environment as the binary install
+# (server-go/.env.example); an optional .env file next to this compose file
+# is passed into the container.
+#
+#   docker compose up -d --build   # build from this checkout
+#   NETPULSE_IMAGE=ghcr.io/sers88/netpulse:latest docker compose up -d
+#                                  # use a prebuilt image
+#
+# Full guide: docs/docker.md
+
+services:
+  netpulse:
+    image: ${NETPULSE_IMAGE:-netpulse:local}
+    build:
+      context: .
+    ports:
+      - "${NETPULSE_PORT:-3000}:3000"
+    volumes:
+      - netpulse-data:/data
+    environment:
+      # The healthcheck and the UI live on this port inside the container;
+      # map a different host port with NETPULSE_PORT instead of changing it.
+      PORT: 3000
+      DATA_DIR: /data
+      TZ: ${TZ:-UTC}
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+
+volumes:
+  netpulse-data:
