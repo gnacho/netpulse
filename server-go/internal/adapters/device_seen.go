@@ -494,6 +494,7 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 		tomb = map[string]bool{}
 	}
 	now := l.seenNow()
+	overrides := l.loadDeviceOverrides()
 	var out []Device
 	for rawMac, s := range byMac {
 		mac := normSeenMAC(rawMac)
@@ -530,6 +531,23 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 		if s.name != "" {
 			d.Hostname = s.name
 			d.Name = s.name
+		}
+		// #437/#797: el override manual manda también en el fantasma offline
+		// (icono, nombre y tipo). Sin esto un cliente retenido perdía su icono
+		// al caer offline y no reflejaba los cambios hechos estando offline.
+		if ov, ok := overrides[strings.ToLower(mac)]; ok {
+			if ov.Icon != "" {
+				d.IconOverride = ov.Icon
+			}
+			if ov.Name != "" {
+				d.Name = ov.Name
+				d.NameOverride = ov.Name
+			}
+			if ov.DeviceType != "" {
+				d.Type = ov.DeviceType
+				d.TypeOverride = ov.DeviceType
+			}
+			d.NotifyOffline = ov.NotifyOffline
 		}
 		if aliases := revAlias[mac]; len(aliases) > 0 {
 			d.AliasMacs = aliases
