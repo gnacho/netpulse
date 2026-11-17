@@ -6,7 +6,7 @@ import { useAuth } from '@/data/AuthContext'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { AlertCircle, CalendarClock, ChevronRight, Cpu, Download, PartyPopper, Radar, RefreshCw, Rocket, ShieldCheck, Terminal, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { relTimeFromTs } from '@/i18n'
+import { dateLocale, relTimeFromTs } from '@/i18n'
 import { findAgentFor } from '@/lib/agentMatch'
 import { AgentBackupButton } from '@/components/routers/AgentBackupButton'
 import {
@@ -1989,7 +1989,7 @@ function ReleasesCheckCard() {
 
 
 function ConfigBackupScheduleCard() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { isDemo } = useNetPulse()
   const auth = useAuth()
   const isAdmin = auth?.role === 'admin'
@@ -2020,7 +2020,7 @@ function ConfigBackupScheduleCard() {
   if (isDemo || !isAdmin) return null
   if (!schedule) return null
 
-  const locale = i18n.language.startsWith('en') ? 'en-GB' : 'es-ES'
+  const locale = dateLocale()
   const days = Array.from({ length: 7 }, (_, i) =>
     new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(new Date(2026, 8, 6 + i)),
   )

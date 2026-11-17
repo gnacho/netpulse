@@ -58,7 +58,7 @@ func TestPushEndpointsContract(t *testing.T) {
 		return n
 	}
 
-	// POST subscribe: 201 la primera vez. #1334: language (es|en) obligatorio.
+	// POST subscribe: 201 la primera vez. #1334: language (es|en|zh) obligatorio.
 	body := `{"endpoint":"https://push.example/abc","keys":{"auth":"a1","p256dh":"p1"},"language":"en"}`
 	res = doJSON(t, "POST", ts.URL, "/api/push/subscribe", cookie, body)
 	if res.StatusCode != 201 {

@@ -11,7 +11,7 @@ if (!savedLang || savedLang === 'auto') {
 }
 
 // Builds with a forced language (public demo, VITE_FORCE_LANG=en).
-const forcedLang = import.meta.env.VITE_FORCE_LANG as 'es' | 'en' | undefined
+const forcedLang = import.meta.env.VITE_FORCE_LANG as 'es' | 'en' | 'zh' | undefined
 // DEFAULT_LNG: English is the language this deployment shows unless somebody
 // asks for another. Following the browser as the default meant a Spanish or
 // Romanian locale opened the panel in Spanish, which is not what the people
@@ -34,7 +34,7 @@ i18n
     // the browser (localStorage → navigator). (issue #3, #237)
     lng: initialLng,
     fallbackLng: 'en',
-    supportedLngs: ['es', 'en'],
+    supportedLngs: ['es', 'en', 'zh'],
     nonExplicitSupportedLngs: true,
     load: 'languageOnly',
     backend: {
@@ -56,7 +56,7 @@ i18n
 // "crowded"). With the right lang, a translated UI raises no such offer.
 const applyDocLang = (lng?: string) => {
   const l = (lng ?? i18n.language ?? DEFAULT_LNG).slice(0, 2).toLowerCase()
-  document.documentElement.lang = l === 'en' ? 'en' : 'es'
+  document.documentElement.lang = l === 'en' ? 'en' : l === 'zh' ? 'zh-CN' : 'es'
 }
 applyDocLang()
 i18n.on('languageChanged', applyDocLang)
@@ -65,7 +65,15 @@ export default i18n
 
 /** Locale numérico según el idioma activo */
 export function numLocale(): string {
-  return i18n.language?.startsWith('en') ? 'en-US' : 'es-ES'
+  const l = i18n.language ?? ''
+  return l.startsWith('zh') ? 'zh-CN' : l.startsWith('en') ? 'en-US' : 'es-ES'
+}
+
+/** Locale de fechas: igual que numLocale pero el inglés conserva el en-GB
+ *  que la panel ya usaba (día antes del mes). */
+export function dateLocale(): string {
+  const l = i18n.language ?? ''
+  return l.startsWith('zh') ? 'zh-CN' : l.startsWith('en') ? 'en-GB' : 'es-ES'
 }
 
 const REL_RE = /^hace\s+(\d+)\s*(s|min|h|días?|d)$/
