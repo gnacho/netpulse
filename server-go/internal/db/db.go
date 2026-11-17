@@ -32,6 +32,10 @@ const (
 	// AttribRetentionMS: 90 días sin verse para purgar device_attrib
 	// (issue #206; dispositivos que se fueron para siempre).
 	AttribRetentionMS = 90 * 24 * 60 * 60 * 1000
+	// DNSActivityRetentionMS: detalle horario del query log (#2078).
+	DNSActivityRetentionMS = 7 * 24 * 60 * 60 * 1000
+	// DNSFirstsRetentionMS: histórico de "primera vez visto" por dominio (#2078).
+	DNSFirstsRetentionMS = 90 * 24 * 60 * 60 * 1000
 )
 
 // rollupRawWindow (#812): el rollup raw→5m cubre TODA la retención raw (7d) en
@@ -516,6 +520,31 @@ CREATE TABLE IF NOT EXISTS router_integrations (
 );
 CREATE INDEX IF NOT EXISTS idx_router_integrations_vendor ON router_integrations(vendor);
 
+-- Agregado horario del query log de AdGuard (#2078): por dispositivo (MAC) y
+-- dominio. MAC vacía = sin atribuir (IP sin correspondencia en device_seen).
+-- Nunca se guarda el log crudo. Retención: 7 días (Maintenance).
+CREATE TABLE IF NOT EXISTS dns_activity (
+  mac        TEXT NOT NULL,
+  domain     TEXT NOT NULL,
+  hour_ts    INTEGER NOT NULL,          -- inicio de la hora, ms epoch
+  queries    INTEGER NOT NULL DEFAULT 0,
+  blocked    INTEGER NOT NULL DEFAULT 0,
+  first_seen INTEGER NOT NULL,
+  last_seen  INTEGER NOT NULL,
+  PRIMARY KEY (mac, domain, hour_ts)
+);
+CREATE INDEX IF NOT EXISTS idx_dns_activity_hour ON dns_activity(hour_ts);
+CREATE INDEX IF NOT EXISTS idx_dns_activity_domain ON dns_activity(domain, hour_ts);
+
+-- Primera vez que se vio cada dominio (#2078): alimenta el aviso de dominios
+-- nuevos. Retención: 90 días (Maintenance).
+CREATE TABLE IF NOT EXISTS dns_domain_first (
+  domain     TEXT PRIMARY KEY,
+  first_seen INTEGER NOT NULL,
+  mac        TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_dns_domain_first_ts ON dns_domain_first(first_seen);
+
 `
 
 // DB envuelve *sql.DB con los jobs y helpers de paridad.
@@ -854,6 +883,15 @@ func (d *DB) Maintenance() {
 	// Purga de buckets > 1 año (el raw ya se purgó arriba; daily nunca).
 	bucketCutoff := NowMS() - BucketsRetentionMS
 	if _, err := d.Exec("DELETE FROM metrics_buckets WHERE bucket_ts < ?", bucketCutoff); err != nil {
+		log.Printf("[netpulse] DB maintenance error: %v", err)
+	}
+	// Agregado DNS (#2078): 7 días de detalle horario y 90 días de "primera
+	// vez visto". Son ventanas distintas a propósito: el detalle caduca rápido,
+	// el histórico de dominios nuevos solo crece con dominios nuevos.
+	if _, err := d.Exec("DELETE FROM dns_activity WHERE hour_ts < ?", NowMS()-DNSActivityRetentionMS); err != nil {
+		log.Printf("[netpulse] DB maintenance error: %v", err)
+	}
+	if _, err := d.Exec("DELETE FROM dns_domain_first WHERE first_seen < ?", NowMS()-DNSFirstsRetentionMS); err != nil {
 		log.Printf("[netpulse] DB maintenance error: %v", err)
 	}
 	if !d.rollbackJournal {

@@ -607,6 +607,17 @@
       "unpinHint": "Stop restoring this filter set when opening clients",
       "pinned": "Filters pinned as the default",
       "unpinned": "Filters unpinned"
+    },
+    "dns": {
+      "title": "DNS activity",
+      "queries": "{{n}} queries",
+      "blocked": "{{n}} blocked",
+      "unavailable": "DNS activity needs the AdGuard Home integration. Add it in Settings > Integrations.",
+      "disabled": "The AdGuard query log is disabled, so there is nothing to attribute to this device.",
+      "anonymized": "AdGuard is anonymizing client IPs, so queries cannot be attributed to a device. Turn off anonymize_client_ip.",
+      "error": "Could not read the DNS activity. Check that AdGuard Home is reachable.",
+      "empty": "No DNS queries recorded for this device in the selected window.",
+      "gap": "Some entries were rotated out of the AdGuard log before they could be read, so a stretch of this window is missing."
     }
   },
   "home": {
@@ -3166,5 +3177,18 @@
     "staleClean": "Clean up ports",
     "staleCleaned": "{{count}} stale ports removed from the profile",
     "staleNothing": "No ports can be cleaned up"
+  },
+  "dns": {
+    "overview": {
+      "title": "DNS activity (24 h)",
+      "totals": "{{queries}} queries, {{blocked}} blocked",
+      "newDomains": "New domains",
+      "unavailable": "Add the AdGuard Home integration to see which domains the network asks for.",
+      "disabled": "The AdGuard query log is disabled, so per-domain activity is not available.",
+      "anonymized": "AdGuard is anonymizing client IPs: domains are recorded but cannot be linked to a device.",
+      "error": "Could not read the DNS activity from AdGuard.",
+      "empty": "No DNS activity recorded yet. The first read can take a minute.",
+      "gap": "A stretch of the window is missing because the AdGuard log rotated before it was read."
+    }
   }
 }

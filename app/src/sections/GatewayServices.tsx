@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { relTime } from '@/i18n'
 import { fmtEs, fmtInt } from '@/data/mock'
 import type { PeerType, WGPeer } from '@/data/mock'
+import { DNSOverviewBlock } from '@/components/DNSOverviewBlock'
 import { useNetPulse } from '@/data/DataProvider'
 import { CountUp } from '@/components/CountUp'
 import { ServicePanel } from '@/components/ServicePanel'
@@ -177,6 +178,7 @@ export function AdGuardCard({ index = 0 }: { index?: number }) {
             </div>
           ))}
         </div>
+        <DNSOverviewBlock />
           </>
         )}
       </ServicePanel>

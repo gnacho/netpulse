@@ -44,6 +44,7 @@ import (
 	"github.com/gnacho/netpulse/server-go/internal/configbackup"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
+	"github.com/gnacho/netpulse/server-go/internal/dnsactivity"
 	"github.com/gnacho/netpulse/server-go/internal/firmware"
 	"github.com/gnacho/netpulse/server-go/internal/httpapi"
 	"github.com/gnacho/netpulse/server-go/internal/mcp"
@@ -323,6 +324,11 @@ func run() error {
 	var adapter adapters.Snapshotter
 	var sshPool *adapters.SSHPool
 	var eventsCollector *roamevents.Collector
+	// #2078: ingesta del query log de AdGuard (agregado por dispositivo y
+	// dominio). Solo en modo live: en demo no hay AdGuard al que preguntar.
+	var dnsIng *dnsactivity.Ingestor
+	ctxDNS, cancelDNS := context.WithCancel(context.Background())
+	defer cancelDNS()
 	if cfg.DemoMode {
 		// Volatile: el dataset demo es sintético; no se persiste ni restaura
 		// el log de alertas (issue #798).
@@ -366,6 +372,16 @@ func run() error {
 				}
 			}
 			adapter = live
+			// #2078: el query log se agrega en el servidor, nunca se guarda
+			// crudo. El provider se resuelve en cada tick: la integración se
+			// puede configurar o apagar sin reiniciar.
+			dnsIng = dnsactivity.NewIngestor(func() dnsactivity.Source {
+				std, gl := live.AdguardClients()
+				if std == nil && gl == nil {
+					return nil
+				}
+				return adapters.AdGuardSource{Std: std, GL: gl}
+			}, dnsactivity.NewStore(dbHandle.DB), dbHandle.DB)
 			// Fase 14.5: collector continuo de eventos hostapd/DAWN.
 			// Goroutine dedicada cada 60s, lee logread por router y
 			// persiste en roam_events con dedup. Solo en modo live.
@@ -927,6 +943,9 @@ func run() error {
 		upd.Start()
 		if eventsCollector != nil {
 			eventsCollector.Start()
+		}
+		if dnsIng != nil {
+			go dnsIng.Run(ctxDNS)
 		}
 		if cfg.Onbox {
 			errCh <- srv.ListenAndServeTLS("", "")
