@@ -107,6 +107,10 @@ type OwutStatus struct {
 	// Command: comando exacto que se ejecutó en el router (#1978). Sin esto el
 	// admin no puede comparar lo que hace NetPulse con lo que haría a mano.
 	Command string `json:"command,omitempty"`
+	// NeedsForce: owut avisa de algo que no deja pasar solo, tipicamente
+	// downgrades de paquetes en un salto de version mayor. La UI pide
+	// confirmacion explicita y el comando lleva --force (#1978).
+	NeedsForce bool `json:"needsForce,omitempty"`
 	// Error: fallo de transporte (router inalcanzable, timeout SSH), no un
 	// fallo del check en sí.
 	Error string `json:"error,omitempty"`
@@ -147,11 +151,22 @@ func CheckOwutTarget(runner Runner, host, target string) OwutStatus {
 	}
 	status.UpgradeAvailable, status.Buildable = parseOwutCheck(raw, exitCode)
 	status.MissingPkgs = ParseMissingPkgs(raw)
+	status.NeedsForce = owutNeedsForce(raw)
 	status.VersionTo = parseOwutVersionTo(raw)
 	// #1769: best effort. Un router sin uci o sin esa opción deja la lista
 	// vacía y el flujo sigue igual.
 	status.RemoveConfigured = readOwutRemoveList(runner, host)
 	return status
+}
+
+// owutNeedsForceRe detecta el aviso de owut que exige --force para seguir.
+// El salto 24.10 -> 25.12 baja de version algunos paquetes y owut lo avisa
+// como WARNING en el check y como error en el download/upgrade (#1978).
+var owutNeedsForceRe = regexp.MustCompile(`(?i)(upgrade still possible with '--force'|packages? (?:were|are) downgraded)`)
+
+// owutNeedsForce informa de si el check pide confirmacion con --force.
+func owutNeedsForce(raw string) bool {
+	return owutNeedsForceRe.MatchString(raw)
 }
 
 // readOwutRemoveList lee attendedsysupgrade.owut.remove del router. Devuelve

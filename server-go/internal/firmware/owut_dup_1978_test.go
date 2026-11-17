@@ -109,13 +109,13 @@ func TestEnsureOwutRemoveInUCIIgnoresEmptyLists(t *testing.T) {
 // El comando construido no repite -r cuando la lista ya está en UCI.
 func TestOwutCommandsSkipRemoveFlagWhenInUCI(t *testing.T) {
 	pkgs := []string{"netgrip", "bandix"}
-	if got := OwutDownloadCmd("25.12.6", "24.10.8", pkgs, true); strings.Contains(got, "-r") {
+	if got := OwutDownloadCmd(OwutCmd{Target: "25.12.6", Current: "24.10.8", RemovePkgs: pkgs, RemoveInUCI: true}); strings.Contains(got, "-r") {
 		t.Fatalf("download con la lista en UCI no lleva -r: %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.6", "24.10.8", pkgs, true); strings.Contains(got, "-r") {
+	if got := OwutUpgradeCmd(OwutCmd{Target: "25.12.6", Current: "24.10.8", RemovePkgs: pkgs, RemoveInUCI: true}); strings.Contains(got, "-r") {
 		t.Fatalf("upgrade con la lista en UCI no lleva -r: %q", got)
 	}
-	if got := OwutDownloadCmd("25.12.6", "24.10.8", pkgs, false); !strings.Contains(got, "-r 'netgrip bandix'") {
+	if got := OwutDownloadCmd(OwutCmd{Target: "25.12.6", Current: "24.10.8", RemovePkgs: pkgs}); !strings.Contains(got, "-r 'netgrip bandix'") {
 		t.Fatalf("sin UCI el flag sigue siendo necesario: %q", got)
 	}
 }
@@ -130,5 +130,36 @@ func TestOwutCheckReportsTheCommand(t *testing.T) {
 	st := CheckOwutTarget(r, "192.168.1.50", "25.12.6")
 	if st.Command != "owut check -v -V '25.12.6'" {
 		t.Fatalf("comando reportado: %q", st.Command)
+	}
+}
+
+// #1978: el salto 24.10 -> 25.12 baja algunos paquetes y owut exige --force.
+func TestOwutNeedsForceDetectsTheDowngradeWarning(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want bool
+	}{
+		{"WARNING: Checks reveal package downgrades, upgrade still possible with '--force'", true},
+		{"3 packages were downgraded\n140 packages are out-of-date", true},
+		{"All packages are up-to-date\nThere are no changes, upgrade not necessary", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := owutNeedsForce(c.raw); got != c.want {
+			t.Errorf("owutNeedsForce(%q) = %v, esperaba %v", c.raw, got, c.want)
+		}
+	}
+}
+
+func TestOwutCommandsAddForceWhenAsked(t *testing.T) {
+	o := OwutCmd{Target: "25.12.6", Current: "24.10.8", Force: true}
+	if got := OwutDownloadCmd(o); !strings.HasSuffix(got, " --force") {
+		t.Fatalf("download sin --force: %q", got)
+	}
+	if got := OwutUpgradeCmd(o); !strings.HasSuffix(got, " --force") {
+		t.Fatalf("upgrade sin --force: %q", got)
+	}
+	if got := OwutDownloadCmd(OwutCmd{Target: "25.12.6", Current: "24.10.8"}); strings.Contains(got, "--force") {
+		t.Fatalf("sin pedirlo no debe forzar: %q", got)
 	}
 }

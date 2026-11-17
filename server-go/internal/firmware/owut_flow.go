@@ -184,19 +184,34 @@ func owutRemoveArg(removePkgs []string, removeInUCI bool) string {
 	return ""
 }
 
-// OwutUpgradeCmd construye el comando de upgrade desatendido. Con target
-// distinto de la versión actual añade -V TARGET (salto de versión); si son
-// iguales (o current desconocida) reconstruye la versión instalada con los
-// paquetes al día. removePkgs excluye paquetes locales que no están en los
-// feeds oficiales (owut "-r"): sin ellos ASU se niega a construir la imagen.
-// removeInUCI indica que la lista ya vive en attendedsysupgrade.owut.remove,
-// donde owut la lee sola, así que el flag sobra y produciría el error de #1978.
-func OwutUpgradeCmd(target, current string, removePkgs []string, removeInUCI bool) string {
+// OwutCmd describe el comando owut que se quiere construir.
+type OwutCmd struct {
+	// Target es la version destino ("25.12.6"). Vacia o igual a Current
+	// reconstruye la instalada con los paquetes al dia.
+	Target string
+	// Current es la version instalada segun el board info.
+	Current string
+	// RemovePkgs son los paquetes fuera de los feeds que ASU debe excluir.
+	RemovePkgs []string
+	// RemoveInUCI indica que RemovePkgs ya vive en attendedsysupgrade.owut.remove,
+	// donde owut la lee sola. En ese caso no se emite -r (#1978).
+	RemoveInUCI bool
+	// Force acepta los avisos que owut no deja pasar solos, como los
+	// downgrades de paquetes de un salto de version mayor (#1978).
+	Force bool
+}
+
+// OwutUpgradeCmd construye el comando de upgrade desatendido.
+func OwutUpgradeCmd(o OwutCmd) string {
 	cmd := "owut upgrade -q"
-	if target != "" && current != "" && target != current {
-		cmd += " -V " + shQuote(target)
+	if o.Target != "" && o.Current != "" && o.Target != o.Current {
+		cmd += " -V " + shQuote(o.Target)
 	}
-	return cmd + owutRemoveArg(removePkgs, removeInUCI)
+	cmd += owutRemoveArg(o.RemovePkgs, o.RemoveInUCI)
+	if o.Force {
+		cmd += " --force"
+	}
+	return cmd
 }
 
 // pkgNameRe: nombre de paquete apk/opkg sano (defensa contra inyección en
@@ -233,16 +248,17 @@ const owutDownloadTimeout = 10 * time.Minute
 // OwutDownloadCmd construye `owut download` (paso intermedio del flujo por
 // pasos de #1414): construye la imagen en ASU y la descarga al router SIN
 // flashear, para que el admin la revise antes de `owut install`. Sin -q a
-// propósito: la salida completa es la revisión. removePkgs excluye paquetes
-// locales sin feed oficial (owut "-r"), igual que OwutUpgradeCmd: sin eso
-// ASU se niega a construir la imagen si el router lleva paquetes de terceros
-// (#1769). removeInUCI evita el -r duplicado de #1978.
-func OwutDownloadCmd(target, current string, removePkgs []string, removeInUCI bool) string {
+// proposito: la salida completa es la revision.
+func OwutDownloadCmd(o OwutCmd) string {
 	cmd := "owut download"
-	if target != "" && current != "" && target != current {
-		cmd += " -V " + shQuote(target)
+	if o.Target != "" && o.Current != "" && o.Target != o.Current {
+		cmd += " -V " + shQuote(o.Target)
 	}
-	return cmd + owutRemoveArg(removePkgs, removeInUCI)
+	cmd += owutRemoveArg(o.RemovePkgs, o.RemoveInUCI)
+	if o.Force {
+		cmd += " --force"
+	}
+	return cmd
 }
 
 // RunOwutDownload ejecuta `owut download` y devuelve salida + exit. El comando
