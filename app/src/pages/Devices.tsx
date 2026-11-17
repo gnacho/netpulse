@@ -193,7 +193,7 @@ function ColumnPicker({ hidden, onToggle }: { hidden: DeviceColumn[]; onToggle: 
     type: t('devices.colType'),
     ip: 'IP / MAC',
     lease: t('devices.colLease'),
-    router: 'Router',
+    router: t('devices.colRouter'),
     band: t('devices.colBand'),
     signal: t('devices.colSignal'),
     traffic: t('devices.colTraffic'),
@@ -306,7 +306,7 @@ function TypeBadge({ type, className }: { type: DeviceType; className?: string }
   return (
     <span
       className={cn(
-        'inline-flex w-fit shrink-0 items-center rounded-full border border-border bg-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary',
+        'inline-flex w-fit shrink-0 items-center whitespace-nowrap rounded-full border border-border bg-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary',
         className,
       )}
     >
@@ -770,7 +770,7 @@ function FilterBar(p: FilterBarProps) {
               <SelectItem value="name">{t('devices.colDevice')}</SelectItem>
               <SelectItem value="traffic">{t('devices.colTraffic')}</SelectItem>
               <SelectItem value="ip">IP / MAC</SelectItem>
-              <SelectItem value="router">Router</SelectItem>
+              <SelectItem value="router">{t('devices.colRouter')}</SelectItem>
               <SelectItem value="band">{t('devices.colBand')}</SelectItem>
               <SelectItem value="signal">{t('devices.colSignal')}</SelectItem>
               <SelectItem value="lease">{t('devices.colLease')}</SelectItem>
@@ -1109,14 +1109,14 @@ function SignalCell({ device }: { device: ClientDevice }) {
 function LeaseCell({ device }: { device: ClientDevice }) {
   const { t } = useTranslation()
   if (device.leaseRemaining == null || device.leaseRemaining <= 0) {
-    return <span className="font-mono text-mono-sm text-text-muted">{t('devices.leaseUnlimited')}</span>
+    return <span className="whitespace-nowrap font-mono text-mono-sm text-text-muted">{t('devices.leaseUnlimited')}</span>
   }
   const days = Math.floor(device.leaseRemaining / 86400)
   const hours = Math.floor((device.leaseRemaining % 86400) / 3600)
   const minutes = Math.floor((device.leaseRemaining % 3600) / 60)
-  if (days > 0) return <span className="font-mono text-mono-sm text-text-secondary">{t('devices.leaseDaysHours', { days, hours })}</span>
-  if (hours > 0) return <span className="font-mono text-mono-sm text-text-secondary">{t('devices.leaseHoursMinutes', { hours, minutes })}</span>
-  return <span className="font-mono text-mono-sm text-warn">{t('devices.leaseMinutes', { minutes })}</span>
+  if (days > 0) return <span className="whitespace-nowrap font-mono text-mono-sm text-text-secondary">{t('devices.leaseDaysHours', { days, hours })}</span>
+  if (hours > 0) return <span className="whitespace-nowrap font-mono text-mono-sm text-text-secondary">{t('devices.leaseHoursMinutes', { hours, minutes })}</span>
+  return <span className="whitespace-nowrap font-mono text-mono-sm text-warn">{t('devices.leaseMinutes', { minutes })}</span>
 }
 
 // #958: la tabla es un grid CSS cuyas columnas dependen de las columnas
@@ -2150,7 +2150,7 @@ export default function Devices() {
                 <SortHeader label={t('devices.colLease')} k="lease" sort={sort} onSort={toggleSort} />
               </span>
             )}
-            {visibleColumns.has('router') && <SortHeader label="Router" k="router" sort={sort} onSort={toggleSort} />}
+            {visibleColumns.has('router') && <SortHeader label={t('devices.colRouter')} k="router" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('band') && <SortHeader label={t('devices.colBand')} k="band" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('signal') && <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('traffic') && <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />}

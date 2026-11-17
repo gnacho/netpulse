@@ -469,6 +469,7 @@
     "listView": "List view",
     "nameUpdated": "Name updated",
     "colLease": "Lease time",
+    "colRouter": "Unit",
     "leaseDaysHours": "{{days}}d {{hours}}h",
     "leaseHoursMinutes": "{{hours}}h {{minutes}}min",
     "leaseMinutes": "{{minutes}}min",
