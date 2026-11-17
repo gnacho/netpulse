@@ -168,20 +168,35 @@ func InstallOwut(runner Runner, host string) (string, error) {
 	return raw, nil
 }
 
+// owutRemoveArg decide si el comando lleva -r. owut declara -r como opción
+// exclusiva (action "storex") y ademas carga `attendedsysupgrade.owut.remove`
+// como si fuera un argumento (argparse.add_config): si la lista ya esta en la
+// config UCI, pasar -r repite la opcion y owut aborta con "may only be used
+// once per invocation". Por eso solo se emite el flag cuando la lista NO esta
+// en UCI (#1978).
+func owutRemoveArg(removePkgs []string, removeInUCI bool) string {
+	if removeInUCI {
+		return ""
+	}
+	if pkgs := sanitizeRemovePkgs(removePkgs); pkgs != "" {
+		return " -r " + shQuote(pkgs)
+	}
+	return ""
+}
+
 // OwutUpgradeCmd construye el comando de upgrade desatendido. Con target
 // distinto de la versión actual añade -V TARGET (salto de versión); si son
 // iguales (o current desconocida) reconstruye la versión instalada con los
 // paquetes al día. removePkgs excluye paquetes locales que no están en los
-// feeds oficiales ( owut "-r"): sin ellos ASU se niega a construir la imagen.
-func OwutUpgradeCmd(target, current string, removePkgs []string) string {
+// feeds oficiales (owut "-r"): sin ellos ASU se niega a construir la imagen.
+// removeInUCI indica que la lista ya vive en attendedsysupgrade.owut.remove,
+// donde owut la lee sola, así que el flag sobra y produciría el error de #1978.
+func OwutUpgradeCmd(target, current string, removePkgs []string, removeInUCI bool) string {
 	cmd := "owut upgrade -q"
 	if target != "" && current != "" && target != current {
 		cmd += " -V " + shQuote(target)
 	}
-	if pkgs := sanitizeRemovePkgs(removePkgs); pkgs != "" {
-		cmd += " -r " + shQuote(pkgs)
-	}
-	return cmd
+	return cmd + owutRemoveArg(removePkgs, removeInUCI)
 }
 
 // pkgNameRe: nombre de paquete apk/opkg sano (defensa contra inyección en
@@ -221,16 +236,13 @@ const owutDownloadTimeout = 10 * time.Minute
 // propósito: la salida completa es la revisión. removePkgs excluye paquetes
 // locales sin feed oficial (owut "-r"), igual que OwutUpgradeCmd: sin eso
 // ASU se niega a construir la imagen si el router lleva paquetes de terceros
-// (#1769).
-func OwutDownloadCmd(target, current string, removePkgs []string) string {
+// (#1769). removeInUCI evita el -r duplicado de #1978.
+func OwutDownloadCmd(target, current string, removePkgs []string, removeInUCI bool) string {
 	cmd := "owut download"
 	if target != "" && current != "" && target != current {
 		cmd += " -V " + shQuote(target)
 	}
-	if pkgs := sanitizeRemovePkgs(removePkgs); pkgs != "" {
-		cmd += " -r " + shQuote(pkgs)
-	}
-	return cmd
+	return cmd + owutRemoveArg(removePkgs, removeInUCI)
 }
 
 // RunOwutDownload ejecuta `owut download` y devuelve salida + exit. El comando

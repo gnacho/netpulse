@@ -114,19 +114,19 @@ func TestMajorJump(t *testing.T) {
 }
 
 func TestOwutUpgradeCmd(t *testing.T) {
-	if got := OwutUpgradeCmd("25.12.7", "25.12.5", nil); got != "owut upgrade -q -V '25.12.7'" {
+	if got := OwutUpgradeCmd("25.12.7", "25.12.5", nil, false); got != "owut upgrade -q -V '25.12.7'" {
 		t.Fatalf("salto de versión: %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.5", "25.12.5", nil); got != "owut upgrade -q" {
+	if got := OwutUpgradeCmd("25.12.5", "25.12.5", nil, false); got != "owut upgrade -q" {
 		t.Fatalf("misma versión (rebuild de paquetes): %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.7", "", nil); got != "owut upgrade -q" {
+	if got := OwutUpgradeCmd("25.12.7", "", nil, false); got != "owut upgrade -q" {
 		t.Fatalf("current desconocida: %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.5", "25.12.5", []string{"netgrip", ""}); got != "owut upgrade -q -r 'netgrip'" {
+	if got := OwutUpgradeCmd("25.12.5", "25.12.5", []string{"netgrip", ""}, false); got != "owut upgrade -q -r 'netgrip'" {
 		t.Fatalf("exclusión de paquete local: %q", got)
 	}
-	if got := OwutUpgradeCmd("25.12.5", "25.12.5", []string{"a;rm -rf /", "b"}); got != "owut upgrade -q -r 'b'" {
+	if got := OwutUpgradeCmd("25.12.5", "25.12.5", []string{"a;rm -rf /", "b"}, false); got != "owut upgrade -q -r 'b'" {
 		t.Fatalf("nombres hostiles se filtran: %q", got)
 	}
 }
@@ -135,16 +135,16 @@ func TestOwutUpgradeCmd(t *testing.T) {
 // exclusiones que el one-shot; sin -r, ASU rechaza routers con paquetes
 // de terceros (p. ej. netgrip) y el paso final no tiene imagen.
 func TestOwutDownloadCmdRemovePkgs(t *testing.T) {
-	if got := OwutDownloadCmd("25.12.6", "25.12.5", nil); got != "owut download -V '25.12.6'" {
+	if got := OwutDownloadCmd("25.12.6", "25.12.5", nil, false); got != "owut download -V '25.12.6'" {
 		t.Fatalf("salto de versión sin exclusiones: %q", got)
 	}
-	if got := OwutDownloadCmd("25.12.5", "25.12.5", nil); got != "owut download" {
+	if got := OwutDownloadCmd("25.12.5", "25.12.5", nil, false); got != "owut download" {
 		t.Fatalf("rebuild sin exclusiones: %q", got)
 	}
-	if got := OwutDownloadCmd("25.12.5", "25.12.5", []string{"netgrip"}); got != "owut download -r 'netgrip'" {
+	if got := OwutDownloadCmd("25.12.5", "25.12.5", []string{"netgrip"}, false); got != "owut download -r 'netgrip'" {
 		t.Fatalf("exclusión de paquete local: %q", got)
 	}
-	if got := OwutDownloadCmd("25.12.6", "25.12.5", []string{"bad pkg!", "netgrip", "x"}); got != "owut download -V '25.12.6' -r 'netgrip x'" {
+	if got := OwutDownloadCmd("25.12.6", "25.12.5", []string{"bad pkg!", "netgrip", "x"}, false); got != "owut download -V '25.12.6' -r 'netgrip x'" {
 		t.Fatalf("nombres hostiles se filtran: %q", got)
 	}
 }
@@ -170,7 +170,7 @@ func TestHasOwutDownloadedImage(t *testing.T) {
 
 func TestRunOwutUpgradeParsesExit(t *testing.T) {
 	f := &fakeSSHRunner{out: "There are no changes to upgrade\n__owut_exit__=0\n"}
-	exit, out, err := RunOwutUpgrade(f, "h", OwutUpgradeCmd("25.12.5", "25.12.5", nil))
+	exit, out, err := RunOwutUpgrade(f, "h", OwutUpgradeCmd("25.12.5", "25.12.5", nil, false))
 	if err != nil || exit != 0 || !strings.Contains(out, "no changes") {
 		t.Fatalf("exit=%d err=%v out=%q", exit, err, out)
 	}

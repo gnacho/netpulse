@@ -206,7 +206,8 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 		if st := readJSONBody(w, r, &body); st != 0 {
 			return
 		}
-		cmd := firmware.OwutDownloadCmd(body.TargetVersion, s.detectedFirmwareVersion(id), body.RemovePkgs)
+		cmd := firmware.OwutDownloadCmd(body.TargetVersion, s.detectedFirmwareVersion(id), body.RemovePkgs,
+			firmware.EnsureOwutRemoveInUCI(s.pool, host, body.RemovePkgs))
 		exit, out, err := firmware.RunOwutDownload(s.pool, host, cmd)
 		if err != nil || exit != 0 {
 			msg := owutTail(out, err)
@@ -216,7 +217,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			writeError(w, http.StatusBadGateway, "owut_download_failed", msg)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "output": out})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "command": cmd, "output": owutEcho(cmd, out)})
 	})))
 
 	// POST owut-install-image: flashea la imagen que owut-download dejó en el
@@ -328,19 +329,21 @@ func (s *server) startOwutUpgrade(routerID, targetVersion, origin string, remove
 		return 0, err
 	}
 	_ = s.firmware.SetEngine(id, "owut")
-	go s.runOwutUpgrade(id, routerID, host, targetVersion, origin, removePkgs)
+	removeInUCI := firmware.EnsureOwutRemoveInUCI(s.pool, host, removePkgs)
+	go s.runOwutUpgrade(id, routerID, host, targetVersion, origin, removePkgs, removeInUCI)
 	return id, nil
 }
 
 // runOwutUpgrade ejecuta `owut upgrade` y decide la transición. La muerte de
 // la sesión SSH tras >owutSSHMinRun es el final NORMAL del flash (el sysupgrade
 // reinicia el router); el resultado se confirma mirando el board info.
-func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string, removePkgs []string) {
+func (s *server) runOwutUpgrade(id int64, routerID, host, target, origin string, removePkgs []string, removeInUCI bool) {
 	from := ""
 	if s.boardVersionFn != nil {
 		from = s.boardVersionFn(routerID)
 	}
-	cmd := firmware.OwutUpgradeCmd(target, from, removePkgs)
+	cmd := firmware.OwutUpgradeCmd(target, from, removePkgs, removeInUCI)
+	log.Printf("[netpulse:firmware] owut upgrade %s: %s", routerID, cmd)
 	_ = s.firmware.SetStatus(id, "running", "", "")
 	// #761: antes de flashear, asegurar que el stack presente (netgrip /
 	// agente) sobrevive al update (ASU no puede empaquetarlos: sin feed).
@@ -477,6 +480,16 @@ func owutTail(out string, err error) string {
 		msg = "..." + msg[len(msg)-400:]
 	}
 	return msg
+}
+
+// owutEcho antepone el comando ejecutado a la salida (#1978). El admin veía
+// el error en una caja roja sin saber qué se había lanzado en la unidad, y la
+// respuesta de owut no incluye la línea de invocación.
+func owutEcho(cmd, out string) string {
+	if strings.TrimSpace(cmd) == "" {
+		return out
+	}
+	return "$ " + cmd + "\n\n" + out
 }
 
 // emitFirmwareResult notifica el resultado de un intento de upgrade (éxito o

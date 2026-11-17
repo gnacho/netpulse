@@ -4,8 +4,9 @@
 // reporta como missing, para que `owut download`, `owut install` y `owut
 // upgrade` se comporten igual que lanzados a mano en la unidad.
 //
-// Solo se escribe cuando el admin lo pide: el handler es una acción explícita
-// de la UI con confirmación, nunca un efecto del check ni del upgrade.
+// Solo se escribe cuando el admin lo pide: o guarda la lista en la UI, o
+// lanza un download/upgrade con paquetes que aún no están en la config. Nunca
+// como efecto del check ni de un ciclo automático.
 package firmware
 
 import (
@@ -82,4 +83,42 @@ func AddOwutRemovePkgs(runner Runner, host string, pkgs []string) ([]string, err
 		return current, err
 	}
 	return readOwutRemoveList(runner, host), nil
+}
+
+// EnsureOwutRemoveInUCI deja la lista de exclusión en la config del router
+// antes de lanzar `owut download` o `owut upgrade`, y responde si esa lista
+// quedó allí. owut lee `attendedsysupgrade.owut.remove` como si fuera un
+// argumento (argparse.add_config) y `-r` es una opción exclusiva ("storex"),
+// así que pasar las dos cosas aborta el comando con "may only be used once
+// per invocation" (#1978).
+//
+// Con true en la respuesta el caller NO debe añadir `-r`. Con false (router
+// sin uci, sin permiso o lista inválida) el caller mantiene el flag y el
+// comportamiento anterior, que es lo único que excluye paquetes cuando no hay
+// config donde escribirlos.
+func EnsureOwutRemoveInUCI(runner Runner, host string, pkgs []string) bool {
+	if runner == nil || host == "" {
+		return false
+	}
+	clean := sanitizeRemovePkgs(pkgs)
+	if clean == "" {
+		return false
+	}
+	want := strings.Fields(clean)
+	got, err := AddOwutRemovePkgs(runner, host, want)
+	if err != nil {
+		return false
+	}
+	// La relectura es el gate: si la lista del router no contiene todo lo
+	// pedido, la escritura no surtió efecto y el caller debe volver al -r.
+	have := make(map[string]bool, len(got))
+	for _, p := range got {
+		have[p] = true
+	}
+	for _, p := range want {
+		if !have[p] {
+			return false
+		}
+	}
+	return true
 }

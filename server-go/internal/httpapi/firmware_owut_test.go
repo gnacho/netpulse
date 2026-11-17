@@ -212,12 +212,13 @@ func TestOwutUpgradeRequiresTarget(t *testing.T) {
 	}
 }
 
-// #1769: el download del flujo por pasos propaga removePackages a owut -r,
-// igual que el one-shot; sin eso ASU rechaza routers con paquetes de
-// terceros y el paso final se queda sin imagen.
-func TestOwutDownloadEndpointPassesRemovePackages(t *testing.T) {
+// #1978: la lista de exclusión vive en la config UCI del router, que owut lee
+// como si fuera un argumento. El comando NO debe repetirla con -r o owut
+// aborta con "may only be used once per invocation".
+func TestOwutDownloadEndpointPutsRemovePackagesInUCINotInFlag(t *testing.T) {
 	ssh := &scriptedSSH{rules: []sshRule{
 		{contains: "command -v owut", out: "__owut__\n"},
+		{contains: "uci show attendedsysupgrade.owut.remove", out: "attendedsysupgrade.owut.remove='netgrip'\n"},
 		{contains: "owut download", out: "Downloading image to /tmp/firmware.bin\n__owut_exit__=0\n"},
 	}}
 	ts, rid := makeOwutTestServer(t, ssh)
@@ -229,8 +230,39 @@ func TestOwutDownloadEndpointPassesRemovePackages(t *testing.T) {
 	if res.StatusCode != 200 {
 		t.Fatalf("status %d: %v", res.StatusCode, body)
 	}
+	if ssh.saw("owut download -r") {
+		t.Fatalf("el -r repite la opción que ya está en UCI: %v", ssh.cmdsSnapshot())
+	}
+	if !ssh.saw("owut download") {
+		t.Fatalf("no se lanzó el download: %v", ssh.cmdsSnapshot())
+	}
+	// #1978: el comando ejecutado viaja en la respuesta para el admin.
+	if cmd, _ := body["command"].(string); !strings.Contains(cmd, "owut download") {
+		t.Fatalf("la respuesta no lleva el comando: %v", body)
+	}
+	if out, _ := body["output"].(string); !strings.HasPrefix(out, "$ owut download") {
+		t.Fatalf("la salida no empieza por el comando: %q", out)
+	}
+}
+
+// #1978: sin config UCI donde escribir, el flag -r sigue siendo la única vía
+// de excluir paquetes. El fallback no puede perderse.
+func TestOwutDownloadEndpointFallsBackToRemoveFlag(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
+		{contains: "uci show attendedsysupgrade.owut.remove", err: errors.New("uci: not found")},
+		{contains: "owut download", out: "Downloading image to /tmp/firmware.bin\n__owut_exit__=0\n"},
+	}}
+	ts, rid := makeOwutTestServer(t, ssh)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-download",
+		`{"targetVersion":"25.12.6","removePackages":["netgrip"]}`, cookie)
+	if res.StatusCode != 200 {
+		t.Fatalf("status %d: %v", res.StatusCode, readJSON(t, res))
+	}
 	if !ssh.saw("owut download -r 'netgrip'") {
-		t.Fatalf("comando lanzado: %v", ssh.cmdsSnapshot())
+		t.Fatalf("sin UCI debe conservar -r: %v", ssh.cmdsSnapshot())
 	}
 }
 

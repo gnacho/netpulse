@@ -280,7 +280,7 @@ func TestOwutUpgradeRebootLineGoesToDone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	s.runOwutUpgrade(id, rid, "192.168.1.60", "25.12.6", "manual", nil)
+	s.runOwutUpgrade(id, rid, "192.168.1.60", "25.12.6", "manual", nil, false)
 
 	waitUpgradeStatus(t, s, id, "done")
 }
