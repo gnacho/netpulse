@@ -1482,6 +1482,23 @@ async function initGhMeta() {
   } catch { /* sin red */ }
 }
 
+/* ---------- evento de clic en la demo ---------- */
+// El clic en la demo es la señal de intención más fuerte de la landing y hasta
+// ahora solo contaba como visita normal: se manda como evento de GoatCounter
+// (path demo-click) para verlo en las estadísticas y poder filtrar solo
+// eventos en goatdash. Delegado y en fase de captura para que funcione con
+// cualquier CTA presente o futuro y antes de cualquier navegación.
+function initDemoEvent() {
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement | null
+    if (!target || typeof target.closest !== 'function') return
+    if (!target.closest('a[href*="demo.netpulse.cloudless.club"]')) return
+    const gc = (window as any).goatcounter
+    if (!gc || typeof gc.count !== 'function') return
+    gc.count({ path: 'demo-click', title: 'Demo click', event: true })
+  }, true)
+}
+
 /* ---------- menú de navegación en móvil ---------- */
 function initNav() {
   const btn = document.getElementById('navBurger') as HTMLButtonElement | null
@@ -1520,6 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTrafficRanges()
   initSlider()
   initLightbox()
+  initDemoEvent()
   heroCountUps()
   initGhMeta()
 })
