@@ -271,16 +271,22 @@ export function WanTraffic() {
           span sr-only porque <caption> escapa del clip del table sr-only
           (display: table-caption) y quedaría visible encima del header (#63). */}
       <span className="sr-only">{t('home.traffic.tableCaption', { range })}</span>
-      <table className="sr-only">
-        <thead>
-          <tr><th>{t('home.traffic.time')}</th><th>{t('home.traffic.downloadMbps')}</th><th>{t('home.traffic.uploadMbps')}</th></tr>
-        </thead>
-        <tbody>
-          {liveData.map((p) => (
-            <tr key={p.t}><td>{p.t}</td><td>{p.down}</td><td>{p.up}</td></tr>
-          ))}
-        </tbody>
-      </table>
+      {/* sr-only on a wrapper div, not the table: a table grows to its content
+          height even at height:1px, and clip-path hides paint but not the box,
+          so an sr-only table stretched the document scroll height. The div
+          clips to 1x1 with overflow:hidden. */}
+      <div className="sr-only">
+        <table>
+          <thead>
+            <tr><th>{t('home.traffic.time')}</th><th>{t('home.traffic.downloadMbps')}</th><th>{t('home.traffic.uploadMbps')}</th></tr>
+          </thead>
+          <tbody>
+            {liveData.map((p) => (
+              <tr key={p.t}><td>{p.t}</td><td>{p.down}</td><td>{p.up}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 sm:grid-cols-4">
         {FOOTER_METRICS.map((m, i) => (
