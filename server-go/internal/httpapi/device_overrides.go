@@ -54,27 +54,6 @@ func validateIcon(icon string) bool {
 		"router": true, "server": true, "watch": true, "car": true,
 		"home": true, "printer": true, "plug": true, "shield": true,
 		"help-circle": true, "wifi": true, "ethernet": true,
-		// Smart-home overrides (must stay in sync with ICON_OVERRIDES).
-		"refrigerator": true, "washing-machine": true, "microwave": true,
-		"cooking-pot": true, "chef-hat": true, "coffee": true,
-		"utensils-crossed": true, "glass-water": true,
-		"shower-head": true, "bath": true, "toilet": true, "droplets": true,
-		"flame": true, "flame-kindling": true, "thermometer": true,
-		"fan": true, "snowflake": true,
-		"plug-zap": true, "battery-charging": true, "solar-panel": true, "power": true,
-		"lightbulb": true, "lamp": true, "lamp-desk": true, "lamp-ceiling": true,
-		"lock-keyhole": true, "key-round": true, "door-closed": true,
-		"scan-face": true, "fingerprint": true, "shield-check": true,
-		"webcam": true, "siren": true,
-		"paw-print": true, "cat": true, "dog": true, "fish": true,
-		"baby": true, "scale": true, "heart-pulse": true,
-		"projector": true, "cast": true, "headphones": true, "headset": true,
-		"radio": true, "joystick": true,
-		"hard-drive": true, "database": true, "cloud": true, "cpu": true,
-		"brain-circuit": true, "bot": true, "antenna": true, "satellite-dish": true,
-		"blinds": true, "armchair": true, "sofa": true, "bed-double": true,
-		"sprout": true, "flower-2": true, "wrench": true, "cog": true,
-		"package": true, "shirt": true, "gauge": true,
 	}
 	return allowed[icon]
 }
