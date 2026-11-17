@@ -2689,6 +2689,8 @@
     "resetStale": "Reiniciar estado",
     "resetStaleHint": "Borra el registro de un intento que lleva más de 15 minutos sin avanzar (el router no volvió o el SSH murió), para poder lanzarlo otra vez.",
     "excludePkgsFromRouter": "El router ya excluye estos paquetes de sus propias builds: {{pkgs}}. El campo se ha rellenado con esa lista, revísala antes de descargar.",
+    "forceDowngrades": "Aceptar degradados de paquetes (--force)",
+    "forceDowngradesHint": "El check avisa de que este salto baja la versión de algunos paquetes. Sin esta casilla owut se detiene con \"upgrade still possible with --force\".",
     "excludeAddRouter": "Añadir a la lista del router",
     "excludeAddTitle": "Añadir paquetes a la lista del router",
     "excludeAddBody": "Se añadirán {{pkgs}} a attendedsysupgrade.owut.remove y se guardará la configuración. A partir de ahí, owut download, install y upgrade se comportan igual que lanzados a mano en la unidad.",
