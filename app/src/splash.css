@@ -2,6 +2,7 @@
 #root:empty {
   background: #070b12;
 }
+/* Track the theme canvas so light mode shows no dark overscroll band, with a dark fallback for the anti-flash splash before the bundle loads. */
 html {
-  background: #070b12;
+  background: rgb(var(--canvas, 7 11 18));
 }
