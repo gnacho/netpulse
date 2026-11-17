@@ -391,9 +391,10 @@
     "listView": "列表视图",
     "nameUpdated": "名称已更新",
     "colLease": "租约时长",
-    "leaseDaysHours": "{{days}} 天 {{hours}} 小时",
-    "leaseHoursMinutes": "{{hours}} 小时 {{minutes}} 分",
-    "leaseMinutes": "{{minutes}} 分",
+    "colRouter": "所属设备",
+    "leaseDaysHours": "{{days}}天{{hours}}小时",
+    "leaseHoursMinutes": "{{hours}}小时{{minutes}}分",
+    "leaseMinutes": "{{minutes}}分",
     "leaseUnlimited": "无限",
     "edit": {
       "title": "编辑客户端",
@@ -496,7 +497,7 @@
       "tablet": "平板",
       "tv": "电视",
       "videoportero": "可视门铃",
-      "modem": "调制解调器/ONT"
+      "modem": "光猫/ONT"
     },
     "wiredConnection": "有线连接",
     "weakChip": "{{count}} 个信号弱（< {{dbm}} dBm）",
