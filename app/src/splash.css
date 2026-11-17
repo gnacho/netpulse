@@ -2,6 +2,9 @@
 #root:empty {
   background: #070b12;
 }
+/* Follow the theme canvas once its vars exist; the dark fallback keeps the
+   anti-flash splash before the bundle loads. A fixed dark html background
+   showed through as a black band on overscroll / short pages in light mode. */
 html {
-  background: #070b12;
+  background: rgb(var(--canvas, 7 11 18));
 }
