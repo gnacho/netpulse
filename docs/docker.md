@@ -37,14 +37,23 @@ Open `http://localhost:3000` on the docker host and log in with `AUTH_PASS`.
 to start without it); to reach the panel from other machines on the LAN,
 publish on the host interface instead of loopback
 (`-p 3000:3000`, or `-p <lan-ip>:3000:3000`). On first boot the server
-generates its SSH keypair into `/data/.ssh` and auto-detects the gateway,
-same as the binary install.
+generates its SSH keypair into `/data/.ssh`. One caveat: on the default
+bridge network the container does not see your LAN, so the gateway
+autodetect probes the Docker bridge address, not your routers — add the
+routers from the UI (Settings) or seed them with `ROUTERS_JSON`. On a
+Linux host, `--network host` (or `network_mode: host` in compose) gives
+the container full LAN access and the usual autodetect works.
 
 ## Quickstart: compose, from this checkout
 
 ```bash
 docker compose up -d --build      # builds the local image netpulse:local
 ```
+
+The optional `.env` passthrough below uses the long `env_file` syntax with
+`required: false`, which needs Compose 2.24 or newer (`docker compose
+version` to check); on older versions the compose file is a parse error
+before it can help.
 
 Compose reads an optional `.env` file next to `docker-compose.yml` and passes
 it to the container — set `AUTH_PASS` there before the first start (the
