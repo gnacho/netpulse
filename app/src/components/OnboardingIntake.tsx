@@ -187,7 +187,7 @@ export function OnboardingIntake({ open, device, isDemo, onClose, onSaved }: Onb
           {/* Icono */}
           <div className="space-y-2">
             <label className="text-label uppercase text-text-muted">{t('devices.onboarding.iconLabel')}</label>
-            <div className="grid grid-cols-6 gap-2">
+            <div className="grid max-h-64 grid-cols-6 gap-2 overflow-y-auto pr-1">
               <button
                 type="button"
                 onClick={() => setIcon('')}
@@ -205,7 +205,7 @@ export function OnboardingIntake({ open, device, isDemo, onClose, onSaved }: Onb
                   <button
                     key={n}
                     type="button"
-                    title={n}
+                    title={t(`devices.edit.iconNames.${n}`, { defaultValue: n })}
                     onClick={() => setIcon(n)}
                     disabled={busy}
                     className={cn(

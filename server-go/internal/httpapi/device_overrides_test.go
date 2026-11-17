@@ -155,6 +155,13 @@ func TestDeviceOverrideValidation(t *testing.T) {
 	if rec := doOverridePut(t, s, mac, `{"type":"movil"}`); rec.Code != 200 {
 		t.Errorf("tipo válil debió dar 200, dio %d", rec.Code)
 	}
+	// Iconos smart-home nuevos: aceptados (la lista cerrada del server debe
+	// seguir a ICON_OVERRIDES del frontend).
+	for _, icon := range []string{"microwave", "refrigerator", "cooking-pot", "paw-print", "lock-keyhole", "projector"} {
+		if rec := doOverridePut(t, s, mac, `{"icon":"`+icon+`"}`); rec.Code != 200 {
+			t.Errorf("icon %q debió dar 200, dio %d", icon, rec.Code)
+		}
+	}
 }
 
 // #1145: DELETE /api/devices/{mac} borra la fila del registro y 404 si no

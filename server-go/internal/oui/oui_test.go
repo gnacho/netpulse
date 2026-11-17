@@ -99,3 +99,17 @@ func TestCameraVendors(t *testing.T) {
 		}
 	}
 }
+
+// Robot vacuum brands get the vacuum type, which is more than "iot".
+func TestVacuumVendors(t *testing.T) {
+	for _, m := range []string{"Beijing Roborock Technology Co., Ltd.", "iRobot Corporation", "Ecovacs Robotics Co., Ltd.", "Dreame Technology"} {
+		if !IsVacuumVendor(m) {
+			t.Errorf("IsVacuumVendor(%q) = false", m)
+		}
+	}
+	for _, m := range []string{"Espressif Inc.", "Tuya Smart Inc.", "Reolink Innovation Limited", "Intel Corporate", ""} {
+		if IsVacuumVendor(m) {
+			t.Errorf("IsVacuumVendor(%q) = true", m)
+		}
+	}
+}
