@@ -302,6 +302,9 @@ func TestLiveAgentOnlyStaleCardReadsOffline(t *testing.T) {
 	if r.Status != "offline" || r.Health != 0 {
 		t.Fatalf("stale agent-only card must read offline/health 0, got %q/%d", r.Status, r.Health)
 	}
+	if r.StatusReason != "agent_stale" {
+		t.Fatalf("stale agent-only card must carry the agent_stale reason, got %q", r.StatusReason)
+	}
 	reg.Ingest(testPayload())
 	p, _ = l.pollRouter(t.Context(), cfg)
 	if r := l.buildRouter(p, nil); r.Status == "offline" {

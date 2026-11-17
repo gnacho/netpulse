@@ -1402,7 +1402,8 @@
       "pusher_api_not_found": "The device does not expose the expected API endpoint at this address: check the host, the port and the scheme.",
       "pusher_conn_refused": "Connection refused: the device is not answering on the API port. Check the service, the port and the firewall.",
       "pusher_stopped": "The integration pusher is stopped: start it from Settings > Integrations.",
-      "pusher_error": "The integration pusher logged an error; check its details in Settings > Integrations."
+      "pusher_error": "The integration pusher logged an error; check its details in Settings > Integrations.",
+      "agent_stale": "No fresh data from the agent: the unit is shown offline with its last readings. Check the agent service or the device itself."
     }
   },
   "reports": {

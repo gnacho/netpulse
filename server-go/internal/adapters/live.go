@@ -1912,6 +1912,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	// agente en una unidad que se inventaria por SSH.
 	r.InventoryMode = p.cfg.InventoryMode
 	r.InventoryAt = p.polledAt
+	// #2086: la unidad agent-only stale lee offline con sus últimas lecturas.
+	// El motivo: las integraciones pusher reciben su código pusher_* más
+	// específico desde EnrichOverview; un agent nativo no tiene ninguno, así
+	// que lleva agent_stale para que la tarjeta no quede roja sin explicación.
+	if p.agentStale {
+		r.StatusReason = "agent_stale"
+	}
 	// #1741: la serie de 24 h de una unidad sin throughput nativo (SNMP o
 	// pusher external) sale de sus puertos. Se decide aquí, donde se conoce el
 	// agent kind, porque Router no lo expone y VitalsAvailable ya no sirve de
