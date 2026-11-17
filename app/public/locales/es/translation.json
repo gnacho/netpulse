@@ -1413,7 +1413,8 @@
       "pusher_api_not_found": "El equipo no expone el endpoint esperado de la API en esta dirección: revisa el host, el puerto y el esquema.",
       "pusher_conn_refused": "Conexión rechazada: el equipo no responde en el puerto de la API. Revisa el servicio, el puerto y el cortafuegos.",
       "pusher_stopped": "El pusher de la integración está parado: arráncalo desde Ajustes > Integraciones.",
-      "pusher_error": "El pusher de la integración registró un error; revisa su detalle en Ajustes > Integraciones."
+      "pusher_error": "El pusher de la integración registró un error; revisa su detalle en Ajustes > Integraciones.",
+      "agent_stale": "Sin datos recientes del agent: la unidad se muestra offline con sus últimas lecturas. Revisa el servicio del agent o el dispositivo."
     }
   },
   "reports": {

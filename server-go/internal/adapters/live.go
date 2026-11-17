@@ -230,6 +230,10 @@ type routerPolled struct {
 	// ("" = sondeo SSH/SNMP directo). "external" = pusher beacon/scraper sin
 	// sección system → sin vitals.
 	agentKind string
+	// agentStale: agent-only unit whose pusher is past the down-confirm
+	// window. The cached payload is still served (#850) but the card reads
+	// offline, not online, so it agrees with the probe table.
+	agentStale bool
 	// selfExpose (#832): el equipo se expone él mismo a Home Assistant por
 	// MQTT (NetGrip con su MQTT activado) → el publisher de flota no publica
 	// sus entidades por router.
@@ -1874,6 +1878,10 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	if p.temp > thr || p.cpu > 85 {
 		status = "warn"
 	}
+	if p.agentStale {
+		status = "offline"
+		health = 0
+	}
 	sparkline := make([]float64, 0, len(history))
 	for _, h := range history {
 		sparkline = append(sparkline, h.down)
@@ -1904,6 +1912,13 @@ func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	// agente en una unidad que se inventaria por SSH.
 	r.InventoryMode = p.cfg.InventoryMode
 	r.InventoryAt = p.polledAt
+	// #2086: la unidad agent-only stale lee offline con sus últimas lecturas.
+	// El motivo: las integraciones pusher reciben su código pusher_* más
+	// específico desde EnrichOverview; un agent nativo no tiene ninguno, así
+	// que lleva agent_stale para que la tarjeta no quede roja sin explicación.
+	if p.agentStale {
+		r.StatusReason = "agent_stale"
+	}
 	// #1741: la serie de 24 h de una unidad sin throughput nativo (SNMP o
 	// pusher external) sale de sus puertos. Se decide aquí, donde se conoce el
 	// agent kind, porque Router no lo expone y VitalsAvailable ya no sirve de
