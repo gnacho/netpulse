@@ -242,7 +242,7 @@ export function DeviceEditSheet({
             {/* Icono */}
             <div className="space-y-2">
               <label className="text-label uppercase text-text-muted">{t('devices.edit.icon')}</label>
-              <div className="grid max-h-64 grid-cols-5 gap-2 overflow-y-auto pr-1">
+              <div className="grid grid-cols-5 gap-2">
                 <button
                   type="button"
                   onClick={() => setIcon('')}
@@ -260,7 +260,7 @@ export function DeviceEditSheet({
                     <button
                       key={n}
                       type="button"
-                      title={t(`devices.edit.iconNames.${n}`, { defaultValue: n })}
+                      title={n}
                       onClick={() => setIcon(n)}
                       disabled={saving}
                       className={cn(
