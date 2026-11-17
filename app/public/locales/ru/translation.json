@@ -483,6 +483,7 @@
     "listView": "Список",
     "nameUpdated": "Имя обновлено",
     "colLease": "Срок аренды",
+    "colRouter": "Устройство",
     "leaseDaysHours": "{{days}} д {{hours}} ч",
     "leaseHoursMinutes": "{{hours}} ч {{minutes}} мин",
     "leaseMinutes": "{{minutes}} мин",
