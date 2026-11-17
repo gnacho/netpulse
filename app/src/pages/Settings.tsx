@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { BadgeCheck, CalendarClock, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, Database, Download, ExternalLink, Eye, EyeOff, FileText, FlaskConical, Gauge, HardDrive, History, KeyRound, Loader2, Lock, LogOut, MonitorSmartphone, Moon, Pencil, Plus, Power, Radar, RefreshCw, Send, RotateCcw, RotateCw, Router as RouterIcon, Server, Settings2, Shield, ShieldCheck, Star, Sun, Trash2, TriangleAlert, UserCog, Users, Volume2, Wifi, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import Integrations from './Integrations'
+import SnmpCommunityField from '@/components/routers/SnmpCommunityField'
 import { HealthRing } from '@/components/HealthRing'
 import { KnownMacsManager } from '@/components/KnownMacsManager'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -321,6 +322,7 @@ type SnmpVersion = '1' | '2c' | '3'
 // mantienen aquí para no pedirlos por API: son estáticos.
 const SNMP_V3_AUTH_PROTOS = ['MD5', 'SHA', 'SHA224', 'SHA256', 'SHA384', 'SHA512']
 const SNMP_V3_PRIV_PROTOS = ['DES', 'AES', 'AES192', 'AES256', 'AES192C', 'AES256C']
+
 
 interface ConfigRouter {
   id: string
@@ -1155,17 +1157,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                   />
                 ) : (
                   <div>
-                    <label htmlFor="add-snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                      {t('settings.routers.snmpCommunity')}
-                    </label>
-                    <input
+                    <div className="mb-1 flex items-center gap-1">
+                      <label htmlFor="add-snmp-community" className="block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                        {t('settings.routers.snmpCommunity')}
+                      </label>
+                      <InfoTip text={t('settings.routers.snmpCommunityHint')} />
+                    </div>
+                    <SnmpCommunityField
                       id="add-snmp-community"
-                      type="text"
                       value={addSnmpCommunity}
-                      onChange={(e) => setAddSnmpCommunity(e.target.value)}
-                      placeholder="public"
-                      aria-label={t('settings.routers.snmpCommunity')}
-                      className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                      onChange={setAddSnmpCommunity}
+                      ariaLabel={t('settings.routers.snmpCommunity')}
                     />
                   </div>
                 )}
@@ -1420,17 +1422,17 @@ function RoutersManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
                         />
                       ) : (
                         <div>
-                          <label htmlFor="snmp-community" className="mb-1 block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
-                            {t('settings.routers.snmpCommunity')}
-                          </label>
-                          <input
+                          <div className="mb-1 flex items-center gap-1">
+                            <label htmlFor="snmp-community" className="block text-caption font-medium uppercase tracking-[0.06em] text-text-muted">
+                              {t('settings.routers.snmpCommunity')}
+                            </label>
+                            <InfoTip text={t('settings.routers.snmpCommunityHint')} />
+                          </div>
+                          <SnmpCommunityField
                             id="snmp-community"
-                            type="text"
                             value={editSnmpCommunity}
-                            onChange={(e) => { setEditSnmpCommunity(e.target.value); setEditSnmpCommunityTouched(true) }}
-                            placeholder="public"
-                            aria-label={t('settings.routers.snmpCommunity')}
-                            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                            onChange={(v) => { setEditSnmpCommunity(v); setEditSnmpCommunityTouched(true) }}
+                            ariaLabel={t('settings.routers.snmpCommunity')}
                           />
                           {editSnmpCommunitySet && !editSnmpCommunityTouched && (
                             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
