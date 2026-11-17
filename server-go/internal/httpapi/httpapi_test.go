@@ -553,25 +553,27 @@ func TestUsersCRUD(t *testing.T) {
 	if body["language"] != "es" {
 		t.Fatalf("language: %v", body)
 	}
-	// zh también es válido (catálogo zh en la UI)
-	req, _ = http.NewRequest("PUT", srv.URL+"/api/users/me/language", strings.NewReader(`{"language":"zh"}`))
-	req.Header.Set("Cookie", "session="+anaCookie)
-	res, _ = http.DefaultClient.Do(req)
-	res.Body.Close()
-	if res.StatusCode != 204 {
-		t.Fatalf("me/language zh: got %d want 204", res.StatusCode)
-	}
-	res = get(t, srv.URL, "/api/auth/me", anaCookie)
-	body = readJSON(t, res)
-	if body["language"] != "zh" {
-		t.Fatalf("language zh: %v", body)
+	// zh y ru son válidos (catálogos en la UI)
+	for _, lang := range []string{"zh", "ru"} {
+		req, _ = http.NewRequest("PUT", srv.URL+"/api/users/me/language", strings.NewReader(`{"language":"`+lang+`"}`))
+		req.Header.Set("Cookie", "session="+anaCookie)
+		res, _ = http.DefaultClient.Do(req)
+		res.Body.Close()
+		if res.StatusCode != 204 {
+			t.Fatalf("me/language %s: got %d want 204", lang, res.StatusCode)
+		}
+		res = get(t, srv.URL, "/api/auth/me", anaCookie)
+		body = readJSON(t, res)
+		if body["language"] != lang {
+			t.Fatalf("language %s: %v", lang, body)
+		}
 	}
 	// Idioma inválido → 400 literal
 	req, _ = http.NewRequest("PUT", srv.URL+"/api/users/me/language", strings.NewReader(`{"language":"fr"}`))
 	req.Header.Set("Cookie", "session="+anaCookie)
 	res, _ = http.DefaultClient.Do(req)
 	body = readJSON(t, res)
-	if res.StatusCode != 400 || body["message"] != "language must be auto|es|en|zh" {
+	if res.StatusCode != 400 || body["message"] != "language must be auto|es|en|zh|ru" {
 		t.Fatalf("language inválido: got %d %v", res.StatusCode, body)
 	}
 
