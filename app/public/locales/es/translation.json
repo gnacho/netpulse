@@ -469,6 +469,7 @@
     "listView": "Vista de lista",
     "nameUpdated": "Nombre actualizado",
     "colLease": "Tiempo restante",
+    "colRouter": "Unidad",
     "leaseDaysHours": "{{days}}d {{hours}}h",
     "leaseHoursMinutes": "{{hours}}h {{minutes}}min",
     "leaseMinutes": "{{minutes}}min",
