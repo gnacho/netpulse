@@ -284,12 +284,15 @@ Each probe is a TCP connection to the router that is closed without authenticati
 embedded UI and agent binaries is published on every release:
 
 ```bash
-docker run -d --name netpulse -p 3000:3000 -e AUTH_PASS=choose-one \
+docker run -d --name netpulse -p 127.0.0.1:3000:3000 -e AUTH_PASS=choose-one \
   -v netpulse-data:/data --restart unless-stopped ghcr.io/sers88/netpulse:latest
 ```
 
-Updates are `docker pull` + recreate; leave the in-app updater alone in this
-mode. Full guide: [docs/docker.md](docs/docker.md).
+`AUTH_PASS` is required at boot (10+ characters); the port above is
+published on loopback — publish on a LAN interface instead if you want the
+panel reachable from other machines. Updates are `docker pull` + recreate;
+leave the in-app updater alone in this mode. Full guide:
+[docs/docker.md](docs/docker.md).
 
 **On-box mode.** No spare box? The server itself runs on an OpenWrt router,
 with UCI config and self-signed TLS with SPKI pinning.

@@ -25,14 +25,18 @@ container.
 
 ```bash
 docker run -d --name netpulse \
-  -p 3000:3000 \
+  -p 127.0.0.1:3000:3000 \
   -e AUTH_PASS=choose-one \
   -v netpulse-data:/data \
   --restart unless-stopped \
   ghcr.io/sers88/netpulse:latest
 ```
 
-Open `http://<host>:3000`, log in with `AUTH_PASS`. On first boot the server
+Open `http://localhost:3000` on the docker host and log in with `AUTH_PASS`.
+`AUTH_PASS` is required at boot (at least 10 characters — the server refuses
+to start without it); to reach the panel from other machines on the LAN,
+publish on the host interface instead of loopback
+(`-p 3000:3000`, or `-p <lan-ip>:3000:3000`). On first boot the server
 generates its SSH keypair into `/data/.ssh` and auto-detects the gateway,
 same as the binary install.
 
@@ -43,11 +47,14 @@ docker compose up -d --build      # builds the local image netpulse:local
 ```
 
 Compose reads an optional `.env` file next to `docker-compose.yml` and passes
-it to the container. Useful variables for compose itself:
+it to the container — set `AUTH_PASS` there before the first start (the
+server will not boot without it). The port is published on the docker
+host's loopback by default. Useful variables for compose itself:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `NETPULSE_PORT` | `3000` | Host port mapped to the container's 3000 |
+| `NETPULSE_PUBLISH_ADDR` | `127.0.0.1` | Host interface the port is published on; `0.0.0.0` exposes it on all interfaces |
 | `NETPULSE_IMAGE` | `netpulse:local` | Image to run; set it to a GHCR tag to skip the build |
 | `TZ` | `UTC` | Container timezone |
 

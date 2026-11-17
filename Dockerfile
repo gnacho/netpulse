@@ -21,7 +21,10 @@ ARG NODE_VERSION=24
 ARG GO_VERSION=1.26
 
 # ---- Frontend: app/ -> app/dist --------------------------------------------
-FROM node:${NODE_VERSION}-alpine AS frontend
+# --platform=$BUILDPLATFORM on every builder stage: under multi-arch buildx
+# each platform would otherwise run the whole toolchain (npm, go, UPX) under
+# QEMU emulation. The outputs here are static files, builder-native is fine.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS frontend
 WORKDIR /src/app
 COPY app/package.json app/package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -30,9 +33,10 @@ COPY app/ .
 RUN npm run build
 
 # ---- Agent binaries for the embed (scripts/build-agents.sh) ----------------
-# Pure-Go cross compilation, so the same five binaries are embedded in both
-# the amd64 and arm64 image builds. UPX is a build dependency only.
-FROM golang:${GO_VERSION} AS agents
+# Pure-Go cross compilation with GOARCH/GOARM/GOMIPS, so this stage is
+# platform-independent: the same five binaries are produced natively for
+# both the amd64 and arm64 image builds. UPX is a build dependency only.
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION} AS agents
 ARG AGENT_VERSION=0.0.0-docker
 RUN apt-get update \
  && apt-get install -y --no-install-recommends upx-ucl \
@@ -44,10 +48,14 @@ COPY scripts/build-agents.sh scripts/
 RUN scripts/build-agents.sh "$AGENT_VERSION" out/agents
 
 # ---- Server: frontend + agents embedded, release ldflags --------------------
-FROM golang:${GO_VERSION} AS server
+# Also builder-native: the server binary is cross-compiled with GOOS/GOARCH
+# from the buildx target (defaults keep plain `docker build` working).
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION} AS server
 ARG AGENT_VERSION=0.0.0-docker
 ARG VERSION=0.0.0-docker
 ARG BUILD_COMMIT=unknown
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
 WORKDIR /src
 COPY agent/ agent/
 COPY server-go/ server-go/
@@ -57,7 +65,7 @@ WORKDIR server-go
 # Same ldflags as the netpulse build in .goreleaser.yaml.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath \
       -ldflags "-s -w \
         -X github.com/gnacho/netpulse/server-go/internal/updater.BuildCommit=${BUILD_COMMIT} \
         -X github.com/gnacho/netpulse/server-go/internal/agentbin.EmbeddedAgentVersion=${AGENT_VERSION} \
@@ -66,9 +74,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # ---- Runtime ----------------------------------------------------------------
 FROM alpine:3
+ARG VERSION=0.0.0-docker
+ARG BUILD_COMMIT=unknown
 LABEL org.opencontainers.image.title="NetPulse" \
       org.opencontainers.image.description="Self-hosted network monitoring: Go server with embedded web UI and agent binaries" \
-      org.opencontainers.image.source="https://github.com/gnacho/netpulse"
+      org.opencontainers.image.source="https://github.com/gnacho/netpulse" \
+      org.opencontainers.image.revision="${BUILD_COMMIT}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.licenses="AGPL-3.0"
 # ca-certificates for outbound HTTPS (integrations, update checks), tzdata so
 # TZ works, busybox wget for the healthcheck. openssh-client is needed: the
 # gateway autodetect and per-router inventory call the ssh binary, and host

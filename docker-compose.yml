@@ -16,7 +16,10 @@ services:
     build:
       context: .
     ports:
-      - "${NETPULSE_PORT:-3000}:3000"
+      # Loopback by default: the panel must not land on a public interface
+      # just because the compose file was used as-is. To reach it from the
+      # LAN set NETPULSE_PUBLISH_ADDR=0.0.0.0 (or a specific host IP).
+      - "${NETPULSE_PUBLISH_ADDR:-127.0.0.1}:${NETPULSE_PORT:-3000}:3000"
     volumes:
       - netpulse-data:/data
     environment:
