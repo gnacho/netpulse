@@ -55,7 +55,9 @@ export function AnnouncementBanner() {
 
   if (!a || a.id === dismissed) return null
 
-  const lang = (i18n.language ?? 'en').slice(0, 2).toLowerCase()
+  // es* → español; cualquier otro idioma (en, zh, ru, …) → inglés, que es el
+  // fallback del proyecto y el único otro idioma del anuncio.
+  const lang = i18n.language?.startsWith('es') ? 'es' : 'en'
   const title = pick(a.title, lang)
   const body = pick(a.body, lang)
   const urlLabel = pick(a.urlLabel, lang) || t('announcement.link')

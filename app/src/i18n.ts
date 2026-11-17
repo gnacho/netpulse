@@ -11,7 +11,7 @@ if (!savedLang || savedLang === 'auto') {
 }
 
 // Builds with a forced language (public demo, VITE_FORCE_LANG=en).
-const forcedLang = import.meta.env.VITE_FORCE_LANG as 'es' | 'en' | 'zh' | undefined
+const forcedLang = import.meta.env.VITE_FORCE_LANG as 'es' | 'en' | 'zh' | 'ru' | undefined
 // DEFAULT_LNG: English is the language this deployment shows unless somebody
 // asks for another. Following the browser as the default meant a Spanish or
 // Romanian locale opened the panel in Spanish, which is not what the people
@@ -34,7 +34,7 @@ i18n
     // the browser (localStorage → navigator). (issue #3, #237)
     lng: initialLng,
     fallbackLng: 'en',
-    supportedLngs: ['es', 'en', 'zh'],
+    supportedLngs: ['es', 'en', 'zh', 'ru'],
     nonExplicitSupportedLngs: true,
     load: 'languageOnly',
     backend: {
@@ -50,13 +50,30 @@ i18n
     returnNull: false,
   })
 
+// Locales por idioma en un solo sitio. Un idioma nuevo son tres cosas: su
+// catálogo en public/locales, una entrada aquí y su opción en el selector.
+// Antes cada helper encadenaba un ternario por idioma y cada traducción
+// nueva tocaba ocho ficheros.
+const FALLBACK_LOCALE = { num: 'en-US', date: 'en-GB', html: 'en' }
+
+const LOCALES: Record<string, typeof FALLBACK_LOCALE> = {
+  es: { num: 'es-ES', date: 'es-ES', html: 'es' },
+  en: { num: 'en-US', date: 'en-GB', html: 'en' },
+  zh: { num: 'zh-CN', date: 'zh-CN', html: 'zh-CN' },
+  ru: { num: 'ru-RU', date: 'ru-RU', html: 'ru' },
+}
+
+function activeLocale(lng?: string) {
+  const l = (lng ?? i18n.language ?? DEFAULT_LNG).slice(0, 2).toLowerCase()
+  return LOCALES[l] ?? FALLBACK_LOCALE
+}
+
 // #666: the document's lang must follow the active language. Without it the
 // browser believes the page is in another language and offers to translate
 // it -- and the translator mangles the data (hostnames "crowed" →
 // "crowded"). With the right lang, a translated UI raises no such offer.
 const applyDocLang = (lng?: string) => {
-  const l = (lng ?? i18n.language ?? DEFAULT_LNG).slice(0, 2).toLowerCase()
-  document.documentElement.lang = l === 'en' ? 'en' : l === 'zh' ? 'zh-CN' : 'es'
+  document.documentElement.lang = activeLocale(lng).html
 }
 applyDocLang()
 i18n.on('languageChanged', applyDocLang)
@@ -65,15 +82,12 @@ export default i18n
 
 /** Locale numérico según el idioma activo */
 export function numLocale(): string {
-  const l = i18n.language ?? ''
-  return l.startsWith('zh') ? 'zh-CN' : l.startsWith('en') ? 'en-US' : 'es-ES'
+  return activeLocale().num
 }
 
-/** Locale de fechas: igual que numLocale pero el inglés conserva el en-GB
- *  que la panel ya usaba (día antes del mes). */
+/** Locale de fechas y horas (Intl) según el idioma activo */
 export function dateLocale(): string {
-  const l = i18n.language ?? ''
-  return l.startsWith('zh') ? 'zh-CN' : l.startsWith('en') ? 'en-GB' : 'es-ES'
+  return activeLocale().date
 }
 
 const REL_RE = /^hace\s+(\d+)\s*(s|min|h|días?|d)$/

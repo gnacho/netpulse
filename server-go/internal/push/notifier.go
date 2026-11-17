@@ -298,8 +298,11 @@ func (n *Notifier) SendTest(s Subscription) TestResult {
 // testEvent compone el aviso de prueba en el idioma de la suscripcion.
 func testEvent(lang string) alerts.AlertEvent {
 	title, body := "Test notification", "Push notifications work on this device."
-	if lang == "es" {
+	switch lang {
+	case "es":
 		title, body = "Notificacion de prueba", "Las notificaciones push funcionan en este dispositivo."
+	case "ru":
+		title, body = "Тестовое уведомление", "Push-уведомления работают на этом устройстве."
 	}
 	return alerts.AlertEvent{
 		ID:          fmt.Sprintf("push-test-%d", time.Now().UnixNano()),

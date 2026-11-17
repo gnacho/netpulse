@@ -102,18 +102,18 @@ func (s *server) handleMyDisplayName(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleMyLanguage: {language: auto|es|en|zh} → 204 (fuera del gate admin).
+// handleMyLanguage: {language: auto|es|en|zh|ru} → 204 (fuera del gate admin).
 func (s *server) handleMyLanguage(w http.ResponseWriter, r *http.Request) {
 	me := auth.UserFromContext(r.Context())
 	var body struct {
 		Language string `json:"language"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
-		writeBodyError(w, st, "invalid_input", "language must be auto|es|en|zh")
+		writeBodyError(w, st, "invalid_input", "language must be auto|es|en|zh|ru")
 		return
 	}
-	if body.Language != "auto" && body.Language != "es" && body.Language != "en" && body.Language != "zh" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "language must be auto|es|en|zh")
+	if body.Language != "auto" && body.Language != "es" && body.Language != "en" && body.Language != "zh" && body.Language != "ru" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "language must be auto|es|en|zh|ru")
 		return
 	}
 	_, _ = s.db.Exec("UPDATE users SET language = ? WHERE id = ?", body.Language, me.ID)
@@ -208,9 +208,9 @@ func (s *server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	language := "auto"
 	if body.Language != nil {
-		if *body.Language != "auto" && *body.Language != "es" && *body.Language != "en" && *body.Language != "zh" {
+		if *body.Language != "auto" && *body.Language != "es" && *body.Language != "en" && *body.Language != "zh" && *body.Language != "ru" {
 			writeError(w, http.StatusBadRequest, "invalid_input",
-				"Invalid enum value. Expected 'auto' | 'es' | 'en'")
+				"Invalid enum value. Expected 'auto' | 'es' | 'en' | 'ru'")
 			return
 		}
 		language = *body.Language

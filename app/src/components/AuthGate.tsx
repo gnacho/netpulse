@@ -29,7 +29,7 @@ async function checkSession(): Promise<{ state: GateState; auth: AuthUser | null
     const data = (await res.json()) as {
       user?: string
       role?: 'admin' | 'user'
-      language?: 'auto' | 'es' | 'en' | 'zh'
+      language?: 'auto' | 'es' | 'en' | 'zh' | 'ru'
       displayName?: string
     }
     if (!data?.user) return { state: 'demo', auth: null }
