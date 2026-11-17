@@ -41,3 +41,37 @@ func TestBuildDevicesNameTypeIconOverride(t *testing.T) {
 		t.Errorf("icon override no aplicado: %+v", got)
 	}
 }
+
+// Los mismos overrides deben verse en el cliente retenido offline (fantasma):
+// sin esto el icono cambiaba al caer offline y editar icono/tipo estando
+// offline no se reflejaba nunca.
+func TestGhostDevicesApplyManualOverrides(t *testing.T) {
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	l.noteDevicesSeen([]Device{
+		{MAC: "aa:bb:cc:dd:ee:ff", Online: true, Hostname: "viewsonic-proj", Type: "desconocido"},
+	}, 1000)
+	now := time.Now().UnixMilli()
+	if _, err := d.Exec(
+		`INSERT INTO device_overrides (mac, icon, name, device_type, banned_bands, created_at, updated_at)
+		 VALUES ('aa:bb:cc:dd:ee:ff', 'projector', '投影', 'tv', '', ?, ?)`, now, now); err != nil {
+		t.Fatalf("seed override: %v", err)
+	}
+	ghosts := l.ghostDevices(nil)
+	if len(ghosts) != 1 {
+		t.Fatalf("esperado 1 fantasma, got %d", len(ghosts))
+	}
+	g := ghosts[0]
+	if g.Online {
+		t.Fatalf("el fantasma debe ser offline")
+	}
+	if g.IconOverride != "projector" {
+		t.Errorf("icon override no aplicado en offline: %+v", g)
+	}
+	if g.Name != "投影" || g.NameOverride != "投影" {
+		t.Errorf("name override no aplicado en offline: %+v", g)
+	}
+	if g.Type != "tv" || g.TypeOverride != "tv" {
+		t.Errorf("type override no aplicado en offline: %+v", g)
+	}
+}

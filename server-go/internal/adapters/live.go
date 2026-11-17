@@ -1815,6 +1815,40 @@ func hostLikePorts(ports []EthPort) bool {
 	return false
 }
 
+// overrideInfo es el override manual persistido por MAC (#437/#797).
+type overrideInfo struct {
+	Icon          string
+	Name          string
+	DeviceType    string
+	BannedBands   string
+	NotifyOffline bool
+}
+
+// loadDeviceOverrides lee los overrides manuales, con clave en minúsculas
+// para que el lookup sea robusto al caso de la MAC (#797). Lo usan tanto
+// buildDevices (clientes vivos) como ghostDevices (retenidos offline):
+// un override debe verse igual esté el cliente online u offline.
+func (l *Live) loadDeviceOverrides() map[string]overrideInfo {
+	out := map[string]overrideInfo{}
+	if l.db == nil {
+		return out
+	}
+	rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands, notify_offline FROM device_overrides")
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var mac, name, deviceType, bannedBands string
+		var icon sql.NullString
+		var notifyOffline bool
+		if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands, &notifyOffline); err == nil {
+			out[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
+		}
+	}
+	return out
+}
+
 func (l *Live) buildRouter(p *routerPolled, history []histPoint) Router {
 	l.mu.Lock()
 	gw := l.gatewayCfg
@@ -3873,30 +3907,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	}
 	// issue #437/#797: overrides manuales de dispositivo (icono, nombre
 	// visible y tipo) sobre el dispositivo auto-descubierto.
-	type overrideInfo struct {
-		Icon          string
-		Name          string
-		DeviceType    string
-		BannedBands   string
-		NotifyOffline bool
-	}
-	deviceOverrides := map[string]overrideInfo{}
-	if l.db != nil {
-		if rows, err := l.db.Query("SELECT mac, icon, name, device_type, banned_bands, notify_offline FROM device_overrides"); err == nil {
-			for rows.Next() {
-				var mac, name, deviceType, bannedBands string
-				var icon sql.NullString
-				var notifyOffline bool
-				if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands, &notifyOffline); err == nil {
-					// Clave en minúsculas: las MACs de los sondeos pueden
-					// llegar en cualquier caso y el lookup debe ser robusto
-					// (#797: icon overrides que "desaparecían" por caso).
-					deviceOverrides[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
-				}
-			}
-			rows.Close()
-		}
-	}
+	deviceOverrides := l.loadDeviceOverrides()
 	lldpCapsByMac := map[string]string{}
 	for _, p := range polled {
 		for _, nb := range p.lldp {
