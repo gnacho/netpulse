@@ -1077,7 +1077,7 @@ function RouterChipLink({ routerId, onNavigate }: { routerId: string; onNavigate
       className="inline-flex w-fit items-center gap-1.5 rounded-full border border-transparent bg-elevated px-2.5 py-1 text-caption font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
       title={t('devices.viewRouter', { name: r?.name ?? routerId })}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', ROUTER_DOT[routerId] ?? 'bg-text-muted')} />
+      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', ROUTER_DOT[routerId] ?? 'bg-text-muted')} />
       {r?.name ?? routerId}
     </button>
   )
