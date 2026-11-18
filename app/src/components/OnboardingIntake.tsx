@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
-import { ALLOWED_ICONS, ICON_OVERRIDES } from '@/components/DeviceRow'
+import { ICON_OVERRIDES } from '@/components/DeviceRow'
+import { IconPicker } from '@/components/IconPicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
 } from '@/components/ui/sheet'
-import { cn, fetchJson } from '@/lib/utils'
+import { fetchJson } from '@/lib/utils'
 import type { ClientDevice } from '@/pages/devices-data'
 
 export interface OnboardingIntakeProps {
@@ -187,37 +188,7 @@ export function OnboardingIntake({ open, device, isDemo, onClose, onSaved }: Onb
           {/* Icono */}
           <div className="space-y-2">
             <label className="text-label uppercase text-text-muted">{t('devices.onboarding.iconLabel')}</label>
-            <div className="grid grid-cols-6 gap-2">
-              <button
-                type="button"
-                onClick={() => setIcon('')}
-                disabled={busy}
-                className={cn(
-                  'flex h-11 items-center justify-center rounded-lg border bg-elevated text-xs font-medium text-text-secondary transition-colors hover:bg-hover',
-                  icon === '' ? 'border-accent bg-accent-soft text-accent' : 'border-border'
-                )}
-              >
-                {t('devices.edit.auto')}
-              </button>
-              {ALLOWED_ICONS.filter((n) => n !== 'help-circle').map((n) => {
-                const Icon = ICON_OVERRIDES[n]!
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    title={n}
-                    onClick={() => setIcon(n)}
-                    disabled={busy}
-                    className={cn(
-                      'flex h-11 items-center justify-center rounded-lg border transition-colors hover:bg-hover',
-                      icon === n ? 'border-accent bg-accent-soft text-accent' : 'border-border bg-elevated text-text-secondary'
-                    )}
-                  >
-                    <Icon className="h-5 w-5" strokeWidth={1.75} />
-                  </button>
-                )
-              })}
-            </div>
+            <IconPicker value={icon} onChange={setIcon} disabled={busy} columns={6} />
           </div>
 
           {/* Reserva DHCP opcional */}

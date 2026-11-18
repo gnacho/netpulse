@@ -157,6 +157,29 @@ func TestDeviceOverrideValidation(t *testing.T) {
 	}
 }
 
+// Iconos de domótica: uno por categoría del selector debe aceptarse y
+// persistirse, para que la whitelist del server siga a ICON_OVERRIDES.
+func TestDeviceOverrideSmartHomeIcons(t *testing.T) {
+	s := newOverrideTestServer(t)
+	mac := "aa:bb:cc:dd:ee:ff"
+	for _, icon := range []string{
+		"refrigerator", "shower-head", "plug-zap", "lamp-desk", "lock-keyhole",
+		"paw-print", "projector", "hard-drive", "blinds",
+	} {
+		rec := doOverridePut(t, s, mac, `{"icon":"`+icon+`"}`)
+		if rec.Code != 200 {
+			t.Errorf("icon %q debió dar 200, dio %d %s", icon, rec.Code, rec.Body.String())
+			continue
+		}
+		if got := doOverrideGet(t, s, mac); got["icon"] != icon {
+			t.Errorf("icon %q no persistió: %+v", icon, got)
+		}
+	}
+	if rec := doOverridePut(t, s, mac, `{"icon":"icono-falso"}`); rec.Code != 400 {
+		t.Errorf("icon inválido debió dar 400, dio %d", rec.Code)
+	}
+}
+
 // #1145: DELETE /api/devices/{mac} borra la fila del registro y 404 si no
 // existe. El handler requiere admin (el test llama al handler directamente
 // con PathValue, como el resto de tests de handlers con PathValue).

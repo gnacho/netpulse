@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
-import { ALLOWED_ICONS, ICON_OVERRIDES } from '@/components/DeviceRow'
+import { ICON_OVERRIDES } from '@/components/DeviceRow'
+import { IconPicker } from '@/components/IconPicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -242,37 +243,7 @@ export function DeviceEditSheet({
             {/* Icono */}
             <div className="space-y-2">
               <label className="text-label uppercase text-text-muted">{t('devices.edit.icon')}</label>
-              <div className="grid grid-cols-5 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIcon('')}
-                  disabled={saving}
-                  className={cn(
-                    'flex h-11 items-center justify-center rounded-lg border bg-elevated text-xs font-medium text-text-secondary transition-colors hover:bg-hover',
-                    icon === '' ? 'border-accent bg-accent-soft text-accent' : 'border-border'
-                  )}
-                >
-                  {t('devices.edit.auto')}
-                </button>
-                {ALLOWED_ICONS.filter((n) => n !== 'help-circle').map((n) => {
-                  const Icon = ICON_OVERRIDES[n]!
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      title={n}
-                      onClick={() => setIcon(n)}
-                      disabled={saving}
-                      className={cn(
-                        'flex h-11 items-center justify-center rounded-lg border transition-colors hover:bg-hover',
-                        icon === n ? 'border-accent bg-accent-soft text-accent' : 'border-border bg-elevated text-text-secondary'
-                      )}
-                    >
-                      <Icon className="h-5 w-5" strokeWidth={1.75} />
-                    </button>
-                  )
-                })}
-              </div>
+              <IconPicker value={icon} onChange={setIcon} disabled={saving} columns={5} />
             </div>
 
             {/* #1354: alerta opt-in cuando el dispositivo se desconecta */}
