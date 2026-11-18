@@ -56,19 +56,18 @@ func validateIcon(icon string) bool {
 		"help-circle": true, "wifi": true, "ethernet": true,
 		// Overrides de domótica: mantener en sincronía con ICON_OVERRIDES.
 		"refrigerator": true, "washing-machine": true, "microwave": true,
-		"cooking-pot": true, "coffee": true, "utensils-crossed": true,
-		"shower-head": true, "droplets": true, "flame": true,
-		"thermometer": true, "fan": true, "snowflake": true,
+		"coffee": true,
+		"toilet": true, "droplets": true, "flame": true,
+		"thermometer": true, "fan": true,
 		"plug-zap": true, "battery-charging": true, "solar-panel": true, "power": true,
-		"lightbulb": true, "lamp-ceiling": true,
-		"lock-keyhole": true, "door-closed": true,
-		"scan-face": true, "fingerprint": true,
+		"lightbulb": true, "lamp": true, "lamp-ceiling": true,
+		"lock-keyhole": true, "door-closed": true, "scan-face": true,
 		"webcam": true, "siren": true,
-		"paw-print": true, "baby": true, "scale": true, "heart-pulse": true,
+		"paw-print": true, "baby": true, "scale": true,
 		"projector": true, "cast": true, "headphones": true,
-		"hard-drive": true, "database": true, "cpu": true,
-		"brain-circuit": true, "satellite-dish": true,
-		"blinds": true, "sofa": true, "sprout": true, "wrench": true, "gauge": true,
+		"hard-drive": true, "database": true, "cloud": true, "cpu": true,
+		"bot": true, "antenna": true, "satellite-dish": true,
+		"blinds": true, "gauge": true,
 	}
 	return allowed[icon]
 }

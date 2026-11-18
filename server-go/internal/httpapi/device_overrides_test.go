@@ -163,7 +163,7 @@ func TestDeviceOverrideSmartHomeIcons(t *testing.T) {
 	s := newOverrideTestServer(t)
 	mac := "aa:bb:cc:dd:ee:ff"
 	for _, icon := range []string{
-		"refrigerator", "shower-head", "plug-zap", "lamp-ceiling", "lock-keyhole",
+		"refrigerator", "toilet", "plug-zap", "lamp-ceiling", "lock-keyhole",
 		"paw-print", "projector", "hard-drive", "blinds",
 	} {
 		rec := doOverridePut(t, s, mac, `{"icon":"`+icon+`"}`)
