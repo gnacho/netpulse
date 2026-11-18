@@ -32,6 +32,10 @@ fi
 mkdir -p "$OUT"
 export CGO_ENABLED=0
 export GOOS=linux
+# The agent only uses the encoding/json v1 API. json/v2 is on by default in
+# the Go 1.26 toolchain and costs about 124 KB per packed binary (#2095), so it
+# is compiled out unless the caller sets GOEXPERIMENT explicitly.
+export GOEXPERIMENT=${GOEXPERIMENT:-nojsonv2}
 
 build() {
 	local arch=$1 extra=$2
