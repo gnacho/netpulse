@@ -70,6 +70,12 @@ type OpenWrtClient struct {
 	radiosMu    sync.Mutex
 	radiosCache []Radio // resumen por banda, refrescado cada radiosTTL
 	radiosAt    time.Time
+
+	// stalePing (#2073): recheck activo de vecinos ARP en STALE. El ping sale
+	// de la propia unidad (esta en la subred), no del servidor, y va con
+	// throttle para no lanzarlo en cada poll.
+	stalePingMu sync.Mutex
+	stalePingAt time.Time
 }
 
 type cpuSample struct{ total, idleAll float64 }
@@ -705,6 +711,13 @@ func radiosToAdapter(in []probe.Radio) []Radio {
 func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, devs map[string]string) {
 	if out, err := c.pool.Run(c.Host, probe.CmdIpNeigh, 0); err == nil {
 		if m, st := probe.ParseIPNeigh(out); len(m) > 0 {
+			// #2073: la misma comprobacion activa que hace el agente, pero
+			// lanzada desde la unidad (esta en la subred; el servidor puede
+			// no estarlo). Un host cableado con IP estatica que lleva rato en
+			// silencio deja el ARP en STALE sin estar apagado.
+			if fresh, ok := c.recheckStaleNeighbours(m, st); ok {
+				return m, st, probe.ParseIPNeighDevs(fresh)
+			}
 			return m, st, probe.ParseIPNeighDevs(out)
 		}
 	}
@@ -713,6 +726,54 @@ func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, 
 		return nil, nil, nil
 	}
 	return probe.ParseArp(out), nil, probe.ParseArpDevs(out)
+}
+
+// recheckStaleNeighbours (#2073): un ping corto por cada vecino STALE, en
+// paralelo y desde la unidad, y una relectura de `ip neigh`. El kernel pasa a
+// REACHABLE la entrada cuya respuesta ARP llega, asi que lo confirmado es la
+// pareja IP-MAC. Devuelve la relectura y si se llego a hacer. Best effort.
+func (c *OpenWrtClient) recheckStaleNeighbours(arp map[string]string, stale map[string]bool) (string, bool) {
+	if c.pool == nil || len(stale) == 0 {
+		return "", false
+	}
+	c.stalePingMu.Lock()
+	recent := !c.stalePingAt.IsZero() && time.Since(c.stalePingAt) < probe.StalePingInterval
+	if !recent {
+		c.stalePingAt = time.Now()
+	}
+	c.stalePingMu.Unlock()
+	if recent {
+		return "", false
+	}
+	ips := probe.StalePingTargets(arp, stale)
+	if len(ips) == 0 {
+		return "", false
+	}
+	var cmd strings.Builder
+	for _, ip := range ips {
+		cmd.WriteString("ping -c 1 -W 1 ")
+		cmd.WriteString(ip)
+		cmd.WriteString(" >/dev/null 2>&1 & ")
+	}
+	cmd.WriteString("wait")
+	if _, err := c.pool.Run(c.Host, cmd.String(), probe.StalePingTimeout+2*time.Second); err != nil {
+		return "", false
+	}
+	out, err := c.pool.Run(c.Host, probe.CmdIpNeigh, 0)
+	if err != nil || out == "" {
+		return "", false
+	}
+	fresh, stillStale := probe.ParseIPNeigh(out)
+	for mac := range stale {
+		if stillStale[mac] {
+			continue
+		}
+		if ip := fresh[mac]; ip != "" {
+			arp[mac] = ip
+		}
+		delete(stale, mac)
+	}
+	return out, true
 }
 
 // GetNetworks: redes logicas que la unidad declara en UCI (#1889). Es la

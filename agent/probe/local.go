@@ -143,6 +143,12 @@ type Prober struct {
 	uciWirelessMu  sync.Mutex
 	uciWirelessRaw string
 	uciWirelessAt  time.Time
+
+	// stalePing (#2073): recheck activo de vecinos ARP en STALE. El ping a
+	// cada IP sale del throttle como mucho cada stalePingInterval; el sondeo
+	// del agente es cada ~30 s y una entrada STALE cambia despacio.
+	stalePingMu sync.Mutex
+	stalePingAt time.Time
 }
 
 // surveyInterval: mínimo entre `iw survey dump` si no hay force (#1214).
@@ -1327,6 +1333,15 @@ func (p *Prober) probeArp(ctx context.Context) (arp map[string]string, stale []s
 	if out := p.runBest(ctx, CmdIpNeigh, 3*time.Second); out != "" {
 		m, st := ParseIPNeigh(out)
 		if len(m) > 0 {
+			// #2073: un vecino STALE es una direccion que el kernel recuerda
+			// sin confirmar. Antes de darlo por fantasma se comprueba con un
+			// echo corto, que es lo unico que puede resolver el caso de un
+			// host cableado con IP estatica que lleva rato en silencio.
+			var fresh string
+			m, st, fresh = p.confirmStaleNeighbours(ctx, m, st)
+			if fresh != "" {
+				out = fresh
+			}
 			for mac := range st {
 				stale = append(stale, mac)
 			}
@@ -1343,4 +1358,94 @@ func (p *Prober) probeArp(ctx context.Context) (arp map[string]string, stale []s
 		m = map[string]string{}
 	}
 	return m, nil, ParseArpDevs(out)
+}
+
+// Parametros del recheck activo de vecinos (#2073), compartidos por el agente
+// y por el sondeo SSH del servidor. El tope por ronda es deliberado: el caso
+// real son un punado de vecinos idle, no un barrido de subred. Un /24 completo
+// se deja para un arpscan, que necesita raw sockets.
+const (
+	StalePingInterval = 60 * time.Second
+	StalePingMax      = 16
+	StalePingTimeout  = 1500 * time.Millisecond
+)
+
+// StalePingTargets devuelve, en orden determinista y con tope, las IPs de los
+// vecinos STALE que merece la pena sondear. Compartida por el agente (ping
+// local, #2073) y el cliente SSH del servidor (ping desde la unidad), para que
+// los dos caminos sondeen lo mismo.
+func StalePingTargets(arp map[string]string, stale map[string]bool) []string {
+	macs := make([]string, 0, len(stale))
+	for mac := range stale {
+		macs = append(macs, mac)
+	}
+	sort.Strings(macs)
+	ips := make([]string, 0, StalePingMax)
+	for _, mac := range macs {
+		if len(ips) >= StalePingMax {
+			break
+		}
+		if ip := arp[mac]; net.ParseIP(ip) != nil {
+			ips = append(ips, ip)
+		}
+	}
+	return ips
+}
+
+// confirmStaleNeighbours (#2073): manda un echo corto a cada IP de vecino
+// STALE y relee la tabla. El kernel pasa a REACHABLE la entrada cuya respuesta
+// ARP llega, asi que lo que se confirma es la PAREJA IP-MAC: una IP
+// reutilizada por otro equipo no resucita la MAC vieja. Es justo el dato que
+// falta cuando un host cableado con IP estatica lleva rato en silencio, la FDB
+// ha caducado y el ARP solo esta STALE (#2063).
+//
+// Best effort: sin runner, sin vecinos o si la relectura falla, los datos
+// vuelven como estaban. Throttle propio (stalePingInterval) para no lanzar
+// pings en cada sondeo.
+func (p *Prober) confirmStaleNeighbours(ctx context.Context, arp map[string]string, stale map[string]bool) (map[string]string, map[string]bool, string) {
+	if p.run == nil || len(stale) == 0 {
+		return arp, stale, ""
+	}
+	p.stalePingMu.Lock()
+	recent := !p.stalePingAt.IsZero() && time.Since(p.stalePingAt) < StalePingInterval
+	if !recent {
+		p.stalePingAt = time.Now()
+	}
+	p.stalePingMu.Unlock()
+	if recent {
+		return arp, stale, ""
+	}
+
+	ips := StalePingTargets(arp, stale)
+	if len(ips) == 0 {
+		return arp, stale, ""
+	}
+
+	var wg sync.WaitGroup
+	for _, ip := range ips {
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			_, _ = p.run.Run(ctx, "ping -c 1 -W 1 "+ip+" >/dev/null 2>&1", StalePingTimeout)
+		}(ip)
+	}
+	wg.Wait()
+
+	out := p.runBest(ctx, CmdIpNeigh, 3*time.Second)
+	if out == "" {
+		return arp, stale, ""
+	}
+	fresh, stillStale := ParseIPNeigh(out)
+	for mac := range stale {
+		if stillStale[mac] {
+			continue
+		}
+		// Respondio: el kernel ya tiene la entrada confirmada. Se copia la IP
+		// fresca (puede haber cambiado de direccion) y sale del set stale.
+		if ip := fresh[mac]; ip != "" {
+			arp[mac] = ip
+		}
+		delete(stale, mac)
+	}
+	return arp, stale, out
 }
