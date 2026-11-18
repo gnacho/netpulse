@@ -304,14 +304,16 @@ function InfraBadge({ info }: { info: InfraInfo }) {
 /** Etiqueta del tipo de dispositivo (auto-descubierto por el clasificador). */
 function TypeBadge({ type, className }: { type: DeviceType; className?: string }) {
   const { t } = useTranslation()
+  const label = t(`devices.types.${type}`)
   return (
     <span
+      title={label}
       className={cn(
-        'inline-flex w-fit shrink-0 items-center rounded-full border border-border bg-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary',
+        'inline-flex w-fit max-w-full shrink-0 items-center rounded-full border border-border bg-elevated px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary',
         className,
       )}
     >
-      {t(`devices.types.${type}`)}
+      <span className="truncate">{label}</span>
     </span>
   )
 }
@@ -1081,7 +1083,7 @@ function RouterChipLink({ routerId, onNavigate }: { routerId: string; onNavigate
       className="inline-flex w-fit items-center gap-1.5 rounded-full border border-transparent bg-elevated px-2.5 py-1 text-caption font-medium text-text-secondary transition-colors hover:border-accent/40 hover:text-accent"
       title={t('devices.viewRouter', { name: r?.name ?? routerId })}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', ROUTER_DOT[routerId] ?? 'bg-text-muted')} />
+      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', ROUTER_DOT[routerId] ?? 'bg-text-muted')} />
       {r?.name ?? routerId}
     </button>
   )
@@ -1090,7 +1092,7 @@ function RouterChipLink({ routerId, onNavigate }: { routerId: string; onNavigate
 function BandChip({ band }: { band: ClientDevice['band'] }) {
   const { t } = useTranslation()
   return (
-    <span className="inline-flex w-fit items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 font-mono text-caption text-text-secondary">
+    <span className="inline-flex w-fit items-center gap-1 rounded-full border border-border-strong px-2.5 py-1 font-mono text-caption text-text-secondary 2xl:whitespace-nowrap">
       {band === 'cable' ? t('common.cable') : band}
     </span>
   )
@@ -1099,7 +1101,7 @@ function BandChip({ band }: { band: ClientDevice['band'] }) {
 function SignalCell({ device }: { device: ClientDevice }) {
   if (!device.online) return <span className="font-mono text-mono-sm text-text-muted">—</span>
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5 2xl:whitespace-nowrap">
       <SignalIcon dbm={device.signalDbm} />
       {device.signalDbm !== null && (
         <span className={cn('font-mono text-mono-sm', signalTextClass(device.signalDbm))}>
@@ -1130,47 +1132,89 @@ function LeaseCell({ device }: { device: ClientDevice }) {
 // generar clases dinámicas para todas las combinaciones posibles.
 // Pesos fr NATURALES de cada columna (con todo visible, la plantilla es
 // idéntica al ROW_GRID original).
-const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number; xlOnly?: boolean }> = {
-  type: { lg: 0.55 },
-  ip: { lg: 0.95 },
-  lease: { lg: 0.7 },
-  router: { md: 1.1, lg: 0.85 },
-  band: { md: 0.85, lg: 0.6 },
-  signal: { md: 0.95, lg: 0.75 },
-  traffic: { md: 0.75, lg: 0.75, xl: 0.7 },
-  firstSeen: { lg: 1.0, xlOnly: true },
-  lastSeen: { lg: 1.0, xlOnly: true },
+const COLUMN_SPECS: Record<DeviceColumn, { md?: number; lg: number; xl?: number; xxl?: number; xxlMin?: number; xlOnly?: boolean }> = {
+  type: { lg: 1.1, xxl: 0.9 },
+  ip: { lg: 1.65, xl: 1.55, xxl: 1.1, xxlMin: 132 },
+  lease: { lg: 0.8, xxlMin: 66, xlOnly: true },
+  router: { md: 1.4, lg: 1.05, xl: 1.15, xxl: 1.0 },
+  band: { md: 0.85, lg: 0.8, xl: 0.7, xxlMin: 68 },
+  signal: { md: 0.95, lg: 0.7, xl: 0.6, xxlMin: 81 },
+  traffic: { md: 0.75, lg: 0.7, xl: 0.55, xxlMin: 64 },
+  firstSeen: { lg: 0.9, xxlMin: 74, xlOnly: true },
+  lastSeen: { lg: 0.9, xxlMin: 74, xlOnly: true },
 }
 
 // #1360: la columna de dispositivo repartía holgura que las fechas (sin
-// nowrap y a 0.7fr) pagaban con wraps feos; el peso baja a 2.8 y las fechas
-// suben a 1.0fr para que "Primera vez"/"Última vez" quepan en una línea.
-const DEVICE_COL_FR = { md: 3, lg: 2.8, xl: 2.8 } as const
+// nowrap y a 0.7fr) pagaban con wraps feos; las fechas suben a 0.9fr y se
+// alinean a la derecha: lo que desborda ("397 days ago") cae en el gutter.
+// Repaso de pesos con capturas y medidas en md/lg/xl. El defecto común era que
+// las celdas w-fit pintaban fuera de su track sobre la columna vecina. Un
+// desborde de <=16px cae en el gutter (gap-4) y es inocuo; por eso solo se
+// contienen con truncate + title las celdas cuyo desborde supera el gutter:
+// IP/MAC (w-fit de 120px sobre tracks de 63) y la etiqueta de tipo. El chip de
+// router y el lease se dejan naturales: multi-palabra envuelven y una palabra
+// larga como "Gateway" desborda <=13px hacia el gutter.
+// En lg no caben 8 columnas con texto completo (~594px necesarios contra 528
+// disponibles): lease pasa a xl-only como first/last seen y el ancho liberado
+// paga type (1.1fr cubre COMPUTER), ip (1.65fr cubre la línea IP) y router.
+// Dispositivo conserva la prioridad (2.7/2.5/2.5/2.0fr): es la columna que el
+// ojo lee primero; el badge de infra baja a la línea del fabricante (en la del
+// nombre dejaba al nombre en 1 char) y el resto de badges envuelven con
+// flex-wrap solo cuando los badges solos superan el track.
+// En 2xl (>=1536) banda, señal y tráfico van en una línea
+// (2xl:whitespace-nowrap) y su track lleva suelo en px (xxlMin 68/81/64, el
+// ancho natural del chip, del icono más dBm y del valor más unidad). Sin
+// suelo, el fr les deja menos que su texto y el nowrap pintaría sobre la
+// columna vecina. El suelo se paga con ip, que baja de 1.55 a 1.1fr con
+// suelo 132px (la línea MAC completa, 122px en JetBrains Mono, más el px-1
+// del botón y 2px de margen): a 1920 sobraban ~50px de hueco entre
+// IP/MAC y lease que ahora reparten el fr. Lease y fechas llevan suelo
+// 66/74px porque "unlimited" y "hace 398 días" no caben en su fr, y type
+// (0.9) y router (1.0) ceden peso para pagarlo.
+// Por debajo de 2xl se mantiene el reparto xl con envoltura natural: en
+// 1280 las once columnas en una línea no caben en en/es (el nombre y el
+// chip de router son w-fit shrink-0 y no encogen), así que ahí banda,
+// señal y tráfico envuelven como en el repaso md/lg/xl.
+const DEVICE_COL_FR = { md: 2.7, lg: 2.5, xl: 2.5, xxl: 2.0 } as const
 
 /** Reparto al ocultar columnas: el fr liberado se distribuye A PARTES IGUALES
  *  entre las columnas visibles (dispositivo incluida). El reparto nativo de
  *  CSS es proporcional al peso, así que la columna de dispositivo (3.4fr
  *  frente a 0.55-1.1fr del resto) absorbía casi todo el hueco liberado. */
-function distributeColumns(all: { key: string; fr: number }[], vis: Set<DeviceColumn>): string {
+function distributeColumns(all: { key: string; fr: number; min?: number }[], vis: Set<DeviceColumn>): string {
   const visibleCols = all.filter((c) => vis.has(c.key as DeviceColumn) || c.key === 'device')
   const hiddenFr = all.filter((c) => !vis.has(c.key as DeviceColumn) && c.key !== 'device').reduce((a, c) => a + c.fr, 0)
   const bonus = hiddenFr / visibleCols.length
-  return visibleCols.map((c) => `minmax(0,${(c.fr + bonus).toFixed(2)}fr)`).join(' ')
+  return visibleCols
+    .map((c) => `minmax(${c.min ?? 0}px,${(c.fr + bonus).toFixed(2)}fr)`)
+    .join(' ')
 }
 
 function columnTemplates(vis: Set<DeviceColumn>) {
-  const frOf = (c: DeviceColumn, bp: 'md' | 'lg' | 'xl'): number =>
-    bp === 'md' ? COLUMN_SPECS[c].md! : bp === 'lg' ? COLUMN_SPECS[c].lg : (COLUMN_SPECS[c].xl ?? COLUMN_SPECS[c].lg)
-  const colsFor = (bp: 'md' | 'lg' | 'xl'): { key: string; fr: number }[] => [
+  const frOf = (c: DeviceColumn, bp: 'md' | 'lg' | 'xl' | 'xxl'): number =>
+    bp === 'md'
+      ? COLUMN_SPECS[c].md!
+      : bp === 'lg'
+        ? COLUMN_SPECS[c].lg
+        : bp === 'xl'
+          ? (COLUMN_SPECS[c].xl ?? COLUMN_SPECS[c].lg)
+          : (COLUMN_SPECS[c].xxl ?? COLUMN_SPECS[c].xl ?? COLUMN_SPECS[c].lg)
+  const colsFor = (bp: 'md' | 'lg' | 'xl' | 'xxl'): { key: string; fr: number; min?: number }[] => [
     { key: 'device', fr: DEVICE_COL_FR[bp] },
     ...DEVICE_COLUMNS.filter((c) =>
       bp === 'md' ? !!COLUMN_SPECS[c].md : bp === 'lg' ? !COLUMN_SPECS[c].xlOnly : true,
-    ).map((c) => ({ key: c as string, fr: frOf(c, bp) })),
+    ).map((c) => ({ key: c as string, fr: frOf(c, bp), min: bp === 'xxl' ? COLUMN_SPECS[c].xxlMin : undefined })),
   ]
   const md = [distributeColumns(colsFor('md'), vis), '1.5rem'].join(' ')
   const lg = [distributeColumns(colsFor('lg'), vis), '1.5rem'].join(' ')
   const xl = [distributeColumns(colsFor('xl'), vis), '1.5rem'].join(' ')
-  return { '--devices-cols-md': md, '--devices-cols-lg': lg, '--devices-cols-xl': xl } as React.CSSProperties
+  const xxl = [distributeColumns(colsFor('xxl'), vis), '1.5rem'].join(' ')
+  return {
+    '--devices-cols-md': md,
+    '--devices-cols-lg': lg,
+    '--devices-cols-xl': xl,
+    '--devices-cols-xxl': xxl,
+  } as React.CSSProperties
 }
 
 /** Fila de tabla desktop (md+) */
@@ -1229,8 +1273,8 @@ function ListRow({
         <div className="group flex min-w-0 items-center gap-3">
           <DeviceTile device={device} />
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-text-primary" translate="no">{device.name}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary" title={device.name} translate="no">{device.name}</span>
               <button
                 type="button"
                 onClick={(e) => {
@@ -1243,11 +1287,18 @@ function ListRow({
                 <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
               </button>
               {device.isNew && <NewPill />}
-              {infra && <InfraBadge info={infra} />}
-              <TypeBadge type={device.type} className="lg:hidden" />
               {/* #1208: sin chip OFFLINE - el gris del texto y el filtro ya distinguen, y el chip empujaba el texto en pantallas pequeñas */}
             </div>
-            <div className="truncate text-caption text-text-muted">{manufacturerLabel(device.manufacturer)}</div>
+            {/* El badge de infra y el de tipo (md) van con el fabricante: en la
+                línea del nombre dejaban al nombre en 1 char cuando caben.
+                El fabricante se oculta en md: con 78px de bloque de texto no
+                caben fabricante + badge, y el nombre manda; sigue en la fila
+                expandida y en lg+. */}
+            <div className="flex flex-wrap items-center gap-2 text-caption text-text-muted">
+              <span className="hidden min-w-0 truncate lg:block" title={manufacturerLabel(device.manufacturer)}>{manufacturerLabel(device.manufacturer)}</span>
+              {infra && <InfraBadge info={infra} />}
+              <TypeBadge type={device.type} className="lg:hidden" />
+            </div>
           </div>
         </div>
         {/* Tipo */}
@@ -1264,15 +1315,15 @@ function ListRow({
               onCopyIp(device.ip)
             }}
             title={t('devices.copyIp')}
-            className="hidden w-fit min-w-0 flex-col items-start rounded-md px-1 py-0.5 text-left transition-colors hover:bg-elevated lg:flex"
+            className="hidden w-full min-w-0 max-w-full flex-col items-start overflow-hidden rounded-md px-1 py-0.5 text-left transition-colors hover:bg-elevated lg:flex"
           >
-            <span className="font-mono text-mono-sm text-text-primary">{device.ip}</span>
-            <span className="font-mono text-caption text-text-muted">{device.mac}</span>
+            <span className="block w-full truncate font-mono text-mono-sm text-text-primary" title={device.ip}>{device.ip}</span>
+            <span className="block w-full truncate font-mono text-caption text-text-muted" title={device.mac}>{device.mac}</span>
           </button>
         )}
         {/* Tiempo restante del lease */}
         {vis.has('lease') && (
-          <div className="hidden lg:block">
+          <div className="hidden xl:block">
             <LeaseCell device={device} />
           </div>
         )}
@@ -1298,7 +1349,7 @@ function ListRow({
         {/* Tráfico en vivo (#799): la columna que ordena el default */}
         {vis.has('traffic') && (
           <div>
-            <span className="font-mono text-mono-sm text-accent">
+            <span className="font-mono text-mono-sm text-accent 2xl:whitespace-nowrap">
               {device.online
                 ? `${device.trafficMbps >= 1 ? fmtEs(device.trafficMbps, 1) : fmtEs(device.trafficMbps, 2)} Mbps`
                 : '—'}
@@ -1306,15 +1357,15 @@ function ListRow({
           </div>
         )}
         {/* First/Last seen (#954): solo en xl para no engordar la tabla.
-            #1360: whitespace-nowrap - con 1.0fr caben; sin nowrap partían
-            el texto ("hace 2 días") en dos líneas. */}
+            #1360: whitespace-nowrap - sin nowrap partían el texto ("hace 2
+            días") en dos líneas; el desborde horizontal cae en el gutter. */}
         {vis.has('firstSeen') && (
-          <div className="hidden xl:block">
+          <div className="hidden text-right xl:block">
             <span className="whitespace-nowrap text-caption text-text-secondary">{fmtSeenAgo(device.firstSeenMs)}</span>
           </div>
         )}
         {vis.has('lastSeen') && (
-          <div className="hidden xl:block">
+          <div className="hidden text-right xl:block">
             <span className="whitespace-nowrap text-caption text-text-secondary">{fmtSeenAgo(device.lastSeenMs)}</span>
           </div>
         )}
@@ -2150,7 +2201,7 @@ export default function Devices() {
               </span>
             )}
             {visibleColumns.has('lease') && (
-              <span className="hidden lg:block">
+              <span className="hidden xl:block">
                 <SortHeader label={t('devices.colLease')} k="lease" sort={sort} onSort={toggleSort} />
               </span>
             )}
@@ -2159,12 +2210,12 @@ export default function Devices() {
             {visibleColumns.has('signal') && <SortHeader label={t('devices.colSignal')} k="signal" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('traffic') && <SortHeader label={t('devices.colTraffic')} k="traffic" sort={sort} onSort={toggleSort} />}
             {visibleColumns.has('firstSeen') && (
-              <span className="hidden xl:block">
+              <span className="hidden xl:flex xl:justify-end">
                 <SortHeader label={t('devices.colFirstSeen')} k="firstSeen" sort={sort} onSort={toggleSort} />
               </span>
             )}
             {visibleColumns.has('lastSeen') && (
-              <span className="hidden xl:block">
+              <span className="hidden xl:flex xl:justify-end">
                 <SortHeader label={t('devices.colLastSeen')} k="lastSeen" sort={sort} onSort={toggleSort} />
               </span>
             )}
