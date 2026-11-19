@@ -268,6 +268,8 @@ func (s *server) handleDeviceReservationGet(w http.ResponseWriter, r *http.Reque
 // Idempotente (misma MAC+IP → no-op). Rechaza con 409 si OTRA MAC ya tiene
 // reservada la IP pedida.
 func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Request) {
+	// #2112: uci show + commit + restart del servicio en la unidad antes de responder.
+	setLongWriteDeadline(w, deviceActionWriteCeiling)
 	mac := normalizeMAC(r.PathValue("mac"))
 	if len(mac) != 17 {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
@@ -366,6 +368,8 @@ func (s *server) handleDeviceReservationPut(w http.ResponseWriter, r *http.Reque
 // NO vacío (#693): es el objetivo de la acción, no un opcional. La UI deriva
 // el hostname del nombre visible y deshabilita la acción si no es aplicable.
 func (s *server) handleDeviceReservationHostnamePut(w http.ResponseWriter, r *http.Request) {
+	// #2112: uci show + commit + restart del servicio en la unidad antes de responder.
+	setLongWriteDeadline(w, deviceActionWriteCeiling)
 	mac := normalizeMAC(r.PathValue("mac"))
 	if len(mac) != 17 {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
@@ -481,6 +485,8 @@ func writeDevicePlan(w http.ResponseWriter, mac, host string, apply, rollback []
 
 // handleDeviceReservationDelete elimina la reserva DHCP estática.
 func (s *server) handleDeviceReservationDelete(w http.ResponseWriter, r *http.Request) {
+	// #2112: uci show + commit + restart del servicio en la unidad antes de responder.
+	setLongWriteDeadline(w, deviceActionWriteCeiling)
 	mac := normalizeMAC(r.PathValue("mac"))
 	if len(mac) != 17 {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
@@ -657,6 +663,8 @@ func (s *server) handleDeviceBlockGet(w http.ResponseWriter, r *http.Request) {
 
 // handleDeviceBlockPut bloquea un dispositivo añadiendo una regla de firewall.
 func (s *server) handleDeviceBlockPut(w http.ResponseWriter, r *http.Request) {
+	// #2112: uci show + commit + restart del servicio en la unidad antes de responder.
+	setLongWriteDeadline(w, deviceActionWriteCeiling)
 	mac := normalizeMAC(r.PathValue("mac"))
 	if len(mac) != 17 {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
@@ -711,6 +719,8 @@ func (s *server) handleDeviceBlockPut(w http.ResponseWriter, r *http.Request) {
 
 // handleDeviceBlockDelete desbloquea un dispositivo.
 func (s *server) handleDeviceBlockDelete(w http.ResponseWriter, r *http.Request) {
+	// #2112: uci show + commit + restart del servicio en la unidad antes de responder.
+	setLongWriteDeadline(w, deviceActionWriteCeiling)
 	mac := normalizeMAC(r.PathValue("mac"))
 	if len(mac) != 17 {
 		writeError(w, http.StatusBadRequest, "invalid_mac")

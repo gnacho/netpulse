@@ -387,6 +387,8 @@ type integrationCreateBody struct {
 }
 
 func (s *server) handleIntegrationsCreate(w http.ResponseWriter, r *http.Request) {
+	// #2112: en modo ssh el instalador corre en el router antes de responder.
+	setLongWriteDeadline(w, integrationWriteCeiling)
 	if s.db == nil {
 		writeError(w, http.StatusInternalServerError, "db_error")
 		return
@@ -750,6 +752,8 @@ func (s *server) handleIntegrationCheck(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *server) handleIntegrationUpdate(w http.ResponseWriter, r *http.Request) {
+	// #2112: en modo ssh reinstala el pusher en el router antes de responder.
+	setLongWriteDeadline(w, integrationWriteCeiling)
 	slug := r.PathValue("slug")
 	row, ok := s.getIntegrationRow(slug)
 	if !ok {
