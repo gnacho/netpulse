@@ -11,6 +11,7 @@
  * y nadie quiere mantenerlas.
  */
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import {
   BookOpen,
   Bot,
@@ -26,6 +27,8 @@ import {
   ShieldCheck,
   Blocks,
   Wifi,
+  Sparkles,
+  ArrowRight,
 } from 'lucide-react'
 import {
   Accordion,
@@ -84,6 +87,20 @@ export default function Help() {
         </h1>
         <p className="text-sm text-text-secondary">{t('help.subtitle')}</p>
       </header>
+
+      {/* #2116: entrada a novedades también en móvil, donde el sello de
+          versión del sidebar no existe. */}
+      <Link
+        to="/whatsnew"
+        className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent-soft px-4 py-3 transition-colors hover:border-accent/60"
+      >
+        <Sparkles className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-text-primary">{t('whatsnew.title')}</span>
+          <span className="block text-caption text-text-secondary">{t('whatsnew.helpHint')}</span>
+        </span>
+        <ArrowRight className="h-4 w-4 shrink-0 text-accent" strokeWidth={2} aria-hidden="true" />
+      </Link>
 
       <section
         aria-label={t('help.flowsAria')}

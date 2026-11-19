@@ -20,6 +20,7 @@ import Orchestration from '@/pages/Orchestration'
 import FirmwareUpgrades from '@/pages/FirmwareUpgrades'
 import Settings from '@/pages/Settings'
 import Help from '@/pages/Help'
+import { WhatsNew } from '@/pages/WhatsNew'
 import Placeholder from '@/pages/Placeholder'
 
 /**
@@ -64,6 +65,7 @@ export default function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="orchestration" element={<Orchestration />} />
         <Route path="help" element={<Help />} />
+        <Route path="whatsnew" element={<WhatsNew />} />
         <Route path="settings" element={<Settings />} />
         <Route path="*" element={<NotFound />} />
       </Route>

@@ -34,6 +34,8 @@ import { UpdateBanner } from '@/components/UpdateBanner'
 import { AnnouncementBanner } from '@/components/AnnouncementBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useServerVersion } from '@/hooks/useServerVersion'
+import { useWhatsNewBadge } from '@/whatsnew/useWhatsNewSeen'
 import { useServicesVisibility } from '@/hooks/useServicesVisibility'
 import { cn, exitDemo } from '@/lib/utils'
 
@@ -98,6 +100,7 @@ const PAGE_TITLE_KEYS: [RegExp, string][] = [
   [/^\/reports/, 'nav.reports'],
   [/^\/orchestration/, 'nav.orchestration'],
   [/^\/help/, 'nav.help'],
+  [/^\/whatsnew/, 'whatsnew.title'],
   [/^\/settings/, 'nav.settings'],
 ]
 
@@ -230,35 +233,12 @@ function useVisibleNavItems(): NavItem[] {
   )
 }
 
-/** Versión del server (una petición, cacheada en el módulo): el sello del
- *  sidebar muestra "version · build" (#1274). Cache de módulo para que el
- *  Sidebar y el Rail no dupliquen la petición. */
-let serverVersionCache = ''
-function useServerVersion(): string {
-  const [v, setV] = useState(serverVersionCache)
-  useEffect(() => {
-    if (serverVersionCache) return
-    let disposed = false
-    fetch('/api/health', { signal: AbortSignal.timeout(3000) })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        const ver = typeof d?.version === 'string' ? d.version : ''
-        if (!disposed && ver) {
-          serverVersionCache = ver
-          setV(ver)
-        }
-      })
-      .catch(() => {})
-    return () => {
-      disposed = true
-    }
-  }, [])
-  return v
-}
-
 function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: boolean; onToggleCollapse: () => void; serverVersion: string }) {
   const { t } = useTranslation()
   const items = useVisibleNavItems()
+  // #2116: punto en el sello de versión cuando la release en curso trae
+  // tarjetas de novedades que este navegador no ha abierto todavía.
+  const { unseen } = useWhatsNewBadge(serverVersion)
 
   if (collapsed) {
     // Sidebar colapsado = raíl de iconos en lg (persiste en localStorage)
@@ -353,9 +333,17 @@ function Sidebar({ collapsed, onToggleCollapse, serverVersion }: { collapsed: bo
       {/* Sello de build (#1214): identifica el commit exacto que ejecuta el
           navegador. Imprescindible para diagnosticar cachés y service
           workers: una captura del usuario dice qué build ve de verdad. */}
-      <div className="px-3 pb-1.5 pt-0.5 text-[10px] font-medium tabular-nums tracking-wide text-text-secondary/50">
-        {serverVersion ? `${serverVersion} · build ${__NP_BUILD__}` : `build ${__NP_BUILD__}`}
-      </div>
+      <Link
+        to="/whatsnew"
+        className="flex items-center gap-1.5 px-3 pb-1.5 pt-0.5 text-[10px] font-medium tabular-nums tracking-wide text-text-secondary/50 transition-colors hover:text-accent"
+        title={t('whatsnew.title')}
+      >
+        <span className="truncate">
+          {serverVersion ? `${serverVersion} · build ${__NP_BUILD__}` : `build ${__NP_BUILD__}`}
+        </span>
+        {unseen && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />}
+        <span className="sr-only">{t('whatsnew.title')}</span>
+      </Link>
       <div className="flex items-center gap-2 border-t border-border p-3">
         <LivePill />
         <button
