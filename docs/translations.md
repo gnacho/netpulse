@@ -6,7 +6,7 @@ of them and leave the other for later: they do not share files.
 | Surface | Languages today | Source of truth | What it takes |
 |---|---|---|---|
 | Landing site, `netpulse.cloudless.club` | Spanish, English, Chinese, Arabic, Hindi, Portuguese, French, Japanese, Russian and German | `web/src/i18n.ts` | Editing TypeScript data, no logic |
-| App UI, the panel itself | Spanish and English | `app/public/locales/<code>/translation.json` | A JSON file plus a few code lines |
+| App UI, the panel itself | Spanish, English, Chinese and Russian | `app/public/locales/<code>/translation.json` | A JSON file plus a few code lines |
 
 Open an issue first, with a title like `Translations: Romanian`, and say which
 surface you are taking. Two people translating the same language into two

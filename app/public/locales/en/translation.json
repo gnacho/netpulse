@@ -3271,5 +3271,41 @@
       "empty": "No DNS activity recorded yet. The first read can take a minute.",
       "gap": "A stretch of the window is missing because the AdGuard log rotated before it was read."
     }
-  }
+  },
+  "whatsnew": {
+      "title": "What's new",
+      "subtitle": "Each release, explained with the interaction it changes.",
+      "helpHint": "See what changed in the version you are running.",
+      "latest": "latest",
+      "by": "by {{author}}",
+      "footnote": "The demos are built with the app's own components and sample data, so they follow the theme and the language.",
+      "search": "Search an icon",
+      "noMatch": "No match",
+      "topDomains": "Top domains",
+      "navigation": "Navigation",
+      "demoDevice": "HP iLO",
+      "online": "online",
+      "offline": "offline",
+      "cards": {
+        "icon-picker": {
+          "title": "Icons that name the device",
+          "body": "Sixty icons in ten categories, searchable by their name in your language. A fridge stops looking like a generic box, and you find it by typing what it is."
+        },
+        "dns-activity": {
+          "title": "What each device asks for",
+          "body": "Per-device DNS activity from the AdGuard query log: the domains a client resolves, how often, and which ones were blocked. One hour or one day, next to the client that asked.",
+          "caption": "Sample data: the last day of one device. Blocked domains in red."
+        },
+        "presence": {
+          "title": "Quiet is not offline",
+          "body": "A wired host with a static address that went silent used to drop off the map. Before trusting a stale ARP entry, the unit pings it and re-reads the neighbour table, so the address and the MAC are confirmed and an idle host stays online.",
+          "caption": "STALE means the kernel remembers the neighbour without confirming it. A short echo turns it back to REACHABLE."
+        },
+        "languages": {
+          "title": "Chinese and Russian",
+          "body": "The whole interface in Chinese and in Russian, catalogs complete and reviewed, with the language selector in the header. Dates and numbers follow each language too, not only the labels.",
+          "caption": "Navigation, dates and numbers follow the selected language."
+        }
+      }
+    }
 }

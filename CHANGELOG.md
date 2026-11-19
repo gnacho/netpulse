@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- Página "Novedades" dentro de la app (#2116): una sección por release y una tarjeta por cambio, con una animación de la interacción real (selector de iconos, DNS por dispositivo, presencia ARP e idiomas), traducida a los cuatro idiomas y con el punto del sello de versión hasta que se abre. Cómo añadir una release: `docs/whatsnew.md`.
+
 ### Changed
 
 - Las líneas del journal llevan un solo timestamp, el de systemd, y todos los prefijos siguen la forma `[netpulse:<subsistema>]`, con `mqtt`, `firmware`, `speedtest`, `rack`, `pve` y `agent` incluidos (#2058, reportado por @crowedavid).

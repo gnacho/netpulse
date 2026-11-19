@@ -3271,5 +3271,41 @@
       "empty": "Aún no hay actividad DNS registrada. La primera lectura puede tardar un minuto.",
       "gap": "Falta un tramo de la ventana porque el registro de AdGuard rotó antes de leerse."
     }
-  }
+  },
+  "whatsnew": {
+      "title": "Novedades",
+      "subtitle": "Cada release, contada con la interacción que cambia.",
+      "helpHint": "Mira qué cambió en la versión que estás ejecutando.",
+      "latest": "última",
+      "by": "por {{author}}",
+      "footnote": "Las demos están hechas con los componentes de la app y datos de muestra, así que siguen el tema y el idioma.",
+      "search": "Buscar un icono",
+      "noMatch": "Sin coincidencias",
+      "topDomains": "Dominios más consultados",
+      "navigation": "Navegación",
+      "demoDevice": "HP iLO",
+      "online": "online",
+      "offline": "offline",
+      "cards": {
+        "icon-picker": {
+          "title": "Iconos que nombran el dispositivo",
+          "body": "Sesenta iconos en diez categorías, con búsqueda por su nombre en tu idioma. Una nevera deja de parecer una caja genérica y la encuentras escribiendo lo que es."
+        },
+        "dns-activity": {
+          "title": "Qué pide cada dispositivo",
+          "body": "Actividad DNS por dispositivo desde el registro de consultas de AdGuard: los dominios que resuelve un cliente, con qué frecuencia y cuáles se bloquearon. Una hora o un día, junto al cliente que preguntó.",
+          "caption": "Datos de muestra: el último día de un dispositivo. Los dominios bloqueados, en rojo."
+        },
+        "presence": {
+          "title": "Estar callado no es estar apagado",
+          "body": "Un equipo cableado con IP estática que dejaba de hablar desaparecía del mapa. Antes de fiarse de una entrada ARP en STALE, la unidad le hace un ping y relee la tabla de vecinos: se confirman la dirección y la MAC, y el equipo inactivo sigue online.",
+          "caption": "STALE significa que el kernel recuerda al vecino sin confirmarlo. Un echo corto lo devuelve a REACHABLE."
+        },
+        "languages": {
+          "title": "Chino y ruso",
+          "body": "La interfaz entera en chino y en ruso, con los catálogos completos y revisados, y el selector de idioma en la cabecera. Las fechas y los números también siguen a cada idioma, no solo las etiquetas.",
+          "caption": "Navegación, fechas y números siguen al idioma elegido."
+        }
+      }
+    }
 }
