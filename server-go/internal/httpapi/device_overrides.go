@@ -54,6 +54,20 @@ func validateIcon(icon string) bool {
 		"router": true, "server": true, "watch": true, "car": true,
 		"home": true, "printer": true, "plug": true, "shield": true,
 		"help-circle": true, "wifi": true, "ethernet": true,
+		// Overrides de domótica: mantener en sincronía con ICON_OVERRIDES.
+		"refrigerator": true, "washing-machine": true, "microwave": true,
+		"coffee": true,
+		"toilet": true, "droplets": true, "flame": true,
+		"thermometer": true, "fan": true,
+		"plug-zap": true, "battery-charging": true, "solar-panel": true, "power": true,
+		"lightbulb": true, "lamp": true, "lamp-ceiling": true,
+		"lock-keyhole": true, "door-closed": true, "scan-face": true,
+		"webcam": true, "siren": true,
+		"paw-print": true, "baby": true, "scale": true,
+		"projector": true, "cast": true, "headphones": true,
+		"hard-drive": true, "database": true, "cloud": true, "cpu": true,
+		"bot": true, "antenna": true, "satellite-dish": true,
+		"blinds": true, "gauge": true,
 	}
 	return allowed[icon]
 }
