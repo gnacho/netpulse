@@ -125,6 +125,8 @@ func (s *server) registerFirmwareBackupSshRoutes(mux *http.ServeMux) {
 }
 
 func (s *server) handleFirmwareBackupSsh(w http.ResponseWriter, r *http.Request) {
+	// #2112: la copia se genera en la unidad por SSH antes de responder.
+	setLongWriteDeadline(w, configBackupWriteCeiling)
 	id := r.PathValue("routerId")
 	if s.db == nil || s.pool == nil {
 		writeError(w, http.StatusServiceUnavailable, "ssh_unavailable", "el servidor no tiene pool SSH")

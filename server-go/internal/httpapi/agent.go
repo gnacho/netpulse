@@ -567,6 +567,8 @@ type agentCreateResponse struct {
 // se aplica "en caliente" (reescribe el .env del router + restart) para que
 // el agente no se quede offline esperando un reinstall.
 func (s *server) handleAgentsCreate(w http.ResponseWriter, r *http.Request) {
+	// #2112: rotateTokenHot empuja el token al .env del router antes de responder.
+	setLongWriteDeadline(w, rearmWriteCeiling)
 	var body struct {
 		Slug string `json:"slug"`
 		// Hot pide aplicar el token en caliente (reescribir el .env del
@@ -1100,6 +1102,8 @@ type rearmResponse struct {
 }
 
 func (s *server) handleAgentRearm(w http.ResponseWriter, r *http.Request) {
+	// #2112: el rearm reinicia el agente por SSH y espera su push.
+	setLongWriteDeadline(w, rearmWriteCeiling)
 	slug := r.PathValue("slug")
 	if !agentSlugRe.MatchString(slug) {
 		writeError(w, http.StatusNotFound, "not_found")
@@ -1162,6 +1166,8 @@ type reinstallResponse struct {
 }
 
 func (s *server) handleAgentReinstall(w http.ResponseWriter, r *http.Request) {
+	// #2112: el handler espera al script y al primer push antes de responder.
+	setLongWriteDeadline(w, reinstallWriteCeiling)
 	slug := r.PathValue("slug")
 	if !agentSlugRe.MatchString(slug) {
 		writeError(w, http.StatusNotFound, "not_found")
@@ -1307,6 +1313,8 @@ func (s *server) handleAgentsReemit(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "db_error")
 		return
 	}
+	// #2112: un SSH por agente, en serie, antes de responder.
+	setLongWriteDeadline(w, reemitWriteCeiling(len(slugs)))
 
 	// URL base y trust: mismas reglas que el reinstall por unidad
 	// (AGENT_URL > PUBLIC_URL > Host de la petición, #1335).
@@ -1377,6 +1385,8 @@ type uninstallResponse struct {
 }
 
 func (s *server) handleAgentUninstall(w http.ResponseWriter, r *http.Request) {
+	// #2112: corre el script de desinstalación antes de responder.
+	setLongWriteDeadline(w, uninstallWriteCeiling)
 	slug := r.PathValue("slug")
 	if !agentSlugRe.MatchString(slug) {
 		writeError(w, http.StatusNotFound, "not_found")
