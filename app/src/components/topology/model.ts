@@ -895,6 +895,34 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
     const h = d.attachTo
     if (h && deviceById.has(h)) deviceHubs.add(h)
   }
+  // #2123: los device-hubs se dibujan de padre a hijo. El Set va en orden del
+  // dataset, así que un hub colgado de otro hub se visitaba antes de que su
+  // padre tuviera posición y se perdía con todo su subárbol. Orden top-down:
+  // primero los que cuelgan de un router o distnode, luego sus hijos.
+  const hubParent = new Map<string, string>()
+  const hubOrder: string[] = []
+  for (const hubId of deviceHubs) {
+    const d = deviceById.get(hubId)
+    if (d) hubParent.set(hubId, hubOf(d))
+  }
+  {
+    const pending = new Set(deviceHubs)
+    while (pending.size > 0) {
+      let moved = false
+      for (const id of [...pending]) {
+        const parent = hubParent.get(id) ?? ''
+        if (deviceHubs.has(parent) && pending.has(parent)) continue
+        hubOrder.push(id)
+        pending.delete(id)
+        moved = true
+      }
+      if (!moved) {
+        // Ciclo de attach (dato incoherente): no colgar el layout por eso.
+        hubOrder.push(...pending)
+        break
+      }
+    }
+  }
 
   // -- posicionamiento de hubs cableados (distnodes + device-hubs) y anchors --
   const distNodes: DistNodeView[] = []
@@ -1254,20 +1282,33 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
 
   // hijos de device-hubs (switch gestionado): abanico alrededor del hub
   const hubChips: ChipNode[] = []
-  for (const hubId of deviceHubs) {
+  const placedAsChild = new Set<string>()
+  for (const hubId of hubOrder) {
     const hubDev = deviceById.get(hubId)
     if (!hubDev) continue
     const parentHub = hubOf(hubDev)
     const p = anchorPos.get(hubId)
     if (!p) continue
-    const hc = mkChip(hubDev, parentHub)
-    Object.assign(hc, p)
-    hubChips.push(hc)
+    // #2123: si el padre es otro device-hub, este ya se pintó como chip del
+    // abanico de su padre (y ahí quedó su posición). Un chip propio más era el
+    // equipo duplicado que se veía en el mapa.
+    if (!placedAsChild.has(hubId)) {
+      const hc = mkChip(hubDev, parentHub)
+      Object.assign(hc, p)
+      hubChips.push(hc)
+    }
     // Los CTs de un hipervisor NO van en el abanico: los renderiza el loop
     // dedicado (grid bajo el host, isCt=true). Meterlos aquí también duplicaba
     // chips (key ct-*) y enlaces (key wired-ct-*).
     const kids = hypervisorHosts.has(hubId) ? [] : childrenOf(hubId).map((d) => mkChip(d, hubId))
-    const center = angleTo(routerById.get(parentHub)?.x ?? p.x, routerById.get(parentHub)?.y ?? p.y, p.x, p.y)
+    // #2123: el abanico de un hub anidado tiene que salir por el lado contrario
+    // al padre. Antes solo se buscaba el padre entre los routers, así que para
+    // un padre que es otro device-hub se usaba la propia posición del hub como
+    // origen, el ángulo salía indefinido y el hijo acababa encima del abuelo.
+    const parentPos =
+      routerById.get(parentHub) ??
+      anchorPos.get(parentHub) ?? { x: p.x, y: p.y }
+    const center = angleTo(parentPos.x, parentPos.y, p.x, p.y)
     if (kids.length > HUB_FAN_MAX) {
       // Muchos hijos cableados (switch con varios puertos): anillos concéntricos
       // alrededor del hub, excluyendo el sector por donde entra el enlace desde
@@ -1283,6 +1324,13 @@ export function buildTopologyModel({ routers, devices, wan, wireguard, distribut
       ringLayout(kids, p, rings, excludes)
     } else {
       fanLayout(kids, p, HUB_FAN_RADIUS, center - 45, center + 45)
+    }
+    // #2123: un hijo que es hub necesita su posición para que su propio abanico
+    // se dibuje cuando el recorrido llegue a él.
+    for (const kid of kids) {
+      if (!deviceHubs.has(kid.id)) continue
+      anchorPos.set(kid.id, { x: kid.x, y: kid.y })
+      placedAsChild.add(kid.id)
     }
     chips.push(...kids)
   }
