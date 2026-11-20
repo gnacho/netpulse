@@ -149,6 +149,10 @@ type Prober struct {
 	// del agente es cada ~30 s y una entrada STALE cambia despacio.
 	stalePingMu sync.Mutex
 	stalePingAt time.Time
+
+	// presenceAt (#2110): última ronda del barrido de subredes enrutadas.
+	presenceMu sync.Mutex
+	presenceAt time.Time
 }
 
 // surveyInterval: mínimo entre `iw survey dump` si no hay force (#1214).
@@ -1330,6 +1334,9 @@ func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *Di
 // unknowable and the returned stale set is empty, the behaviour agents had
 // before. stale lists the MACs the kernel remembers without confirming.
 func (p *Prober) probeArp(ctx context.Context) (arp map[string]string, stale []string, devs map[string]string) {
+	// #2110: despertar las subredes que la unidad enruta ANTES de leer la
+	// tabla, para que el mismo `ip neigh` vea lo que el barrido confirmó.
+	p.scanPresence(ctx)
 	if out := p.runBest(ctx, CmdIpNeigh, 3*time.Second); out != "" {
 		m, st := ParseIPNeigh(out)
 		if len(m) > 0 {
