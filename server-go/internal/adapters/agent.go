@@ -85,6 +85,9 @@ func (r *AgentRegistry) SetClock(f func() time.Time) {
 
 // Ingest registra un push (último payload = estado actual del router).
 func (r *AgentRegistry) Ingest(p *probe.Payload) {
+	// Un pusher externo puede mandar MAC en minúsculas o con guiones y el resto
+	// del servidor compara las claves de forma exacta: se normaliza una vez aquí.
+	normalizePayloadMACs(p)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st := &AgentState{
