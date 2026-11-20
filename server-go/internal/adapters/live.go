@@ -718,83 +718,46 @@ func (l *Live) loadRouterMacs() {
 // Mode: "live".
 func (l *Live) Mode() string { return "live" }
 
-// FleetFdbUplinks (rack canvas): enlaces derivados del FDB para el
-// auto-cableado. #1186: la unidad no-root cuyo FDB aprende más MACs bridge
-// de flota en puertos DISTINTOS es el switch gestionado (patrón de acceso:
-// una MAC por puerto); sus entradas FDB dan los cables exactos
-// switch(puerto) ↔ unidad(puerto) - incluido el propio gateway. Sin
-// candidato a switch (red plana) devuelve vacío: el auto-cableado no
-// inventa nada.
-func (l *Live) FleetFdbUplinks() map[string]FdbUplink {
+// El rack comprueba FleetFdbProvider en tiempo de ejecución: si la firma
+// diverge, los hints de flota desaparecen sin error (pasó con #1190).
+var _ FleetFdbProvider = (*Live)(nil)
+
+// FleetFdbUplinks (rack canvas): enlaces derivados del FDB de la unidad
+// designada como central para el auto-cableado (#1186/#1190). Cada MAC bridge
+// de flota que la central aprende en un puerto es un cable central(puerto) ↔
+// unidad(puerto donde la unidad aprende a la central), incluido el propio
+// gateway. infraMAC sustituye a la MAC bridge de la central si el sondeo no
+// la tiene. Central vacía o sin sondeo → vacío: el auto-cableado no inventa
+// nada.
+func (l *Live) FleetFdbUplinks(infraID, infraMAC string) map[string]FdbUplink {
 	l.mu.Lock()
-	gw := ""
-	if l.gatewayCfg != nil {
-		gw = l.gatewayCfg.ID
-	}
 	polled := cloneLastPolled(l.lastPolled)
 	l.mu.Unlock()
-	// Cobertura por unidad: MACs bridge de flota en su FDB y en cuántos
-	// puertos distintos.
-	type cover struct {
-		macs  map[string]bool
-		ports map[string]bool
-	}
-	cov := map[string]*cover{}
-	brMacOf := map[string]string{}
-	for id, p := range polled {
-		if p == nil {
-			continue
-		}
-		if p.brMac != "" {
-			brMacOf[id] = strings.ToUpper(p.brMac)
-		}
-		c := &cover{macs: map[string]bool{}, ports: map[string]bool{}}
-		for mac := range p.fdb {
-			upper := strings.ToUpper(mac)
-			if owner, ok := brMacOf[upper]; ok && owner == id {
-				continue // la propia MAC bridge no es "cobertura"
-			}
-			c.macs[upper] = true
-			c.ports[p.fdb[mac]] = true
-		}
-		if len(c.macs) > 0 {
-			cov[id] = c
-		}
-	}
-	// Infraestructura: la unidad no-root con más MACs de flota aprendidas en
-	// ≥ 2 puertos distintos (el patrón del switch: un vecino por puerto).
-	infra, best := "", 0
-	ids := make([]string, 0, len(cov))
-	for id := range cov {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if id == gw {
-			continue
-		}
-		if n := len(cov[id].macs); n > best && len(cov[id].ports) >= 2 {
-			infra, best = id, n
-		}
-	}
-	if infra == "" {
-		return map[string]FdbUplink{}
-	}
-	// Cables: cada MAC de flota aprendida por la infra en un puerto = un
-	// cable infra(puerto) ↔ unidad(puerto hacia la infra). El root (gateway)
-	// también sale: su enlace al switch es el uplink de toda la casa.
-	infraBr := brMacOf[infra]
 	out := map[string]FdbUplink{}
-	for mac, port := range polled[infra].fdb {
-		owner, ok := brMacOf[strings.ToUpper(mac)]
-		if !ok || owner == infra {
+	infra := polled[infraID]
+	if infraID == "" || infra == nil {
+		return out
+	}
+	ownerOf := map[string]string{} // MAC bridge (mayúsculas) → unidad
+	for id, p := range polled {
+		if p != nil && p.brMac != "" {
+			ownerOf[strings.ToUpper(p.brMac)] = id
+		}
+	}
+	infraBr := infra.brMac
+	if infraBr == "" {
+		infraBr = infraMAC
+	}
+	for mac, port := range infra.fdb {
+		owner, ok := ownerOf[strings.ToUpper(mac)]
+		if !ok || owner == infraID {
 			continue
 		}
 		childPort := ""
-		if lm, ok := polled[owner]; ok && lm != nil {
-			childPort = lm.fdb[infraBr]
+		if child := polled[owner]; child != nil && infraBr != "" {
+			childPort, _ = fdbPortOf(child.fdb, infraBr)
 		}
-		out[owner] = FdbUplink{ChildID: owner, ParentID: infra, Port: port, ChildPort: childPort}
+		out[owner] = FdbUplink{ChildID: owner, ParentID: infraID, Port: port, ChildPort: childPort}
 	}
 	return out
 }

@@ -21,7 +21,7 @@ func TestAuditFleetFdbUplinksConcurrentSetRouters(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_ = live.FleetFdbUplinks()
+			_ = live.FleetFdbUplinks("router-0", "")
 		}()
 		go func() {
 			defer wg.Done()
