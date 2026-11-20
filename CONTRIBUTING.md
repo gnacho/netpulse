@@ -75,6 +75,12 @@ request. Do not push a tag until the recap below exists and the maintainer has a
    were reported before the cut end up shipping one release late for no reason.
 2. **Check the public documentation** against what the release contains: `README.md`,
    `README.es.md`, `docs/manual.en.md`, `docs/manual.es.md` and `CHANGELOG.md`.
+   From 2.54.0 the `CHANGELOG.md` entries and the release notes are written in **English**,
+   in plain language, whatever the language of the conversation or of older sections.
+   Each entry says what changed and what it means for the operator, with the issue number.
+   Sections released before 2.54.0 keep the language they were written in.
+   The notes carry one capture per headline change for a feature. The captures are generated
+   from the app itself, not recorded by hand, and the process is in `docs/releases/README.md`.
 3. **Choose the version honestly.** Patch for fixes, minor for features, major for breaking
    changes. Round milestone numbers (`x.Y.0` with a round `Y`) are reserved for announced
    releases with the README, the landing page, the manuals and the memory up to date. They

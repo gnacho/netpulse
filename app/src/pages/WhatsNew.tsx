@@ -34,7 +34,9 @@ function Card({ card }: { card: WhatsNewCard }) {
 
       {/* La demo no roba el foco y todo lo que dice está también en el texto o
           en la nota de la propia demo. */}
-      <div className="mt-3 flex-1 rounded-lg border border-border bg-canvas p-3">
+      {/* data-demo-id: ancla estable para el script que exporta las demos a
+          GIF para las notas de release (docs/releases/README.md). */}
+      <div data-demo-id={card.id} className="mt-3 flex-1 rounded-lg border border-border bg-canvas p-3">
         <Demo />
       </div>
 

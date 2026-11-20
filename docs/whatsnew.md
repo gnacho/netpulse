@@ -46,7 +46,9 @@ on by itself.
 
 ## What is deliberately out of scope
 
-- Recorded screenshots or GIFs. They age, ignore the theme and cannot be
-  translated.
+- Hand-recorded screenshots or GIFs. The cards are UI, so they age with the app
+  instead of against it. For the release notes, `scripts/release_media.py`
+  exports the same card demos to GIF from the running app, which keeps one
+  source for both surfaces (`docs/releases/README.md`).
 - Publishing the same content into the GitHub release page. The registry can
   feed that later if it is worth it, but the page comes first.
