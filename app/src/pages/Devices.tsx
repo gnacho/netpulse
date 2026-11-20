@@ -32,6 +32,7 @@ import { useNetPulse } from '@/data/DataProvider'
 import { useDashboard } from '@/hooks/useDashboard'
 import { useWeakSignalDbm } from '@/hooks/useWeakSignalDbm'
 import { DeviceDNSPanel } from '@/components/DeviceDNSPanel'
+import { DeviceTrafficPanel } from '@/components/DeviceTrafficPanel'
 import { DeviceEditSheet } from '@/components/DeviceEditSheet'
 import { OnboardingIntake } from '@/components/OnboardingIntake'
 import { cn, copyToClipboard, fetchJson } from '@/lib/utils'
@@ -978,6 +979,7 @@ function DeviceDetail({
         {t('devices.edit.action')}
       </button>
     </div>
+    {!isDemo && <DeviceTrafficPanel mac={device.mac} />}
     {!isDemo && <DeviceDNSPanel mac={device.mac} />}
     </div>
   )

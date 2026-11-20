@@ -331,6 +331,14 @@
     "vlan": "VLAN"
   },
   "devices": {
+    "traffic": {
+      "title": "流量",
+      "down": "下载",
+      "up": "上传",
+      "total": "总计",
+      "empty": "该设备还没有流量样本。",
+      "error": "无法加载流量序列。"
+    },
     "noIp": "无 IP",
     "noIpHint": "已通过 WiFi 关联，但还没有地址",
     "badges": {

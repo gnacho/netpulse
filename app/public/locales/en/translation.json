@@ -413,6 +413,14 @@
     "leaseRenewsDays": "renews in {{d}}d {{h}}h {{min}}min"
   },
   "devices": {
+    "traffic": {
+      "title": "Traffic",
+      "down": "Down",
+      "up": "Up",
+      "total": "Total",
+      "empty": "No traffic samples for this device yet.",
+      "error": "The traffic series could not be loaded."
+    },
     "noIp": "no IP",
     "noIpHint": "Associated by Wi-Fi, no address yet",
     "badges": {
