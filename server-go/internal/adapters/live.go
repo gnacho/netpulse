@@ -4914,6 +4914,19 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 	if p != nil {
 		depsLldp = p.lldp
 	}
+	unitByMac := map[string]string{}
+	fdbByUnit := map[string]map[string]string{}
+	for _, pr := range polledAll {
+		if pr == nil || pr.brMac == "" {
+			continue
+		}
+		unitByMac[strings.ToUpper(pr.brMac)] = pr.cfg.ID
+		fdbByUnit[pr.cfg.ID] = pr.fdb
+	}
+	selfBrMac := ""
+	if p != nil {
+		selfBrMac = p.brMac
+	}
 	deps := portEnrichDeps{
 		routerByMac: routerByMac,
 		leaseMap:    leaseMap,
@@ -4921,6 +4934,9 @@ func (l *Live) GetRouterDetail(ctx context.Context, id string) (*RouterDetail, e
 		wifiByMac:   wifiByMac,
 		portMacs:    portMacs,
 		lldp:        depsLldp,
+		unitByMac:   unitByMac,
+		fdbByUnit:   fdbByUnit,
+		selfBrMac:   selfBrMac,
 	}
 	enriched := make([]EthPort, 0, len(ports))
 	for _, port := range ports {
@@ -6197,6 +6213,59 @@ type portEnrichDeps struct {
 	wifiByMac   map[string]string
 	portMacs    map[string][]string
 	lldp        []LldpNeighbor
+	// #1976: para desambiguar cuando una boca ve varias unidades de flota.
+	// unitByMac (MAC de bridge → id), fdbByUnit (id → su FDB) y selfBrMac
+	// (la MAC de bridge de la unidad que se está enriqueciendo).
+	unitByMac map[string]string
+	fdbByUnit map[string]map[string]string
+	selfBrMac string
+}
+
+// directFleetPeer (#1976): elige, entre varias unidades de flota visibles en
+// la misma boca, la que tiene a ESTA unidad en un puerto dedicado, es decir,
+// un puerto de su FDB donde no aparece ninguna otra unidad de flota. Es la
+// diferencia entre el cable directo y el uplink que arrastra el tráfico de
+// toda la cadena: sw1 aprende test-gw en el puerto donde solo está test-gw,
+// sw2 lo aprende en el uplink que también lleva a sw1.
+//
+// Sin FDB de las candidatas, sin MAC de bridge propia o con empate, no hay
+// ganador y se devuelve false: la boca se queda sin par antes que con el
+// equivocado.
+func directFleetPeer(d portEnrichDeps, candidates []string) (string, bool) {
+	if d.selfBrMac == "" || len(d.fdbByUnit) == 0 {
+		return "", false
+	}
+	best, bestOthers, tie := "", 0, false
+	for _, mac := range candidates {
+		unit := d.unitByMac[strings.ToUpper(mac)]
+		fdb := d.fdbByUnit[unit]
+		if unit == "" || len(fdb) == 0 {
+			continue
+		}
+		port, ok := fdbPortOf(fdb, d.selfBrMac)
+		if !ok {
+			continue
+		}
+		others := 0
+		for otherMac, otherPort := range fdb {
+			if otherPort != port || strings.EqualFold(otherMac, d.selfBrMac) {
+				continue
+			}
+			if _, fleet := d.unitByMac[strings.ToUpper(otherMac)]; fleet {
+				others++
+			}
+		}
+		switch {
+		case best == "" || others < bestOthers:
+			best, bestOthers, tie = mac, others, false
+		case others == bestOthers:
+			tie = true
+		}
+	}
+	if best == "" || tie || bestOthers > 0 {
+		return "", false
+	}
+	return best, true
 }
 
 // enrichEthPort: enriquece UNA boca encendida con el par que tiene enfrente
@@ -6222,6 +6291,30 @@ func enrichEthPort(port EthPort, netdev string, d portEnrichDeps) EthPort {
 		port.ConnectedTo = d.routerByMac[neighbor]
 		// El cliente traduce la plantilla según PeerKind (#1039).
 		port.PeerKind = PeerKindRouterLink
+		// #1976: sin LLDP, una boca que ve el bridge de VARIAS unidades no
+		// puede nombrar a una sin adivinar. La candidata válida es la que
+		// aprende a esta unidad en un puerto dedicado; si no hay una clara,
+		// la boca se queda sin par antes que con el equivocado.
+		if lldpNeighborOnPort(d.lldp, netdev) == nil {
+			cands := make([]string, 0, 2)
+			for _, mac := range all {
+				if _, ok := d.routerByMac[mac]; ok {
+					cands = append(cands, mac)
+				}
+			}
+			if len(cands) > 1 {
+				if mac, ok := directFleetPeer(d, cands); ok {
+					port.ConnectedTo = d.routerByMac[mac]
+					port.DeviceMac = mac
+					port.PeerKind = PeerKindRouterLink
+				} else {
+					port.ConnectedTo = ""
+					port.PeerKind = ""
+					return port
+				}
+			}
+			return port
+		}
 		// #1150: con switches encadenados la boca aprende las MACs de bridge
 		// de VARIAS unidades (el tráfico de sw2 atraviesa sw1) y la primera
 		// MAC ordenada puede nombrar al switch LEJANO. El LLDP anuncia al
