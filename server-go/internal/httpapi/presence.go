@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/deviceevents"
 )
 
@@ -29,12 +30,11 @@ const historyLimitKey = "history.limit_enabled"
 // conexiones en las últimas 24 h. En demo devuelve una muestra sintética
 // determinista para que la UI sea explorable sin red real.
 func (s *server) handleDevicePresence(w http.ResponseWriter, r *http.Request) {
-	mac := normalizeMAC(r.PathValue("mac"))
-	if len(mac) != 17 {
+	mac := macaddr.Normalize(r.PathValue("mac"))
+	if mac == "" {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	mac = strings.ToUpper(mac)
 	days := 7
 	if v := r.URL.Query().Get("days"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= 30 {

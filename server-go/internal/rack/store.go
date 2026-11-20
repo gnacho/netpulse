@@ -14,6 +14,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // ErrOverlap indica que el estado final del layout tiene dos montajes
@@ -25,6 +27,9 @@ var ErrPortBusy = errors.New("rack: port has no capacity for another cable")
 
 // ErrUnknownMount / ErrUnknownPort referencian montajes o puertos inexistentes.
 var ErrUnknownMount = errors.New("rack: montaje inexistente")
+
+// ErrInvalidMAC indica que un montaje trae una device_mac que no es una MAC.
+var ErrInvalidMAC = errors.New("rack: invalid device MAC")
 
 // ErrUnknownPort indica un puerto que el dispositivo no declara en su perfil.
 var ErrUnknownPort = errors.New("rack: port not declared by the device")
@@ -145,6 +150,7 @@ func ListProfiles(db *sql.DB) ([]DeviceProfile, error) {
 
 // GetProfile devuelve el perfil de una MAC; sql.ErrNoRows si no existe.
 func GetProfile(db *sql.DB, mac string) (DeviceProfile, error) {
+	mac = macaddr.Normalize(mac)
 	var p DeviceProfile
 	var ports string
 	err := db.QueryRow(`SELECT mac, faceplate_id, u_height, col_span, color, ports_json FROM device_rack_profile WHERE mac = ?`, mac).
@@ -158,6 +164,7 @@ func GetProfile(db *sql.DB, mac string) (DeviceProfile, error) {
 
 // UpsertProfile crea o actualiza el modelo físico del dispositivo.
 func UpsertProfile(db *sql.DB, p DeviceProfile) error {
+	p.MAC = macaddr.Normalize(p.MAC)
 	if p.MAC == "" {
 		return fmt.Errorf("rack: mac requerida")
 	}
@@ -309,6 +316,10 @@ func SaveLayout(db *sql.DB, change LayoutChange) error {
 			m.PortVisibility = "auto"
 		}
 		if m.DeviceMAC != "" {
+			m.DeviceMAC = macaddr.Normalize(m.DeviceMAC)
+			if m.DeviceMAC == "" {
+				return ErrInvalidMAC
+			}
 			// Perfil por defecto si el dispositivo aún no tiene: la FK lo exige.
 			if _, err := tx.Exec(`INSERT INTO device_rack_profile (mac) VALUES (?) ON CONFLICT(mac) DO NOTHING`, m.DeviceMAC); err != nil {
 				return err

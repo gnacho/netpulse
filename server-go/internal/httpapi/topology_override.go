@@ -4,6 +4,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -37,6 +38,7 @@ func (s *server) handleTopologyOverrideCreate(w http.ResponseWriter, r *http.Req
 		writeBodyError(w, st, "invalid_body", "")
 		return
 	}
+	// MAC del device, o id de router para una unidad sin MAC de bridge (#1485).
 	body.MAC = adapters.NormalizeMAC(body.MAC)
 	if body.MAC == "" {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
@@ -47,14 +49,14 @@ func (s *server) handleTopologyOverrideCreate(w http.ResponseWriter, r *http.Req
 		return
 	}
 	// parent (solo kind=attach) acepta: MAC de device (formato original),
-	// id de router, o "routerId:puerto" (issue #690). Solo se exige no vacío;
-	// la resolución final (adapters.applyTopologyOverrides) ignora formas
-	// que no casen con ningún device/router conocido.
-	if body.Kind == "attach" && adapters.NormalizeMAC(body.Parent) == "" {
-		writeError(w, http.StatusBadRequest, "attach_requires_parent")
-		return
-	}
-	if body.Kind != "attach" {
+	// id de router, o "routerId:puerto" (issue #690). La store lo normaliza
+	// (adapters.NormalizeParentRef) al guardarlo.
+	if body.Kind == "attach" {
+		if strings.TrimSpace(body.Parent) == "" {
+			writeError(w, http.StatusBadRequest, "attach_requires_parent")
+			return
+		}
+	} else {
 		body.Parent = ""
 	}
 	o, err := topooverride.Add(s.db.DB, topooverride.AddInput{

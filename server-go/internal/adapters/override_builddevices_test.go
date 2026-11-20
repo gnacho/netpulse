@@ -16,7 +16,7 @@ func TestBuildDevicesNameTypeIconOverride(t *testing.T) {
 	now := time.Now().UnixMilli()
 	_, err := d.Exec(
 		`INSERT INTO device_overrides (mac, icon, name, device_type, banned_bands, created_at, updated_at)
-		 VALUES ('aa:bb:cc:dd:ee:ff', 'tv', 'TV Salón', 'tv', '', ?, ?)`, now, now)
+		 VALUES ('AA:BB:CC:DD:EE:FF', 'tv', 'TV Salón', 'tv', '', ?, ?)`, now, now)
 	if err != nil {
 		t.Fatalf("seed override: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestGhostDevicesApplyManualOverrides(t *testing.T) {
 	now := time.Now().UnixMilli()
 	if _, err := d.Exec(
 		`INSERT INTO device_overrides (mac, icon, name, device_type, banned_bands, created_at, updated_at)
-		 VALUES ('aa:bb:cc:dd:ee:ff', 'projector', '投影', 'tv', '', ?, ?)`, now, now); err != nil {
+		 VALUES ('AA:BB:CC:DD:EE:FF', 'projector', '投影', 'tv', '', ?, ?)`, now, now); err != nil {
 		t.Fatalf("seed override: %v", err)
 	}
 	ghosts := l.ghostDevices(nil)

@@ -60,7 +60,7 @@ func TestDeviceOverrideNameTypeRoundtrip(t *testing.T) {
 
 func TestDeviceOverrideNotifyOffline(t *testing.T) {
 	s := newOverrideTestServer(t)
-	mac := "aa:bb:cc:dd:ee:ff"
+	mac := "AA:BB:CC:DD:EE:FF"
 
 	// Marcar opt-in: persiste el flag aunque icon/name/type queden vacíos.
 	if rec := doOverridePut(t, s, mac, `{"notifyOffline":true}`); rec.Code != 200 {
@@ -120,7 +120,7 @@ func TestDeviceOverridePartialPutPreservesOthers(t *testing.T) {
 
 func TestDeviceOverrideClearAllDeletesRow(t *testing.T) {
 	s := newOverrideTestServer(t)
-	mac := "aa:bb:cc:dd:ee:ff"
+	mac := "AA:BB:CC:DD:EE:FF"
 	doOverridePut(t, s, mac, `{"icon":"tv","name":"TV","type":"tv"}`)
 	rec := doOverridePut(t, s, mac, `{"icon":"","name":"","type":""}`)
 	if rec.Code != 200 {

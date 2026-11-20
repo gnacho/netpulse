@@ -25,7 +25,7 @@ func TestStoreCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
-	if o.ID != "c8:ff:bf:08:6f:ba" {
+	if o.ID != "C8:FF:BF:08:6F:BA" {
 		t.Errorf("id debe ser MAC normalizada, got %q", o.ID)
 	}
 	if !o.Enabled {

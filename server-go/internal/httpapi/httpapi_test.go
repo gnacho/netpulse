@@ -1086,7 +1086,7 @@ func TestDeviceTrafficEndpoint(t *testing.T) {
 	}
 	now := time.Now()
 	err := srv.db.ClientBW.Insert(clientbw.Sample{
-		MAC: "aa:bb:cc:dd:ee:01", RouterID: "rt2", TS: now,
+		MAC: "AA:BB:CC:DD:EE:01", RouterID: "rt2", TS: now,
 		RxBytes: 1000, TxBytes: 2000, RxBps: 8000, TxBps: 16000,
 	})
 	if err != nil {

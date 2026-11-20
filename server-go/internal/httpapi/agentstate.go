@@ -84,12 +84,16 @@ func NewStateRestorer(d *db.DB) func(*adapters.AgentRegistry) {
 			if err := json.Unmarshal([]byte(raw), &ps); err != nil || ps.Payload == nil {
 				continue
 			}
+			// Un estado guardado antes de que el push normalizara las MAC
+			// (#2134) puede traerlas en minúsculas o con guiones. Ingest no
+			// normaliza, así que se hace aquí, una vez, al restaurarlo.
+			normalizePayloadMACs(ps.Payload)
 			reg.Restore(slug, &adapters.AgentState{
 				Payload:   ps.Payload,
 				LastSeen:  time.Unix(ps.LastSeen, 0),
 				Version:   ps.Version,
 				Host:      ps.Host,
-				BridgeMAC: ps.BridgeMAC,
+				BridgeMAC: canonMAC(ps.BridgeMAC),
 			})
 		}
 	}

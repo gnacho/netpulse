@@ -11,9 +11,9 @@ func escenarioImport(t *testing.T, db *sql.DB) (MountRow, MountRow, MountRow) {
 	t.Helper()
 	rack := createTestRack(t, db)
 
-	sw := "aa:bb:cc:00:01:00"
-	s1 := "aa:bb:cc:00:01:01"
-	s2 := "aa:bb:cc:00:01:02"
+	sw := "AA:BB:CC:00:01:00"
+	s1 := "AA:BB:CC:00:01:01"
+	s2 := "AA:BB:CC:00:01:02"
 	if err := UpsertProfile(db, DeviceProfile{MAC: sw, FaceplateID: "switch", UHeight: 1, ColSpan: 12, Ports: []Port{
 		{ID: "lan1", Kind: PortRJ45}, {ID: "lan2", Kind: PortRJ45}, {ID: "sfp1", Kind: PortSFPPlus},
 	}}); err != nil {
@@ -88,7 +88,7 @@ func TestImportCablesNoFreePortAndUnmounted(t *testing.T) {
 	sw, _, _ := escenarioImport(t, db)
 
 	// s3: un solo puerto, montado y agotado con un cable manual al switch.
-	s3 := "aa:bb:cc:00:01:03"
+	s3 := "AA:BB:CC:00:01:03"
 	if err := UpsertProfile(db, DeviceProfile{MAC: s3, UHeight: 1, ColSpan: 12, Ports: []Port{{ID: "eth0", Kind: PortRJ45}}}); err != nil {
 		t.Fatalf("UpsertProfile s3: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestImportCablesNoFreePortAndUnmounted(t *testing.T) {
 	if err := SaveLayout(db, LayoutChange{RackID: rackID, Upsert: []Mount{{DeviceMAC: s3, UStart: 4, ColStart: 0}}}); err != nil {
 		t.Fatalf("SaveLayout s3: %v", err)
 	}
-	mS1 := mustMount(t, db, "aa:bb:cc:00:01:01")
+	mS1 := mustMount(t, db, "AA:BB:CC:00:01:01")
 	mS3 := mustMount(t, db, s3)
 	// Agota el único puerto de s3 CONTRA OTRO PAR (s1): el par s3<->sw
 	// queda sin cable, pero s3 no tiene puerto libre -> NoFreePort.

@@ -828,9 +828,251 @@ func Open(dir string, opts ...OpenOption) (*DB, error) {
 		return nil, fmt.Errorf("client_bw store: %w", err)
 	}
 	d.ClientBW = cb
+	migrateLowercaseMACTables(sqldb)
 	d.wg.Add(1)
 	go d.maintenanceLoop()
 	return d, nil
+}
+
+// migrateLowercaseMACTables pasa a la forma canónica en mayúsculas
+// (AA:BB:CC:DD:EE:FF) las tablas que históricamente guardaban MACs en
+// minúsculas. Corre tras clientbw.NewStore para que client_bw_* ya existan.
+// Corre una sola vez: todos los pasos van en una transacción que, al terminar
+// bien, deja la marca macUpperMigratedKey en kv; los arranques siguientes no
+// vuelven a recorrer client_bw_* (millones de filas). Si un paso falla, se
+// registra un warning, se deshace todo y se reintenta en el siguiente arranque;
+// el arranque nunca se aborta.
+func migrateLowercaseMACTables(sqldb *sql.DB) {
+	var done int
+	if err := sqldb.QueryRow("SELECT COUNT(*) FROM kv WHERE key = ?", macUpperMigratedKey).Scan(&done); err == nil && done > 0 {
+		return
+	}
+	type step struct {
+		name string
+		sql  string
+	}
+	steps := []step{
+		// device_overrides: PK (mac), sobrevive la fila con updated_at más reciente
+		// (empate: la que ya esté en forma canónica, luego mayor rowid).
+		{
+			name: "dedup device_overrides MACs",
+			sql: `DELETE FROM device_overrides
+				WHERE ` + macOnlyMatch("mac") + `
+				  AND EXISTS (
+				    SELECT 1 FROM device_overrides o2
+				    WHERE ` + macOnlyMatch("o2.mac") + `
+				      AND UPPER(REPLACE(o2.mac, '-', ':')) = UPPER(REPLACE(device_overrides.mac, '-', ':'))
+				      AND o2.rowid != device_overrides.rowid
+				      AND (
+				        o2.updated_at > device_overrides.updated_at
+				        OR (o2.updated_at = device_overrides.updated_at AND (o2.mac = UPPER(REPLACE(o2.mac, '-', ':'))) > (device_overrides.mac = UPPER(REPLACE(device_overrides.mac, '-', ':'))))
+				        OR (o2.updated_at = device_overrides.updated_at AND (o2.mac = UPPER(REPLACE(o2.mac, '-', ':'))) = (device_overrides.mac = UPPER(REPLACE(device_overrides.mac, '-', ':'))) AND o2.rowid > device_overrides.rowid)
+				      )
+				  )`,
+		},
+		{
+			name: "normalize device_overrides MACs",
+			sql: `UPDATE device_overrides
+				SET mac = UPPER(REPLACE(mac, '-', ':'))
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		// topology_overrides: PK (id = mac). mac y parent solo se reescriben si
+		// son una MAC con ':'; cualquier otra cosa es un id de router (#1485,
+		// #690) y se deja como está.
+		{
+			name: "dedup topology_overrides MACs",
+			sql: `DELETE FROM topology_overrides
+				WHERE mac GLOB '` + colonMACGlob + `'
+				  AND EXISTS (
+				    SELECT 1 FROM topology_overrides t2
+				    WHERE t2.mac GLOB '` + colonMACGlob + `'
+				      AND UPPER(REPLACE(t2.mac, '-', ':')) = UPPER(REPLACE(topology_overrides.mac, '-', ':'))
+				      AND t2.rowid != topology_overrides.rowid
+				      AND (
+				        t2.updated_at > topology_overrides.updated_at
+				        OR (t2.updated_at = topology_overrides.updated_at AND (t2.mac = UPPER(REPLACE(t2.mac, '-', ':'))) > (topology_overrides.mac = UPPER(REPLACE(topology_overrides.mac, '-', ':'))))
+				        OR (t2.updated_at = topology_overrides.updated_at AND (t2.mac = UPPER(REPLACE(t2.mac, '-', ':'))) = (topology_overrides.mac = UPPER(REPLACE(topology_overrides.mac, '-', ':'))) AND t2.rowid > topology_overrides.rowid)
+				      )
+				  )`,
+		},
+		{
+			name: "normalize topology_overrides MACs",
+			sql: `UPDATE topology_overrides
+				SET id = UPPER(REPLACE(mac, '-', ':')),
+				    mac = UPPER(REPLACE(mac, '-', ':'))
+				WHERE mac GLOB '` + colonMACGlob + `'
+				  AND (mac != UPPER(REPLACE(mac, '-', ':')) OR id != UPPER(REPLACE(mac, '-', ':')))`,
+		},
+		{
+			name: "normalize topology_overrides parent MACs",
+			// main guardaba el parent tal cual llegaba, sin recortar espacios.
+			// TRIM sin segundo argumento solo quita ' '; se recortan también
+			// '\t', '\n' y '\r', como strings.TrimSpace.
+			sql: `UPDATE topology_overrides
+				SET parent = UPPER(` + trimWS("parent") + `)
+				WHERE parent IS NOT NULL
+				  AND ` + trimWS("parent") + ` GLOB '` + colonMACGlob + `'
+				  AND parent != UPPER(` + trimWS("parent") + `)`,
+		},
+		// client_bw_raw, client_bw_5m, client_bw_daily: en colisión sobre
+		// (mac, router_id, ts/bucket_ts/date) sobrevive la fila ya canónica.
+		{
+			// Tablas grandes: el duplicado canónico se busca por la clave
+			// primaria (índice), no con una subconsulta que recorra la tabla.
+			name: "dedup client_bw_raw MACs",
+			sql: `DELETE FROM client_bw_raw
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))
+				  AND EXISTS (
+				    SELECT 1 FROM client_bw_raw b2
+				    WHERE b2.mac = UPPER(REPLACE(client_bw_raw.mac, '-', ':'))
+				      AND b2.router_id = client_bw_raw.router_id
+				      AND b2.ts = client_bw_raw.ts
+				  )`,
+		},
+		{
+			// OR IGNORE: dos variantes no canónicas de la misma clave (no
+			// ocurre con datos reales) no deben abortar el resto; la que queda
+			// sin actualizar se borra en el paso siguiente.
+			name: "normalize client_bw_raw MACs",
+			sql: `UPDATE OR IGNORE client_bw_raw
+				SET mac = UPPER(REPLACE(mac, '-', ':'))
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		{
+			name: "drop leftover client_bw_raw MAC variants",
+			sql: `DELETE FROM client_bw_raw
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		{
+			// Tablas grandes: el duplicado canónico se busca por la clave
+			// primaria (índice), no con una subconsulta que recorra la tabla.
+			name: "dedup client_bw_5m MACs",
+			sql: `DELETE FROM client_bw_5m
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))
+				  AND EXISTS (
+				    SELECT 1 FROM client_bw_5m b2
+				    WHERE b2.mac = UPPER(REPLACE(client_bw_5m.mac, '-', ':'))
+				      AND b2.router_id = client_bw_5m.router_id
+				      AND b2.bucket_ts = client_bw_5m.bucket_ts
+				  )`,
+		},
+		{
+			// OR IGNORE: dos variantes no canónicas de la misma clave (no
+			// ocurre con datos reales) no deben abortar el resto; la que queda
+			// sin actualizar se borra en el paso siguiente.
+			name: "normalize client_bw_5m MACs",
+			sql: `UPDATE OR IGNORE client_bw_5m
+				SET mac = UPPER(REPLACE(mac, '-', ':'))
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		{
+			name: "drop leftover client_bw_5m MAC variants",
+			sql: `DELETE FROM client_bw_5m
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		{
+			// Tablas grandes: el duplicado canónico se busca por la clave
+			// primaria (índice), no con una subconsulta que recorra la tabla.
+			name: "dedup client_bw_daily MACs",
+			sql: `DELETE FROM client_bw_daily
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))
+				  AND EXISTS (
+				    SELECT 1 FROM client_bw_daily b2
+				    WHERE b2.mac = UPPER(REPLACE(client_bw_daily.mac, '-', ':'))
+				      AND b2.router_id = client_bw_daily.router_id
+				      AND b2.date = client_bw_daily.date
+				  )`,
+		},
+		{
+			// OR IGNORE: dos variantes no canónicas de la misma clave (no
+			// ocurre con datos reales) no deben abortar el resto; la que queda
+			// sin actualizar se borra en el paso siguiente.
+			name: "normalize client_bw_daily MACs",
+			sql: `UPDATE OR IGNORE client_bw_daily
+				SET mac = UPPER(REPLACE(mac, '-', ':'))
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		{
+			name: "drop leftover client_bw_daily MAC variants",
+			sql: `DELETE FROM client_bw_daily
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		// device_rack_profile y rack_mounts: rack_mounts.device_mac tiene
+		// REFERENCES device_rack_profile(mac) ON DELETE SET NULL con
+		// foreign_keys=ON. Primero se inserta la fila canónica en
+		// device_rack_profile (INSERT OR IGNORE preserva la ya mayúscula si
+		// existían ambas), luego se reasigna rack_mounts.device_mac y por
+		// último se borran los perfiles no canónicos sin disparar SET NULL.
+		{
+			name: "copy device_rack_profile MACs to canonical",
+			sql: `INSERT OR IGNORE INTO device_rack_profile (mac, faceplate_id, u_height, col_span, color, ports_json)
+				SELECT UPPER(REPLACE(mac, '-', ':')), faceplate_id, u_height, col_span, color, ports_json
+				FROM device_rack_profile
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+		{
+			name: "normalize rack_mounts device_mac",
+			sql: `UPDATE rack_mounts
+				SET device_mac = UPPER(REPLACE(device_mac, '-', ':'))
+				WHERE device_mac IS NOT NULL
+				  AND ` + macOnlyMatch("device_mac") + `
+				  AND device_mac != UPPER(REPLACE(device_mac, '-', ':'))`,
+		},
+		{
+			name: "delete non-canonical device_rack_profile MACs",
+			sql: `DELETE FROM device_rack_profile
+				WHERE ` + macOnlyMatch("mac") + ` AND mac != UPPER(REPLACE(mac, '-', ':'))`,
+		},
+	}
+	start := time.Now()
+	tx, err := sqldb.Begin()
+	if err != nil {
+		log.Printf("[netpulse] warning: could not start the MAC migration: %v", err)
+		return
+	}
+	for _, s := range steps {
+		if _, err := tx.Exec(s.sql); err != nil {
+			_ = tx.Rollback()
+			log.Printf("[netpulse] warning: could not %s, MAC migration rolled back: %v", s.name, err)
+			return
+		}
+	}
+	if _, err := tx.Exec("INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
+		macUpperMigratedKey, time.Now().Format(time.RFC3339)); err != nil {
+		_ = tx.Rollback()
+		log.Printf("[netpulse] warning: could not mark the MAC migration done: %v", err)
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("[netpulse] warning: could not commit the MAC migration: %v", err)
+		return
+	}
+	log.Printf("[netpulse] db: MACs in overrides, rack and client_bw tables upper-cased (%v)", time.Since(start).Round(time.Millisecond))
+}
+
+// macUpperMigratedKey marca en kv que migrateLowercaseMACTables ya corrió.
+const macUpperMigratedKey = "mac_upper_tables_migrated"
+
+// Patrones GLOB de una MAC de 17 caracteres. topology_overrides solo admite la
+// forma con ':', porque sus columnas también guardan ids de router (slugs con
+// '-', que pueden parecer una MAC con guiones); las demás tablas solo guardan
+// MACs y aceptan también '-'. Como macaddr.Normalize, el separador debe ser el
+// mismo en las cinco posiciones: "aa-bb:cc-…" no es una MAC.
+var (
+	colonMACGlob = strings.Repeat("[0-9A-Fa-f][0-9A-Fa-f]:", 5) + "[0-9A-Fa-f][0-9A-Fa-f]"
+	dashMACGlob  = strings.Repeat("[0-9A-Fa-f][0-9A-Fa-f]-", 5) + "[0-9A-Fa-f][0-9A-Fa-f]"
+)
+
+// trimWS devuelve la expresión SQL que recorta espacios, tabuladores y saltos
+// de línea a ambos lados de col.
+func trimWS(col string) string {
+	return "TRIM(" + col + ", ' ' || char(9) || char(10) || char(13))"
+}
+
+// macOnlyMatch devuelve la condición SQL "col es una MAC con ':' o con '-'",
+// para las tablas que solo guardan MACs.
+func macOnlyMatch(col string) string {
+	return "(" + col + " GLOB '" + colonMACGlob + "' OR " + col + " GLOB '" + dashMACGlob + "')"
 }
 
 // migrate replica src/db.js:143-150: introspección PRAGMA table_info y DDL

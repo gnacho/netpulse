@@ -382,3 +382,37 @@ func TestFleetOverrideEvidenceTargetByRouterID(t *testing.T) {
 		t.Fatalf("un target desconocido no debe generar evidencia: %+v", ev)
 	}
 }
+
+// TestParseParentRefMACOnlyWithColons comprueba que solo una MAC con ':' es
+// una MAC: los ids de router son slugs, y uno que parece una MAC con guiones
+// o 12 dígitos hex sigue siendo una referencia de router.
+func TestParseParentRefMACOnlyWithColons(t *testing.T) {
+	cases := []struct {
+		in                  string
+		kind                parentRefKind
+		routerID, port, mac string
+	}{
+		{"c8:ff:BF:08:6f:ba", parentRefMAC, "", "", "C8:FF:BF:08:6F:BA"},
+		{"c8-ff-bf-08-6f-ba", parentRefRouter, "c8-ff-bf-08-6f-ba", "", ""},
+		{"cafebabe1234", parentRefRouter, "cafebabe1234", "", ""},
+		{" Rtr1:LAN4 ", parentRefPort, "rtr1", "lan4", ""},
+	}
+	for _, c := range cases {
+		kind, routerID, port, mac := parseParentRef(c.in)
+		if kind != c.kind || routerID != c.routerID || port != c.port || mac != c.mac {
+			t.Errorf("parseParentRef(%q) = %v %q %q %q, esperaba %v %q %q %q", c.in, kind, routerID, port, mac, c.kind, c.routerID, c.port, c.mac)
+		}
+	}
+
+	devices := []Device{
+		devOverride("host", "C8:FF:BF:08:6F:BA", "rtr1", "lan4"),
+		devOverride("vm", "02:78:F4:02:8A:94", "rtr1", "lan4"),
+	}
+	overrides := []TopologyOverride{
+		{Kind: "attach", MAC: "02:78:f4:02:8a:94", Parent: "c8:ff:bf:08:6f:ba", Enabled: true},
+	}
+	out, _ := applyTopologyOverrides(nil, devices, nil, overrides)
+	if out[1].AttachTo != "host" {
+		t.Fatalf("esperaba VM anidada bajo host con parent en minúsculas, got %+v", out[1])
+	}
+}

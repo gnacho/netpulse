@@ -67,14 +67,14 @@ function RackCanvas() {
   // #1151: nombre real de las unidades de flota por MAC (los routers/switches
   // de la flota no están en np.devices - eso son clientes).
   const routerNameByMac = useMemo(
-    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.name] as const] : []))),
+    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toUpperCase(), r.name] as const] : []))),
     [np.routers],
   )
   // #1804: los perfiles guardados antes de este cambio solo llevan el id de la
   // boca (snmp-49153 en un switch SNMP). La etiqueta legible se resuelve
   // contra el detalle vivo de cada unidad montada, una vez por MAC.
   const routerIdByMac = useMemo(
-    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toLowerCase(), r.id] as const] : []))),
+    () => new Map(np.routers.flatMap((r) => (r.mac ? [[r.mac.toUpperCase(), r.id] as const] : []))),
     [np.routers],
   )
   const [portLabels, setPortLabels] = useState<Map<string, Record<string, string>>>(new Map())
@@ -92,7 +92,7 @@ function RackCanvas() {
 
   const labelMacs = useMemo(() => {
     const out = new Set<string>()
-    for (const m of working.mounts) if (m.device_mac) out.add(m.device_mac.toLowerCase())
+    for (const m of working.mounts) if (m.device_mac) out.add(m.device_mac.toUpperCase())
     return out
   }, [working.mounts])
 
@@ -344,7 +344,7 @@ function RackCanvas() {
   }, [reload])
 
   // --- Modelo derivado ---
-  const deviceByMac = useMemo(() => new Map(np.devices.map((d) => [d.mac.toLowerCase(), d])), [np.devices])
+  const deviceByMac = useMemo(() => new Map(np.devices.map((d) => [d.mac.toUpperCase(), d])), [np.devices])
   const rackById = useMemo(() => new Map(working.racks.map((r) => [r.id, r])), [working.racks])
   const mountById = useMemo(() => new Map(working.mounts.map((m) => [m.id, m])), [working.mounts])
 
@@ -356,7 +356,7 @@ function RackCanvas() {
         if (plate) return plate
         // Perfil placeholder/vacío: sugerimos por el tipo detectado del
         // dispositivo (un switch nunca debe quedarse sin bocas LAN).
-        const devType = deviceByMac.get(m.device_mac.toLowerCase())?.type ?? ''
+        const devType = deviceByMac.get(m.device_mac.toUpperCase())?.type ?? ''
         return suggestFaceplate(devType) ?? getFaceplate('blank-1u')!
       }
       return getFaceplate(m.faceplate_id || 'blank-1u') || getFaceplate('blank-1u')!
@@ -374,7 +374,7 @@ function RackCanvas() {
           // #2010: si el sondeo ya dice qué bocas son físicas, el frontal pinta
           // solo esas. Lo guardado sigue intacto hasta que el usuario limpie
           // (banner de puertos obsoletos), así que esto es solo presentación.
-          const live = livePhysicalPorts.get(m.device_mac.toLowerCase())
+          const live = livePhysicalPorts.get(m.device_mac.toUpperCase())
           const liveSet = live && live.length > 0 ? new Set(live) : null
           const kept = liveSet ? declared.filter((p) => liveSet.has(p.id)) : declared
           if (liveSet && kept.length !== declared.length) {
@@ -405,7 +405,7 @@ function RackCanvas() {
     (m: MountDTO): 'online' | 'offline' | 'unknown' => {
       if (m.status_pin && m.status_pin !== 'auto') return m.status_pin as 'online' | 'offline' | 'unknown'
       if (!m.device_mac) return 'unknown'
-      const d = deviceByMac.get(m.device_mac.toLowerCase())
+      const d = deviceByMac.get(m.device_mac.toUpperCase())
       if (!d) return 'unknown'
       return d.online ? 'online' : 'offline'
     },
@@ -536,13 +536,13 @@ function RackCanvas() {
           plate,
           ports: portsFor(m).map((p) => ({
             ...p,
-            label: p.label ?? (m.device_mac ? portLabels.get(m.device_mac.toLowerCase())?.[p.id] : undefined),
+            label: p.label ?? (m.device_mac ? portLabels.get(m.device_mac.toUpperCase())?.[p.id] : undefined),
           })),
           mountId: m.id,
           label:
             m.label ||
-            deviceByMac.get(m.device_mac?.toLowerCase() ?? '')?.name ||
-            routerNameByMac.get(m.device_mac?.toLowerCase() ?? '') ||
+            deviceByMac.get(m.device_mac?.toUpperCase() ?? '')?.name ||
+            routerNameByMac.get(m.device_mac?.toUpperCase() ?? '') ||
             '',
           color: m.device_mac ? working.profiles.get(m.device_mac)?.color || undefined : undefined,
           status: statusFor(m),
@@ -1134,7 +1134,7 @@ function RackCanvas() {
 
   // --- Picker data ---
   const mountedMacs = useMemo(
-    () => new Set(working.mounts.map((m) => m.device_mac?.toLowerCase() ?? '')),
+    () => new Set(working.mounts.map((m) => m.device_mac?.toUpperCase() ?? '')),
     [working.mounts],
   )
   // Solo cableados: el rack es físico; WiFi (2.4/5/6/60 GHz) queda fuera.
@@ -1149,7 +1149,7 @@ function RackCanvas() {
       // portátiles y electrodomésticos de sala.
       np.devices.filter(
         (d) =>
-          !mountedMacs.has(d.mac.toLowerCase()) &&
+          !mountedMacs.has(d.mac.toUpperCase()) &&
           (d.band === 'cable' || d.band === '—') &&
           d.infra !== 'ct' &&
           d.infra !== 'vm' &&
@@ -1158,7 +1158,7 @@ function RackCanvas() {
     [np.devices, mountedMacs],
   )
   const unmountedRouters = useMemo(
-    () => np.routers.filter((r) => r.mac && !mountedMacs.has(r.mac.toLowerCase())),
+    () => np.routers.filter((r) => r.mac && !mountedMacs.has(r.mac.toUpperCase())),
     [np.routers, mountedMacs],
   )
   const accessoryPlates = useMemo(() => FACEPLATES.filter((p) => p.group === 'accessory'), [])

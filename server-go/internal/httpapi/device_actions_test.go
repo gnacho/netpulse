@@ -892,3 +892,36 @@ func TestReservationSkipsAgentOnlyServingRouter(t *testing.T) {
 		t.Error("no debe intentar escribir en el router agent-only")
 	}
 }
+
+// El frontal manda la MAC en mayúsculas: en el router se escribe y se busca en
+// minúsculas, igual que las reglas ya existentes, y la respuesta va en la
+// forma canónica.
+func TestDeviceActionsUpperCaseMACUsesLowerCaseUCI(t *testing.T) {
+	const upper = "AA:BB:CC:DD:EE:FF"
+
+	ssh := newSSH(dhcpEmpty, fwEmpty)
+	ts := makeDeviceActionsTestServer(t, ssh)
+	res := deviceReq(t, "PUT", ts.URL, "/api/devices/"+upper+"/reservation", ts.cookie,
+		`{"ip":"192.168.1.60","hostname":"tv-salon"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT reservation: %d", res.StatusCode)
+	}
+	body := decodeBody(t, res)
+	if body["mac"] != upper {
+		t.Errorf("mac en la respuesta = %v, esperaba %s", body["mac"], upper)
+	}
+	if !ssh.saw("uci set dhcp.np_host_aabbccddeeff.mac='aa:bb:cc:dd:ee:ff'") {
+		t.Error("esperaba la sección y la mac del host en minúsculas")
+	}
+
+	ssh = newSSH(dhcpEmpty, fwBlocked)
+	ts = makeDeviceActionsTestServer(t, ssh)
+	res = deviceReq(t, "PUT", ts.URL, "/api/devices/"+upper+"/block", ts.cookie,
+		`{"router":"`+ts.apID+`"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("PUT block: %d", res.StatusCode)
+	}
+	if body := decodeBody(t, res); body["already"] != true {
+		t.Errorf("esperaba encontrar la regla existente en minúsculas, already = %v", body["already"])
+	}
+}
