@@ -52,14 +52,16 @@ func seedDNS(t *testing.T, ts *testServer) time.Time {
 	t.Helper()
 	now := time.Now()
 	hour := now.Truncate(time.Hour)
+	// La ingesta guarda la MAC tal como está en device_seen (mayúsculas);
+	// la ruta del endpoint llega en minúsculas.
 	_, err := ts.db.Exec(`INSERT INTO dns_activity (mac, domain, hour_ts, queries, blocked, first_seen, last_seen)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`, "aa:bb:cc:dd:ee:01", "video.example", hour.UnixMilli(), 12, 3,
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, "AA:BB:CC:DD:EE:01", "video.example", hour.UnixMilli(), 12, 3,
 		now.Add(-2*time.Minute).UnixMilli(), now.UnixMilli())
 	if err != nil {
 		t.Fatalf("seed dns_activity: %v", err)
 	}
 	_, err = ts.db.Exec(`INSERT INTO dns_domain_first (domain, first_seen, mac) VALUES (?, ?, ?)`,
-		"video.example", now.Add(-time.Minute).UnixMilli(), "aa:bb:cc:dd:ee:01")
+		"video.example", now.Add(-time.Minute).UnixMilli(), "AA:BB:CC:DD:EE:01")
 	if err != nil {
 		t.Fatalf("seed dns_domain_first: %v", err)
 	}
@@ -124,7 +126,7 @@ func TestDNSOverviewContract(t *testing.T) {
 	if len(body.NewDomains) != 1 || body.NewDomains[0].Domain != "video.example" {
 		t.Errorf("new_domains = %+v", body.NewDomains)
 	}
-	if body.NewDomains[0].MAC != "aa:bb:cc:dd:ee:01" {
+	if body.NewDomains[0].MAC != "AA:BB:CC:DD:EE:01" {
 		t.Errorf("mac del dominio nuevo = %q", body.NewDomains[0].MAC)
 	}
 }

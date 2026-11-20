@@ -15,9 +15,11 @@ func TestTopForMACAggregatesAndOrders(t *testing.T) {
 
 	if err := st.Apply(ctx,
 		[]Bucket{
-			{MAC: "aa:bb:cc:dd:ee:01", Domain: "a.example", Hour: hour, Queries: 5, Blocked: 1, FirstSeen: hour, LastSeen: hour.Add(time.Minute)},
-			{MAC: "aa:bb:cc:dd:ee:01", Domain: "b.example", Hour: hour, Queries: 9, Blocked: 0, FirstSeen: hour, LastSeen: hour},
-			{MAC: "aa:bb:cc:dd:ee:02", Domain: "c.example", Hour: hour, Queries: 50, Blocked: 0, FirstSeen: hour, LastSeen: hour},
+			// La ingesta guarda la MAC de device_seen (mayúsculas); la API
+			// consulta con la de la ruta normalizada (minúsculas).
+			{MAC: "AA:BB:CC:DD:EE:01", Domain: "a.example", Hour: hour, Queries: 5, Blocked: 1, FirstSeen: hour, LastSeen: hour.Add(time.Minute)},
+			{MAC: "AA:BB:CC:DD:EE:01", Domain: "b.example", Hour: hour, Queries: 9, Blocked: 0, FirstSeen: hour, LastSeen: hour},
+			{MAC: "AA:BB:CC:DD:EE:02", Domain: "c.example", Hour: hour, Queries: 50, Blocked: 0, FirstSeen: hour, LastSeen: hour},
 		},
 		nil); err != nil {
 		t.Fatalf("Apply: %v", err)

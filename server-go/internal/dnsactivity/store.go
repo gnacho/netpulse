@@ -127,7 +127,7 @@ FROM dns_activity WHERE hour_ts >= ? AND hour_ts <= ?`
 	args := []any{from.Truncate(time.Hour).UnixMilli(), to.UnixMilli()}
 	if mac != "" {
 		q += " AND mac = ?"
-		args = append(args, mac)
+		args = append(args, macKey(mac))
 	}
 	q += " GROUP BY domain ORDER BY SUM(queries) DESC, domain ASC LIMIT ?"
 	args = append(args, limit)
@@ -148,6 +148,13 @@ FROM dns_activity WHERE hour_ts >= ? AND hour_ts <= ?`
 	return out, rows.Err()
 }
 
+// macKey pasa la MAC pedida a la forma con la que se guarda: la de
+// device_seen (mayúsculas, ':'), de donde la ingesta toma la atribución. La
+// API la recibe en minúsculas y SQLite compara con distinción de mayúsculas.
+func macKey(mac string) string {
+	return strings.ToUpper(mac)
+}
+
 // TopForMAC devuelve los dominios más consultados por un dispositivo.
 func (s *Store) TopForMAC(ctx context.Context, mac string, from, to time.Time, limit int) ([]DomainRow, error) {
 	return s.queryTop(ctx, mac, from, to, limit)
@@ -165,7 +172,7 @@ FROM dns_activity WHERE hour_ts >= ? AND hour_ts <= ?`
 	args := []any{from.Truncate(time.Hour).UnixMilli(), to.UnixMilli()}
 	if mac != "" {
 		q += " AND mac = ?"
-		args = append(args, mac)
+		args = append(args, macKey(mac))
 	}
 	var queries, blocked int64
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(&queries, &blocked)
