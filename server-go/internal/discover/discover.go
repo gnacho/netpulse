@@ -274,7 +274,12 @@ func probeSsh(ctx context.Context, host, keyPath string) (bool, *string) {
 		"-o", "ConnectTimeout=2",
 		"-o", "ControlMaster=no",
 		"root@"+host,
-		"ubus call system board | jsonfilter -e @.model",
+		// #2122: jsonfilter sale distinto de cero cuando el path no existe
+		// (los x86/64 no traen `model` en el board), y eso se leía como "clave
+		// no autorizada" aunque la sesión hubiera autenticado. Lo que decide
+		// es ssh: si conectó y ejecutó, la clave vale. Sin modelo, el
+		// candidato se queda con su IP o su hostname.
+		"ubus call system board | jsonfilter -e @.model || true",
 	)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	type result struct {
