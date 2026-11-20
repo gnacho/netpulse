@@ -794,6 +794,12 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		if dn, ok := distByID[h]; ok && (dn.Kind == "inferred" || dn.Kind == "managed") {
 			continue
 		}
+		// #2124: si el padre es otro device-hub, el cable ya salió en el bucle
+		// de hijos de device-hubs (o en el de CTs/VMs cuando el padre es el
+		// host hipervisor, que ese bucle también cubre).
+		if deviceHubs[h] {
+			continue
+		}
 		wiredLink(h, hub)
 	}
 	// hijos cableados de distnodes (abanico alrededor del círculo)
