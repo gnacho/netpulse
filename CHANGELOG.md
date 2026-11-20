@@ -17,6 +17,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- Las tramas LOOP DETECT de BATMAN-adv (MAC origen `BA:BE:xx:xx:xx:xx`) dejan de aparecer como clientes y de sostener nodos de topología: son sondas del mesh, no hosts, y el FDB de cada unidad las aprende (#1818, reportado por @tam481 y @crowedavid).
 - Los mensajes de log que quedaban en castellano están en inglés, también los del script de reinstalación del agente, el instalador one-liner y el init del agente (#1955).
 
 ## [2.53.0] - 2026-11-16

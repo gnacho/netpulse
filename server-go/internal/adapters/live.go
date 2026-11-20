@@ -1524,7 +1524,7 @@ func (l *Live) pollRouter(ctx context.Context, cfg RouterConfig) (*routerPolled,
 		hasCpu: cpu != nil, hasRam: mem.Total > 0, hasTemp: temp != nil,
 		uptimeSec: sysInfo.Uptime, net: net, leases: leases, reservations: reservations, arp: arp, arpStale: arpStale, arpDevs: arpDevs, glClients: glClients,
 		wireless: wirelessGood, ports: portsGood, radios: radiosGood,
-		fdb: fdbGood, fdbVlans: fdbVlansGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
+		fdb: withoutBatadvBla(fdbGood), fdbVlans: fdbVlansGood, wirelessSide: wsGood, brMac: brMac, latencyMs: latencyMs, lossPct: lossPct,
 		backhaul: backhaul, lldp: lldp, lldpUnavailable: lldpUnavailable,
 		luci: luciGood, wanInfo: wanInfo, vlans: vlansGood, networks: networksGood, wifiNet: wifiNetGood,
 		polledAt: l.now().UnixMilli(),
@@ -3883,6 +3883,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	for mac := range allMacs {
 		if routerMacs[mac] || defaultRouteMacs[strings.ToUpper(mac)] {
 			continue // los routers y la ruta por defecto no son clientes
+		}
+		if isBatadvBlaMAC(mac) {
+			continue // #1818: sonda LOOP DETECT del mesh, no es un host
 		}
 		lease, hasLease := leasesByMac[mac]
 		s, isSeen := seen[mac]
