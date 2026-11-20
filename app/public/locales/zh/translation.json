@@ -331,6 +331,8 @@
     "vlan": "VLAN"
   },
   "devices": {
+    "noIp": "无 IP",
+    "noIpHint": "已通过 WiFi 关联，但还没有地址",
     "badges": {
       "ct": "CT",
       "ctTip": "{{host}} 上的容器",
@@ -1143,6 +1145,10 @@
       "snmp-failing": "检查 SNMP 团体字和交换机端口：该设备能 ping 通但轮询无响应。"
     },
     "types": {
+      "wifi-no-ip": {
+        "title": "没有 IP 的 WiFi 客户端",
+        "description": "{{mac}} 已在 {{where}} 上通过 WiFi 关联 {{minutes}} 分钟，但没有 IP 地址"
+      },
       "agent-down": {
         "title": "{{router}} 探针离线",
         "description": "{{router}} 的探针已超过 {{confirm}} 无数据，使用缓存数据"

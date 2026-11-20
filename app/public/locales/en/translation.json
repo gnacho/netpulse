@@ -106,6 +106,10 @@
       "snmp-failing": "Check the SNMP community string and switch port: the unit answers ping but not polling."
     },
     "types": {
+      "wifi-no-ip": {
+        "title": "Wi-Fi client with no IP",
+        "description": "{{mac}} has been associated by Wi-Fi on {{where}} for {{minutes}} min with no IP address"
+      },
       "agent-down": {
         "title": "Agent down on {{router}}",
         "description": "No data from the agent on {{router}} for more than {{confirm}} — using cached data"
@@ -409,6 +413,8 @@
     "leaseRenewsDays": "renews in {{d}}d {{h}}h {{min}}min"
   },
   "devices": {
+    "noIp": "no IP",
+    "noIpHint": "Associated by Wi-Fi, no address yet",
     "badges": {
       "ct": "CT",
       "ctTip": "Container on {{host}}",

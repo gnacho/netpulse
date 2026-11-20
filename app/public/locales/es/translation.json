@@ -106,6 +106,10 @@
       "snmp-failing": "Revisa la community SNMP y el puerto del switch: el equipo responde a ping pero no al sondeo."
     },
     "types": {
+      "wifi-no-ip": {
+        "title": "Cliente WiFi sin IP",
+        "description": "{{mac}} lleva {{minutes}} min asociado por WiFi en {{where}} sin dirección IP"
+      },
       "agent-down": {
         "title": "Agente caído en {{router}}",
         "description": "Sin datos del agente de {{router}} desde hace más de {{confirm}} — usando datos cacheados"
@@ -409,6 +413,8 @@
     "leaseRenewsDays": "renueva en {{d}}d {{h}}h {{min}}min"
   },
   "devices": {
+    "noIp": "sin IP",
+    "noIpHint": "Asociado por WiFi, aún sin dirección",
     "badges": {
       "ct": "CT",
       "ctTip": "Contenedor en {{host}}",

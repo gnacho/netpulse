@@ -23,6 +23,7 @@ var newTypeSlugs = []string{
 	TypeAutoRearmFailed, TypeUplinkRestored, TypeSnmpRecovered,
 	TypeRouterOffline,
 	TypeUnverifiedMac,
+	TypeWiFiNoIP,
 }
 
 // hintSlugs: slugs ya existentes en #310/#671 (con hint) para detectar colisiones.
@@ -51,8 +52,8 @@ func TestNewTypeSlugsAreKebabCaseAndUnique(t *testing.T) {
 		}
 		seen[slug] = true
 	}
-	if len(newTypeSlugs) != 25 {
-		t.Errorf("se esperan 25 slugs nuevos, hay %d", len(newTypeSlugs))
+	if len(newTypeSlugs) != 26 {
+		t.Errorf("se esperan 26 slugs nuevos, hay %d", len(newTypeSlugs))
 	}
 }
 

@@ -112,6 +112,10 @@
       "snmp-failing": "Проверьте SNMP community string и порт коммутатора: устройство отвечает на ping, но не на опрос SNMP."
     },
     "types": {
+      "wifi-no-ip": {
+        "title": "Wi-Fi клиент без IP",
+        "description": "{{mac}} подключён по Wi-Fi на {{where}} уже {{minutes}} мин без IP-адреса"
+      },
       "agent-down": {
         "title": "Агент не отвечает на {{router}}",
         "description": "Нет данных от агента на {{router}} дольше {{confirm}}. Работаем по кэшу"
@@ -423,6 +427,8 @@
     "leaseRenewsDays": "продление через {{d}} д {{h}} ч {{min}} мин"
   },
   "devices": {
+    "noIp": "без IP",
+    "noIpHint": "Подключён по Wi-Fi, адреса ещё нет",
     "badges": {
       "ct": "CT",
       "ctTip": "Контейнер на {{host}}",
