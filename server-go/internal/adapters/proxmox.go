@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/pve"
 )
 
@@ -496,16 +497,9 @@ func applyPVEInfra(devices []Device, dists []DistributionNode, inv *pveInventory
 
 // looksLikeMACName: true si el nombre del device es una MAC (no tiene nombre
 // real asignado por lease/alias). Formato "AA:BB:CC:DD:EE:FF" o con guiones.
+// También 12 dígitos hex sin separadores, como antes.
 func looksLikeMACName(name string) bool {
-	hex := 0
-	for _, r := range name {
-		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F') {
-			hex++
-		} else if r != ':' && r != '-' {
-			return false
-		}
-	}
-	return hex == 12
+	return macaddr.Normalize(name) != ""
 }
 
 // macToDeviceID: el ID de device es la MAC en minúsculas con guiones.

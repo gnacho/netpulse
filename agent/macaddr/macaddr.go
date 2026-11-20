@@ -60,3 +60,40 @@ func upperHex(c byte) (byte, bool) {
 	}
 	return 0, false
 }
+
+// NormalizeSeparated es Normalize pero solo acepta la forma con separadores
+// (aa:bb:… o aa-bb-…), no 12 dígitos hex seguidos: sirve para decidir si un
+// nombre o hostname es una MAC sin confundir uno de 12 dígitos hex con ella.
+func NormalizeSeparated(raw string) string {
+	if len(strings.TrimSpace(raw)) != 17 {
+		return ""
+	}
+	return Normalize(raw)
+}
+
+// IsLocallyAdministered informa si la MAC tiene el bit de administración
+// local (bit 1 del primer octeto): MAC aleatorias de móviles, VMs, etc.
+// false si mac no es una MAC.
+func IsLocallyAdministered(mac string) bool {
+	m := Normalize(mac)
+	if m == "" {
+		return false
+	}
+	switch m[1] {
+	case '2', '3', '6', '7', 'A', 'B', 'E', 'F':
+		return true
+	}
+	return false
+}
+
+// NormalizeLenient devuelve Normalize(raw) si raw es una MAC. A diferencia de
+// Normalize, nunca devuelve "" para una entrada no vacía: lo que no es una MAC
+// sale sin espacios alrededor, en mayúsculas y con '-' cambiado por ':' (la
+// normalización laxa de los helpers que generan claves con datos que no
+// siempre son MAC).
+func NormalizeLenient(raw string) string {
+	if m := Normalize(raw); m != "" {
+		return m
+	}
+	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(raw), "-", ":"))
+}

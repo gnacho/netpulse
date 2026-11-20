@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 )
 
@@ -19,7 +20,7 @@ import (
 // quedan ausentes, como hasta ahora.
 
 func normSeenMAC(mac string) string {
-	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(mac), "-", ":"))
+	return macaddr.NormalizeLenient(mac)
 }
 
 // noteDevicesSeen upsert de las MACs online en device_seen (#954): alta con
@@ -48,26 +49,10 @@ func saneIP(ip string) string {
 // de una alias) y el registro existe para recordar NOMBRES: persistir una
 // MAC contaminaría la restauración (#1315: el hostname mostraba una MAC
 // enlazada en formato guionado). Acepta los dos formatos (dashes/colons) en
-// cualquier mayúscula.
+// cualquier mayúscula. Exige 17 caracteres (con separadores) para no tratar
+// un hostname de 12 dígitos hex como si fuera una MAC.
 func isMACLike(v string) bool {
-	v = strings.TrimSpace(v)
-	if len(v) != 17 {
-		return false
-	}
-	for i := 0; i < len(v); i++ {
-		switch i {
-		case 2, 5, 8, 11, 14:
-			if v[i] != ':' && v[i] != '-' {
-				return false
-			}
-		default:
-			c := v[i]
-			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-				return false
-			}
-		}
-	}
-	return true
+	return macaddr.NormalizeSeparated(v) != ""
 }
 
 // #1315: stickiness del tipo inferido. Al expirar el lease la clasificación

@@ -2320,40 +2320,7 @@ func appendUnique(slice []string, s string) []string {
 // bit set (bit 1 of byte 0). Apple, Google, and Samsung use this for WiFi
 // privacy features — the device appears as a new MAC periodically.
 func IsRandomizedMAC(mac string) bool {
-	if len(mac) < 2 {
-		return false
-	}
-	// Byte 0: first two hex chars
-	b, err := parseHexByte(mac[0], mac[1])
-	if err != nil {
-		return false
-	}
-	return b&0x02 != 0
-}
-
-func parseHexByte(hi, lo byte) (byte, error) {
-	h, err := hexNibble(hi)
-	if err != nil {
-		return 0, err
-	}
-	l, err := hexNibble(lo)
-	if err != nil {
-		return 0, err
-	}
-	return h<<4 | l, nil
-}
-
-func hexNibble(c byte) (byte, error) {
-	switch {
-	case c >= '0' && c <= '9':
-		return c - '0', nil
-	case c >= 'a' && c <= 'f':
-		return c - 'a' + 10, nil
-	case c >= 'A' && c <= 'F':
-		return c - 'A' + 10, nil
-	default:
-		return 0, fmt.Errorf("invalid hex nibble: %c", c)
-	}
+	return macaddr.IsLocallyAdministered(mac)
 }
 
 // ParseArp parsea /proc/net/arp (#377): cabecera + líneas
