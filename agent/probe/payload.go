@@ -33,10 +33,15 @@ type PayloadData struct {
 	Wireless *WirelessData `json:"wireless,omitempty"`
 	DHCP     *DHCPData     `json:"dhcp,omitempty"`
 	FDB      *FDBData      `json:"fdb,omitempty"`
-	// Arp: MAC → IPv4 de la tabla ARP del equipo (/proc/net/arp, #377).
-	// Resuelve IPs donde el DHCP no está en el equipo sondeado (APs tontos
-	// con el dnsmasq en otro router): cualquier router de la flota que
+	// Arp: MAC → dirección del equipo, leída de `ip neigh` (v4) o de /proc/net/arp
+	// (#377). Resuelve IPs donde el DHCP no está en el equipo sondeado (APs
+	// tontos con el dnsmasq en otro router): cualquier router de la flota que
 	// enrute la LAN conoce el mapa completo.
+	//
+	// #2109: desde el recheck NDP puede traer también una dirección IPv6, la de
+	// un host que solo tiene v6 y al que se confirmó con un echo. Es la única
+	// forma de que ese host conste como presente, y el servidor la trata como
+	// la dirección del cliente.
 	Arp map[string]string `json:"arp,omitempty"`
 	// ArpDevs: MAC -> interfaz donde el kernel tiene la entrada ARP (#1485).
 	// Permite al servidor distinguir el ARP aprendido en el puerto WAN (el

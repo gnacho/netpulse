@@ -1337,10 +1337,20 @@ func (p *Prober) probeArp(ctx context.Context) (arp map[string]string, stale []s
 			// sin confirmar. Antes de darlo por fantasma se comprueba con un
 			// echo corto, que es lo unico que puede resolver el caso de un
 			// host cableado con IP estatica que lleva rato en silencio.
+			due := p.stalePingDue()
 			var fresh string
-			m, st, fresh = p.confirmStaleNeighbours(ctx, m, st)
+			m, st, fresh = p.confirmStaleNeighbours(ctx, m, st, due)
 			if fresh != "" {
 				out = fresh
+			}
+			// #2109: el mismo recheck sobre la tabla NDP. Un host solo-IPv6
+			// (SLAAC, sin lease ni tráfico v4) no tiene entrada en `ip -4
+			// neigh`, así que esta pasada es la única que puede confirmarlo.
+			for mac, ip := range p.confirmStaleNeighbours6(ctx, due) {
+				if _, ok := m[mac]; !ok {
+					m[mac] = ip
+				}
+				delete(st, mac)
 			}
 			for mac := range st {
 				stale = append(stale, mac)
@@ -1402,17 +1412,21 @@ func StalePingTargets(arp map[string]string, stale map[string]bool) []string {
 // Best effort: sin runner, sin vecinos o si la relectura falla, los datos
 // vuelven como estaban. Throttle propio (stalePingInterval) para no lanzar
 // pings en cada sondeo.
-func (p *Prober) confirmStaleNeighbours(ctx context.Context, arp map[string]string, stale map[string]bool) (map[string]string, map[string]bool, string) {
-	if p.run == nil || len(stale) == 0 {
-		return arp, stale, ""
-	}
+// stalePingDue decide si toca ronda y, si toca, marca el sello. Es el mismo
+// sello para v4 y v6: una ronda de sondeo no debe pagar dos veces el throttle
+// ni dejar la pasada v6 sin turno por haber gastado la v4.
+func (p *Prober) stalePingDue() bool {
 	p.stalePingMu.Lock()
-	recent := !p.stalePingAt.IsZero() && time.Since(p.stalePingAt) < StalePingInterval
-	if !recent {
-		p.stalePingAt = time.Now()
+	defer p.stalePingMu.Unlock()
+	if !p.stalePingAt.IsZero() && time.Since(p.stalePingAt) < StalePingInterval {
+		return false
 	}
-	p.stalePingMu.Unlock()
-	if recent {
+	p.stalePingAt = time.Now()
+	return true
+}
+
+func (p *Prober) confirmStaleNeighbours(ctx context.Context, arp map[string]string, stale map[string]bool, due bool) (map[string]string, map[string]bool, string) {
+	if p.run == nil || len(stale) == 0 || !due {
 		return arp, stale, ""
 	}
 
@@ -1448,4 +1462,83 @@ func (p *Prober) confirmStaleNeighbours(ctx context.Context, arp map[string]stri
 		delete(stale, mac)
 	}
 	return arp, stale, out
+}
+
+// confirmStaleNeighbours6 (#2109): lo mismo sobre `ip -6 neigh`. Mismo tope y
+// mismo throttle, un echo por vecino STALE. La diferencia es que una
+// direccion link-local solo se alcanza indicando la interfaz, que el propio
+// `ip -6 neigh` declara (`dev br-lan`).
+//
+// Devuelve MAC → dirección confirmada. Best effort: sin tabla, sin vecinos o
+// sin respuesta, nada. No toca `arp`: quien llama decide qué hacer con la
+// pareja confirmada.
+func (p *Prober) confirmStaleNeighbours6(ctx context.Context, due bool) map[string]string {
+	if p.run == nil || !due {
+		return nil
+	}
+	out := p.runBest(ctx, CmdIpNeigh6, 3*time.Second)
+	if out == "" {
+		return nil
+	}
+	arp, stale := ParseIPNeigh(out)
+	if len(stale) == 0 {
+		return nil
+	}
+	devs := ParseIPNeighDevsAll(out)
+	macs := make([]string, 0, len(stale))
+	for mac := range stale {
+		macs = append(macs, mac)
+	}
+	sort.Strings(macs)
+	type target struct{ mac, ip, dev string }
+	targets := make([]target, 0, StalePingMax)
+	for _, mac := range macs {
+		ip := arp[mac]
+		if net.ParseIP(ip) == nil {
+			continue
+		}
+		targets = append(targets, target{mac: mac, ip: ip, dev: devs[mac]})
+		if len(targets) >= StalePingMax {
+			break
+		}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	var wg sync.WaitGroup
+	for _, t := range targets {
+		wg.Add(1)
+		go func(t target) {
+			defer wg.Done()
+			_, _ = p.run.Run(ctx, StalePing6Command(t.ip, t.dev), StalePingTimeout)
+		}(t)
+	}
+	wg.Wait()
+
+	fresh, stillStale := ParseIPNeigh(p.runBest(ctx, CmdIpNeigh6, 3*time.Second))
+	confirmed := map[string]string{}
+	for _, t := range targets {
+		if stillStale[t.mac] {
+			continue
+		}
+		if ip := fresh[t.mac]; ip != "" {
+			confirmed[t.mac] = ip
+		}
+	}
+	return confirmed
+}
+
+// StalePing6Command: echo IPv6 con dos caminos porque no todas las unidades traen
+// el mismo binario (`ping -6` en busybox reciente, `ping6` en el resto). Para
+// link-local se añade `-I <iface>`: sin interfaz el kernel no sabe por dónde
+// mandarlo.
+func StalePing6Command(ip, dev string) string {
+	iface := ""
+	if strings.HasPrefix(strings.ToLower(ip), "fe80:") && dev != "" {
+		iface = " -I " + dev
+	}
+	return fmt.Sprintf(
+		"ping -6%s -c 1 -W 1 %s >/dev/null 2>&1 || ping6%s -c 1 -W 1 %s >/dev/null 2>&1",
+		iface, ip, iface, ip,
+	)
 }
