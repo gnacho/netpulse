@@ -14,6 +14,8 @@ package probe
 import (
 	"sort"
 	"strings"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // ParseIfaceMACs convierte la salida de CmdIfaceMACs ("iface mac" por línea)
@@ -39,27 +41,11 @@ func ParseIfaceMACs(out string) []string {
 	return macs
 }
 
-// normalizeIfaceMAC acepta solo MAC ethernet de 6 octetos en hex. La MAC nula
-// es la de loopback y no identifica a nadie.
+// normalizeIfaceMAC acepta solo MAC ethernet de 6 octetos en hex (forma
+// canónica de macaddr.Normalize). La MAC nula es la de loopback y no
+// identifica a nadie.
 func normalizeIfaceMAC(raw string) string {
-	mac := strings.ToUpper(strings.TrimSpace(raw))
-	if len(mac) != 17 {
-		return ""
-	}
-	for i := 0; i < 17; i++ {
-		c := mac[i]
-		if i%3 == 2 {
-			if c != ':' && c != '-' {
-				return ""
-			}
-			continue
-		}
-		isHex := (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')
-		if !isHex {
-			return ""
-		}
-	}
-	mac = strings.ReplaceAll(mac, "-", ":")
+	mac := macaddr.Normalize(raw)
 	if mac == "00:00:00:00:00:00" {
 		return ""
 	}

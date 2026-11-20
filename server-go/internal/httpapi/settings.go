@@ -9,8 +9,8 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
-	"strings"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/db"
 	"github.com/gnacho/netpulse/server-go/internal/mqttpub"
@@ -333,26 +333,11 @@ type knownMacItem struct {
 	Note string `json:"note,omitempty"`
 }
 
-// validMAC normaliza y valida una dirección MAC (AA:BB:CC:DD:EE:FF).
+// validMAC normaliza y valida una dirección MAC a su forma canónica
+// (AA:BB:CC:DD:EE:FF). Acepta ':' o '-' como separador y 12 hex sin separador.
 func validMAC(raw string) (string, bool) {
-	m := strings.ToUpper(strings.TrimSpace(raw))
-	if len(m) != 17 {
-		return "", false
-	}
-	for i := 0; i < 17; i++ {
-		if i%3 == 2 {
-			if m[i] != ':' {
-				return "", false
-			}
-		} else if !isHex(m[i]) {
-			return "", false
-		}
-	}
-	return m, true
-}
-
-func isHex(c byte) bool {
-	return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F')
+	m := macaddr.Normalize(raw)
+	return m, m != ""
 }
 
 // registerKnownMacsRoutes: GET/PUT/DELETE /api/settings/known-macs (admin,

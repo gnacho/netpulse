@@ -23,9 +23,9 @@ import (
 	"log"
 	"net"
 	"sort"
-	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/portseries"
@@ -192,11 +192,13 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		if prev, okPrev := s.agents.StalePayload(p.Slug); okPrev && prev != nil && prev.Data.FDB != nil {
 			ports = prev.Data.FDB.Ports
 		}
-		// MACs sin separadores ("AABBCCDDEEFF") → formato canónico con dos
-		// puntos; las irrecuperables se descartan (firmware razonable).
+		// El firmware envía las MAC en MAYÚSCULAS sin separadores
+		// ("AABBCCDDEEFF"); el resto de la app (leases, wifi, FDB,
+		// enriquecimiento) usa "AA:BB:CC:DD:EE:FF". Las irrecuperables se
+		// descartan (firmware razonable).
 		macs := make(map[string]string, len(p.FDB))
 		for mac, port := range p.FDB {
-			if norm := normalizeBeaconMAC(mac); norm != "" {
+			if norm := macaddr.Normalize(mac); norm != "" {
 				macs[norm] = port
 			}
 		}
@@ -284,7 +286,7 @@ func (s *server) ingestBeacon(src string, raw []byte) {
 		pl.Data.System = &probe.SystemData{
 			Board:     b,
 			SysInfo:   &probe.SysInfo{Uptime: float64(p.Up)},
-			BridgeMAC: strings.ToUpper(normalizeBeaconMAC(p.Mac)),
+			BridgeMAC: macaddr.Normalize(p.Mac),
 		}
 	} else {
 		// #639: el beacon no lleva firmware/uptime; el server los obtiene de
@@ -595,27 +597,6 @@ func (s *server) startBeaconListener(addr string) (net.Addr, error) {
 		}
 	}()
 	return pc.LocalAddr(), nil
-}
-
-// normalizeBeaconMAC: el firmware envía las MAC en MAYÚSCULAS sin
-// separadores ("AABBCCDDEEFF"); el resto de la app (leases, wifi, FDB,
-// enriquecimiento) usa "AA:BB:CC:DD:EE:FF". Devuelve "" si no es una MAC.
-func normalizeBeaconMAC(mac string) string {
-	clean := strings.ToUpper(strings.TrimSpace(mac))
-	if len(clean) == 12 && !strings.Contains(clean, ":") {
-		var b strings.Builder
-		for i := 0; i < 12; i += 2 {
-			if i > 0 {
-				b.WriteByte(':')
-			}
-			b.WriteString(clean[i : i+2])
-		}
-		return b.String()
-	}
-	if len(clean) == 17 && strings.Count(clean, ":") == 5 {
-		return clean
-	}
-	return ""
 }
 
 // recordBeaconCandidate guarda/refresca un anuncio de descubrimiento (#291).

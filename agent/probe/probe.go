@@ -18,6 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // ---------------------------------------------------------------------------
@@ -985,9 +987,11 @@ func ParseGlClients(raw []byte) ([]DhcpLease, error) {
 	}
 	out := make([]DhcpLease, 0, len(data.Clients))
 	for key, c := range data.Clients {
-		mac := c.MAC
+		// El firmware puede emitir MAC con guiones ("AA-BB-...", #1145): se
+		// guarda siempre la forma canónica para que el servidor la encuentre.
+		mac := macaddr.Normalize(c.MAC)
 		if mac == "" {
-			mac = key
+			mac = macaddr.Normalize(key)
 		}
 		if mac == "" || c.IP == "" || !c.Online {
 			continue
@@ -996,7 +1000,7 @@ func ParseGlClients(raw []byte) ([]DhcpLease, error) {
 		if hostname == "" {
 			hostname = c.Name
 		}
-		out = append(out, DhcpLease{MAC: strings.ToUpper(mac), IP: c.IP, Hostname: hostname})
+		out = append(out, DhcpLease{MAC: mac, IP: c.IP, Hostname: hostname})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].MAC < out[j].MAC })
 	return out, nil
