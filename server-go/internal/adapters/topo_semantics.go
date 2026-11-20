@@ -17,6 +17,8 @@
 package adapters
 
 import (
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -248,11 +250,7 @@ func fleetLldpEvidence(polled map[string]*routerPolled, gatewayID string) map[st
 	if gw := polled[gatewayID]; gw != nil && gw.brMac != "" {
 		gwMac = strings.ToUpper(gw.brMac)
 	}
-	ids := make([]string, 0, len(polled))
-	for id := range polled {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := slices.Sorted(maps.Keys(polled))
 
 	type lldpCand struct {
 		parentID  string
@@ -399,11 +397,7 @@ func breakEvidenceCycles(ev map[string]topoParent) {
 	)
 	state := map[string]int{}
 	inCycle := map[string]bool{}
-	ids := make([]string, 0, len(ev))
-	for id := range ev {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := slices.Sorted(maps.Keys(ev))
 	for _, start := range ids {
 		if state[start] != unvisited {
 			continue
@@ -603,11 +597,7 @@ func BuildTopoSemantics(routers []Router, devices []Device, wg WireGuardStats, d
 		}
 		if len(absorbed) > 0 {
 			dists = kept
-			sem.AbsorbedDists = make([]string, 0, len(absorbed))
-			for id := range absorbed {
-				sem.AbsorbedDists = append(sem.AbsorbedDists, id)
-			}
-			sort.Strings(sem.AbsorbedDists)
+			sem.AbsorbedDists = slices.Sorted(maps.Keys(absorbed))
 			for i := range online {
 				// Re-anclar al switch SOLO los clientes atribuidos a él: los
 				// atribuidos a otro router (p. ej. equipos de un switch NO

@@ -2,6 +2,8 @@ package adapters
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -185,11 +187,7 @@ func inferLldpLinks(polled map[string]*routerPolled, devices []Device, byMAC map
 	}
 	distByMac := map[string]string{}
 
-	routerIDs := make([]string, 0, len(polled))
-	for id := range polled {
-		routerIDs = append(routerIDs, id)
-	}
-	sort.Strings(routerIDs)
+	routerIDs := slices.Sorted(maps.Keys(polled))
 
 	var dists []DistributionNode
 	for _, routerID := range routerIDs {
@@ -459,11 +457,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 
 	var dists []DistributionNode
 	// routers en orden determinista (el mapa polled no lo es)
-	routerIDs := make([]string, 0, len(polled))
-	for id := range polled {
-		routerIDs = append(routerIDs, id)
-	}
-	sort.Strings(routerIDs)
+	routerIDs := slices.Sorted(maps.Keys(polled))
 
 	// Gateway con la misma prioridad que pickGateway (is_gateway → glinet →
 	// primero): solo él puede anclar nodos "inferred".
@@ -484,11 +478,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 	for _, routerID := range routerIDs {
 		p := polled[routerID]
 		byPort := fdbByPort(p.fdb)
-		ports := make([]string, 0, len(byPort))
-		for port := range byPort {
-			ports = append(ports, port)
-		}
-		sort.Strings(ports)
+		ports := slices.Sorted(maps.Keys(byPort))
 
 		for _, port := range ports {
 			if lldpHandled[routerID][port] {
@@ -645,11 +635,7 @@ func inferTopology(polled map[string]*routerPolled, devices []Device) ([]Device,
 				rootPort = p.fdb[gwMac]
 			}
 			byPort := fdbByPort(p.fdb)
-			ports := make([]string, 0, len(byPort))
-			for port := range byPort {
-				ports = append(ports, port)
-			}
-			sort.Strings(ports)
+			ports := slices.Sorted(maps.Keys(byPort))
 			for _, port := range ports {
 				if port == rootPort {
 					continue // uplink del propio switch (bucle)
@@ -763,11 +749,7 @@ type routerIdentity struct {
 // routerIdentities: identidades de todos los routers sondeados, en orden
 // determinista (el mapa polled no lo es).
 func routerIdentities(polled map[string]*routerPolled) []routerIdentity {
-	ids := make([]string, 0, len(polled))
-	for id := range polled {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := slices.Sorted(maps.Keys(polled))
 	out := make([]routerIdentity, 0, len(ids))
 	for _, id := range ids {
 		p := polled[id]
