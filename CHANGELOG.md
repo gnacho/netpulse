@@ -11,16 +11,36 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - El detalle de un cliente enseña su volumen de tráfico en 1 h, 24 h, 30 d y 12 m (#2076): bajada, subida y total del rango, con la serie del mismo periodo. Usa la serie por cliente que ya guardaba el servidor desde #551.
 - Las unidades que enrutan barren sus subredes cada cinco minutos para ver a los hosts que no dejan entrada de vecino (#2110). El agente lo hace con un datagrama UDP que obliga al kernel a resolver el ARP, sin raw sockets ni paquetes a mano; las unidades solo-SSH lo hacen con `ping`. Se activa solo con forwarding y más de una subred propia, se puede forzar o apagar con `NETPULSE_PRESENCE_SCAN=on|off`, y va con tope de una /24 por subred y 32 direcciones a la vez.
-- Un host que solo tiene IPv6 y lleva rato en silencio se confirma con la tabla de vecinos NDP, igual que el recheck de #2073 hace con ARP: la unidad le manda un echo (con `-I` si la dirección es link-local) y relee `ip -6 neigh` para confirmar la pareja MAC-dirección (#2109).
+- Un host que solo tiene IPv6 y lleva rato en silencio se confirma con la tabla de vecinos NDP, igual que el recheck de ARP hace con IPv4: la unidad le manda un echo (con `-I` si la dirección es link-local) y relee `ip -6 neigh` para confirmar la pareja MAC-dirección (#2109).
 - Un cliente asociado por WiFi que no tiene IP se marca como tal en la lista (#2111) y deja una nota informativa en el registro de actividad tras dos minutos, una por MAC, sin ser urgente ni tocar el contador de desconocidos. La asociación ya prueba que el equipo existe: lo que faltaba era decirlo.
 - Página "Novedades" dentro de la app (#2116): una sección por release y una tarjeta por cambio, con una animación de la interacción real (selector de iconos, DNS por dispositivo, presencia ARP e idiomas), traducida a los cuatro idiomas y con el punto del sello de versión hasta que se abre. Cómo añadir una release: `docs/whatsnew.md`.
+- El selector de iconos del cliente es buscable y está agrupado en diez categorías, con 60 iconos de domótica y su nombre traducido (#2107, de @Bann-DEV).
+- Imagen Docker opcional del servidor, con la UI y los agentes embebidos, publicada en GHCR en cada tag para amd64 y arm64 (#2101, #2105, de @sers88).
+- Actividad DNS por dispositivo desde el query log de AdGuard: dominios resueltos, frecuencia y bloqueos, en ventanas de 1 h y 24 h (#2081).
+- Interfaz en chino y en ruso, con fechas y números siguiendo cada idioma y no solo las etiquetas (#2070, #2092; el catálogo chino, de @Bann-DEV).
 
 ### Changed
 
 - Las líneas del journal llevan un solo timestamp, el de systemd, y todos los prefijos siguen la forma `[netpulse:<subsistema>]`, con `mqtt`, `firmware`, `speedtest`, `rack`, `pve` y `agent` incluidos (#2058, reportado por @crowedavid).
+- La tabla de clientes reparte los pesos de columna, contiene el desbordamiento y usa una sola línea en el tramo 2xl (#2106).
+- El agente se compila sin `encoding/json/v2`: 7.848.096 → 7.393.440 bytes en amd64, un 5,8% menos, sin rastro del paquete en el binario (#2096).
+- El campo de comunidad SNMP se anuncia como solo lectura y el aviso de sondeo explica el intervalo real (#2080).
+- La columna Unidad está traducida y el catálogo ruso la incluye (#2098, #2100).
+- El fondo del splash sigue al tema en vez de quedarse oscuro (#2099).
+- La landing cuenta los clics de la demo como evento de GoatCounter (#2093).
 
 ### Fixed
 
+- Las respuestas de los handlers que esperan a una unidad dejan de morir en el timeout de escritura de 15 s: reinstall, uninstall, rearm, reemit, instaladores de integración, copia de configuración y acciones UCI llevan su propio techo (#2112).
+- El panel DNS por dispositivo vuelve a mostrar consultas: la ingesta guarda la MAC en mayúsculas y la consulta iba en minúsculas, así que no casaba ninguna con letra hex (#2119).
+- El rack vuelve a ofrecer cables entre unidades de flota desde el FDB de la unidad designada; la interfaz del proveedor y la implementación habían divergido en silencio (#2120).
+- Las MAC se normalizan con un solo parser en las fronteras: clientes GL con guiones, filtros `?mac=` de eventos, known-macs y beacons (#2121).
+- El descubrimiento ya no marca "Key missing" a un host autorizado cuyo board no trae `model` (#2122).
+- Una cadena de hubs de dispositivos anidados se dibuja entera, cada equipo una vez (#2123), y su cable deja de emitirse dos veces en la semántica (#2124).
+- El puerto de una unidad puente solo nombra par cuando el FDB lo desambigua; si no, se queda vacío en vez de elegir la primera MAC por orden alfabético (#1976).
+- owut deja de abortar por `-r` repetido cuando la lista de exclusiones ya está en UCI (#2102).
+- Un switch sondeado no se dibuja dos veces en la topología y los identificadores de distribución son únicos (#2104).
+- Las tablas de datos ocultas para lectores de pantalla dejan de estirar el área de scroll de la página (#2103).
 - Las tramas LOOP DETECT de BATMAN-adv (MAC origen `BA:BE:xx:xx:xx:xx`) dejan de aparecer como clientes y de sostener nodos de topología: son sondas del mesh, no hosts, y el FDB de cada unidad las aprende (#1818, reportado por @tam481 y @crowedavid).
 - Los mensajes de log que quedaban en castellano están en inglés, también los del script de reinstalación del agente, el instalador one-liner y el init del agente (#1955).
 
