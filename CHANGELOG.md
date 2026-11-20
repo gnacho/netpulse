@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- Un cliente asociado por WiFi que no tiene IP se marca como tal en la lista (#2111) y deja una nota informativa en el registro de actividad tras dos minutos, una por MAC, sin ser urgente ni tocar el contador de desconocidos. La asociación ya prueba que el equipo existe: lo que faltaba era decirlo.
 - Página "Novedades" dentro de la app (#2116): una sección por release y una tarjeta por cambio, con una animación de la interacción real (selector de iconos, DNS por dispositivo, presencia ARP e idiomas), traducida a los cuatro idiomas y con el punto del sello de versión hasta que se abre. Cómo añadir una release: `docs/whatsnew.md`.
 
 ### Changed

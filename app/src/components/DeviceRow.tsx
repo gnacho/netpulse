@@ -285,8 +285,23 @@ export function DeviceRow({ device, variant = 'compact', className, onClick }: D
               {routerName(device.routerId)} · {device.band}
             </span>
           ) : (
-            <span className="font-mono text-mono-sm">
-              {device.ip}
+            <span className="inline-flex items-center gap-1.5 font-mono text-mono-sm">
+              {device.ip ? (
+                device.ip
+              ) : (
+                // #2111: cliente asociado sin dirección. La marca dice lo que
+                // la fila no puede enseñar, en vez de dejar el hueco.
+                <span
+                  className="rounded bg-warn/10 px-1.5 py-0.5 font-sans text-[10px] font-medium uppercase tracking-wide text-warn"
+                  title={
+                    device.band !== 'cable' && device.band !== '—'
+                      ? t('devices.noIpHint')
+                      : undefined
+                  }
+                >
+                  {t('devices.noIp')}
+                </span>
+              )}
               {device.mac !== '—' && <span className="text-text-muted/70"> · {device.mac}</span>}
             </span>
           )}

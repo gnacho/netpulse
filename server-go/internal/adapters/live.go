@@ -435,6 +435,14 @@ type Live struct {
 	unverifiedSince   map[string]int64
 	unverifiedNoted   map[string]bool
 	unverifiedAfterMs int64
+	// #2111: un cliente asociado por WiFi que no tiene IP es un cliente real
+	// (la asociación lo prueba) pero sin dirección. wifiNoIPSince/Noted
+	// acumulan su persistencia y dejan UNA nota informativa por MAC, sin
+	// contador urgente. wifiNoIPAfterMs es el umbral en tiempo real (0 =
+	// default), igual que el de #1873.
+	wifiNoIPSince   map[string]int64
+	wifiNoIPNoted   map[string]bool
+	wifiNoIPAfterMs int64
 	// rdns: reverse DNS fallback for devices nothing else named (rdns.go).
 	rdns *rdnsCache
 	// impostorActive (#1358): BSSID impostor → alertID emitida. Solo en
@@ -608,6 +616,8 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		unknownGraceNum:      3, // default de #234; el engine/demo puede afinarlo
 		unverifiedSince:      map[string]int64{},
 		unverifiedNoted:      map[string]bool{},
+		wifiNoIPSince:        map[string]int64{},
+		wifiNoIPNoted:        map[string]bool{},
 		impostorActive:       map[string]string{},
 		impostorAllow:        map[string]bool{},
 		impostorEnabled:      true,
@@ -659,6 +669,15 @@ func NewLive(cfg *config.Config, d *db.DB, initial []RouterConfig, pool *SSHPool
 		}
 		// #1873: MACs que ya dejaron su nota de baja prioridad, para no
 		// repetirla tras un reinicio (clave `unverified_mac_noted:<mac>`).
+		if rows, err := d.Query("SELECT key FROM kv WHERE key LIKE 'wifi_noip_noted:%'"); err == nil {
+			for rows.Next() {
+				var key string
+				if rows.Scan(&key) == nil {
+					l.wifiNoIPNoted[strings.TrimPrefix(key, "wifi_noip_noted:")] = true
+				}
+			}
+			rows.Close()
+		}
 		if rows, err := d.Query("SELECT key FROM kv WHERE key LIKE 'unverified_mac_noted:%'"); err == nil {
 			for rows.Next() {
 				var key string
@@ -2782,6 +2801,118 @@ func (l *Live) persistUnverifiedNoted(mac string) {
 	_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "unverified_mac_noted:"+mac)
 }
 
+// wifiNoIPNoteAfter es cuánto tiene que persistir un cliente asociado por
+// WiFi sin dirección antes de dejar su nota (#2111). Dos minutos: un cliente
+// que acaba de asociarse pide DHCP en segundos, así que el que sigue sin IP
+// pasado ese rato es el caso que interesa (un equipo que no pide lease, un
+// DHCP agotado, una VLAN sin servidor).
+const wifiNoIPNoteAfter int64 = 2 * 60 * 1000
+
+// isWirelessBand: la asociación WiFi es la prueba de que el cliente existe.
+func isWirelessBand(band string) bool {
+	return band != "" && band != "cable" && band != "—"
+}
+
+// wifiNoIPThreshold devuelve el umbral efectivo en ms. Los Live montados a
+// mano (tests, demo) dejan wifiNoIPAfterMs a 0 y usan el default.
+// Debe llamarse con l.mu tomado.
+func (l *Live) wifiNoIPThreshold() int64 {
+	if l.wifiNoIPAfterMs > 0 {
+		return l.wifiNoIPAfterMs
+	}
+	return wifiNoIPNoteAfter
+}
+
+// trackWiFiNoIP deja una nota informativa por cliente que lleva un rato
+// asociado por WiFi sin IP (#2111). No alerta, no es urgente y no toca el
+// contador de desconocidos: la asociación ya prueba que el equipo existe, lo
+// que falta es la dirección.
+func (l *Live) trackWiFiNoIP(devices []Device, dists []DistributionNode) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	// Los Live montados a mano (tests, demo) pueden no haber inicializado los
+	// mapas; se crean aquí como hace noteUnverifiedMac con los suyos.
+	if l.wifiNoIPSince == nil {
+		l.wifiNoIPSince = map[string]int64{}
+	}
+	if l.wifiNoIPNoted == nil {
+		l.wifiNoIPNoted = map[string]bool{}
+	}
+	nowOnline := map[string]bool{}
+	now := time.Now().UnixMilli()
+	for _, d := range devices {
+		if !d.Online || !isWirelessBand(d.Band) || d.IP != "" {
+			continue
+		}
+		nowOnline[d.MAC] = true
+		if l.wifiNoIPNoted[d.MAC] {
+			continue
+		}
+		first, seen := l.wifiNoIPSince[d.MAC]
+		if !seen {
+			l.wifiNoIPSince[d.MAC] = now
+			continue
+		}
+		if now-first < l.wifiNoIPThreshold() {
+			continue
+		}
+		l.emitWiFiNoIP(d, devices, dists, (now-first)/60000)
+		l.wifiNoIPNoted[d.MAC] = true
+		l.persistWiFiNoIPNoted(d.MAC)
+		delete(l.wifiNoIPSince, d.MAC)
+	}
+	// El reloj solo corre mientras el cliente siga asociado sin IP.
+	for mac := range l.wifiNoIPSince {
+		if !nowOnline[mac] {
+			delete(l.wifiNoIPSince, mac)
+		}
+	}
+}
+
+// emitWiFiNoIP: nota de baja prioridad (clients, info, no urgente). ID estable
+// por MAC para que el motor la deduplique.
+// Debe llamarse con l.mu tomado.
+func (l *Live) emitWiFiNoIP(d Device, devices []Device, dists []DistributionNode, minutes int64) {
+	where, port := l.deviceLocation(d, devices, dists)
+	if minutes < 1 {
+		minutes = 1
+	}
+	vars := map[string]string{
+		"mac":     d.MAC,
+		"router":  l.routerDisplayName(d.RouterID),
+		"where":   where,
+		"minutes": fmt.Sprintf("%d", minutes),
+		"band":    d.Band,
+	}
+	if port != "" {
+		vars["port"] = port
+	}
+	desc := fmt.Sprintf("%s has been associated by Wi-Fi on %s for %d min with no IP address", d.MAC, where, minutes)
+	if port != "" {
+		desc = fmt.Sprintf("%s has been associated by Wi-Fi on %s (%s) for %d min with no IP address", d.MAC, where, port, minutes)
+	}
+	l.engine.Emit(AlertEvent{
+		ID:       "alert-wifi-noip-" + d.MAC,
+		Category: alerts.CatClients, Urgent: false,
+		Severity:    "info",
+		Title:       "Wi-Fi client with no IP",
+		Description: desc,
+		Type:        alerts.TypeWiFiNoIP,
+		Vars:        vars,
+		Time:        "just now", RouterID: d.RouterID,
+	})
+}
+
+// persistWiFiNoIPNoted guarda en kv que esta MAC ya dejó su nota (#2111).
+// Con db nil (demo/tests) es no-op.
+// Debe llamarse con l.mu tomado.
+func (l *Live) persistWiFiNoIPNoted(mac string) {
+	if l.db == nil {
+		return
+	}
+	_, _ = l.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "wifi_noip_noted:"+mac)
+}
+
 // persistUnknownAlerted guarda en kv la memoria per-MAC (issue #248) para que
 // sobreviva a reinicios del servidor. Con db nil (demo/tests) es no-op.
 // Debe llamarse con l.mu tomado.
@@ -4481,6 +4612,7 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// desconocidos y de escribir en device_seen.
 	devices = l.settleTransient(devices, time.Now().UnixMilli())
 	l.trackUnknownDevices(devices, distNodes)
+	l.trackWiFiNoIP(devices, distNodes)
 	l.trackOfflineDevices(devices)
 	l.trackDevicePresence(devices, time.Now().UnixMilli())
 	// #954: first/last seen persistente de TODOS los clientes online.

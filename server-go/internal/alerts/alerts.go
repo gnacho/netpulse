@@ -182,6 +182,9 @@ const (
 	// #1873: una MAC que solo aparece en una tabla de reenvío, sin lease,
 	// ARP, ND ni mDNS, y que sigue ahí mucho rato. Informativa, no urgente.
 	TypeUnverifiedMac = "unverified-mac"
+	// TypeWiFiNoIP: cliente asociado por WiFi que no tiene dirección (#2111).
+	// Informativa, no urgente: es una marca visible, no un problema.
+	TypeWiFiNoIP = "wifi-no-ip"
 )
 
 // Hints maps each alert-type slug to its actionable suggestion. Emitters copy
