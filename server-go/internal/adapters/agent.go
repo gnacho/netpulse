@@ -1159,6 +1159,10 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 	if out.leases == nil {
 		out.leases = []DhcpLease{}
 	}
+	// #1818: el FDB de un bridge con batman-adv aprende las tramas LOOP
+	// DETECT (BA:BE:xx:xx:xx:xx). Fuera antes de que el FDB alimente clientes,
+	// topología o hints de rack.
+	out.fdb = withoutBatadvBla(out.fdb)
 	return out
 }
 
