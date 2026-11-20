@@ -18,8 +18,23 @@ The shape that works:
    sentences: what it does and why it matters for the person running it.
 3. A compact list for everything else, and a `Fixed` list that names the
    symptom, not the commit.
-4. A `Thanks` section that credits whoever reported or built each thing. People
-   answer again when they see their name.
+4. A `Thanks` section that credits whoever reported or built each thing. It is
+   mandatory, every release, no exceptions: the issues are the reason the
+   release exists and the people behind them answer again when they see their
+   name.
+
+Issue numbers go inside the sentence, in natural language, not as a trailing
+tag. A reader who does not know the tracker should still understand the line.
+
+- Yes: "The rack offers cables between fleet units again, and #2120 put the
+  interface and the implementation back together."
+- No: "Rack: fleet uplinks restored (#2120)."
+- Yes: "@spskeldon for #2123 and #2124, the two halves of the nested hub bug."
+- No: "Thanks to @spskeldon (#2123, #2124)."
+
+`CHANGELOG.md` keeps the usual `(#1234)` reference at the end of each entry. It
+is a log, read by people who are already in the tracker. The release notes are
+the human text, and there the number is part of the sentence.
 
 The language rules are the house ones: no em dashes, no semicolons, short
 sentences, concrete nouns. If a sentence needs a second read, it is wrong.
