@@ -28,6 +28,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - The unit column is translated and the Russian catalog has it (#2098, #2100).
 - The splash background follows the theme instead of staying dark (#2099).
 - The landing page counts demo clicks as a GoatCounter event (#2093).
+- Ten hand-written MAC helpers now build on `agent/macaddr`, with one parser and three new primitives, so the boundaries cannot drift apart again (#2135).
 
 ### Fixed
 
@@ -42,6 +43,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - A polled switch is no longer drawn twice in the topology and distribution ids are unique (#2104).
 - Data tables hidden for screen readers no longer stretch the page scroll area (#2103).
 - BATMAN-adv LOOP DETECT frames (source MAC `BA:BE:xx:xx:xx:xx`) stop showing up as clients and stop holding topology nodes. They are mesh probes, not hosts, and every unit's FDB learns them (#1818, reported by @tam481 and @crowedavid).
+- External pushers that send MACs in lower case or with hyphens no longer lose their clients and fleet links: the payload is normalised once on ingest, in every section, without emptying anything or turning a missing section into an empty one (#2134).
 - Log messages that were still in Spanish are in English, including the agent reinstall script, the one-liner installer and the agent init (#1955).
 
 ## [2.53.0] - 2026-11-16
