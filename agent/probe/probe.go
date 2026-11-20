@@ -184,7 +184,10 @@ const (
 	// not confirmed since the device last spoke, and it survives long after
 	// the device is gone, so treating it as presence draws hosts that are no
 	// longer there. Falls back to /proc/net/arp when `ip` is missing.
-	CmdIpNeigh   = "ip -4 neigh show 2>/dev/null"
+	CmdIpNeigh = "ip -4 neigh show 2>/dev/null"
+	// CmdIpNeigh6: la tabla de vecinos IPv6 (NDP). Misma forma que la v4, con
+	// direcciones fe80:: scoped a la interfaz (#2109).
+	CmdIpNeigh6  = "ip -6 neigh show 2>/dev/null"
 	CmdBoardJSON = "cat /etc/board.json 2>/dev/null"
 	// bridgeDetect: resuelve el nombre del bridge LAN en el router: br-lan,
 	// br0, o el primer bridge real presente en /sys/class/net (#1435: en
@@ -2460,6 +2463,34 @@ func ParseIPNeighDevs(out string) map[string]string {
 			continue
 		}
 		if !neighConfirmed[f[len(f)-1]] {
+			continue
+		}
+		devs[mac] = dev
+	}
+	return devs
+}
+
+// ParseIPNeighDevsAll devuelve MAC -> interfaz de `ip neigh show` sin mirar el
+// estado (#2109). ParseIPNeighDevs solo devuelve confirmadas porque su uso es
+// atribuir el lado WAN; el recheck de vecinos necesita la interfaz de una
+// entrada STALE para poder mandarle un echo a una link-local.
+func ParseIPNeighDevsAll(out string) map[string]string {
+	devs := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) < 6 || net.ParseIP(f[0]) == nil {
+			continue
+		}
+		var mac, dev string
+		for i := 1; i+1 < len(f); i++ {
+			switch f[i] {
+			case "lladdr":
+				mac = strings.ToUpper(f[i+1])
+			case "dev":
+				dev = f[i+1]
+			}
+		}
+		if mac == "" || mac == "00:00:00:00:00:00" || dev == "" {
 			continue
 		}
 		devs[mac] = dev

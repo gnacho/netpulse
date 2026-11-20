@@ -16,7 +16,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -715,10 +717,22 @@ func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, 
 			// lanzada desde la unidad (esta en la subred; el servidor puede
 			// no estarlo). Un host cableado con IP estatica que lleva rato en
 			// silencio deja el ARP en STALE sin estar apagado.
-			if fresh, ok := c.recheckStaleNeighbours(m, st); ok {
-				return m, st, probe.ParseIPNeighDevs(fresh)
+			due := c.stalePingDue()
+			freshSrc := out
+			if fresh, ok := c.recheckStaleNeighbours(m, st, due); ok {
+				freshSrc = fresh
 			}
-			return m, st, probe.ParseIPNeighDevs(out)
+			// #2109: el mismo recheck sobre NDP. Un host solo-IPv6 no tiene
+			// entrada en `ip -4 neigh`, así que solo esta pasada lo confirma.
+			if v6, ok := c.recheckStaleNeighbours6(due); ok {
+				for mac, ip := range v6 {
+					if _, has := m[mac]; !has {
+						m[mac] = ip
+					}
+					delete(st, mac)
+				}
+			}
+			return m, st, probe.ParseIPNeighDevs(freshSrc)
 		}
 	}
 	out, err := c.pool.Run(c.Host, probe.CmdProcArp, 0)
@@ -732,17 +746,21 @@ func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, 
 // paralelo y desde la unidad, y una relectura de `ip neigh`. El kernel pasa a
 // REACHABLE la entrada cuya respuesta ARP llega, asi que lo confirmado es la
 // pareja IP-MAC. Devuelve la relectura y si se llego a hacer. Best effort.
-func (c *OpenWrtClient) recheckStaleNeighbours(arp map[string]string, stale map[string]bool) (string, bool) {
-	if c.pool == nil || len(stale) == 0 {
-		return "", false
-	}
+// stalePingDue decide si toca ronda y marca el sello. Un sello para v4 y v6:
+// la ronda no debe pagar dos veces el throttle ni dejar la pasada v6 sin turno
+// por haberlo gastado la v4.
+func (c *OpenWrtClient) stalePingDue() bool {
 	c.stalePingMu.Lock()
-	recent := !c.stalePingAt.IsZero() && time.Since(c.stalePingAt) < probe.StalePingInterval
-	if !recent {
-		c.stalePingAt = time.Now()
+	defer c.stalePingMu.Unlock()
+	if !c.stalePingAt.IsZero() && time.Since(c.stalePingAt) < probe.StalePingInterval {
+		return false
 	}
-	c.stalePingMu.Unlock()
-	if recent {
+	c.stalePingAt = time.Now()
+	return true
+}
+
+func (c *OpenWrtClient) recheckStaleNeighbours(arp map[string]string, stale map[string]bool, due bool) (string, bool) {
+	if c.pool == nil || len(stale) == 0 || !due {
 		return "", false
 	}
 	ips := probe.StalePingTargets(arp, stale)
@@ -774,6 +792,66 @@ func (c *OpenWrtClient) recheckStaleNeighbours(arp map[string]string, stale map[
 		delete(stale, mac)
 	}
 	return out, true
+}
+
+// recheckStaleNeighbours6 (#2109): la pasada NDP por SSH, desde la unidad.
+// Mismo tope y mismo throttle que la v4. `ip -6 neigh` declara la interfaz de
+// cada entrada, y una link-local necesita `-I` para alcanzarse. Devuelve
+// MAC → dirección confirmada; best effort.
+func (c *OpenWrtClient) recheckStaleNeighbours6(due bool) (map[string]string, bool) {
+	if c.pool == nil || !due {
+		return nil, false
+	}
+	out, err := c.pool.Run(c.Host, probe.CmdIpNeigh6, 0)
+	if err != nil || out == "" {
+		return nil, false
+	}
+	arp, stale := probe.ParseIPNeigh(out)
+	if len(stale) == 0 {
+		return nil, false
+	}
+	devs := probe.ParseIPNeighDevsAll(out)
+	macs := make([]string, 0, len(stale))
+	for mac := range stale {
+		macs = append(macs, mac)
+	}
+	sort.Strings(macs)
+	var cmd strings.Builder
+	n := 0
+	for _, mac := range macs {
+		ip := arp[mac]
+		if net.ParseIP(ip) == nil {
+			continue
+		}
+		cmd.WriteString(probe.StalePing6Command(ip, devs[mac]))
+		cmd.WriteString(" & ")
+		n++
+		if n >= probe.StalePingMax {
+			break
+		}
+	}
+	if n == 0 {
+		return nil, false
+	}
+	cmd.WriteString("wait")
+	if _, err := c.pool.Run(c.Host, cmd.String(), probe.StalePingTimeout+2*time.Second); err != nil {
+		return nil, false
+	}
+	freshOut, err := c.pool.Run(c.Host, probe.CmdIpNeigh6, 0)
+	if err != nil || freshOut == "" {
+		return nil, false
+	}
+	fresh, stillStale := probe.ParseIPNeigh(freshOut)
+	confirmed := map[string]string{}
+	for _, mac := range macs {
+		if stillStale[mac] {
+			continue
+		}
+		if ip := fresh[mac]; ip != "" {
+			confirmed[mac] = ip
+		}
+	}
+	return confirmed, len(confirmed) > 0
 }
 
 // GetNetworks: redes logicas que la unidad declara en UCI (#1889). Es la
