@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- Las unidades que enrutan barren sus subredes cada cinco minutos para ver a los hosts que no dejan entrada de vecino (#2110). El agente lo hace con un datagrama UDP que obliga al kernel a resolver el ARP, sin raw sockets ni paquetes a mano; las unidades solo-SSH lo hacen con `ping`. Se activa solo con forwarding y más de una subred propia, se puede forzar o apagar con `NETPULSE_PRESENCE_SCAN=on|off`, y va con tope de una /24 por subred y 32 direcciones a la vez.
 - Un host que solo tiene IPv6 y lleva rato en silencio se confirma con la tabla de vecinos NDP, igual que el recheck de #2073 hace con ARP: la unidad le manda un echo (con `-I` si la dirección es link-local) y relee `ip -6 neigh` para confirmar la pareja MAC-dirección (#2109).
 - Un cliente asociado por WiFi que no tiene IP se marca como tal en la lista (#2111) y deja una nota informativa en el registro de actividad tras dos minutos, una por MAC, sin ser urgente ni tocar el contador de desconocidos. La asociación ya prueba que el equipo existe: lo que faltaba era decirlo.
 - Página "Novedades" dentro de la app (#2116): una sección por release y una tarjeta por cambio, con una animación de la interacción real (selector de iconos, DNS por dispositivo, presencia ARP e idiomas), traducida a los cuatro idiomas y con el punto del sello de versión hasta que se abre. Cómo añadir una release: `docs/whatsnew.md`.

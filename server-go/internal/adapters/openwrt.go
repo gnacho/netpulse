@@ -78,6 +78,10 @@ type OpenWrtClient struct {
 	// throttle para no lanzarlo en cada poll.
 	stalePingMu sync.Mutex
 	stalePingAt time.Time
+
+	// presenceAt (#2110): última ronda del barrido de subredes enrutadas.
+	presenceMu sync.Mutex
+	presenceAt time.Time
 }
 
 type cpuSample struct{ total, idleAll float64 }
@@ -711,6 +715,9 @@ func radiosToAdapter(in []probe.Radio) []Radio {
 // GetArp devuelve además MAC -> interfaz (#1485): con esa columna el poller
 // distingue el ARP del puerto WAN (primer salto del enlace) del de la LAN.
 func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, devs map[string]string) {
+	// #2110: despertar las subredes que la unidad enruta antes de leer la
+	// tabla, para que la misma lectura vea lo que el barrido confirmó.
+	c.scanPresence()
 	if out, err := c.pool.Run(c.Host, probe.CmdIpNeigh, 0); err == nil {
 		if m, st := probe.ParseIPNeigh(out); len(m) > 0 {
 			// #2073: la misma comprobacion activa que hace el agente, pero
@@ -792,6 +799,70 @@ func (c *OpenWrtClient) recheckStaleNeighbours(arp map[string]string, stale map[
 		delete(stale, mac)
 	}
 	return out, true
+}
+
+// presenceScanDue: una ronda cada 5 minutos por unidad, compartida por todas
+// las subredes.
+func (c *OpenWrtClient) presenceScanDue() bool {
+	c.presenceMu.Lock()
+	defer c.presenceMu.Unlock()
+	if !c.presenceAt.IsZero() && time.Since(c.presenceAt) < probe.PresenceScanInterval {
+		return false
+	}
+	c.presenceAt = time.Now()
+	return true
+}
+
+// scanPresence (#2110) por SSH: en una unidad sin agente no hay forma de
+// mandar un datagrama que fuerce el ARP, así que el barrido va con `ping`, que
+// en busybox está siempre. Cubre lo mismo salvo hosts que filtren ICMP; el
+// agente, cuando está, usa UDP y sí despierta el ARP.
+//
+// Mismas reglas: solo unidades que enrutan (forwarding y más de una subred),
+// o `NETPULSE_PRESENCE_SCAN=on`, como mucho una /24 por subred y en tandas de
+// 32 para no lanzar 254 procesos a la vez en un router.
+func (c *OpenWrtClient) scanPresence() {
+	if c.pool == nil || !c.presenceScanDue() {
+		return
+	}
+	if _, off := probe.PresenceScanEnabled(); off {
+		return
+	}
+	forced, _ := probe.PresenceScanEnabled()
+	out, err := c.pool.Run(c.Host, "ip -4 -o addr show scope global 2>/dev/null", 0)
+	if err != nil || out == "" {
+		return
+	}
+	subnets := probe.ParseGlobalIPv4Prefixes(out)
+	if !forced {
+		if len(subnets) < 2 {
+			return
+		}
+		fwd, err := c.pool.Run(c.Host, "cat /proc/sys/net/ipv4/ip_forward 2>/dev/null", 0)
+		if err != nil || strings.TrimSpace(fwd) != "1" {
+			return
+		}
+	}
+	if len(subnets) > 8 {
+		subnets = subnets[:8]
+	}
+	var script strings.Builder
+	for _, pf := range subnets {
+		hosts := probe.HostAddrs(pf, probe.PresenceScanMaxHosts)
+		for i := 0; i < len(hosts); i += 32 {
+			end := i + 32
+			if end > len(hosts) {
+				end = len(hosts)
+			}
+			script.WriteString("for ip in ")
+			script.WriteString(strings.Join(hosts[i:end], " "))
+			script.WriteString("; do ping -c 1 -W 1 \"$ip\" >/dev/null 2>&1 & done; wait; ")
+		}
+	}
+	if script.Len() == 0 {
+		return
+	}
+	_, _ = c.pool.Run(c.Host, script.String(), 90*time.Second)
 }
 
 // recheckStaleNeighbours6 (#2109): la pasada NDP por SSH, desde la unidad.
