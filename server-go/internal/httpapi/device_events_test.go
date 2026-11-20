@@ -92,3 +92,30 @@ func TestDeviceEventsFiltros(t *testing.T) {
 		t.Fatalf("since=2000: %d, want 2", len(events))
 	}
 }
+
+// TestDeviceEventsNormalizesMAC: ?mac acepta guiones/minúsculas y rechaza
+// valores que no son una MAC.
+func TestDeviceEventsNormalizesMAC(t *testing.T) {
+	srv := makeTestServer(t)
+	if _, err := srv.db.Exec(
+		"INSERT INTO device_events (ts_ms, mac, router_id, state) VALUES (?,?,?,?)",
+		1000, "AA:BB:CC:DD:EE:01", "rt1", "offline",
+	); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := get(t, srv.URL, "/api/device-events?mac=aa-bb-cc-dd-ee-01", cookie)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("mac con guiones: got %d want 200", res.StatusCode)
+	}
+	events, _ := readJSON(t, res)["events"].([]any)
+	if len(events) != 1 {
+		t.Fatalf("esperaba 1 evento, obtuve %v", events)
+	}
+
+	res = get(t, srv.URL, "/api/device-events?mac=nope", cookie)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("mac inválida: got %d want 400", res.StatusCode)
+	}
+}

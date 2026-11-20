@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/clientbw"
@@ -726,7 +727,21 @@ func (s *server) handleRoamEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	routerID := r.URL.Query().Get("router")
 	eventType := r.URL.Query().Get("type")
-	mac := r.URL.Query().Get("mac")
+	// El filtro mac admite lista separada por comas (#1127): cada elemento se
+	// pasa a la forma canónica que usa la tabla (AA:BB:CC:DD:EE:FF).
+	var macs []string
+	for _, part := range strings.Split(r.URL.Query().Get("mac"), ",") {
+		if strings.TrimSpace(part) == "" {
+			continue
+		}
+		m := macaddr.Normalize(part)
+		if m == "" {
+			writeError(w, http.StatusBadRequest, "invalid_mac")
+			return
+		}
+		macs = append(macs, m)
+	}
+	mac := strings.Join(macs, ",")
 	events, err := roamevents.ListEvents(s.db.DB, limit, since, routerID, eventType, mac)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
@@ -764,6 +779,13 @@ func (s *server) handleDeviceEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	routerID := r.URL.Query().Get("router")
 	mac := r.URL.Query().Get("mac")
+	if mac != "" {
+		// La tabla guarda MAC canónicas: ?mac=aa-bb-... debe encontrarlas.
+		if mac = macaddr.Normalize(mac); mac == "" {
+			writeError(w, http.StatusBadRequest, "invalid_mac")
+			return
+		}
+	}
 	state := r.URL.Query().Get("state")
 	events, err := deviceevents.ListEvents(s.db.DB, limit, since, routerID, mac, state)
 	if err != nil {

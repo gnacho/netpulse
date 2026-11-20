@@ -269,6 +269,29 @@ func TestParseGlClients(t *testing.T) {
 	}
 }
 
+func TestParseGlClientsHyphenatedMACs(t *testing.T) {
+	// La caché de gl-clients puede emitir MAC con guiones (#1145): deben salir
+	// en forma canónica, también cuando solo la clave del mapa trae la MAC.
+	raw := `{"clients":{
+		"AA-BB-CC-DD-EE-01":{"mac":"aa-bb-cc-dd-ee-01","ip":"192.168.8.21","name":"uno","online":true},
+		"aa-bb-cc-dd-ee-02":{"mac":"","ip":"192.168.8.22","name":"dos","online":true},
+		"basura":{"mac":"tampoco","ip":"192.168.8.23","name":"tres","online":true}
+	}}`
+	leases, err := ParseGlClients([]byte(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(leases) != 2 {
+		t.Fatalf("esperaba 2 entradas (la inválida se descarta), obtuve %d: %+v", len(leases), leases)
+	}
+	if leases[0].MAC != "AA:BB:CC:DD:EE:01" || leases[0].IP != "192.168.8.21" {
+		t.Errorf("primera: esperaba AA:BB:CC:DD:EE:01, obtuve %+v", leases[0])
+	}
+	if leases[1].MAC != "AA:BB:CC:DD:EE:02" || leases[1].IP != "192.168.8.22" {
+		t.Errorf("segunda: esperaba AA:BB:CC:DD:EE:02, obtuve %+v", leases[1])
+	}
+}
+
 func TestParseArp(t *testing.T) {
 	out := "IP address       HW type     Flags       HW address            Mask     Device\n" +
 		"192.168.1.10     0x1         0x2         aa:bb:cc:dd:ee:ff     *        br-lan\n" +
