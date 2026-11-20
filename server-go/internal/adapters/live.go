@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/alerts"
 	"github.com/gnacho/netpulse/server-go/internal/config"
@@ -5551,27 +5552,10 @@ func kickUsteerClient(target string, routers []RouterConfig, runner sshRunner) e
 	return fmt.Errorf("client not found")
 }
 
-// validMAC acepta MAC con separadores ':' o '-'.
+// validMAC acepta MAC con separadores ':' o '-'. Exige 17 caracteres (con
+// separador) porque el llamador pasa target tal cual a usteer sin insertar ':'.
 func validMAC(s string) bool {
-	parts := strings.Split(s, ":")
-	if len(parts) != 6 {
-		parts = strings.Split(s, "-")
-	}
-	if len(parts) != 6 {
-		return false
-	}
-	for _, p := range parts {
-		if len(p) != 2 {
-			return false
-		}
-		for i := 0; i < len(p); i++ {
-			c := p[i]
-			if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')) {
-				return false
-			}
-		}
-	}
-	return true
+	return macaddr.NormalizeSeparated(s) != ""
 }
 
 // buildUsteerAP construye un UsteerAP desde una entrada cruda de local_info.

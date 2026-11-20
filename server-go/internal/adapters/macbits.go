@@ -1,10 +1,7 @@
 // macbits.go — clasificación de una MAC por sus bits de control.
 package adapters
 
-import (
-	"strconv"
-	"strings"
-)
+import "github.com/gnacho/netpulse/agent/macaddr"
 
 // isLocallyAdministeredMAC informa de si la MAC tiene el bit localmente
 // administrado (0x02 del primer octeto). Esas direcciones no las asigna un
@@ -14,15 +11,7 @@ import (
 //
 // Una MAC mal formada devuelve false: no se clasifica lo que no se entiende.
 func isLocallyAdministeredMAC(mac string) bool {
-	m := strings.TrimSpace(mac)
-	if len(m) < 2 {
-		return false
-	}
-	first, err := strconv.ParseUint(m[:2], 16, 8)
-	if err != nil {
-		return false
-	}
-	return first&0x02 != 0
+	return macaddr.IsLocallyAdministered(mac)
 }
 
 // persistLocalMAC decide si una MAC debe recordarse en device_attrib (#1818).

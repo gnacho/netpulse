@@ -7,12 +7,14 @@ package adapters
 
 import (
 	"strings"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // normalizeLinkMAC: formato canónico de identidad (mayúsculas, ':'). Igual
 // que normSeenMAC; nombre propio para no acoplar los dos ficheros.
 func normalizeLinkMAC(mac string) string {
-	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(mac), "-", ":"))
+	return macaddr.NormalizeLenient(mac)
 }
 
 // DeviceLinks carga TODOS los enlaces alias → canónico. Mapa vacío si no hay

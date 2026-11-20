@@ -33,6 +33,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // Config: datos de conexión al cluster (persistidos en kv por el server).
@@ -291,41 +293,14 @@ func MACsOfConfig(cfg map[string]any) []string {
 	return out
 }
 
+// looksLikeMAC comprueba si el valor de un campo key=value de netN es una MAC
+// con separadores (17 caracteres) para distinguirlo de otras opciones de NIC.
 func looksLikeMAC(s string) bool {
-	if len(s) != 17 {
-		return false
-	}
-	for i, r := range s {
-		if i%3 == 2 {
-			if r != ':' {
-				return false
-			}
-		} else if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
-			return false
-		}
-	}
-	return true
+	return macaddr.NormalizeSeparated(s) != ""
 }
 
 func normMAC(s string) string {
-	var b strings.Builder
-	for _, r := range strings.ToUpper(s) {
-		if (r >= '0' && r <= '9') || (r >= 'A' && r <= 'F') {
-			b.WriteRune(r)
-		}
-	}
-	hex := b.String()
-	if len(hex) != 12 {
-		return ""
-	}
-	var out strings.Builder
-	for i := 0; i < 12; i += 2 {
-		if i > 0 {
-			out.WriteByte(':')
-		}
-		out.WriteString(hex[i : i+2])
-	}
-	return out.String()
+	return macaddr.Normalize(s)
 }
 
 // TestResult is what a connection test can tell the user about an endpoint.

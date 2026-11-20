@@ -363,7 +363,7 @@ func loadDeviceLinks(d *db.DB) map[string]string {
 
 // normalizeMACKey: identidad canónica de enlace (mayúsculas, ':').
 func normalizeMACKey(mac string) string {
-	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(mac), "-", ":"))
+	return macaddr.NormalizeLenient(mac)
 }
 
 // deviceMatches: substring (minúsculas) sobre name|hostname|ip|mac|manufacturer.
