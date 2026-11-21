@@ -16,6 +16,9 @@ import { markWhatsNewSeen } from '@/whatsnew/useWhatsNewSeen'
  * sello del sidebar. Se marca al montar y no al pulsar un botón: llegar aquí ya
  * es haberla visto.
  */
+/** Autor propio: sus tarjetas no llevan agradecimiento, es lo esperado. */
+const OWN_AUTHOR = 'gnacho'
+
 function Card({ card }: { card: WhatsNewCard }) {
   const { t } = useTranslation()
   const Icon = card.icon
@@ -41,7 +44,10 @@ function Card({ card }: { card: WhatsNewCard }) {
       </div>
 
       <footer className="mt-3 flex items-center justify-between gap-2 text-[11px] text-text-muted">
-        <span className="truncate">{t('whatsnew.by', { author: card.author })}</span>
+        {/* Lo nuestro no se agradece: solo se acredita lo que vino de fuera. */}
+        <span className="truncate">
+          {card.author && card.author !== OWN_AUTHOR ? t('whatsnew.by', { author: card.author }) : ''}
+        </span>
         <a
           href={`https://github.com/gnacho/netpulse/pull/${card.pr}`}
           target="_blank"
