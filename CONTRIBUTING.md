@@ -84,6 +84,9 @@ request. Do not push a tag until the recap below exists and the maintainer has a
    Every release ends with a `Thanks` section naming the people and the issue numbers behind
    each change, and the issue numbers appear inside the sentence in natural language, not as
    a tag at the end.
+   **Check the in-app Help before the tag.** The Help page quotes the real buttons and menus,
+   so a release that adds a screen, renames a label or changes where something lives leaves it
+   stale. A flow per new screen, in the four catalogs.
 3. **Choose the version honestly.** Patch for fixes, minor for features, major for breaking
    changes. Round milestone numbers (`x.Y.0` with a round `Y`) are reserved for announced
    releases with the README, the landing page, the manuals and the memory up to date. They
