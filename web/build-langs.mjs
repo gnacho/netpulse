@@ -17,6 +17,8 @@ const WEB = path.dirname(fileURLToPath(import.meta.url))
 const OUT = path.join(WEB, 'langs')
 const BASE = 'https://netpulse.cloudless.club'
 const LANGS = ['es', 'en', 'zh', 'ar', 'hi', 'pt', 'fr', 'ja', 'ru', 'de']
+// Idiomas con página de changelog (#2148). El resto del sitio enlaza a /en/.
+const CHANGELOG_LANGS = ['es', 'en', 'zh', 'ru']
 // BCP-47 para og:locale de cada idioma prerenderizado.
 const OG_LOCALE = {
   es: 'es_ES', en: 'en_US', zh: 'zh_CN', ar: 'ar_SA', hi: 'hi_IN',
@@ -29,6 +31,9 @@ const PAGES = [
   { file: 'features.html', slug: 'features/', esSlug: 'features', outDir: 'features' },
   { file: 'home-assistant.html', slug: 'home-assistant/', esSlug: 'home-assistant', outDir: 'home-assistant' },
   { file: 'integrations.html', slug: 'integrations/', esSlug: 'integrations', outDir: 'integrations' },
+  // Changelog (#2148): solo en los idiomas de la app. El resto del sitio
+  // enlaza a /en/changelog/ y el selector cae a la home del idioma elegido.
+  { file: 'changelog.html', slug: 'changelog/', esSlug: 'changelog', outDir: 'changelog', langs: ['es', 'en', 'zh', 'ru'] },
 ]
 
 // URL canónica absoluta de una página de idioma. El español es el x-default:
@@ -45,10 +50,10 @@ function fixAssets(html) {
 }
 
 // Sustituye el bloque canonical/hreflang por el de la URL limpia del idioma.
-function fixHead(html, lang, slug, esSlug) {
+function fixHead(html, lang, slug, esSlug, pageLangs = LANGS) {
   const canonical = `<link rel="canonical" href="${urlFor(lang, slug, esSlug)}" />`
   const alternates = [
-    ...LANGS.map(
+    ...pageLangs.map(
       (l) => `<link rel="alternate" hreflang="${l}" href="${urlFor(l, slug, esSlug)}" />`,
     ),
     `<link rel="alternate" hreflang="x-default" href="${BASE}/${esSlug}" />`,
@@ -86,13 +91,22 @@ function fixLinks(html, lang) {
     .replace(new RegExp(`href="/${lang}/features"`, 'g'), `href="/${lang}/features/"`)
     .replace(new RegExp(`href="/${lang}/integrations"`, 'g'), `href="/${lang}/integrations/"`)
     .replace(new RegExp(`href="/${lang}/home-assistant"`, 'g'), `href="/${lang}/home-assistant/"`)
+    // Changelog: solo hay página en los idiomas de la app; el resto enlaza al
+    // inglés, que es el idioma en que se escriben las notas.
+    .replace(/href="\/changelog/g, `href="/${CHANGELOG_LANGS.includes(lang) ? lang : 'en'}/changelog`)
 }
 
 async function main() {
-  const browser = await chromium.launch()
+  // CHROMIUM_PATH permite usar el navegador ya instalado en la máquina cuando
+  // la caché de Playwright no tiene la build que espera esta versión.
+  let written = 0
+  const browser = await chromium.launch(
+    process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
+  )
   const errors = []
   for (const lang of LANGS) {
     for (const page of PAGES) {
+      if (page.langs && !page.langs.includes(lang)) continue
       const ctx = await browser.newContext()
       const pg = await ctx.newPage()
       pg.on('pageerror', (e) => errors.push(`${lang}/${page.file}: ${e}`))
@@ -111,7 +125,7 @@ async function main() {
       if (!html.includes(`lang="${lang}"`)) {
         throw new Error(`lang attr no aplicado en ${lang}/${page.file}`)
       }
-      html = fixHead(html, lang, page.slug, page.esSlug)
+      html = fixHead(html, lang, page.slug, page.esSlug, page.langs)
       html = fixLinks(html, lang)
       html = html.replace(`/${lang}/features#`, `/${lang}/features/#`)
       html = fixAssets(html)
@@ -121,6 +135,7 @@ async function main() {
       const outDir = path.join(OUT, lang, page.outDir)
       await mkdir(outDir, { recursive: true })
       await writeFile(path.join(outDir, 'index.html'), html)
+      written++
       process.stdout.write(`${lang}/${page.file} `)
     }
     process.stdout.write('\n')
@@ -131,7 +146,7 @@ async function main() {
     errors.forEach((e) => console.error(' -', e))
     process.exit(1)
   }
-  console.log(`OK: ${LANGS.length * PAGES.length} páginas en ${OUT}`)
+  console.log(`OK: ${written} páginas en ${OUT} (${LANGS.length} idiomas)`)
 }
 
 main().catch((e) => {

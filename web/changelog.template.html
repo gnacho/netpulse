@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="changelogPage.metaTitle">NetPulse - Changelog</title>
+  <meta name="description" content="Todas las releases de NetPulse, con lo que cambió y por qué, desde la primera versión." data-i18n-attr="content" data-i18n="changelogPage.metaDescription" />
+  <meta name="theme-color" content="#070B12" />
+  <link rel="canonical" href="https://netpulse.cloudless.club/changelog" />
+  <link rel="alternate" hreflang="es" href="https://netpulse.cloudless.club/changelog" />
+  <link rel="alternate" hreflang="en" href="https://netpulse.cloudless.club/en/changelog/" />
+  <link rel="alternate" hreflang="zh" href="https://netpulse.cloudless.club/zh/changelog/" />
+  <link rel="alternate" hreflang="ru" href="https://netpulse.cloudless.club/ru/changelog/" />
+  <link rel="alternate" hreflang="x-default" href="https://netpulse.cloudless.club/changelog" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="NetPulse" />
+  <meta property="og:title" content="NetPulse - Changelog" data-i18n-attr="content" data-i18n="changelogPage.metaTitle" />
+  <meta property="og:description" content="Todas las releases de NetPulse, con lo que cambió y por qué." data-i18n-attr="content" data-i18n="changelogPage.metaDescription" />
+  <meta property="og:url" content="https://netpulse.cloudless.club/changelog" />
+  <meta property="og:image" content="https://netpulse.cloudless.club/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="es_ES" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="NetPulse - Changelog" data-i18n-attr="content" data-i18n="changelogPage.metaTitle" />
+  <meta name="twitter:description" content="Todas las releases de NetPulse, con lo que cambió y por qué." data-i18n-attr="content" data-i18n="changelogPage.metaDescription" />
+  <meta name="twitter:image" content="https://netpulse.cloudless.club/og.png" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' fill='none'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='10' y1='78' x2='90' y2='20' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64' stroke='url(%23g)' stroke-width='5.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='73' cy='60' r='6' fill='url(%23g)'/%3E%3Cpath d='M62.4 49.4 A15 15 0 0 1 83.6 49.4' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M55.3 39.7 A25 25 0 0 1 90.7 39.7' stroke='url(%23g)' stroke-width='5' stroke-linecap='round' opacity='0.6'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="fonts/fonts.css" />
+  <link rel="stylesheet" href="styles.css?v=20261029b" />
+  <script src="i18n.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+
+  <nav class="nav">
+    <div class="container nav-inner">
+      <a class="nav-logo" href="/">
+        <svg viewBox="0 0 96 96" fill="none" width="26" height="26" aria-hidden="true">
+          <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+        </svg>
+        NetPulse
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="/features" data-i18n="nav.features">Funciones</a>
+        <a href="/changelog" aria-current="page" data-i18n="nav.changelog">Changelog</a>
+        <a href="https://github.com/gnacho/netpulse" target="_blank" rel="noopener" data-i18n="nav.github">GitHub</a>
+      </div>
+      <select id="langSelect" aria-label="Language" style="margin-left:1rem;background:rgb(var(--surface));color:rgb(var(--text-secondary));border:1px solid rgb(var(--border));border-radius:var(--radius);padding:0.3rem 0.5rem;font-size:0.75rem;font-family:inherit;"></select>
+      <a class="nav-cta" href="/#install" data-i18n="nav.install">Instalar</a>
+      <button class="nav-burger" id="navBurger" type="button" aria-expanded="false" aria-controls="navLinks" data-i18n-aria="nav.menu" aria-label="Navigation menu">
+        <svg class="icon-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg class="icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </nav>
+
+  <header class="hero mesh-bg" style="min-height:42vh;padding:7rem 0 3rem;">
+    <div class="hero-halo" aria-hidden="true"></div>
+    <div class="container">
+      <span class="eyebrow" data-i18n="changelogPage.eyebrow">Changelog</span>
+      <h1 class="font-display text-balance" data-i18n="changelogPage.title">Todas las releases, en un sitio</h1>
+      <p class="hero-sub" data-i18n="changelogPage.sub">Qué cambió y por qué, release a release, desde la primera versión hasta la que estás usando.</p>
+    </div>
+  </header>
+
+  <main id="main" class="block" style="padding-top:1rem;">
+    <div class="container">
+      <p class="caption text-muted" data-i18n="changelogPage.note" style="margin-bottom:1.5rem;">Las notas de release están escritas en inglés. La página está traducida.</p>
+      <div class="changelog">
+        <!--RELEASES-->
+      </div>
+      <p class="caption text-muted" style="margin-top:1.5rem;">
+        <a href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" data-i18n="changelogPage.github">Todos los binarios, en GitHub Releases</a>
+      </p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="foot-grid">
+        <div class="foot-col" style="max-width:22rem;">
+          <a class="nav-logo" href="/" style="margin-bottom:0.75rem;">
+            <svg viewBox="0 0 96 96" fill="none" width="22" height="22" aria-hidden="true">
+              <path d="M10 60 H27 L33 60 L40 38 L48 78 L54 48 L58 60 H64" stroke="url(#np-g)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="73" cy="60" r="6" fill="url(#np-g)"/>
+            </svg>
+            NetPulse
+          </a>
+          <p class="caption text-muted" data-i18n="footer.tagline">Monitorización en vivo para redes domésticas, autoalojada y libre para siempre.</p>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.project">Proyecto</h4>
+          <a href="/features" data-i18n="nav.features">Funciones</a>
+          <a href="/changelog" data-i18n="nav.changelog">Changelog</a>
+          <a href="https://github.com/gnacho/netpulse/releases" target="_blank" rel="noopener" data-i18n="footer.releases">Releases</a>
+          <a href="https://github.com/gnacho/netpulse/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">Licencia</a>
+        </div>
+        <div class="foot-col">
+          <h4 data-i18n="footer.community">Comunidad</h4>
+          <a href="https://github.com/gnacho/netpulse/issues" target="_blank" rel="noopener" data-i18n="footer.issues">Issues</a>
+          <a href="https://github.com/gnacho/netpulse/discussions" target="_blank" rel="noopener" data-i18n="footer.discussions">Discusiones</a>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span data-i18n="footer.licenseLine">AGPL-3.0 · Hecho para redes domésticas</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

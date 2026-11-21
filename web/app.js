@@ -1409,6 +1409,10 @@ function initAppearance() {
     updateAppearancePanel();
     const fab = document.getElementById('appFab');
     const panel = document.getElementById('appPanel');
+    // Páginas sin el panel de apariencia (el changelog, #2148) no lo tienen: el
+    // tema guardado se sigue aplicando arriba, solo se salta el control.
+    if (!fab || !panel)
+        return;
     fab.addEventListener('click', () => { panel.classList.toggle('open'); fab.setAttribute('aria-expanded', String(panel.classList.contains('open'))); });
     document.addEventListener('click', e => { if (!panel.contains(e.target) && !fab.contains(e.target))
         panel.classList.remove('open'); });
