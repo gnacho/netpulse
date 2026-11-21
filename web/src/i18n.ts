@@ -2238,6 +2238,59 @@ Object.entries(I18N_EXTRA).forEach(([lang, dict]) => {
   })
 })
 
+/* Changelog de la landing (#2148). La página se prerenderiza en los idiomas de
+   la app (es, en, zh, ru); el resto de idiomas del sitio cae a inglés para el
+   contenido y mantiene traducida la navegación. */
+const CHANGELOG_I18N: Record<string, { nav: string; page?: Record<string, string> }> = {
+  es: { nav: 'Changelog', page: {
+    metaTitle: 'NetPulse - Changelog',
+    metaDescription: 'Todas las releases de NetPulse, con lo que cambió y por qué, desde la primera versión.',
+    eyebrow: 'Changelog',
+    title: 'Todas las releases, en un sitio',
+    sub: 'Qué cambió y por qué, release a release, desde la primera versión hasta la que estás usando.',
+    note: 'Las notas de release están escritas en inglés. La página está traducida.',
+    github: 'Todos los binarios, en GitHub Releases',
+  } },
+  en: { nav: 'Changelog', page: {
+    metaTitle: 'NetPulse - Changelog',
+    metaDescription: 'Every NetPulse release, with what changed and why, from the first version.',
+    eyebrow: 'Changelog',
+    title: 'Every release, in one place',
+    sub: 'What changed and why, release by release, from the first version to the one you are running.',
+    note: 'Release notes are written in English, and this page follows the language of the app.',
+    github: 'Every binary, on GitHub Releases',
+  } },
+  zh: { nav: '更新日志', page: {
+    metaTitle: 'NetPulse - 更新日志',
+    metaDescription: 'NetPulse 的每个版本，以及改了什么、为什么改。',
+    eyebrow: '更新日志',
+    title: '所有版本，集中在一处',
+    sub: '每个版本改了什么、为什么改，从第一版到你正在使用的这一版。',
+    note: '更新说明以英文撰写，页面已翻译。',
+    github: '全部安装包见 GitHub Releases',
+  } },
+  ru: { nav: 'Журнал', page: {
+    metaTitle: 'NetPulse - Журнал изменений',
+    metaDescription: 'Все выпуски NetPulse: что изменилось и почему.',
+    eyebrow: 'Журнал',
+    title: 'Все выпуски в одном месте',
+    sub: 'Что изменилось и почему, выпуск за выпуском, от первой версии до той, что у вас.',
+    note: 'Заметки о выпусках написаны на английском, страница переведена.',
+    github: 'Все сборки на GitHub Releases',
+  } },
+  ar: { nav: 'سجل التغييرات' },
+  hi: { nav: 'चेंजलॉग' },
+  pt: { nav: 'Changelog' },
+  fr: { nav: 'Journal des versions' },
+  ja: { nav: '変更履歴' },
+  de: { nav: 'Changelog' },
+}
+Object.entries(CHANGELOG_I18N).forEach(([lang, dict]) => {
+  const target = I18N[lang] || (I18N[lang] = {})
+  target.nav = Object.assign(target.nav || {}, { changelog: dict.nav })
+  if (dict.page) target.changelogPage = Object.assign(target.changelogPage || {}, dict.page)
+})
+
 /* Completar los idiomas que solo tenian traducida una parte (zh, ar, hi, pt,
    fr, ja, ru, de): claves que antes caian a ingles. Ver gnacho/netpulse#839. */
 const I18N_FILL = {
@@ -5358,6 +5411,13 @@ function buildLangSelect() {
   const prerenderSlug = document.documentElement.dataset.prerenderSlug
   sel.addEventListener('change', () => {
     if (prerenderSlug !== undefined) {
+      // El changelog solo existe en los idiomas de la app: en el resto, la
+      // selección lleva a la home de ese idioma en vez de a un 404.
+      const only = document.documentElement.dataset.changelogLangs
+      if (only && prerenderSlug.startsWith('changelog') && !only.split(',').includes(sel.value)) {
+        location.assign(`/${sel.value}/`)
+        return
+      }
       location.assign(`/${sel.value}/${prerenderSlug}`)
       return
     }
