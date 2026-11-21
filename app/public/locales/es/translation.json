@@ -3287,6 +3287,11 @@
     }
   },
   "whatsnew": {
+    "banner": {
+      "text": "Estás en {{version}}. Mira qué ha cambiado.",
+      "action": "Novedades",
+      "dismiss": "Descartar"
+    },
       "title": "Novedades",
       "subtitle": "Cada release, contada con la interacción que cambia.",
       "helpHint": "Mira qué cambió en la versión que estás ejecutando.",

@@ -3287,6 +3287,11 @@
     }
   },
   "whatsnew": {
+    "banner": {
+      "text": "You are on {{version}}. See what changed.",
+      "action": "What's new",
+      "dismiss": "Dismiss"
+    },
       "title": "What's new",
       "subtitle": "Each release, explained with the interaction it changes.",
       "helpHint": "See what changed in the version you are running.",

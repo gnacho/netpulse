@@ -3262,6 +3262,11 @@
     }
   },
   "whatsnew": {
+    "banner": {
+      "text": "你正在使用 {{version}}。看看有什么变化。",
+      "action": "新功能",
+      "dismiss": "关闭"
+    },
       "title": "新功能",
       "subtitle": "每个版本用它所改变的那次交互来说明。",
       "helpHint": "看看你正在运行的版本改了什么。",
