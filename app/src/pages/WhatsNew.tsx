@@ -95,6 +95,16 @@ export function WhatsNew() {
       ))}
 
       <p className="pt-2 text-[11px] text-text-muted">{t('whatsnew.footnote')}</p>
+      {/* Todavía en GitHub: la web tendrá su propia página de cambios. */}
+      <a
+        href="https://github.com/gnacho/netpulse/blob/main/CHANGELOG.md"
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1 text-caption font-medium text-accent transition-colors hover:text-accent/80"
+      >
+        {t('whatsnew.changelog')}
+        <ExternalLink className="h-3 w-3" strokeWidth={2} aria-hidden="true" />
+      </a>
     </div>
   )
 }

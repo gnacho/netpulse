@@ -17,7 +17,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 - The device icon picker is searchable and grouped in ten categories, with 60 smart-home icons and their name translated (#2107, by @Bann-DEV).
 - Optional Docker image of the server, with the UI and the agents inside, published to GHCR on every tag for amd64 and arm64 (#2101, #2105, by @sers88).
 - Per-device DNS activity from the AdGuard query log: the domains a client resolves, how often, and what was blocked, in 1 hour and 24 hour windows (#2081).
-- Chinese and Russian in the interface, with dates and numbers following each language and not only the labels (#2070, #2092, Chinese by @Bann-DEV).
+- Chinese and Russian in the interface, with dates and numbers following each language and not only the labels (#2070 by @Bann-DEV, #2083 by @sers88).
 
 ### Changed
 

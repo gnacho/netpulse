@@ -3287,6 +3287,7 @@
     }
   },
   "whatsnew": {
+    "changelog": "Every change, in the changelog",
     "banner": {
       "text": "You are on {{version}}. See what changed.",
       "action": "What's new",
