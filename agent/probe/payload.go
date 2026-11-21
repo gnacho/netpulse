@@ -308,6 +308,11 @@ type DiscoveryData struct {
 	// HostByIP: IP -> hostname from mDNS PTR records. Helps resolve devices
 	// that have no DHCP hostname.
 	HostByIP map[string]string `json:"hostByIp,omitempty"`
+	// Models: hostname -> model declared in mDNS TXT records. Optional, so
+	// older agents and servers remain compatible.
+	Models map[string]string `json:"models,omitempty"`
+	// Manufacturers: hostname -> manufacturer declared in mDNS TXT records.
+	Manufacturers map[string]string `json:"manufacturers,omitempty"`
 	// RandomMACs: MACs detected as locally-administered (bit 1 of byte 0 set).
 	// These are typically iOS/Android private WiFi addresses that rotate.
 	RandomMACs []string `json:"randomMacs,omitempty"`

@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- mDNS TXT model and manufacturer metadata can now disambiguate products that share a service. Real fixtures distinguish LG TVs from Marantz speakers over AirPlay, and old agents keep the existing generic behavior (#2158).
+
 ### Fixed
 
 - Devices named only by mDNS now use that hostname in the existing type rules, so a vacuum or console without a DHCP hostname no longer stays unknown (#2157).

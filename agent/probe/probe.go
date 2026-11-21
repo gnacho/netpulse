@@ -2261,50 +2261,7 @@ func ParseMdnsHosts(raw []byte) map[string]string {
 // Extrae: hostname (de la clave, antes del primer punto) y tipos de servicio
 // (el segmento _service._tcp). También recoge IPs si aparecen en registros A.
 func ParseMdnsBrowse(raw []byte) *DiscoveryData {
-	if len(raw) == 0 {
-		return nil
-	}
-	// umdns browse devuelve un objeto JSON con claves "fqdn" y valores que
-	// contienen "port", "txt", "ipv4", etc. Parseamos como map genérico.
-	var browse map[string]json.RawMessage
-	if json.Unmarshal(raw, &browse) != nil {
-		return nil
-	}
-	if len(browse) == 0 {
-		return nil
-	}
-
-	dd := &DiscoveryData{
-		Services: map[string][]string{},
-		HostByIP: map[string]string{},
-	}
-	for fqdn, val := range browse {
-		// Extraer hostname: primera parte antes del "."
-		hostname := fqdn
-		if idx := strings.Index(fqdn, "."); idx > 0 {
-			hostname = fqdn[:idx]
-		}
-		// Extraer tipo de servicio: segundo segmento "_svc._tcp" o "_svc._udp"
-		parts := strings.SplitN(fqdn, ".", 3)
-		if len(parts) >= 2 && strings.HasPrefix(parts[1], "_") {
-			svcType := parts[1]
-			if len(parts) >= 3 {
-				svcType = parts[1] + "." + strings.SplitN(parts[2], ".", 2)[0]
-			}
-			dd.Services[hostname] = appendUnique(dd.Services[hostname], svcType)
-		}
-		// Extraer IP si disponible
-		var entry struct {
-			IPv4 string `json:"ipv4"`
-		}
-		if json.Unmarshal(val, &entry) == nil && entry.IPv4 != "" {
-			dd.HostByIP[entry.IPv4] = hostname
-		}
-	}
-	if len(dd.Services) == 0 && len(dd.HostByIP) == 0 {
-		return nil
-	}
-	return dd
+	return parseMdnsBrowseRecords(raw)
 }
 
 func appendUnique(slice []string, s string) []string {

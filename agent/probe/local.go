@@ -1303,12 +1303,7 @@ func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *Di
 	// which is the service's label rather than the device's own.
 	if out := p.runBest(ctx, CmdMdnsHosts, 5*time.Second); strings.TrimSpace(out) != "" {
 		if hosts := ParseMdnsHosts([]byte(out)); len(hosts) > 0 {
-			if dd.HostByIP == nil {
-				dd.HostByIP = map[string]string{}
-			}
-			for ip, name := range hosts {
-				dd.HostByIP[ip] = name
-			}
+			dd.MergeMdnsHosts(hosts)
 		}
 	}
 
@@ -1320,7 +1315,7 @@ func (p *Prober) probeDiscovery(ctx context.Context, wireless *WirelessData) *Di
 			}
 		}
 	}
-	if len(dd.Services) == 0 && len(dd.HostByIP) == 0 && len(dd.RandomMACs) == 0 {
+	if len(dd.Services) == 0 && len(dd.HostByIP) == 0 && len(dd.Models) == 0 && len(dd.Manufacturers) == 0 && len(dd.RandomMACs) == 0 {
 		return nil
 	}
 	return dd
