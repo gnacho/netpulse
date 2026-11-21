@@ -7,6 +7,13 @@ Both are written in English, in plain language, whatever the language of the
 conversation that produced the change. Sections released before 2.54.0 keep the
 language they were written in, and that is fine: they are history.
 
+## The archive
+
+`archive/` holds every release ever published, body verbatim, one file per tag and
+an `INDEX.md` with the date order. It is a record, not a template: the shape changed
+over time, and some of it is in Spanish because that was the rule then. New releases
+are written in this directory (`<version>.md`), not in the archive.
+
 ## The notes
 
 `<version>.md` is the body of the GitHub release, not a copy of the changelog.
