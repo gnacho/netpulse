@@ -1,4 +1,4 @@
-package adapters
+package httpapi
 
 import (
 	"github.com/gnacho/netpulse/agent/macaddr"
@@ -6,10 +6,12 @@ import (
 )
 
 // normalizePayloadMACs pasa a forma canónica (AA:BB:CC:DD:EE:FF) todas las MAC
-// del payload, en sitio, al ingerirlo. El agente nativo ya las emite así, pero
-// un pusher externo puede mandarlas en minúsculas o con guiones, y el resto del
-// servidor compara claves de forma exacta. Un valor que no es una MAC (p. ej.
-// un chassis ID LLDP de tipo nombre) se deja tal cual; nunca se vacía nada.
+// del payload, en sitio. El agente nativo ya las emite así, pero un pusher
+// externo puede mandarlas en minúsculas o con guiones, y el resto del servidor
+// compara claves de forma exacta. Se llama una sola vez, al recibir el push
+// (handleIngestAgent), nunca sobre datos ya publicados. Un valor que no es una
+// MAC (p. ej. un chassis ID LLDP de tipo nombre) se deja tal cual; nunca se
+// vacía nada.
 func normalizePayloadMACs(p *probe.Payload) {
 	if p == nil {
 		return

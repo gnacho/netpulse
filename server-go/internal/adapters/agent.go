@@ -83,11 +83,11 @@ func (r *AgentRegistry) SetClock(f func() time.Time) {
 	r.now = f
 }
 
-// Ingest registra un push (último payload = estado actual del router).
+// Ingest registra un push (último payload = estado actual del router). Las MAC
+// del payload deben venir ya en forma canónica: el push de agente las normaliza
+// (httpapi) y el beacon las construye así. Ingest no las reescribe
+// porque el beacon reutiliza partes del payload anterior, ya publicado.
 func (r *AgentRegistry) Ingest(p *probe.Payload) {
-	// Un pusher externo puede mandar MAC en minúsculas o con guiones y el resto
-	// del servidor compara las claves de forma exacta: se normaliza una vez aquí.
-	normalizePayloadMACs(p)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st := &AgentState{
