@@ -94,12 +94,13 @@ twice", the notes say what the operator was seeing.
 
 ## Where the changelog link goes
 
-The notes and the What's new page end with a link to the complete changelog.
-Today it points at `CHANGELOG.md` in the repository. When the site has its own
-changelog page, translated like the rest of `netpulse.cloudless.club`, only the
-href changes: in the app it is `CHANGELOG_URL` in `app/src/pages/WhatsNew.tsx`,
-and this file says where that should point (Spanish at the root, the other
-languages under `/<lang>/changelog/`).
+The notes and the What's new page end with a link to the complete changelog,
+which lives at `netpulse.cloudless.club/changelog` (Spanish at the root, the
+other app languages under `/<lang>/changelog/`, everything else falls back to
+English). The page is generated from this directory by
+`web/build-changelog.mjs`, so adding a release file and running that script is
+all it takes. In the app the URL is built by `changelogUrl()` in
+`app/src/pages/WhatsNew.tsx`.
 
 ## Checklist
 
