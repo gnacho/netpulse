@@ -3296,7 +3296,7 @@
       "subtitle": "Cada release, contada con la interacción que cambia.",
       "helpHint": "Mira qué cambió en la versión que estás ejecutando.",
       "latest": "última",
-      "by": "por {{author}}",
+      "by": "Gracias a {{author}}",
       "footnote": "Las demos están hechas con los componentes de la app y datos de muestra, así que siguen el tema y el idioma.",
       "search": "Buscar un icono",
       "noMatch": "Sin coincidencias",

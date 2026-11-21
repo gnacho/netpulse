@@ -18,7 +18,9 @@ Three edits, no more:
 
 1. **`app/src/whatsnew/registry.tsx`**: add the cards. Each one carries an
    `id`, the `version`, a Lucide `icon`, the GitHub `author`, the `pr` number
-   and a `Demo` component.
+   and a `Demo` component. The `author` is only for the thanks on the card: our
+   own changes carry `gnacho` and render no thanks, because crediting yourself
+   for your own work is noise.
 2. **The demo** in `app/src/whatsnew/cards/`. Reuse the real components and
    the real catalogue when you can (the icon picker demo filters the real icon
    labels), sample data when the screen needs a backend. Use `useDemoClock` so

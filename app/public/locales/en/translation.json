@@ -3296,7 +3296,7 @@
       "subtitle": "Each release, explained with the interaction it changes.",
       "helpHint": "See what changed in the version you are running.",
       "latest": "latest",
-      "by": "by {{author}}",
+      "by": "Thanks to {{author}}",
       "footnote": "The demos are built with the app's own components and sample data, so they follow the theme and the language.",
       "search": "Search an icon",
       "noMatch": "No match",
