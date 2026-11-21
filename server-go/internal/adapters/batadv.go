@@ -48,3 +48,22 @@ func withoutBatadvBla(fdb map[string]string) map[string]string {
 	}
 	return out
 }
+
+// isBatadvBackhaulPort reports whether port is a BATMAN-adv mesh interface
+// (e.g. bat0, bat0.40). Bridge FDB entries learned on bat* come from remote
+// mesh nodes over backhaul rather than local physical LAN access ports.
+func isBatadvBackhaulPort(port string) bool {
+	base := strings.TrimSpace(port)
+	if i := strings.IndexAny(base, ".@"); i >= 0 {
+		base = base[:i]
+	}
+	if len(base) <= 3 || !strings.EqualFold(base[:3], "bat") {
+		return false
+	}
+	for i := 3; i < len(base); i++ {
+		if base[i] < '0' || base[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
