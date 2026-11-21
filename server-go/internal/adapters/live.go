@@ -4118,6 +4118,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				// If the device has no name (just MAC), use the mDNS hostname.
 				if d.Name == mac {
 					d.Name = host
+					// The first guess only had the MAC. Let the mDNS hostname
+					// feed the same rules without replacing another source's type.
+					if d.Type == "desconocido" {
+						d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
+					}
 				}
 			}
 		}
