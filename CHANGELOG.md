@@ -7,6 +7,8 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.54.0] - 2026-11-21
+
 ### Added
 
 - The device detail shows how much traffic a client used over 1 hour, 24 hours, 30 days and 12 months (#2076). Down, up and total for the window, plus the series for the same period. It reads the per-client history the server has been storing since #551.
