@@ -44,7 +44,10 @@ export const CARDS: WhatsNewCard[] = [
     id: 'languages',
     version: '2.54.0',
     icon: Languages,
-    author: 'Bann-DEV',
+    // Autoría mixta: chino de @Bann-DEV (#2070), ruso de @sers88 (#2083). El
+    // crédito va en el texto y el pie se queda sin firma, que firmar a uno
+    // solo por el trabajo de dos es peor que no firmar.
+    author: '',
     pr: 2070,
     Demo: LanguagesDemo,
   },

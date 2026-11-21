@@ -3262,6 +3262,7 @@
     }
   },
   "whatsnew": {
+    "changelog": "全部变更见更新日志",
     "banner": {
       "text": "你正在使用 {{version}}。看看有什么变化。",
       "action": "新功能",

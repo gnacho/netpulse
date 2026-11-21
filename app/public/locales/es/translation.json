@@ -3287,6 +3287,7 @@
     }
   },
   "whatsnew": {
+    "changelog": "Todos los cambios, en el changelog",
     "banner": {
       "text": "Estás en {{version}}. Mira qué ha cambiado.",
       "action": "Novedades",
