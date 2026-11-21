@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Fixed
+
+- Devices named only by mDNS now use that hostname in the existing type rules, so a vacuum or console without a DHCP hostname no longer stays unknown (#2157).
+
 ## [2.54.0] - 2026-11-21
 
 ### Added
