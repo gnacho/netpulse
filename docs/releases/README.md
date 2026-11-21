@@ -99,5 +99,6 @@ twice", the notes say what the operator was seeing.
 - [ ] Every fixed entry names the symptom, with the issue number.
 - [ ] Thanks section with the reporters.
 - [ ] `CHANGELOG.md` `[Unreleased]` complete for the same set.
+- [ ] In-app Help reviewed: a flow for each screen the release adds or renames, in the four catalogs.
 - [ ] The notes end with a link to the changelog, for everything that is not a card.
 - [ ] Links use the final tag, and the tag exists before the release is published.
