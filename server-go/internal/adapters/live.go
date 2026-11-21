@@ -4083,10 +4083,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				d.IP = ip
 			}
 		}
+		if hasRes && res.Name != "" && d.Name == res.Name {
+			d.namePinned = true
+		}
 		// issue #196: la allowlist manda sobre el nombre por defecto. Con
 		// alias (Name != MAC) el dispositivo deja de ser "desconocido".
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
+			d.namePinned = true
 		}
 		// issue #437/#797: overrides manuales (icono, nombre) se aplican sobre
 		// el dispositivo auto-descubierto; el nombre manual manda incluso
@@ -4098,6 +4102,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			if ov.Name != "" {
 				d.Name = ov.Name
 				d.NameOverride = ov.Name
+				d.namePinned = true
 			}
 		}
 		vendorClass := ""
@@ -4115,12 +4120,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if svcs, ok := mdnsSvcByHost[host]; ok {
 					d.MdnsServices = svcs
 				}
-				// If the device has no name (just MAC), use the mDNS hostname.
-				if d.Name == mac {
+				// mDNS can replace a MAC fallback or an unpinned generated name.
+				// A meaningful DHCP name, reservation, alias or manual name stays.
+				if !d.namePinned && !isGeneratedDeviceName(host) && (d.Name == mac || isGeneratedDeviceName(d.Name)) {
+					previousName := d.Name
 					d.Name = host
-					// The first guess only had the MAC. Let the mDNS hostname
-					// feed the same rules without replacing another source's type.
-					if d.Type == "desconocido" {
+					// The first guess only had the MAC or a placeholder. Let the
+					// mDNS hostname feed the same rules without replacing other evidence.
+					if d.Type == "desconocido" || isGeneratedDeviceName(previousName) {
 						d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
 					}
 				}

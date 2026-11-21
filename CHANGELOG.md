@@ -10,6 +10,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 ### Fixed
 
 - Devices named only by mDNS now use that hostname in the existing type rules, so a vacuum or console without a DHCP hostname no longer stays unknown (#2157).
+- Useful mDNS names now replace generated DHCP placeholders without overriding reservations, aliases or manual choices. The improved name and inferred type stay when mDNS temporarily disappears (#2159).
 
 ## [2.54.0] - 2026-11-21
 
