@@ -32,6 +32,7 @@ import InstallPrompt from '@/components/InstallPrompt'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { AnnouncementBanner } from '@/components/AnnouncementBanner'
+import { WhatsNewBanner } from '@/components/WhatsNewBanner'
 import { UpdateConfirmToast } from '@/components/UpdateConfirmToast'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useServerVersion } from '@/hooks/useServerVersion'
@@ -718,6 +719,7 @@ function Shell() {
         <main className="[view-transition-name:netpulse-content] mx-auto w-full max-w-[1400px] px-4 pb-tabbar pt-4 md:px-6 md:pb-10 md:pt-6">
           {isDemo && <DemoBanner />}
           <AnnouncementBanner />
+          <WhatsNewBanner />
           <UpdateBanner />
           {/* Confirmación post-update (issue #161): toast al cargar si el
               último apply llegó a arrancar con el commit nuevo. */}
