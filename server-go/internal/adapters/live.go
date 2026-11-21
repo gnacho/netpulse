@@ -3570,6 +3570,8 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	mdnsHostByIP := map[string]string{}
 	randomMACs := map[string]bool{}
 	mdnsSvcByHost := map[string][]string{}
+	mdnsModelByHost := map[string]string{}
+	mdnsManufacturerByHost := map[string]string{}
 	for _, p := range polled {
 		if p.discovery == nil {
 			continue
@@ -3582,6 +3584,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		}
 		for host, svcs := range p.discovery.Services {
 			mdnsSvcByHost[host] = svcs
+		}
+		for host, model := range p.discovery.Models {
+			mdnsModelByHost[host] = model
+		}
+		for host, manufacturer := range p.discovery.Manufacturers {
+			mdnsManufacturerByHost[host] = manufacturer
 		}
 	}
 	type knownInfo struct {
@@ -4115,8 +4123,11 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		// capacidades LLDP). Con nombre-MAC (sin hostname) queda "desconocido".
 		d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])
 		// mDNS enrichment (#338): resolve hostname from IP → lookup services.
+		mdnsModel, mdnsManufacturer := "", ""
 		if d.IP != "" {
 			if host, ok := mdnsHostByIP[d.IP]; ok {
+				mdnsModel = mdnsModelByHost[host]
+				mdnsManufacturer = mdnsManufacturerByHost[host]
 				if svcs, ok := mdnsSvcByHost[host]; ok {
 					d.MdnsServices = svcs
 				}
@@ -4151,8 +4162,13 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		}
 		// mDNS-based type refinement (#338): if the hostname/DHCP classification
 		// yielded "desconocido" but mDNS services are available, try to classify.
+		// A real product signature is more specific than the generic service map.
 		if d.Type == "desconocido" && len(d.MdnsServices) > 0 {
-			d.Type = guessFromMdns(d.MdnsServices)
+			if signature := guessFromMdnsSignatures(d.MdnsServices, mdnsModel, mdnsManufacturer); signature != "" {
+				d.Type = signature
+			} else {
+				d.Type = guessFromMdns(d.MdnsServices)
+			}
 		}
 		// issue #797: el tipo manual manda sobre la clasificación (reglas,
 		// huella DHCP y refinación mDNS).
