@@ -1524,7 +1524,7 @@ var (
 	// subinterfaz VLAN opcional): por prefijo casaría interfaces futuras que
 	// solo compartan las letras iniciales.
 	fdbWirelessRe = regexp.MustCompile(`^(phy\d+-ap\d*|wlan\d*|wl[0-9]+(\.[0-9]+)?)$`)
-	fdbVirtualRe  = regexp.MustCompile(`^(br|lo|veth|wg|tun|tap|ppp|sit|ip6|gre|erspan|dummy|macv|ifb)`)
+	fdbVirtualRe  = regexp.MustCompile(`^(br|lo|veth|wg|tun|tap|ppp|sit|ip6|gre|erspan|dummy|macv|ifb|bat[0-9]+)`)
 )
 
 // fdbPortWired: ¿cuenta este puerto como cableado para el mapa MAC→puerto?

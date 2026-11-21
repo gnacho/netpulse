@@ -48,7 +48,7 @@ func (l *Live) uplinkPortsLocked(routerID string, fdb map[string]string, brMacs 
 		ports[p] = true
 	}
 	for mac, port := range fdb {
-		if brMacs[mac] {
+		if brMacs[mac] || isBatadvBackhaulPort(port) {
 			ports[port] = true
 			memo[port] = true
 		}

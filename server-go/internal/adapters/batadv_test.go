@@ -96,3 +96,65 @@ func TestPolledFromAgentDropsBatadvBla(t *testing.T) {
 		t.Fatalf("se perdió un cliente real: %+v", out.fdb)
 	}
 }
+
+func TestIsBatadvBackhaulPort(t *testing.T) {
+	yes := []string{"bat0", "bat0.40", "bat1", "bat12.100"}
+	for _, port := range yes {
+		if !isBatadvBackhaulPort(port) {
+			t.Errorf("%q should be treated as BATMAN backhaul port", port)
+		}
+	}
+	no := []string{"", "lan2", "lan3", "eth0.40", "bat", "batman", "bat0x"}
+	for _, port := range no {
+		if isBatadvBackhaulPort(port) {
+			t.Errorf("%q should not be treated as BATMAN backhaul port", port)
+		}
+	}
+}
+
+func TestBuildDevicesPrefersPhysicalLANOverBatadvBackhaul(t *testing.T) {
+	const hueMAC = "00:17:88:11:22:33"
+	const eufyMAC = "8C:85:80:44:55:66"
+
+	for iter := 0; iter < 50; iter++ {
+		l := NewLive(nil, nil, nil, nil)
+		polled := map[string]*routerPolled{
+			"gw": {
+				cfg:   RouterConfig{ID: "gw", Name: "Gateway", Host: "192.168.1.1", IsGateway: true},
+				brMac: "AA:AA:AA:00:00:01",
+				arp: map[string]string{
+					hueMAC:  "192.168.40.10",
+					eufyMAC: "192.168.40.11",
+				},
+			},
+			"mx1": {
+				cfg:   RouterConfig{ID: "mx1", Name: "MX5300 #1", Host: "192.168.1.2"},
+				brMac: "AA:AA:AA:00:00:02",
+				fdb: map[string]string{
+					hueMAC:  "lan3",
+					eufyMAC: "lan2",
+				},
+			},
+			"mx2": {
+				cfg:   RouterConfig{ID: "mx2", Name: "MX5300 #2", Host: "192.168.1.3"},
+				brMac: "AA:AA:AA:00:00:03",
+				fdb: map[string]string{
+					hueMAC:  "bat0.40",
+					eufyMAC: "bat0.40",
+				},
+			},
+		}
+		l.updateFdbMemo(polled, 1_000_000)
+		devs := l.buildDevices(polled, "gw")
+		byMac := make(map[string]Device, len(devs))
+		for _, d := range devs {
+			byMac[d.MAC] = d
+		}
+		if got := byMac[hueMAC].RouterID; got != "mx1" {
+			t.Fatalf("iter %d: Hue Bridge attributed to %q, want mx1", iter, got)
+		}
+		if got := byMac[eufyMAC].RouterID; got != "mx1" {
+			t.Fatalf("iter %d: Eufy HomeBase attributed to %q, want mx1", iter, got)
+		}
+	}
+}
