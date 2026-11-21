@@ -29,6 +29,7 @@ import {
   Wifi,
   Sparkles,
   ArrowRight,
+  Activity,
 } from 'lucide-react'
 import {
   Accordion,
@@ -62,6 +63,9 @@ function RichText({ text }: { text: string }) {
 
 const FLOWS = [
   { key: 'firstLogin', icon: KeyRound },
+  // #2116/#2076/#2081: lo que trajo 2.54.0 también se explica aquí.
+  { key: 'whatsNew', icon: Sparkles },
+  { key: 'deviceDetail', icon: Activity },
   { key: 'addRouter', icon: RouterIcon },
   { key: 'installAgent', icon: CircleHelp },
   { key: 'channelPlan', icon: Wifi },
