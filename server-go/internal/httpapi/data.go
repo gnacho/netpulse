@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"math"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -226,6 +227,10 @@ func EnrichOverview(handle *sql.DB, sched *speedtest.Scheduler, out *adapters.Ov
 	// online no tiene nada que explicar, y "unreachable" por SSH lleva sus
 	// propios avisos (accessMissing/hostKeyChanged).
 	if len(pusherReasons) > 0 {
+		// handleOverview pasa una copia superficial del snapshot del poller:
+		// Routers comparte su array con lastOverview, que otros handlers leen
+		// a la vez. Se escribe sobre una copia propia.
+		out.Routers = slices.Clone(out.Routers)
 		for i := range out.Routers {
 			r := &out.Routers[i]
 			if r.Status != "offline" && r.Status != "unreachable" {

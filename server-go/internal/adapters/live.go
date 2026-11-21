@@ -878,11 +878,15 @@ func (l *Live) SetRouters(list []RouterConfig) {
 			delete(l.snmpPollStats, id)
 		}
 	}
-	for id := range l.lastPolled {
-		if !ids[id] {
-			delete(l.lastPolled, id)
+	// lastPolled se reemplaza, no se borra en el sitio: pollAll devuelve el
+	// mismo mapa a buildOverview, que lo recorre sin l.mu.
+	nextPolled := make(map[string]*routerPolled, len(l.lastPolled))
+	for id, p := range l.lastPolled {
+		if ids[id] {
+			nextPolled[id] = p
 		}
 	}
+	l.lastPolled = nextPolled
 	for id := range l.failCount {
 		if !ids[id] {
 			delete(l.failCount, id)

@@ -12,6 +12,8 @@ package adapters
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -820,11 +822,13 @@ func portsCarryTraffic(ports []EthPort) bool {
 // que pollRouter: sección ausente en el payload = sonda fallida → conserva
 // el último dato bueno cacheado.
 func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled {
+	// l.clients se lee bajo l.mu: SetRouters lo reemplaza con el lock tomado.
 	l.mu.Lock()
 	cached := l.extrasCache[cfg.ID]
+	client := l.clients[cfg.ID]
 	l.mu.Unlock()
 
-	out := &routerPolled{cfg: cfg, client: l.clients[cfg.ID], net: &NetDevBps{}, polledAt: time.Now().UnixMilli()}
+	out := &routerPolled{cfg: cfg, client: client, net: &NetDevBps{}, polledAt: time.Now().UnixMilli()}
 	// #441: conservar el kind del agente: los pushers externos (beacon/
 	// scraper) no llevan sección system y el router queda sin vitals.
 	out.agentKind = p.Kind
@@ -991,16 +995,24 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 			// número ("1") mientras sus bocas usan id "lan1". Normalizar
 			// para que el enriquecimiento del detalle (MAC→nombre por boca)
 			// y la topología casen ambas claves.
+			// fd.MACs es el mapa del payload publicado en AgentRegistry, que
+			// otras goroutines leen (persistAgentState, el beacon periódico):
+			// se reescribe sobre una copia, hecha solo si hay algo que cambiar.
 			ids := map[string]bool{}
 			for _, ep := range out.ports {
 				ids[ep.ID] = true
 			}
 			if len(ids) > 0 {
-				for mac, port := range out.fdb {
+				copied := false
+				for mac, port := range fd.MACs {
 					if port == "wan" || ids[port] {
 						continue
 					}
 					if lan := "lan" + port; ids[lan] {
+						if !copied {
+							out.fdb = maps.Clone(fd.MACs)
+							copied = true
+						}
 						out.fdb[mac] = lan
 					}
 				}
@@ -1065,7 +1077,12 @@ func (l *Live) polledFromAgent(cfg RouterConfig, p *probe.Payload) *routerPolled
 			wireless: map[string]WirelessClient{}, fdb: map[string]string{}}
 	}
 	if out.ports == nil {
-		out.ports = cached.ports
+		// Copia: cached.ports es el slice de un routerPolled ya publicado en
+		// lastPolled, e injectPortRates/appendVirtualPorts escriben en él. La
+		// copia es segura porque solo buildOverview llega aquí y el singleflight
+		// de GetOverview no deja que dos builds se solapen: applySNMPSurface, que
+		// escribe en el slice cacheado, ya terminó en el build anterior.
+		out.ports = slices.Clone(cached.ports)
 	}
 	if out.radios == nil {
 		out.radios = cached.radios
