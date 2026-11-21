@@ -3029,6 +3029,29 @@
     "docsFooter": "Esta guía vive dentro de la app y cita las etiquetas reales de la interfaz, así que siempre está al día con la versión que estás usando.",
     "docsLink": "Documentación completa en GitHub",
     "flows": {
+      "whatsNew": {
+        "title": "Ver qué ha cambiado",
+        "subtitle": "Las notas de release viven dentro de la app",
+        "intro": "Cada release tiene una página con una tarjeta por cambio, cada una con una animación corta de la interacción en vez de un punto en el changelog. Está en tu idioma, y abrirla es lo que quita la marca.",
+        "steps": [
+          "Después de una actualización, una franja bajo la cabecera dice en qué versión estás y enlaza a la página. El sello de versión al pie del menú hace lo mismo, con un punto mientras haya algo sin abrir.",
+          "Cada tarjeta enseña el cambio en movimiento: el selector de iconos filtrando, las barras de DNS llenándose, un vecino callado volviendo. El número de abajo a la derecha abre el pull request que lo trajo.",
+          "El enlace del final lleva al changelog, con todos los cambios, también los que no tienen animación."
+        ],
+        "tip": "Las tarjetas están hechas con el mismo código que la app, así que siguen tu tema y tu idioma. Una tarjeta que se ve mal es un bug que merece un aviso."
+      },
+      "deviceDetail": {
+        "title": "Leer el detalle de un cliente",
+        "subtitle": "Tráfico, DNS y qué significan las marcas",
+        "intro": "Al pulsar un cliente se abre su detalle: identidad, conexión y dos paneles que responden a dos preguntas distintas, cuánto movió y qué preguntó.",
+        "steps": [
+          "Abre ⟦Clientes⟧ y pulsa un cliente.",
+          "La tarjeta de tráfico suma bajada, subida y total en 1 hora, 24 horas, 30 días o 12 meses, con la serie de la misma ventana. Necesita que la unidad reporte contadores por cliente.",
+          "La tarjeta de DNS lista los dominios que resolvió el cliente, con qué frecuencia y cuáles se bloquearon, desde el registro de consultas de AdGuard, en 1 hora o 24 horas.",
+          "La marca ⟦sin IP⟧ significa que el cliente está asociado por WiFi y aún no tiene dirección. Tras dos minutos así, también deja una nota informativa en el registro de actividad."
+        ],
+        "tip": "Los dos paneles lo dicen cuando no tienen datos. Un panel vacío no está roto: falta configurar la fuente o la ventana no tiene muestras."
+      },
       "firstLogin": {
         "title": "Primer arranque y contraseña",
         "subtitle": "Entrar por primera vez y asegurar la cuenta admin",

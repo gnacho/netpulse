@@ -3029,6 +3029,29 @@
     "docsFooter": "This guide lives inside the app and quotes the real interface labels, so it always matches the version you are running.",
     "docsLink": "Full documentation on GitHub",
     "flows": {
+      "whatsNew": {
+        "title": "See what changed",
+        "subtitle": "The release notes live inside the app",
+        "intro": "Every release gets a page with a card per change, each one with a short animation of the interaction instead of a bullet in a changelog. It is written in your language, and opening it is what clears the marker.",
+        "steps": [
+          "After an update, a strip under the header says which version you are on and links to the page. The version stamp at the bottom of the menu does the same, with a dot while there is something you have not opened.",
+          "Each card shows the change in motion: the icon picker filtering, the DNS bars filling, a quiet neighbour coming back. The number at the bottom right opens the pull request behind it.",
+          "The link at the end leads to the changelog, with every change including the ones that have no animation."
+        ],
+        "tip": "The cards are built from the same code as the app, so they follow your theme and your language. A card that looks wrong is a bug worth reporting."
+      },
+      "deviceDetail": {
+        "title": "Read a client's detail",
+        "subtitle": "Traffic, DNS and what the marks mean",
+        "intro": "Clicking a client opens its detail: identity, connection and two panels that answer two different questions, how much it moved and what it asked for.",
+        "steps": [
+          "Open ⟦Clients⟧ and click a client.",
+          "The traffic card sums down, up and total over 1 hour, 24 hours, 30 days or 12 months, with the series for the same window. It needs the unit to report per-client counters.",
+          "The DNS card lists the domains the client resolved, how often and which were blocked, from the AdGuard query log, in a 1 hour or 24 hour window.",
+          "A ⟦no IP⟧ mark means the client is associated by Wi-Fi and has no address yet. After two minutes in that state it also leaves an info entry in the activity log."
+        ],
+        "tip": "Both panels say it when they have no data. An empty panel is not a broken one: the source is not configured, or the window has no samples."
+      },
       "firstLogin": {
         "title": "First run and password",
         "subtitle": "Sign in for the first time and secure the admin account",
