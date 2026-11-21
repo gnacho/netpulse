@@ -316,6 +316,9 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "demo": true})
 		return
 	}
+	// Un pusher externo puede mandar MAC en minúsculas o con guiones y el resto
+	// del servidor compara las claves de forma exacta: se normaliza una vez aquí.
+	normalizePayloadMACs(&p)
 	if !s.acceptAgentPush(&p) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "stale": true})
 		return

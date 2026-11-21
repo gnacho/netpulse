@@ -1,4 +1,4 @@
-package adapters
+package httpapi
 
 import (
 	"reflect"
@@ -151,63 +151,4 @@ func TestCanonMACKeys(t *testing.T) {
 			t.Fatal("esperaba el mismo mapa, sin copiar")
 		}
 	})
-}
-
-// Un pusher externo manda las MAC en minúsculas y con guiones: tras Ingest, el
-// polled del switch y los dispositivos deben verlas en forma canónica.
-func TestIngestNormalizesExternalPusherMACs(t *testing.T) {
-	cfg := RouterConfig{ID: "sw1", Host: "192.0.2.2", Name: "switch", Type: "managed-switch"}
-	l := NewLive(nil, nil, []RouterConfig{cfg}, nil)
-	reg := NewAgentRegistry(0)
-	p := &probe.Payload{
-		Router: "sw1", Ts: 1, Kind: "external",
-		Data: probe.PayloadData{
-			DHCP: &probe.DHCPData{Leases: []probe.DhcpLease{
-				{MAC: "aa-bb-cc-dd-ee-01", IP: "192.0.2.50", Hostname: "pc"},
-			}},
-			FDB: &probe.FDBData{
-				MACs:  map[string]string{"aa-bb-cc-dd-ee-01": "lan3", "aa:bb:cc:dd:ee:02": "lan4"},
-				Ports: []probe.EthPort{{ID: "lan3", Up: true}, {ID: "lan4", Up: true}},
-			},
-		},
-	}
-	reg.Ingest(p)
-	got, ok := reg.Fresh("sw1")
-	if !ok {
-		t.Fatal("esperaba payload fresco tras Ingest")
-	}
-	polled := l.polledFromAgent(cfg, got)
-	for _, mac := range []string{"AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"} {
-		if _, ok := polled.fdb[mac]; !ok {
-			t.Errorf("esperaba la MAC canónica %s en el FDB, obtuve %v", mac, polled.fdb)
-		}
-	}
-	if len(polled.fdb) != 2 {
-		t.Errorf("esperaba 2 entradas en el FDB, obtuve %v", polled.fdb)
-	}
-
-	devices := l.buildDevices(map[string]*routerPolled{"sw1": polled}, "")
-	var found bool
-	for _, d := range devices {
-		if d.MAC != "AA:BB:CC:DD:EE:01" && d.MAC != "AA:BB:CC:DD:EE:02" {
-			t.Errorf("esperaba solo MAC canónicas entre los dispositivos, obtuve %q", d.MAC)
-		}
-		if d.MAC == "AA:BB:CC:DD:EE:01" {
-			found = true
-			if d.RouterID != "sw1" || d.IP != "192.0.2.50" {
-				t.Errorf("esperaba el cliente en sw1 con IP del lease, obtuve router %q ip %q", d.RouterID, d.IP)
-			}
-		}
-	}
-	if !found {
-		t.Errorf("esperaba el cliente AA:BB:CC:DD:EE:01 entre %d dispositivos", len(devices))
-	}
-
-	// Con el FDB en forma canónica, la topología cuelga el cliente del puerto.
-	devices, _ = inferTopology(map[string]*routerPolled{"sw1": polled}, devices)
-	for _, d := range devices {
-		if d.MAC == "AA:BB:CC:DD:EE:01" && d.Port != "lan3" {
-			t.Errorf("esperaba el cliente en el puerto lan3, obtuve %q", d.Port)
-		}
-	}
 }
