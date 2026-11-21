@@ -92,6 +92,15 @@ writes its changelog from commit messages and that is fine for its own output,
 but the release body is the curated one: commits say "stop emitting the cable
 twice", the notes say what the operator was seeing.
 
+## Where the changelog link goes
+
+The notes and the What's new page end with a link to the complete changelog.
+Today it points at `CHANGELOG.md` in the repository. When the site has its own
+changelog page, translated like the rest of `netpulse.cloudless.club`, only the
+href changes: in the app it is `CHANGELOG_URL` in `app/src/pages/WhatsNew.tsx`,
+and this file says where that should point (Spanish at the root, the other
+languages under `/<lang>/changelog/`).
+
 ## Checklist
 
 - [ ] One capture per headline change, generated from the app, not recorded.

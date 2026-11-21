@@ -19,6 +19,14 @@ import { markWhatsNewSeen } from '@/whatsnew/useWhatsNewSeen'
 /** Autor propio: sus tarjetas no llevan agradecimiento, es lo esperado. */
 const OWN_AUTHOR = 'gnacho'
 
+/**
+ * Changelog completo de la app. Hoy vive en el repositorio, y cuando la web
+ * tenga su página de cambios multilingüe este es el ÚNICO sitio que cambia:
+ * pasará a una función de `i18n.language` que devuelva la ruta del idioma en
+ * netpulse.cloudless.club (es en la raíz, el resto en /<lang>/changelog/).
+ */
+const CHANGELOG_URL = 'https://github.com/gnacho/netpulse/blob/main/CHANGELOG.md'
+
 function Card({ card }: { card: WhatsNewCard }) {
   const { t } = useTranslation()
   const Icon = card.icon
@@ -97,7 +105,7 @@ export function WhatsNew() {
       <p className="pt-2 text-[11px] text-text-muted">{t('whatsnew.footnote')}</p>
       {/* Todavía en GitHub: la web tendrá su propia página de cambios. */}
       <a
-        href="https://github.com/gnacho/netpulse/blob/main/CHANGELOG.md"
+        href={CHANGELOG_URL}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-caption font-medium text-accent transition-colors hover:text-accent/80"
