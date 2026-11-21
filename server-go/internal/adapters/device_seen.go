@@ -195,12 +195,16 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 	// alta otra vez; el borrado es un olvido, no un baneo.
 	l.reviveTombstoned(tomb, devices)
 	// MACs ya registradas: la diferencia serán las verdaderamente nuevas.
+	// Conservamos también la identidad retenida para que un placeholder que
+	// reaparece sin mDNS no pise el nombre y el tipo buenos del registro.
 	existing := map[string]bool{}
-	if rows, err := l.db.Query("SELECT mac FROM device_seen"); err == nil {
+	retainedNames := map[string]string{}
+	if rows, err := l.db.Query("SELECT mac, COALESCE(name, '') FROM device_seen"); err == nil {
 		for rows.Next() {
-			var m string
-			if rows.Scan(&m) == nil {
+			var m, name string
+			if rows.Scan(&m, &name) == nil {
 				existing[m] = true
+				retainedNames[m] = name
 			}
 		}
 		rows.Close()
@@ -233,11 +237,17 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 			continue // #1278: borrado a mano, no re-alta (ni re-aviso, #1290)
 		}
 		name := d.Hostname
-		if isMACLike(name) {
+		if isMACLike(name) || (isGeneratedDeviceName(name) && !d.namePinned) {
 			name = ""
 		}
-		if name == "" && d.Name != "" && !isMACLike(d.Name) {
+		if name == "" && d.Name != "" && !isMACLike(d.Name) && (!isGeneratedDeviceName(d.Name) || d.namePinned) {
 			name = d.Name
+		}
+		deviceType := inferredDeviceType(d)
+		if name == "" && !d.namePinned && isGeneratedDeviceName(d.Name) && retainedNames[mac] != "" && !isGeneratedDeviceName(retainedNames[mac]) {
+			// A transient loss of mDNS brought the DHCP placeholder back. Empty
+			// name and type make the upsert keep the better retained identity.
+			deviceType = ""
 		}
 		// #1818: el alta guarda el primer avistamiento real, no el del ciclo en
 		// que el cliente supero el minuto de permanencia.
@@ -245,7 +255,7 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 		if d.FirstSeenMs > 0 && d.FirstSeenMs < nowMs {
 			first = d.FirstSeenMs
 		}
-		if _, err := stmt.Exec(mac, first, nowMs, name, saneIP(d.IP), inferredDeviceType(d)); err != nil {
+		if _, err := stmt.Exec(mac, first, nowMs, name, saneIP(d.IP), deviceType); err != nil {
 			return nil
 		}
 		// #1323: primera vez CON nombre (los sin nombre los cubre
@@ -352,10 +362,16 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 			// (#1151) el merge puede dejar como nombre la MAC de una alias,
 			// que tampoco es un nombre. Los alias/override reales nunca son
 			// MAC-shaped, así que siguen sin pisarse.
-			if s.name != "" && isMACLike(devices[i].Name) {
-				devices[i].Name = s.name
+			restoredGeneratedName := false
+			if s.name != "" && !isGeneratedDeviceName(s.name) {
+				if isMACLike(devices[i].Name) {
+					devices[i].Name = s.name
+				} else if isGeneratedDeviceName(devices[i].Name) && !devices[i].namePinned {
+					devices[i].Name = s.name
+					restoredGeneratedName = true
+				}
 			}
-			if s.name != "" && devices[i].Hostname == "" {
+			if s.name != "" && !isGeneratedDeviceName(s.name) && devices[i].Hostname == "" {
 				devices[i].Hostname = s.name
 			}
 			if s.ip != "" && devices[i].IP == "" {
@@ -367,6 +383,9 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 			// manual manda siempre (va en TypeOverride) y una inferencia viva
 			// no genérica ya viaja en Type: el sticky solo rellena el hueco.
 			if devices[i].TypeOverride == "" && devices[i].Type == "desconocido" && s.deviceType != "" {
+				devices[i].Type = s.deviceType
+			}
+			if devices[i].TypeOverride == "" && restoredGeneratedName && s.deviceType != "" {
 				devices[i].Type = s.deviceType
 			}
 		}

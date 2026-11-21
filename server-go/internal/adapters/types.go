@@ -406,6 +406,10 @@ type Device struct {
 	// el override crudo para que la UI de edición pueda mostrarlo y limpiarlo.
 	NameOverride string `json:"nameOverride,omitempty"`
 	TypeOverride string `json:"typeOverride,omitempty"`
+	// namePinned: el nombre viene de una reserva, un alias o una edición manual.
+	// Es interno y nunca viaja en JSON. mDNS no puede sustituirlo por un nombre
+	// automático mejor (#2159).
+	namePinned bool
 	// NotifyOffline (#1354): opt-in del usuario para alertar cuando este
 	// dispositivo se desconecta (override persistido notify_offline).
 	NotifyOffline bool `json:"notifyOffline,omitempty"`
