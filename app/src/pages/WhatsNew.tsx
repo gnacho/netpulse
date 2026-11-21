@@ -20,12 +20,17 @@ import { markWhatsNewSeen } from '@/whatsnew/useWhatsNewSeen'
 const OWN_AUTHOR = 'gnacho'
 
 /**
- * Changelog completo de la app. Hoy vive en el repositorio, y cuando la web
- * tenga su página de cambios multilingüe este es el ÚNICO sitio que cambia:
- * pasará a una función de `i18n.language` que devuelva la ruta del idioma en
- * netpulse.cloudless.club (es en la raíz, el resto en /<lang>/changelog/).
+ * Changelog completo, en la web. La página existe en los idiomas de la app
+ * (español en la raíz, el resto en /<lang>/changelog/) y el resto de idiomas
+ * cae al inglés, que es el idioma en que se escriben las notas.
  */
-const CHANGELOG_URL = 'https://github.com/gnacho/netpulse/blob/main/CHANGELOG.md'
+const CHANGELOG_LANGS = ['es', 'en', 'zh', 'ru']
+function changelogUrl(lang: string): string {
+  const base = String(lang ?? 'en').split('-')[0]?.toLowerCase() ?? 'en'
+  if (base === 'es') return 'https://netpulse.cloudless.club/changelog'
+  if (CHANGELOG_LANGS.includes(base)) return `https://netpulse.cloudless.club/${base}/changelog/`
+  return 'https://netpulse.cloudless.club/en/changelog/'
+}
 
 function Card({ card }: { card: WhatsNewCard }) {
   const { t } = useTranslation()
@@ -71,7 +76,7 @@ function Card({ card }: { card: WhatsNewCard }) {
 }
 
 export function WhatsNew() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const version = useServerVersion()
 
   useEffect(() => {
@@ -105,7 +110,7 @@ export function WhatsNew() {
       <p className="pt-2 text-[11px] text-text-muted">{t('whatsnew.footnote')}</p>
       {/* Todavía en GitHub: la web tendrá su propia página de cambios. */}
       <a
-        href={CHANGELOG_URL}
+        href={changelogUrl(i18n.language)}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-1 text-caption font-medium text-accent transition-colors hover:text-accent/80"
