@@ -142,7 +142,7 @@ while NetPulse maintains only the shared ingest contract.
   alerts marked as urgent; the feed level (none / urgent / all) is configured
   separately in Alerts.
 - **Multi-user**: bcrypt passwords, admin and viewer roles, per-user language
-  (ES/EN).
+  (ES/EN/ZH/RU).
 - **Installable PWA**: phone or desktop, live over SSE, light/dark themes.
 - **A good OpenWrt citizen**: native `netpulse-agent` packages (`.ipk`/`.apk`),
   a `luci-app-netpulse` page, UCI config, procd init with self-heal. Or run the
