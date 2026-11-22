@@ -9,6 +9,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Added
 
+- Remote AdGuard Home connections can use HTTPS, with an explicit opt-in for a private instance's self-signed certificate. Existing configurations keep HTTP and strict certificate verification by default, and `ADGUARD_INSECURE_SKIP_VERIFY=1` provides the same opt-in for environment-based setups (#2167, reported by @tam481).
 - mDNS TXT model and manufacturer metadata can now disambiguate products that share a service. Real fixtures distinguish LG TVs from Marantz speakers over AirPlay, and old agents keep the existing generic behavior (#2158).
 
 ### Fixed

@@ -133,7 +133,7 @@ func canonHealthScore() HealthScore {
 
 func canonAdguard() AdGuardStats {
 	return AdGuardStats{
-		Host: "192.168.8.1", Port: 3000, Status: "active",
+		Scheme: "http", Host: "192.168.8.1", Port: 3000, Status: "active",
 		Queries24h: 84312, Blocked24h: 15687, BlockedPct: 18.6, TrackersBlocked: 9204,
 		// ClientsTotal = IDs únicos del dataset (D5; NewDemo lo re-deriva).
 		DNSLatencyMs: 14, ClientsUsing: 60, ClientsTotal: 65,

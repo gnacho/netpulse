@@ -124,6 +124,46 @@ func TestQueryLogHTTPUsesOlderThanAndLimit(t *testing.T) {
 	}
 }
 
+func TestQueryLogHTTPSCertificatePolicy(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(sampleQueryLog))
+	}))
+	defer srv.Close()
+
+	tests := []struct {
+		name       string
+		insecure   bool
+		useDefault bool
+		wantErr    bool
+	}{
+		{name: "default constructor is strict", useDefault: true, wantErr: true},
+		{name: "explicit strict verification", insecure: false, wantErr: true},
+		{name: "self-signed certificate with explicit opt-in", insecure: true, wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewAdGuardClientWithTLS(srv.URL, "u", "p", tt.insecure)
+			if tt.useDefault {
+				client = NewAdGuardClient(srv.URL, "u", "p")
+			}
+			page, err := client.QueryLog(context.Background(), "", 1000)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("self-signed certificate was accepted without opt-in")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("QueryLog over HTTPS: %v", err)
+			}
+			if len(page.Queries) != 2 {
+				t.Fatalf("queries = %d, want 2", len(page.Queries))
+			}
+		})
+	}
+}
+
 func TestQueryLogConfigParses(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/control/querylog/config" {

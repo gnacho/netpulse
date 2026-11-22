@@ -1888,10 +1888,12 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   const { routers } = useNetPulse()
   const gwIp = routers.find((r) => r.roleBadge === 'Principal')?.ip ?? routers[0]?.ip ?? ''
   const [mode, setMode] = useState<'glinet' | 'standard'>('glinet')
+  const [scheme, setScheme] = useState<'http' | 'https'>('http')
   const [host, setHost] = useState('')
   const [port, setPort] = useState<string>('3000')
   const [user, setUser] = useState('root')
   const [password, setPassword] = useState('')
+  const [insecure, setInsecure] = useState(false)
   const [passSet, setPassSet] = useState(false)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1902,6 +1904,14 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
   // Sin vista hasta que llega la config real: en diálogo, renderizar antes
   // mostraba el form con valores por defecto como si fuera la config.
   const [loaded, setLoaded] = useState(false)
+  const [editSnapshot, setEditSnapshot] = useState<{
+    mode: 'glinet' | 'standard'
+    scheme: 'http' | 'https'
+    host: string
+    port: string
+    user: string
+    insecure: boolean
+  } | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -1911,17 +1921,21 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         if (!res.ok) return
         const json = (await res.json()) as {
           mode: 'glinet' | 'standard'
+          scheme?: 'http' | 'https'
           host: string
           port: number
           user: string
           passSet: boolean
+          insecure?: boolean
         }
         if (disposed) return
         setMode(json.mode || 'glinet')
+        setScheme(json.scheme === 'https' ? 'https' : 'http')
         setHost(json.host || (json.mode === 'glinet' ? gwIp : ''))
         setPort(json.port ? String(json.port) : '3000')
         setUser(json.user || 'root')
         setPassSet(json.passSet)
+        setInsecure(json.insecure === true)
       } catch {
         if (!disposed && gwIp) setHost((h) => h || gwIp)
       } finally {
@@ -1933,7 +1947,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
     }
   }, [gwIp])
 
-  const displayHost = mode === 'glinet' ? host : `${host}:${port}`
+  const displayHost = mode === 'glinet' ? host : `${scheme}://${host}:${port}`
 
   // Detectar (#964): POST /api/config/adguard/detect sondea la presencia de
   // AdGuard Home (gateway primero, luego flota) y pre-rellena mode/host/port.
@@ -1960,6 +1974,8 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
         return
       }
       setMode(json.mode === 'standard' ? 'standard' : 'glinet')
+      setScheme('http')
+      setInsecure(false)
       setHost(json.host)
       setPort(String(json.port || 3000))
       setEditing(true)
@@ -1990,6 +2006,8 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       }
       if (mode === 'standard') {
         payload.port = portNum
+        payload.scheme = scheme
+        payload.insecure = insecure
       }
       const res = await fetch('/api/config/adguard', {
         method: 'PUT',
@@ -1999,6 +2017,7 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
       setPassSet(true)
       setPassword('')
+      setEditSnapshot(null)
       setEditing(false)
       onSaved()
     } catch {
@@ -2020,6 +2039,9 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
       setPassSet(false)
       setPassword('')
       setHost('')
+      setScheme('http')
+      setInsecure(false)
+      setEditSnapshot(null)
       setEditing(false)
       onSaved()
     } catch {
@@ -2049,7 +2071,10 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
           </span>
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              setEditSnapshot({ mode, scheme, host, port, user, insecure })
+              setEditing(true)
+            }}
             aria-label={t('settings.adguard.edit')}
             title={t('settings.adguard.edit')}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-text-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
@@ -2085,6 +2110,21 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             <option value="glinet">{t('settings.adguard.modeGlinet')}</option>
             <option value="standard">{t('settings.adguard.modeStandard')}</option>
           </select>
+          {mode === 'standard' && (
+            <select
+              value={scheme}
+              onChange={(e) => {
+                const next = e.target.value as 'http' | 'https'
+                setScheme(next)
+                if (next === 'http') setInsecure(false)
+              }}
+              aria-label={t('settings.adguard.scheme')}
+              className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+            >
+              <option value="http">HTTP</option>
+              <option value="https">HTTPS</option>
+            </select>
+          )}
           <input
             type="text"
             required
@@ -2125,6 +2165,20 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             className="rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
           />
         </div>
+        {mode === 'standard' && scheme === 'https' && (
+          <label className="mt-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-elevated px-3 py-2.5 text-sm text-text-secondary">
+            <Switch
+              checked={insecure}
+              onCheckedChange={setInsecure}
+              aria-label={t('settings.adguard.insecure')}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="block font-medium text-text-primary">{t('settings.adguard.insecure')}</span>
+              <span className="mt-0.5 block text-caption text-text-muted">{t('settings.adguard.insecureHint')}</span>
+            </span>
+          </label>
+        )}
         <div className="mt-2.5 flex flex-wrap items-center gap-3">
           <span className={cn('flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider', passSet ? 'bg-ok/10 text-ok' : 'bg-warn/10 text-warn')}>
             {passSet ? t('settings.adguard.configured') : t('settings.adguard.notConfigured')}
@@ -2149,6 +2203,15 @@ function AdGuardManager({ reduce, onSaved }: { reduce: boolean; onSaved: () => v
             <button
               type="button"
               onClick={() => {
+                if (editSnapshot) {
+                  setMode(editSnapshot.mode)
+                  setScheme(editSnapshot.scheme)
+                  setHost(editSnapshot.host)
+                  setPort(editSnapshot.port)
+                  setUser(editSnapshot.user)
+                  setInsecure(editSnapshot.insecure)
+                }
+                setEditSnapshot(null)
                 setEditing(false)
                 setPassword('')
                 setError(null)

@@ -5,6 +5,7 @@ package adapters
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -25,13 +26,44 @@ type AdGuardClient struct {
 	hc   *http.Client
 }
 
-// NewAdGuardClient crea el cliente estándar.
+// NewAdGuardClient crea el cliente estándar con verificación TLS estricta.
 func NewAdGuardClient(rawURL, user, pass string) *AdGuardClient {
+	return NewAdGuardClientWithTLS(rawURL, user, pass, false)
+}
+
+// NewAdGuardClientWithTLS permite autofirmados solo con consentimiento explícito.
+func NewAdGuardClientWithTLS(rawURL, user, pass string, insecure bool) *AdGuardClient {
+	hc := &http.Client{Timeout: adguardHTTPTimeout}
+	if insecure {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true, //nolint:gosec // Explicit user opt-in for a private AdGuard instance.
+		}
+		hc.Transport = transport
+	}
 	return &AdGuardClient{
 		url:  rawURL,
 		auth: "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+pass)),
-		hc:   &http.Client{Timeout: adguardHTTPTimeout},
+		hc:   hc,
 	}
+}
+
+func (c *AdGuardClient) endpoint() (scheme, host string, port int) {
+	scheme, port = "http", 80
+	u, err := url.Parse(c.url)
+	if err != nil {
+		return scheme, "", port
+	}
+	if u.Scheme == "https" {
+		scheme, port = "https", 443
+	}
+	if p := u.Port(); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			port = n
+		}
+	}
+	return scheme, u.Hostname(), port
 }
 
 func (c *AdGuardClient) get(ctx context.Context, path string, dst any) error {
@@ -94,14 +126,7 @@ func (c *AdGuardClient) GetStats(ctx context.Context) (*AdGuardStats, error) {
 	queries := stats.NumDNSQueries
 	blocked := stats.NumBlockedFiltering
 
-	u, _ := url.Parse(c.url)
-	host := u.Hostname()
-	port := 80
-	if p := u.Port(); p != "" {
-		if n, err := strconv.Atoi(p); err == nil {
-			port = n
-		}
-	}
+	scheme, host, port := c.endpoint()
 
 	blockedPct := 0.0
 	if queries > 0 {
@@ -128,7 +153,7 @@ func (c *AdGuardClient) GetStats(ctx context.Context) (*AdGuardStats, error) {
 	}
 
 	return &AdGuardStats{
-		Host: host, Port: port, Status: status2,
+		Scheme: scheme, Host: host, Port: port, Status: status2,
 		Queries24h: queries, Blocked24h: blocked, BlockedPct: blockedPct,
 		TrackersBlocked: trackers,
 		DNSLatencyMs:    int(math.Round(stats.AvgProcessingTime * 1000)),

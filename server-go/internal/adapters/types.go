@@ -123,6 +123,7 @@ type TopBlocked struct {
 // AdGuardStats (SPEC §7.3/§7.4). El fallback inactivo es el valor cero con
 // Status "inactive" (host "" y port 0 si no configurado).
 type AdGuardStats struct {
+	Scheme          string       `json:"scheme,omitempty"`
 	Host            string       `json:"host"`
 	Port            int          `json:"port"`
 	Status          string       `json:"status"` // "active"|"inactive"

@@ -420,6 +420,9 @@ func TestAdGuardConfigPort(t *testing.T) {
 	if body["port"].(float64) != 80 {
 		t.Fatalf("port esperado 80, got %v", body["port"])
 	}
+	if body["scheme"] != "http" || body["insecure"] != false {
+		t.Fatalf("legacy config must default to strict HTTP: %+v", body)
+	}
 
 	// Puerto explícito tiene prioridad sobre host:port
 	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
@@ -452,6 +455,95 @@ func TestAdGuardConfigPort(t *testing.T) {
 	body = readJSON(t, res)
 	if body["mode"] != "glinet" || body["host"] != "" || body["port"] != float64(0) {
 		t.Fatalf("glinet host vacío no se guardó: %+v", body)
+	}
+}
+
+// TestAdGuardConfigHTTPS covers persistence of the scheme and self-signed policy.
+func TestAdGuardConfigHTTPS(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","scheme":"https","host":"adguard.example.com","port":8443,"user":"admin","password":"secret","insecure":true}`)
+	if res.StatusCode != 204 {
+		body := readJSON(t, res)
+		t.Fatalf("PUT adguard HTTPS: %d %v", res.StatusCode, body)
+	}
+
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("GET adguard HTTPS: %d", res.StatusCode)
+	}
+	body := readJSON(t, res)
+	if body["scheme"] != "https" || body["insecure"] != true {
+		t.Fatalf("HTTPS config was not preserved: %+v", body)
+	}
+	if _, exposed := body["password"]; exposed {
+		t.Fatalf("password exposed in response: %+v", body)
+	}
+}
+
+func TestAdGuardConfigLegacyPUTPreservesHTTPS(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","scheme":"https","host":"adguard.example.com","port":8443,"user":"admin","password":"secret","insecure":true}`)
+	if res.StatusCode != 204 {
+		t.Fatalf("PUT initial HTTPS: %d", res.StatusCode)
+	}
+	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","host":"adguard.example.com","port":8443,"user":"admin"}`)
+	if res.StatusCode != 204 {
+		t.Fatalf("PUT legacy shape: %d", res.StatusCode)
+	}
+
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body := readJSON(t, res)
+	if body["scheme"] != "https" || body["insecure"] != true {
+		t.Fatalf("legacy PUT changed TLS policy: %+v", body)
+	}
+}
+
+func TestAdGuardConfigPUTRollsBackPartialFailure(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","host":"old.example.com","port":3000,"user":"oldadmin","password":"secret"}`)
+	if res.StatusCode != 204 {
+		t.Fatalf("PUT initial config: %d", res.StatusCode)
+	}
+	_, err := srv.db.Exec(`CREATE TRIGGER fail_adguard_user_update
+		BEFORE UPDATE ON kv
+		WHEN NEW.key = 'adguard_user' AND NEW.value = 'newadmin'
+		BEGIN SELECT RAISE(FAIL, 'forced AdGuard test failure'); END;`)
+	if err != nil {
+		t.Fatalf("create failure trigger: %v", err)
+	}
+
+	res = doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","scheme":"https","host":"new.example.com","port":8443,"user":"newadmin","password":"newsecret","insecure":true}`)
+	if res.StatusCode != 500 {
+		t.Fatalf("PUT with forced failure: status = %d, want 500", res.StatusCode)
+	}
+
+	res = doReq(t, "GET", srv.URL+"/api/config/adguard", cookie, "")
+	body := readJSON(t, res)
+	if body["host"] != "old.example.com" || body["port"] != float64(3000) || body["user"] != "oldadmin" || body["scheme"] != "http" || body["insecure"] != false {
+		t.Fatalf("partial configuration survived rollback: %+v", body)
+	}
+}
+
+func TestAdGuardConfigRejectsInvalidScheme(t *testing.T) {
+	srv := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, srv.URL, "admin", "test123456")
+
+	res := doReq(t, "PUT", srv.URL+"/api/config/adguard", cookie,
+		`{"mode":"standard","scheme":"ftp","host":"adguard.example.com","port":8443,"user":"admin","password":"secret"}`)
+	if res.StatusCode != 400 {
+		body := readJSON(t, res)
+		t.Fatalf("invalid scheme: status = %d, want 400 (%v)", res.StatusCode, body)
 	}
 }
 

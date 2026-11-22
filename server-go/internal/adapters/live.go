@@ -1017,10 +1017,18 @@ func (l *Live) getAdguardClient() (std *AdGuardClient, gl *AdGuardGlinetClient) 
 					if p, err := strconv.Atoi(portStr); err == nil && p > 0 {
 						port = p
 					}
-					url := fmt.Sprintf("http://%s:%d", host, port)
-					key = "std|" + url + "|" + user
+					scheme := "http"
+					_ = l.db.QueryRow("SELECT value FROM kv WHERE key='adguard_scheme'").Scan(&scheme)
+					if scheme != "https" {
+						scheme = "http"
+					}
+					var insecureValue string
+					_ = l.db.QueryRow("SELECT value FROM kv WHERE key='adguard_insecure'").Scan(&insecureValue)
+					insecure := scheme == "https" && insecureValue == "1"
+					url := fmt.Sprintf("%s://%s:%d", scheme, host, port)
+					key = "std|" + url + "|" + user + "|" + strconv.FormatBool(insecure)
 					if l.agKey != key {
-						l.agStd = NewAdGuardClient(url, user, pass)
+						l.agStd = NewAdGuardClientWithTLS(url, user, pass, insecure)
 						l.agGL = nil
 					}
 				} else {
@@ -1036,7 +1044,7 @@ func (l *Live) getAdguardClient() (std *AdGuardClient, gl *AdGuardGlinetClient) 
 	if key == "" && l.cfg.Adguard != nil && l.cfg.Adguard.Pass != "" {
 		key = "std|" + l.cfg.Adguard.URL
 		if l.agKey != key {
-			l.agStd = NewAdGuardClient(l.cfg.Adguard.URL, l.cfg.Adguard.User, l.cfg.Adguard.Pass)
+			l.agStd = NewAdGuardClientWithTLS(l.cfg.Adguard.URL, l.cfg.Adguard.User, l.cfg.Adguard.Pass, l.cfg.Adguard.InsecureSkipVerify)
 			l.agGL = nil
 		}
 	}
@@ -3271,21 +3279,11 @@ func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
 	var err error
 	host := ""
 	if std != nil {
-		u := std.url
-		if i := strings.Index(u, "://"); i >= 0 {
-			u = u[i+3:]
-		}
-		host = strings.SplitN(u, ":", 2)[0]
+		scheme, host, port := std.endpoint()
 		stats, err = std.GetStats(ctx)
 		if err != nil {
-			port := 3000
-			if len(u) > len(host)+1 {
-				if p, err := strconv.Atoi(u[len(host)+1:]); err == nil && p > 0 {
-					port = p
-				}
-			}
 			return &AdGuardStats{
-				Host: host, Port: port, Status: "inactive",
+				Scheme: scheme, Host: host, Port: port, Status: "inactive",
 				TopBlocked: []TopBlocked{},
 			}
 		}
@@ -3297,7 +3295,7 @@ func (l *Live) pollAdGuard(ctx context.Context) *AdGuardStats {
 	if err != nil {
 		log.Printf("[netpulse] AdGuard inalcanzable: %v", err)
 		return &AdGuardStats{
-			Host: host, Port: 3000, Status: "inactive",
+			Scheme: "http", Host: host, Port: 3000, Status: "inactive",
 			TopBlocked: []TopBlocked{},
 		}
 	}

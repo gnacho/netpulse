@@ -62,10 +62,11 @@ func TestUCIUnquote(t *testing.T) {
 
 func TestApplyUCIEnvPrecedencia(t *testing.T) {
 	vals := map[string]string{
-		"port":        "3100",
-		"auth_user":   "uci-user",
-		"auto_rearm":  "1",
-		"desconocida": "x", // fuera de la allowlist: nunca se inyecta
+		"port":                         "3100",
+		"auth_user":                    "uci-user",
+		"auto_rearm":                   "1",
+		"adguard_insecure_skip_verify": "1",
+		"desconocida":                  "x", // fuera de la allowlist: nunca se inyecta
 	}
 	env := map[string]string{
 		"AUTH_USER": "env-user", // ya presente: UCI no pisa
@@ -84,11 +85,19 @@ func TestApplyUCIEnvPrecedencia(t *testing.T) {
 	if env["NETPULSE_AUTO_REARM"] != "1" {
 		t.Errorf("NETPULSE_AUTO_REARM = %q, esperaba 1 (mapeo auto_rearm)", env["NETPULSE_AUTO_REARM"])
 	}
+	if env["ADGUARD_INSECURE_SKIP_VERIFY"] != "1" {
+		t.Errorf("ADGUARD_INSECURE_SKIP_VERIFY = %q, esperaba 1", env["ADGUARD_INSECURE_SKIP_VERIFY"])
+	}
+	env["ADGUARD_INSECURE_SKIP_VERIFY"] = "0"
+	applyUCIEnv(vals, lookup, set)
+	if env["ADGUARD_INSECURE_SKIP_VERIFY"] != "0" {
+		t.Errorf("el entorno existente debe ganar a UCI: %q", env["ADGUARD_INSECURE_SKIP_VERIFY"])
+	}
 	if _, ok := env["DESCONOCIDA"]; ok {
 		t.Error("una opción fuera de la allowlist no debe llegar al entorno")
 	}
-	if len(env) != 3 {
-		t.Errorf("entorno final con %d claves, esperaba 3: %v", len(env), env)
+	if len(env) != 4 {
+		t.Errorf("entorno final con %d claves, esperaba 4: %v", len(env), env)
 	}
 }
 
