@@ -692,21 +692,29 @@ func (s *server) handleGetAdguardConfig(w http.ResponseWriter, r *http.Request) 
 	if p, err := strconv.Atoi(portStr); err == nil {
 		port = p
 	}
+	scheme := kvGet(s.db.DB, "adguard_scheme")
+	if scheme == "" {
+		scheme = "http"
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"mode":    mode,
-		"host":    kvGet(s.db.DB, "adguard_host"),
-		"port":    port,
-		"user":    user,
-		"passSet": kvGet(s.db.DB, "adguard_pass") != "",
+		"mode":     mode,
+		"scheme":   scheme,
+		"host":     kvGet(s.db.DB, "adguard_host"),
+		"port":     port,
+		"user":     user,
+		"passSet":  kvGet(s.db.DB, "adguard_pass") != "",
+		"insecure": kvGet(s.db.DB, "adguard_insecure") == "1",
 	})
 }
 
 type adguardInput struct {
 	Mode     string  `json:"mode"`
+	Scheme   *string `json:"scheme"`
 	Host     *string `json:"host"`
 	Port     int     `json:"port"`
 	User     string  `json:"user"`
 	Password string  `json:"password"`
+	Insecure *bool   `json:"insecure"`
 }
 
 // PUT /api/config/adguard — upsert en kv (password solo si viene). 204.
@@ -730,7 +738,27 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 	}
 	host := strings.TrimSpace(*in.Host)
 	port := 0
+	scheme := "http"
+	insecure := false
 	if mode == "standard" {
+		scheme = kvGet(s.db.DB, "adguard_scheme")
+		if in.Scheme != nil {
+			scheme = strings.ToLower(strings.TrimSpace(*in.Scheme))
+		}
+		if scheme == "" {
+			scheme = "http"
+		}
+		if scheme != "http" && scheme != "https" {
+			writeError(w, http.StatusBadRequest, "invalid_input", "Invalid enum value. Expected 'http' | 'https'")
+			return
+		}
+		insecure = kvGet(s.db.DB, "adguard_insecure") == "1"
+		if in.Insecure != nil {
+			insecure = *in.Insecure
+		}
+		if scheme != "https" {
+			insecure = false
+		}
 		hostFromVal, portFromHost, msg := validateAdGuardHost(host)
 		if msg != "" {
 			writeError(w, http.StatusBadRequest, "invalid_input", msg)
@@ -761,49 +789,82 @@ func (s *server) handlePutAdguardConfig(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "invalid_input", "String must contain at most 128 character(s)")
 		return
 	}
-	upsert := "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-	if _, err := s.db.Exec(upsert, "adguard_mode", mode); err != nil {
+	tx, err := s.db.DB.BeginTx(r.Context(), nil)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
-	if _, err := s.db.Exec(upsert, "adguard_host", host); err != nil {
+	defer tx.Rollback()
+	upsert := "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+	if _, err := tx.Exec(upsert, "adguard_mode", mode); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	if _, err := tx.Exec(upsert, "adguard_host", host); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
 	if mode == "standard" {
-		if _, err := s.db.Exec(upsert, "adguard_port", strconv.Itoa(port)); err != nil {
+		if _, err := tx.Exec(upsert, "adguard_port", strconv.Itoa(port)); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		if _, err := tx.Exec(upsert, "adguard_scheme", scheme); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error")
+			return
+		}
+		insecureValue := "0"
+		if insecure {
+			insecureValue = "1"
+		}
+		if _, err := tx.Exec(upsert, "adguard_insecure", insecureValue); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
 	} else {
-		if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", "adguard_port"); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error")
-			return
+		for _, key := range []string{"adguard_port", "adguard_scheme", "adguard_insecure"} {
+			if _, err := tx.Exec("DELETE FROM kv WHERE key = ?", key); err != nil {
+				writeError(w, http.StatusInternalServerError, "internal_error")
+				return
+			}
 		}
 	}
-	if _, err := s.db.Exec(upsert, "adguard_user", user); err != nil {
+	if _, err := tx.Exec(upsert, "adguard_user", user); err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
 	if in.Password != "" {
-		if _, err := s.db.Exec(upsert, "adguard_pass", in.Password); err != nil {
+		if _, err := tx.Exec(upsert, "adguard_pass", in.Password); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // DELETE /api/config/adguard - desactiva AdGuard Home (#813): borra la config
-// (mode/host/user/pass/port) para que deje de sondearse y de penalizar la
-// salud (el poller devuelve nil y computeHealth ya no resta "AdGuard inactivo").
-// Idempotente: 204 aunque no hubiera nada configurado.
+// (mode/host/user/pass/port/scheme/insecure) para que deje de sondearse y de
+// penalizar la salud. Idempotente: 204 aunque no hubiera nada configurado.
 func (s *server) handleDeleteAdguardConfig(w http.ResponseWriter, r *http.Request) {
-	for _, k := range []string{"adguard_mode", "adguard_host", "adguard_user", "adguard_pass", "adguard_port"} {
-		if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", k); err != nil {
+	tx, err := s.db.DB.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	defer tx.Rollback()
+	for _, k := range []string{"adguard_mode", "adguard_host", "adguard_user", "adguard_pass", "adguard_port", "adguard_scheme", "adguard_insecure"} {
+		if _, err := tx.Exec("DELETE FROM kv WHERE key = ?", k); err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error")
 			return
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
 	}
 	if s.pollNow != nil {
 		s.pollNow()

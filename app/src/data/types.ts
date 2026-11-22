@@ -169,6 +169,7 @@ export interface HealthScore {
 }
 
 export interface AdGuardStats {
+  scheme?: 'http' | 'https'
   host: string
   port: number
   status: 'active' | 'inactive'

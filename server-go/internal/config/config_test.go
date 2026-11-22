@@ -217,6 +217,55 @@ func TestLoadAllowInsecureAgentCommands(t *testing.T) {
 	}
 }
 
+func TestLoadAdGuardInsecureSkipVerify(t *testing.T) {
+	base := map[string]string{
+		"AUTH_PASS":   "segura-y-larga",
+		"ADGUARD_URL": "https://adguard.example.com:8443",
+	}
+	cfg, err := Load(base, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load default: %v", err)
+	}
+	if cfg.Adguard == nil || cfg.Adguard.InsecureSkipVerify {
+		t.Fatalf("AdGuard default = %+v, want strict certificate verification", cfg.Adguard)
+	}
+
+	strictZero := map[string]string{
+		"AUTH_PASS":                    "segura-y-larga",
+		"ADGUARD_URL":                  "https://adguard.example.com:8443",
+		"ADGUARD_INSECURE_SKIP_VERIFY": "0",
+	}
+	cfg, err = Load(strictZero, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load explicit zero: %v", err)
+	}
+	if cfg.Adguard == nil || cfg.Adguard.InsecureSkipVerify {
+		t.Fatalf("AdGuard explicit zero = %+v, want strict certificate verification", cfg.Adguard)
+	}
+
+	withOptIn := map[string]string{
+		"AUTH_PASS":                    "segura-y-larga",
+		"ADGUARD_URL":                  "https://adguard.example.com:8443",
+		"ADGUARD_INSECURE_SKIP_VERIFY": "1",
+	}
+	cfg, err = Load(withOptIn, t.TempDir())
+	if err != nil {
+		t.Fatalf("Load opt-in: %v", err)
+	}
+	if cfg.Adguard == nil || !cfg.Adguard.InsecureSkipVerify {
+		t.Fatalf("AdGuard opt-in = %+v, want InsecureSkipVerify=true", cfg.Adguard)
+	}
+
+	invalid := map[string]string{
+		"AUTH_PASS":                    "segura-y-larga",
+		"ADGUARD_URL":                  "https://adguard.example.com:8443",
+		"ADGUARD_INSECURE_SKIP_VERIFY": "yes",
+	}
+	if _, err := Load(invalid, t.TempDir()); err == nil || !strings.Contains(err.Error(), "ADGUARD_INSECURE_SKIP_VERIFY") {
+		t.Fatalf("invalid value must name ADGUARD_INSECURE_SKIP_VERIFY: %v", err)
+	}
+}
+
 func TestLoadTLSCertKeyPareja(t *testing.T) {
 	cfg, err := Load(map[string]string{
 		"AUTH_PASS": "segura-y-larga", "NETPULSE_TLS_ENABLED": "1",

@@ -161,7 +161,7 @@ func (c *AdGuardGlinetClient) queryStats(ctx context.Context) (*AdGuardStats, er
 		}
 	}
 	return &AdGuardStats{
-		Host: c.Host, Port: 3000, Status: "active",
+		Scheme: "http", Host: c.Host, Port: 3000, Status: "active",
 		Queries24h: total, Blocked24h: blocked, BlockedPct: blockedPct,
 		TrackersBlocked: 0,
 		DNSLatencyMs:    int(math.Round(data.AvgProcessingTime * 1000)),

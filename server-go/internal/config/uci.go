@@ -51,6 +51,7 @@ var uciEnvMap = []struct{ uci, env string }{
 	{"adguard_url", "ADGUARD_URL"},
 	{"adguard_user", "ADGUARD_USER"},
 	{"adguard_pass", "ADGUARD_PASS"},
+	{"adguard_insecure_skip_verify", "ADGUARD_INSECURE_SKIP_VERIFY"},
 	{"webhook_url", "WEBHOOK_URL"},
 	{"webhook_secret", "WEBHOOK_SECRET"},
 	{"agent_max_ts_drift_s", "AGENT_MAX_TS_DRIFT_S"},

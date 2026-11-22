@@ -116,7 +116,7 @@ export function AdGuardCard({ index = 0 }: { index?: number }) {
         footer={
           adguard.host ? (
             <a
-              href={`http://${adguard.host}:${adguard.port}`}
+              href={`${adguard.scheme ?? 'http'}://${adguard.host}:${adguard.port}`}
               target="_blank"
               rel="noreferrer"
               className="group inline-flex items-center gap-1.5 text-caption font-semibold text-text-secondary transition-colors hover:text-accent"

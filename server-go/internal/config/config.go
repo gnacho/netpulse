@@ -52,9 +52,10 @@ type RouterSeed struct {
 
 // AdGuard configura el cliente estándar (env). Nil si no hay ADGUARD_URL.
 type AdGuard struct {
-	URL  string
-	User string
-	Pass string
+	URL                string
+	User               string
+	Pass               string
+	InsecureSkipVerify bool
 }
 
 // Webhook configura el notificador saliente de alertas (Fase 8.7b). Vacío si
@@ -508,7 +509,22 @@ func Load(env map[string]string, serverRoot string) (*Config, error) {
 			if w, ok := env["ADGUARD_USER"]; ok && w != "" {
 				user = w
 			}
-			adguard = &AdGuard{URL: strings.TrimSuffix(v, "/"), User: user, Pass: env["ADGUARD_PASS"]}
+			insecureSkipVerify := false
+			if w, ok := env["ADGUARD_INSECURE_SKIP_VERIFY"]; ok && w != "" {
+				switch w {
+				case "0":
+				case "1":
+					insecureSkipVerify = true
+				default:
+					errs.issues = append(errs.issues, issue{"ADGUARD_INSECURE_SKIP_VERIFY", "Invalid enum value. Expected '0' | '1'"})
+				}
+			}
+			adguard = &AdGuard{
+				URL:                strings.TrimSuffix(v, "/"),
+				User:               user,
+				Pass:               env["ADGUARD_PASS"],
+				InsecureSkipVerify: insecureSkipVerify,
+			}
 		}
 	}
 
