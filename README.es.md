@@ -148,7 +148,7 @@ lo valida, mientras NetPulse mantiene solo el contrato común de ingesta.
   de aviso solo llevan las alertas marcadas como urgentes; el nivel del feed
   (ninguna / urgentes / todas) se configura aparte en Alertas.
 - **Multiusuario**: contraseñas bcrypt, roles admin y viewer, idioma por
-  usuario (ES/EN).
+  usuario (ES/EN/ZH/RU).
 - **PWA instalable**: móvil o escritorio, en vivo por SSE, temas claro/oscuro.
 - **Ciudadano OpenWrt de primera**: paquetes nativos `netpulse-agent`
   (`.ipk`/`.apk`), página `luci-app-netpulse`, config UCI, init procd
