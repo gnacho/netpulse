@@ -199,12 +199,14 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 	// reaparece sin mDNS no pise el nombre y el tipo buenos del registro.
 	existing := map[string]bool{}
 	retainedNames := map[string]string{}
-	if rows, err := l.db.Query("SELECT mac, COALESCE(name, '') FROM device_seen"); err == nil {
+	retainedSources := map[string]string{}
+	if rows, err := l.db.Query("SELECT mac, COALESCE(name, ''), COALESCE(name_source, '') FROM device_seen"); err == nil {
 		for rows.Next() {
-			var m, name string
-			if rows.Scan(&m, &name) == nil {
+			var m, name, source string
+			if rows.Scan(&m, &name, &source) == nil {
 				existing[m] = true
 				retainedNames[m] = name
+				retainedSources[m] = source
 			}
 		}
 		rows.Close()
@@ -215,11 +217,12 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 		return nil
 	}
 	defer tx.Rollback() //nolint:errcheck // no-op tras Commit
-	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name, ip, device_type) VALUES (?, ?, ?, ?, ?, ?)
+	stmt, err := tx.Prepare(`INSERT INTO device_seen (mac, first_seen, last_seen, name, ip, device_type, name_source) VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(mac) DO UPDATE SET last_seen = excluded.last_seen,
 			name = CASE WHEN excluded.name != '' THEN excluded.name ELSE device_seen.name END,
 			ip = CASE WHEN excluded.ip != '' THEN excluded.ip ELSE device_seen.ip END,
-			device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE device_seen.device_type END`)
+			device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE device_seen.device_type END,
+			name_source = CASE WHEN excluded.name_source != '' THEN excluded.name_source ELSE device_seen.name_source END`)
 	if err != nil {
 		return nil
 	}
@@ -244,10 +247,15 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 			name = d.Name
 		}
 		deviceType := inferredDeviceType(d)
+		nameSource := d.NameSource
+		if nameSource == "" && name != "" && retainedNames[mac] == name && retainedSources[mac] != "" {
+			nameSource = retainedSources[mac]
+		}
 		if name == "" && !d.namePinned && isGeneratedDeviceName(d.Name) && retainedNames[mac] != "" && !isGeneratedDeviceName(retainedNames[mac]) {
 			// A transient loss of mDNS brought the DHCP placeholder back. Empty
 			// name and type make the upsert keep the better retained identity.
 			deviceType = ""
+			nameSource = ""
 		}
 		// #1818: el alta guarda el primer avistamiento real, no el del ciclo en
 		// que el cliente supero el minuto de permanencia.
@@ -255,7 +263,7 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 		if d.FirstSeenMs > 0 && d.FirstSeenMs < nowMs {
 			first = d.FirstSeenMs
 		}
-		if _, err := stmt.Exec(mac, first, nowMs, name, saneIP(d.IP), deviceType); err != nil {
+		if _, err := stmt.Exec(mac, first, nowMs, name, saneIP(d.IP), deviceType, nameSource); err != nil {
 			return nil
 		}
 		// #1323: primera vez CON nombre (los sin nombre los cubre
@@ -377,6 +385,9 @@ func (l *Live) applyDeviceSeen(devices []Device) {
 			if s.ip != "" && devices[i].IP == "" {
 				devices[i].IP = saneIP(s.ip)
 			}
+			if s.nameSource != "" {
+				devices[i].NameSource = s.nameSource
+			}
 			// #1315: stickiness del tipo. La clasificación viva se rehizo con
 			// el nombre ya degradado y cayó en "desconocido": se conserva el
 			// último tipo inferido (no override) del registro. Un override
@@ -396,6 +407,7 @@ type seenRow struct {
 	first, last int64
 	name, ip    string
 	deviceType  string
+	nameSource  string
 }
 
 // isNewToday: el registro (#954) se abrió en el día local del server. Mismo
@@ -444,7 +456,7 @@ func countNewToday(devices []Device) int {
 // #1315: un nombre con forma de MAC (BDs contaminadas por ciclos previos)
 // se devuelve vacío: nunca se restaura ni emite una MAC como nombre.
 func (l *Live) seenByMac() (map[string]seenRow, error) {
-	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, ''), COALESCE(ip, ''), COALESCE(device_type, '') FROM device_seen`)
+	rows, err := l.db.DB.Query(`SELECT mac, first_seen, last_seen, COALESCE(name, ''), COALESCE(ip, ''), COALESCE(device_type, ''), COALESCE(name_source, '') FROM device_seen`)
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +465,7 @@ func (l *Live) seenByMac() (map[string]seenRow, error) {
 	for rows.Next() {
 		var mac string
 		var s seenRow
-		if err := rows.Scan(&mac, &s.first, &s.last, &s.name, &s.ip, &s.deviceType); err != nil {
+		if err := rows.Scan(&mac, &s.first, &s.last, &s.name, &s.ip, &s.deviceType, &s.nameSource); err != nil {
 			return nil, err
 		}
 		if isMACLike(s.name) {
@@ -522,6 +534,7 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 			Band:        "—",
 			FirstSeenMs: s.first,
 			LastSeenMs:  s.last,
+			NameSource:  s.nameSource,
 			IsNew:       s.isNewToday(now),
 			NewThisWeek: s.isNewThisWeek(now),
 		}
@@ -546,6 +559,7 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 			if ov.Name != "" {
 				d.Name = ov.Name
 				d.NameOverride = ov.Name
+				d.NameSource = "manual"
 			}
 			if ov.DeviceType != "" {
 				d.Type = ov.DeviceType

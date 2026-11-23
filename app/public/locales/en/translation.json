@@ -453,6 +453,16 @@
     "copyIp": "Copy IP",
     "detail": {
       "linkedMacs": "Linked MACs",
+      "nameSource": "Name source",
+      "source": {
+        "dhcp": "DHCP",
+        "mdns": "mDNS",
+        "rdns": "Reverse DNS",
+        "reservation": "DHCP reservation",
+        "known_mac": "Known MAC alias",
+        "glinet": "GL.iNet",
+        "manual": "Manual"
+      },
       "dhcpLease": "DHCP lease",
       "firstSeen": "First seen",
       "lastSeen": "Last seen",

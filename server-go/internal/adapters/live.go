@@ -4053,8 +4053,10 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			switch {
 			case lease.Hostname != "":
 				d.Name = lease.Hostname
+				d.NameSource = "dhcp"
 			case hasRes && res.Name != "":
 				d.Name = res.Name
+				d.NameSource = "reservation"
 			default:
 				d.Name = mac
 			}
@@ -4074,6 +4076,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			if hasRes {
 				if res.Name != "" {
 					d.Name = res.Name
+					d.NameSource = "reservation"
 				}
 				d.IP = res.IP
 			}
@@ -4083,6 +4086,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				d.IP = gl.IP
 				if gl.Hostname != "" {
 					d.Name = gl.Hostname
+					d.NameSource = "glinet"
 				}
 			}
 		}
@@ -4100,6 +4104,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		// alias (Name != MAC) el dispositivo deja de ser "desconocido".
 		if alias, ok := knownMacs[mac]; ok && alias != "" {
 			d.Name = alias
+			d.NameSource = "known_mac"
 			d.namePinned = true
 		}
 		// issue #437/#797: overrides manuales (icono, nombre) se aplican sobre
@@ -4112,6 +4117,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 			if ov.Name != "" {
 				d.Name = ov.Name
 				d.NameOverride = ov.Name
+				d.NameSource = "manual"
 				d.namePinned = true
 			}
 		}
@@ -4138,6 +4144,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 				if !d.namePinned && !isGeneratedDeviceName(host) && (d.Name == mac || isGeneratedDeviceName(d.Name)) {
 					previousName := d.Name
 					d.Name = host
+					d.NameSource = "mdns"
 					// The first guess only had the MAC or a placeholder. Let the
 					// mDNS hostname feed the same rules without replacing other evidence.
 					if d.Type == "desconocido" || isGeneratedDeviceName(previousName) {
@@ -4150,6 +4157,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		if d.Name == mac && d.IP != "" {
 			if host := l.rdns.Name(d.IP); host != "" {
 				d.Name = host
+				d.NameSource = "rdns"
 				// The type above was guessed from the MAC, which says
 				// nothing. Guess it again now that there is a hostname.
 				d.Type = GuessDeviceType(d.Name, d.Manufacturer, vendorClass, clientID, lldpCapsByMac[mac])

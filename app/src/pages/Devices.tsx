@@ -931,6 +931,9 @@ function DeviceDetail({
       <DetailItem label="Hostname" mono>
         {device.hostname || <span className="text-text-muted">—</span>}
       </DetailItem>
+      <DetailItem label={t('devices.detail.nameSource')}>
+        {device.nameSource ? t(`devices.detail.source.${device.nameSource}`) : <span className="text-text-muted">—</span>}
+      </DetailItem>
       {hasAdGuard && (
         <div className="min-w-0">
           <div className="text-label uppercase text-text-muted">AdGuard</div>

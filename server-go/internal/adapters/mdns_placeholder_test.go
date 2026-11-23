@@ -19,42 +19,47 @@ func TestBuildDevicesMdnsReplacesOnlyUnpinnedPlaceholders(t *testing.T) {
 		overrideType    string
 		wantName        string
 		wantType        string
+		wantSource      string
 	}{
 		{
-			name:     "mDNS name replaces an Android DHCP placeholder",
-			mac:      "02:00:00:00:10:01",
-			ip:       "192.0.2.101",
-			dhcpName: "android-7F3A9C2D",
-			mdnsName: "iPhone-de-Nacho",
-			wantName: "iPhone-de-Nacho",
-			wantType: "movil",
+			name:       "mDNS name replaces an Android DHCP placeholder",
+			mac:        "02:00:00:00:10:01",
+			ip:         "192.0.2.101",
+			dhcpName:   "android-7F3A9C2D",
+			mdnsName:   "iPhone-de-Nacho",
+			wantName:   "iPhone-de-Nacho",
+			wantType:   "movil",
+			wantSource: "mdns",
 		},
 		{
-			name:     "mDNS name and type replace an Android DHCP placeholder",
-			mac:      "02:00:00:00:10:02",
-			ip:       "192.0.2.102",
-			dhcpName: "android-7F3A9C2D",
-			mdnsName: "roomba-cocina",
-			wantName: "roomba-cocina",
-			wantType: "aspirador",
+			name:       "mDNS name and type replace an Android DHCP placeholder",
+			mac:        "02:00:00:00:10:02",
+			ip:         "192.0.2.102",
+			dhcpName:   "android-7F3A9C2D",
+			mdnsName:   "roomba-cocina",
+			wantName:   "roomba-cocina",
+			wantType:   "aspirador",
+			wantSource: "mdns",
 		},
 		{
-			name:     "meaningful DHCP hostname stays",
-			mac:      "02:00:00:00:10:03",
-			ip:       "192.0.2.103",
-			dhcpName: "laptop-ana",
-			mdnsName: "roomba-cocina",
-			wantName: "laptop-ana",
-			wantType: "portatil",
+			name:       "meaningful DHCP hostname stays",
+			mac:        "02:00:00:00:10:03",
+			ip:         "192.0.2.103",
+			dhcpName:   "laptop-ana",
+			mdnsName:   "roomba-cocina",
+			wantName:   "laptop-ana",
+			wantType:   "portatil",
+			wantSource: "dhcp",
 		},
 		{
-			name:     "mDNS placeholder cannot replace a meaningful DHCP hostname",
-			mac:      "02:00:00:00:10:04",
-			ip:       "192.0.2.104",
-			dhcpName: "laptop-ana",
-			mdnsName: "android-7F3A9C2D",
-			wantName: "laptop-ana",
-			wantType: "portatil",
+			name:       "mDNS placeholder cannot replace a meaningful DHCP hostname",
+			mac:        "02:00:00:00:10:04",
+			ip:         "192.0.2.104",
+			dhcpName:   "laptop-ana",
+			mdnsName:   "android-7F3A9C2D",
+			wantName:   "laptop-ana",
+			wantType:   "portatil",
+			wantSource: "dhcp",
 		},
 		{
 			name:            "DHCP reservation name stays",
@@ -64,15 +69,17 @@ func TestBuildDevicesMdnsReplacesOnlyUnpinnedPlaceholders(t *testing.T) {
 			reservationName: "Reserva Ana",
 			wantName:        "Reserva Ana",
 			wantType:        "desconocido",
+			wantSource:      "reservation",
 		},
 		{
-			name:      "known MAC alias stays",
-			mac:       "02:00:00:00:10:06",
-			ip:        "192.0.2.106",
-			mdnsName:  "roomba-cocina",
-			aliasName: "Alias Ana",
-			wantName:  "Alias Ana",
-			wantType:  "desconocido",
+			name:       "known MAC alias stays",
+			mac:        "02:00:00:00:10:06",
+			ip:         "192.0.2.106",
+			mdnsName:   "roomba-cocina",
+			aliasName:  "Alias Ana",
+			wantName:   "Alias Ana",
+			wantType:   "desconocido",
+			wantSource: "known_mac",
 		},
 		{
 			name:         "manual name and type stay",
@@ -84,6 +91,7 @@ func TestBuildDevicesMdnsReplacesOnlyUnpinnedPlaceholders(t *testing.T) {
 			overrideType: "consola",
 			wantName:     "Consola salón",
 			wantType:     "consola",
+			wantSource:   "manual",
 		},
 	}
 
@@ -139,6 +147,9 @@ func TestBuildDevicesMdnsReplacesOnlyUnpinnedPlaceholders(t *testing.T) {
 				}
 				if d.Type != tt.wantType {
 					t.Errorf("type = %q, want %q", d.Type, tt.wantType)
+				}
+				if d.NameSource != tt.wantSource {
+					t.Errorf("nameSource = %q, want %q", d.NameSource, tt.wantSource)
 				}
 				return
 			}

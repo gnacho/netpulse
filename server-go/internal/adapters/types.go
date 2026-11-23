@@ -333,8 +333,10 @@ type DeviceTotals struct {
 // (SPEC §2.9); el resto solo existe en demo (ausentes en live).
 // SignalDbm es null cuando no hay medida (nunca ausente).
 type Device struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// NameSource: evidencia que produjo el nombre visible. Vacío = desconocida.
+	NameSource   string `json:"nameSource,omitempty"`
 	Type         string `json:"type"`
 	Manufacturer string `json:"manufacturer"`
 	IP           string `json:"ip"`
