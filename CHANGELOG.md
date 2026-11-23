@@ -14,6 +14,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- The early language choice now runs from the external `boot.js` instead of an inline script blocked by the production Content Security Policy (#2173).
 - The update history header no longer nests its download action inside another button. Expand/collapse and download are separate keyboard-accessible controls (#2168).
 - Devices named only by mDNS now use that hostname in the existing type rules, so a vacuum or console without a DHCP hostname no longer stays unknown (#2157).
 - Useful mDNS names now replace generated DHCP placeholders without overriding reservations, aliases or manual choices. The improved name and inferred type stay when mDNS temporarily disappears (#2159).

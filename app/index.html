@@ -2,19 +2,6 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      // Set <html lang> before first paint from the saved choice, so the
-      // browser does not read the static lang="en" and offer to translate a
-      // page that is about to render in another language (#666).
-      (function () {
-        try {
-          var l = localStorage.getItem('netpulse-lang')
-          if (!l || l === 'auto') l = navigator.language || 'en'
-          l = l.slice(0, 2).toLowerCase()
-          document.documentElement.lang = l === 'zh' ? 'zh-CN' : l === 'es' ? 'es' : 'en'
-        } catch (e) {}
-      })()
-    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#070B12" />
     <meta name="description" content="NetPulse — panel de control de tu red doméstica" />

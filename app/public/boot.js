@@ -1,3 +1,15 @@
+// Set <html lang> before first paint from the saved choice, so the
+// browser does not read the static lang="en" and offer to translate a
+// page that is about to render in another language (#666).
+(function () {
+  try {
+    var l = localStorage.getItem('netpulse-lang')
+    if (!l || l === 'auto') l = navigator.language || 'en'
+    l = l.slice(0, 2).toLowerCase()
+    document.documentElement.lang = l === 'zh' ? 'zh-CN' : l === 'es' ? 'es' : 'en'
+  } catch (e) {}
+})()
+
 // Red de seguridad (bug pantalla negra tras update): si el bundle no
 // carga, #root queda vacío (el splash CSS pinta negro). Tras 8 s se
 // recarga UNA vez (guard en sessionStorage evita bucles); si vuelve a
