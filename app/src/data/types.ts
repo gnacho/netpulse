@@ -274,6 +274,8 @@ export interface Device {
   speedMbps?: number
   id: string
   name: string
+  /** Evidencia que produjo el nombre visible: dhcp, mdns, rdns, reserva, alias, GL.iNet o manual. */
+  nameSource?: 'dhcp' | 'mdns' | 'rdns' | 'reservation' | 'known_mac' | 'glinet' | 'manual'
   type: DeviceType
   manufacturer: string
   ip: string

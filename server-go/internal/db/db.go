@@ -718,6 +718,8 @@ func Open(dir string, opts ...OpenOption) (*DB, error) {
 	migrate(sqldb, "routers", "snmp_enabled", "ALTER TABLE routers ADD COLUMN snmp_enabled INTEGER NOT NULL DEFAULT 0")
 	// #1145: último nombre conocido del cliente (retención indefinida).
 	migrate(sqldb, "device_seen", "name", "ALTER TABLE device_seen ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+	// #2163: evidencia que produjo el nombre elegido; vacía en filas antiguas.
+	migrate(sqldb, "device_seen", "name_source", "ALTER TABLE device_seen ADD COLUMN name_source TEXT NOT NULL DEFAULT ''")
 	// #1151: última IP conocida (los fantasmas la conservan para la lista y
 	// las sugerencias de enlace).
 	migrate(sqldb, "device_seen", "ip", "ALTER TABLE device_seen ADD COLUMN ip TEXT NOT NULL DEFAULT ''")

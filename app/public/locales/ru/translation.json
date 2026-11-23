@@ -467,6 +467,16 @@
     "copyIp": "Копировать IP",
     "detail": {
       "linkedMacs": "Связанные MAC",
+      "nameSource": "Источник имени",
+      "source": {
+        "dhcp": "DHCP",
+        "mdns": "mDNS",
+        "rdns": "Обратный DNS",
+        "reservation": "Резервирование DHCP",
+        "known_mac": "Псевдоним известного MAC",
+        "glinet": "GL.iNet",
+        "manual": "Вручную"
+      },
       "dhcpLease": "Аренда DHCP",
       "firstSeen": "Первое появление",
       "lastSeen": "Последнее появление",

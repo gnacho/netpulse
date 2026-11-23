@@ -371,6 +371,16 @@
     "copyIp": "复制 IP",
     "detail": {
       "linkedMacs": "已关联 MAC",
+      "nameSource": "名称来源",
+      "source": {
+        "dhcp": "DHCP",
+        "mdns": "mDNS",
+        "rdns": "反向 DNS",
+        "reservation": "DHCP 预留",
+        "known_mac": "已知 MAC 别名",
+        "glinet": "GL.iNet",
+        "manual": "手动"
+      },
       "dhcpLease": "DHCP 租约",
       "firstSeen": "首次发现",
       "lastSeen": "最近发现",
