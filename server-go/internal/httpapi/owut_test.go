@@ -29,7 +29,7 @@ __owut_exit__=0
 
 // makeOwutTestServer monta un servidor con el pool SSH fakeado y el store de
 // firmware activo, añade un router openwrt y devuelve servidor + router id.
-func makeOwutTestServer(t *testing.T, ssh *scriptedSSH) (*testServer, string) {
+func makeOwutTestServer(t *testing.T, ssh *scriptedSSH, writeTimeout ...time.Duration) (*testServer, string) {
 	t.Helper()
 	auth.SetTrustProxy(true)
 	t.Cleanup(func() { auth.SetTrustProxy(false) })
@@ -69,7 +69,14 @@ func makeOwutTestServer(t *testing.T, ssh *scriptedSSH) (*testServer, string) {
 		Agents: agents, Pool: runner, Started: time.Now(),
 		Firmware: firmware.NewStore(d.DB),
 	})
-	srv := httptest.NewServer(handler)
+	var srv *httptest.Server
+	if len(writeTimeout) > 0 && writeTimeout[0] > 0 {
+		srv = httptest.NewUnstartedServer(handler)
+		srv.Config.WriteTimeout = writeTimeout[0]
+		srv.Start()
+	} else {
+		srv = httptest.NewServer(handler)
+	}
 	ts := &testServer{Server: srv, db: d, secret: secret}
 	t.Cleanup(func() {
 		srv.Close()

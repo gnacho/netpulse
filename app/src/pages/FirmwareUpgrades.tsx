@@ -664,6 +664,7 @@ export default function FirmwareUpgrades() {
     const e = edits[id]
     setOwutDlBusy((prev) => ({ ...prev, [id]: true }))
     setOwutDlOk((prev) => ({ ...prev, [id]: false }))
+    setOwutDlOutput((prev) => ({ ...prev, [id]: '' }))
     setError('')
     try {
       const stored = (removePkgs[id] ?? '').trim()
@@ -674,7 +675,10 @@ export default function FirmwareUpgrades() {
         body: JSON.stringify({ targetVersion: targetOverride || e?.targetVersion || '', removePackages, force }),
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body?.error?.message ?? body?.message ?? `HTTP ${res.status}`)
+      if (!res.ok) {
+        setOwutDlOutput((prev) => ({ ...prev, [id]: String(body.output ?? body?.message ?? `HTTP ${res.status}`) }))
+        throw new Error(body?.message ?? `HTTP ${res.status}`)
+      }
       setOwutDlOutput((prev) => ({ ...prev, [id]: String(body.output ?? '') }))
       setOwutDlOk((prev) => ({ ...prev, [id]: true }))
     } catch (err) {

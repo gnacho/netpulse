@@ -36,6 +36,7 @@ type sshRule struct {
 	contains string
 	out      string
 	err      error
+	delay    time.Duration
 }
 
 type scriptedSSH struct {
@@ -58,6 +59,9 @@ func (f *scriptedSSH) Run(host, cmd string, _ time.Duration) (string, error) {
 			continue
 		}
 		if strings.Contains(cmd, r.contains) {
+			if r.delay > 0 {
+				time.Sleep(r.delay)
+			}
 			return r.out, r.err
 		}
 	}

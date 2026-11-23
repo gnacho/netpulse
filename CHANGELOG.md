@@ -14,6 +14,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- `owut download` keeps the HTTP response open during remote ASU builds and returns the full command output on failure, shown in the unit card (#1978).
 - The early language choice now runs from the external `boot.js` instead of an inline script blocked by the production Content Security Policy (#2173).
 - The update history header no longer nests its download action inside another button. Expand/collapse and download are separate keyboard-accessible controls (#2168).
 - Devices named only by mDNS now use that hostname in the existing type rules, so a vacuum or console without a DHCP hostname no longer stays unknown (#2157).
