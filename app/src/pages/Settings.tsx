@@ -5255,15 +5255,16 @@ function UpdateHistoryCard() {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 md:p-5">
-      {/* Cabecera colapsable (como el mockup) */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 text-left"
-      >
-        <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-accent" strokeWidth={1.75} aria-hidden="true" />
-          <div>
+      <div className="flex w-full items-center justify-between gap-3 text-left">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="update-history-details"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          <History className="h-4 w-4 shrink-0 text-accent" strokeWidth={1.75} aria-hidden="true" />
+          <div className="min-w-0">
             <h3 className="text-sm font-semibold text-text-primary">{t('update.history.title')}</h3>
             <p className="text-xs text-text-muted">
               {rows === null
@@ -5273,26 +5274,32 @@ function UpdateHistoryCard() {
                   : t('update.history.empty')}
             </p>
           </div>
-        </div>
+        </button>
         <span className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              downloadLog()
-            }}
+            onClick={downloadLog}
             disabled={!rows || rows.length === 0}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-elevated px-3 py-1.5 text-xs font-medium text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
             {t('update.history.download')}
           </button>
-          <ChevronDown className={cn('h-4 w-4 text-text-muted transition-transform duration-200', open && 'rotate-180')} strokeWidth={2} />
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-label={t('update.history.title')}
+            aria-expanded={open}
+            aria-controls="update-history-details"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-text-muted transition-colors duration-150 hover:text-text-primary"
+          >
+            <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', open && 'rotate-180')} strokeWidth={2} aria-hidden="true" />
+          </button>
         </span>
-      </button>
+      </div>
 
       {open && (
-        <div className="mt-3">
+        <div className="mt-3" id="update-history-details">
           {rows === null ? (
             <p className="text-xs text-text-muted">{t('settings.about.checking')}</p>
           ) : rows.length === 0 ? (
