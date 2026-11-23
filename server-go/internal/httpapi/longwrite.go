@@ -29,6 +29,8 @@ const (
 	configBackupWriteCeiling = 180 * time.Second
 	// 10 s de `uci show` + 20 s de commit + 20 s de restart + margen.
 	deviceActionWriteCeiling = 70 * time.Second
+	// 10 min del build remoto y la descarga owut + margen.
+	owutDownloadWriteCeiling = 11 * time.Minute
 	// Reemit recorre la flota entera, un SSH por agente.
 	reemitPerAgentCeiling = 150 * time.Second
 	reemitMaxCeiling      = time.Hour

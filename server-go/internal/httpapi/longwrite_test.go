@@ -69,6 +69,7 @@ func TestWriteCeilingsExceedTheGlobalTimeout(t *testing.T) {
 		"integration install": integrationWriteCeiling,
 		"config backup":       configBackupWriteCeiling,
 		"device action":       deviceActionWriteCeiling,
+		"owut download":       owutDownloadWriteCeiling,
 		"reemit (1 agente)":   reemitWriteCeiling(1),
 	}
 	for name, d := range ceilings {

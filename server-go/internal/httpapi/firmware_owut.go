@@ -179,6 +179,7 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 	// flashear (paso intermedio del flujo por pasos, #1414). Síncrono: la
 	// salida completa es la revisión del admin antes de instalar.
 	mux.Handle("POST /api/firmware-upgrades/{routerId}/owut-download", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setLongWriteDeadline(w, owutDownloadWriteCeiling)
 		id := r.PathValue("routerId")
 		host := s.hostOfRouter(id)
 		if host == "" {
@@ -221,7 +222,10 @@ func (s *server) registerFirmwareOwutRoutes(mux *http.ServeMux) {
 			if msg == "" {
 				msg = fmt.Sprintf("owut download falló (exit %d)", exit)
 			}
-			writeError(w, http.StatusBadGateway, "owut_download_failed", msg)
+			writeJSON(w, http.StatusBadGateway, map[string]any{
+				"error": "owut_download_failed", "message": msg,
+				"command": cmd, "output": owutEcho(cmd, out),
+			})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "command": cmd, "output": owutEcho(cmd, out)})

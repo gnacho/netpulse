@@ -245,6 +245,51 @@ func TestOwutDownloadEndpointPutsRemovePackagesInUCINotInFlag(t *testing.T) {
 	}
 }
 
+func TestOwutDownloadOutlivesWriteTimeout(t *testing.T) {
+	const sshDelay = time.Second
+	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
+		{contains: "owut download", delay: sshDelay, out: "Downloading image to /tmp/firmware.bin\n__owut_exit__=0\n"},
+	}}
+	ts, rid := makeOwutTestServer(t, ssh, 500*time.Millisecond)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	started := time.Now()
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-download", `{"targetVersion":"25.12.6"}`, cookie)
+	body := readJSON(t, res)
+	if res.StatusCode != 200 {
+		t.Fatalf("status %d: %v", res.StatusCode, body)
+	}
+	if elapsed := time.Since(started); elapsed < sshDelay {
+		t.Fatalf("server responded before the simulated command finished: %s", elapsed)
+	}
+	if out, _ := body["output"].(string); !strings.Contains(out, "Downloading image") {
+		t.Fatalf("missing full command output: %v", body)
+	}
+}
+
+func TestOwutDownloadErrorIncludesFullOutput(t *testing.T) {
+	ssh := &scriptedSSH{rules: []sshRule{
+		{contains: "command -v owut", out: "__owut__\n"},
+		{contains: "owut download", out: "Build request started\nASU build failed\n__owut_exit__=1\n"},
+	}}
+	ts, rid := makeOwutTestServer(t, ssh)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := postJSON(t, ts.URL, "/api/firmware-upgrades/"+rid+"/owut-download", `{"targetVersion":"25.12.6"}`, cookie)
+	body := readJSON(t, res)
+	if res.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status %d: %v", res.StatusCode, body)
+	}
+	out, _ := body["output"].(string)
+	if !strings.HasPrefix(out, "$ owut download") || !strings.Contains(out, "Build request started") || !strings.Contains(out, "ASU build failed") {
+		t.Fatalf("error response misses full output: %v", body)
+	}
+	if cmd, _ := body["command"].(string); !strings.Contains(cmd, "owut download") {
+		t.Fatalf("error response misses command: %v", body)
+	}
+}
+
 // #1978: sin config UCI donde escribir, el flag -r sigue siendo la única vía
 // de excluir paquetes. El fallback no puede perderse.
 func TestOwutDownloadEndpointFallsBackToRemoveFlag(t *testing.T) {
