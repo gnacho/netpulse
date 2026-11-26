@@ -5,13 +5,12 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   AlertTriangle,
   ArrowRight,
-  BellOff,
   Check,
   CheckCheck,
   CheckCircle2,
   ChevronRight,
   CircleArrowUp,
-  Fingerprint,
+  Clock,
   Globe,
   Info,
   Laptop,
@@ -31,12 +30,14 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { alertRelTime, relTime } from '@/i18n'
 import { alertDescription, alertHint, alertTitle } from '@/lib/alerts-i18n'
+import { snoozeLabel } from '@/lib/snooze'
+import type { SnoozeWhen } from '@/lib/snooze'
 import type { AlertCategory, AlertConfigLevel, AlertSeverity } from '@/data/types'
 import { ALERT_CATEGORIES, isHiddenByLevel } from '@/data/alertConfig'
 import { CountUp } from '@/components/CountUp'
 import { EmptyState } from '@/components/EmptyState'
-import { RowAction } from '@/components/RowAction'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { SnoozeMenu } from '@/components/SnoozeMenu'
 import { Switch } from '@/components/ui/switch'
 import {
   DropdownMenu,
@@ -188,8 +189,19 @@ function Fact({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ContextPanel({ ev, animateIn }: { ev: FeedEvent; animateIn: boolean }) {
+function ContextPanel({
+  ev,
+  animateIn,
+  onDismiss,
+  onApproveImpostor,
+}: {
+  ev: FeedEvent
+  animateIn: boolean
+  onDismiss?: (id: string) => void
+  onApproveImpostor?: (bssid: string) => void
+}) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const c = ev.context
   const PeerIcon = c?.wg ? PEER_ICONS[c.wg.peerType] : null
   // Unknown device: the point of the alert is finding the thing, so the
@@ -284,6 +296,43 @@ function ContextPanel({ ev, animateIn }: { ev: FeedEvent; animateIn: boolean }) 
           <ArrowRight className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5" strokeWidth={1.75} />
         </Link>
       )}
+
+      {/* #2185: las acciones secundarias viven en el detalle; la fila queda
+          con los tres botones (leído, posponer, ver más). */}
+      {(onDismiss || (onApproveImpostor && ev.type === 'wifi-ssid-impostor' && ev.vars?.bssid) || ev.type === 'agent-outdated') && (
+        <div className="flex flex-wrap items-center gap-4 border-t border-border/60 pt-3">
+          {ev.type === 'agent-outdated' && (
+            <button
+              type="button"
+              onClick={() => navigate('/routers#agentes')}
+              className="inline-flex items-center gap-1 text-caption font-semibold text-accent transition-colors hover:text-accent/80"
+            >
+              <CircleArrowUp className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {t('alerts.actions.updateAgent')}
+            </button>
+          )}
+          {onApproveImpostor && ev.type === 'wifi-ssid-impostor' && ev.vars?.bssid && (
+            <button
+              type="button"
+              onClick={() => onApproveImpostor(ev.vars!.bssid!)}
+              className="inline-flex items-center gap-1 text-caption font-semibold text-ok transition-colors hover:text-ok/80"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {t('alerts.approveBssidAction')}
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={() => onDismiss(ev.id)}
+              className="inline-flex items-center gap-1 text-caption font-semibold text-danger transition-colors hover:text-danger/80"
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+              {t('alerts.actions.dismiss')}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -348,11 +397,13 @@ interface FeedRowProps {
   expanded: boolean
   onToggle: () => void
   reduce: boolean
-  onSilence?: (id: string, duration: '1h' | '24h' | 'forever') => void
+  /** #2185: las tres acciones de la fila. */
+  onMarkRead: (id: string) => void
+  onSnooze: (id: string, when: SnoozeWhen) => void
+  onUnsnooze: (id: string) => void
   onDismiss?: (id: string) => void
   /** #1400: aprobar el BSSID de una alerta wifi-ssid-impostor como propio. */
   onApproveImpostor?: (bssid: string) => void
-  action?: { icon: LucideIcon; title: string; onClick: () => void }
   /** #1349: feed por id para resolver los eventos que un evento de cierre
    *  (`ev.resolves`) cerró y listarlos al expandirlo. */
   feedById?: Map<string, FeedEvent>
@@ -360,8 +411,11 @@ interface FeedRowProps {
 
 // #862: RowAction vive en components/RowAction.tsx (compartido con AlertItem).
 
-function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDismiss, onApproveImpostor, action, feedById }: FeedRowProps) {
-  const { t } = useTranslation()
+const ROW_ACTION =
+  'flex items-center justify-center rounded-md p-1.5 text-text-muted transition-colors hover:bg-hover hover:text-accent disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-muted pointer-coarse:p-2.5'
+
+function FeedRow({ ev, index, read, expanded, onToggle, reduce, onMarkRead, onSnooze, onUnsnooze, onDismiss, onApproveImpostor, feedById }: FeedRowProps) {
+  const { t, i18n } = useTranslation()
   const sev = SEVERITY[ev.severity]
   const Icon = ev.icon ?? sev.icon
   // #1357: badge de categoría por fila - la fila se tiñe por severidad y la
@@ -369,7 +423,6 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
   // confundía a quien leía el color como categoría).
   const catMeta = CATEGORY_META[ev.category]
   const CatIcon = catMeta?.icon
-  const [showSilence, setShowSilence] = useState(false)
   // #393: posición del pointerdown para distinguir click (sin movimiento →
   // togglear) de arrastre de selección de texto (movimiento → no togglear).
   const downAt = useRef<{ x: number; y: number } | null>(null)
@@ -418,7 +471,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
         )}
       >
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2 pointer-coarse:flex-wrap">
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:flex-nowrap">
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-medium text-text-primary">{alertTitle(t, ev)}</span>
               {ev.urgent && (
@@ -443,10 +496,20 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
                   {t(`alerts.categories.${ev.category}`)}
                 </span>
               )}
+              {/* #2185: la alerta pospuesta sigue visible; esta marca dice
+                  hasta cuándo está en pausa. */}
+              {ev.snoozed && (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+                  <Clock className="h-3 w-3" strokeWidth={2} />
+                  {ev.snoozedUntil
+                    ? t('alerts.snoozedUntil', { time: snoozeLabel(ev.snoozedUntil, i18n.language || 'es') })
+                    : t('alerts.snoozedIndefinitely')}
+                </span>
+              )}
             </span>
-            <span className="flex shrink-0 items-center gap-2 pointer-coarse:basis-full">
+            <span className="flex shrink-0 items-center gap-1 pointer-coarse:basis-full">
               <AnimatePresence initial={false}>
-                {!read && (
+                {!read && !ev.snoozed && (
                   <motion.span
                     key="dot"
                     exit={{ scale: 0, opacity: 0 }}
@@ -456,52 +519,39 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
                   />
                 )}
               </AnimatePresence>
-              {/* #1400: en alertas de impostor, aprobar el BSSID como
-                  propio (AP conocido fuera de la flota: UniFi, Omada...).
-                  Persiste en el backend y resuelve la alerta. */}
-              {onApproveImpostor && ev.type === 'wifi-ssid-impostor' && ev.vars?.bssid && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onApproveImpostor(ev.vars!.bssid!) }}
-                  className="rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-ok pointer-coarse:opacity-100 pointer-coarse:p-2"
-                  title={t('alerts.approveBssid')}
-                >
-                  <ShieldCheck className="h-4 w-4" strokeWidth={1.75} />
-                </button>
-              )}
-              {onSilence && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setShowSilence((v) => !v) }}
-                  className="rounded-md p-1 opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-text-primary pointer-coarse:opacity-100 pointer-coarse:p-2"
-                  title={t('alerts.silence')}
-                >
-                  <BellOff className="h-4 w-4" strokeWidth={1.75} />
-                </button>
-              )}
-              {/* #833: acción propia de la alerta (solo cuando aplica) y
-                  limpiar alerta, siempre. #965: SOLO icono (sin etiqueta);
-                  el dismiss es un Check con hover verde. */}
-              {action && (
-                <RowAction
-                  icon={action.icon}
-                  label={action.title}
-                  title={action.title}
-                  iconOnly
-                  onClick={(e) => { e.stopPropagation(); action.onClick() }}
-                  className="text-text-muted hover:text-accent"
+              {/* #2185: tres acciones explícitas. Marcar leído no expande ni
+                  borra; el reloj pospone sin ocultar la fila; ver más abre el
+                  detalle (igual que el click en la fila). */}
+              <button
+                type="button"
+                disabled={read}
+                onClick={(e) => { e.stopPropagation(); onMarkRead(ev.id) }}
+                className={ROW_ACTION}
+                title={t('alerts.actions.markRead')}
+                aria-label={t('alerts.actions.markRead')}
+              >
+                <Check className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+              </button>
+              <SnoozeMenu
+                snoozed={ev.snoozed}
+                onSnooze={(when) => onSnooze(ev.id, when)}
+                onUnsnooze={() => onUnsnooze(ev.id)}
+              />
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggle() }}
+                aria-expanded={expanded}
+                className={cn(ROW_ACTION, 'gap-1 hover:text-accent')}
+                title={expanded ? t('alerts.actions.viewLess') : t('alerts.actions.viewMore')}
+              >
+                <ChevronRight
+                  className={cn('h-4 w-4 shrink-0 transition-transform duration-200', expanded && 'rotate-90')}
+                  strokeWidth={1.75}
                 />
-              )}
-              {onDismiss && (
-                <RowAction
-                  icon={Check}
-                  label={t('alerts.actions.dismiss')}
-                  title={t('alerts.actions.dismiss')}
-                  iconOnly
-                  onClick={(e) => { e.stopPropagation(); onDismiss(ev.id) }}
-                  className="text-text-muted hover:text-ok"
-                />
-              )}
+                <span className="hidden text-caption font-medium md:inline">
+                  {expanded ? t('alerts.actions.viewLess') : t('alerts.actions.viewMore')}
+                </span>
+              </button>
               <span className="font-mono text-caption text-text-muted">{alertRelTime(ev)}</span>
             </span>
           </div>
@@ -515,35 +565,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
             </p>
           )}
         </div>
-        <ChevronRight
-          className={cn('h-4 w-4 shrink-0 text-text-muted transition-transform duration-200', expanded && 'rotate-90')}
-          strokeWidth={1.75}
-        />
       </div>
-
-      {/* Silence options popup */}
-      {showSilence && onSilence && (
-        <div className="absolute right-3 top-2 z-20 flex items-center gap-1 rounded-lg border border-border bg-elevated px-2 py-1 shadow-lg">
-          <span className="text-[10px] text-text-muted mr-1">{t('alerts.silence')}:</span>
-          {(['1h', '24h', 'forever'] as const).map((dur) => (
-            <button
-              key={dur}
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onSilence(ev.id, dur); setShowSilence(false) }}
-              className="rounded px-2 py-0.5 text-[11px] font-medium text-text-primary hover:bg-hover"
-            >
-              {dur === 'forever' ? t('alerts.silenceForever') : dur}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setShowSilence(false) }}
-            className="ml-1 text-text-muted hover:text-text-primary"
-          >
-            ✕
-          </button>
-        </div>
-      )}
 
       <AnimatePresence initial={false}>
         {expanded && (
@@ -556,7 +578,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onSilence, onDis
             className="overflow-hidden"
           >
             <div className="mx-3 mb-2 mt-1">
-              <ContextPanel ev={ev} animateIn={!reduce} />
+              <ContextPanel ev={ev} animateIn={!reduce} onDismiss={onDismiss} onApproveImpostor={onApproveImpostor} />
               {/* #1349: el evento de cierre lista los eventos que resolvió
                   (conservados en el log marcados, no borrados).
                   #1466: el server manda `resolved` autocontenido (título,
@@ -632,7 +654,8 @@ export default function Alerts() {
     markAlertsRead,
     markAllAlertsRead,
     clearAllAlerts,
-    silenceAlert,
+    snoozeAlert,
+    unsnoozeAlert,
     dismissAlert,
     approveImpostorBssid,
   } = useNetPulse()
@@ -657,7 +680,6 @@ export default function Alerts() {
   const [sev, setSev] = useState<SevFilter>('todas')
   const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
   // Persistencia de la opción de vista: sobrevive a recargas y sesiones.
   // Sin preferencia guardada (instalación nueva) arranca en "solo no
   // leídas"; ?unread=1 en la URL fuerza el estado.
@@ -709,26 +731,6 @@ export default function Alerts() {
     // actions in the expanded panel, and upstream's row icon (#833) still
     // offers it as a shortcut.
     setExpandedId((cur) => (cur === ev.id ? null : ev.id))
-  }
-
-  // #833: acción contextual por tipo de alerta (icono + tooltip). Solo los
-  // tipos con una acción real la muestran; TODAS tienen "limpiar alerta".
-  const actionOf = (ev: FeedEvent): { icon: LucideIcon; title: string; onClick: () => void } | undefined => {
-    if (ev.type === 'unknown-device' && ev.vars?.mac) {
-      return {
-        icon: Fingerprint,
-        title: t('alerts.actions.identify'),
-        onClick: () => navigate(`/devices?intake=${encodeURIComponent(ev.vars?.mac ?? '')}`),
-      }
-    }
-    if (ev.type === 'agent-outdated') {
-      return {
-        icon: CircleArrowUp,
-        title: t('alerts.actions.updateAgent'),
-        onClick: () => navigate('/routers#agentes'),
-      }
-    }
-    return undefined
   }
 
   const toggleCat = (cat: AlertCategory) => {
@@ -1182,10 +1184,11 @@ export default function Alerts() {
                     expanded={expandedId === ev.id}
                     onToggle={() => toggleEvent(ev)}
                     reduce={reduce}
-                    onSilence={silenceAlert}
+                    onMarkRead={(id) => markAlertsRead([id])}
+                    onSnooze={snoozeAlert}
+                    onUnsnooze={unsnoozeAlert}
                     onDismiss={dismissAlert}
                     onApproveImpostor={approveImpostorBssid}
-                    action={actionOf(ev)}
                     feedById={feedById}
                   />
                 ))}

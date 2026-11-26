@@ -94,6 +94,12 @@ type AlertEvent struct {
 	// tiene cargada, así que el payload va autocontenido y la UI no depende
 	// de buscarlo en su feed local.
 	Resolved []ResolvedEvent `json:"resolved,omitempty"`
+	// Snoozed / SnoozedUntil (#2185): la alerta esta pospuesta. La fila SIGUE
+	// en el feed (el incidente se sigue monitorizando y su cierre se sigue
+	// detectando), pero no cuenta como pendiente, no dispara avisos y no se
+	// re-emite mientras dure. SnoozedUntil 0 con Snoozed=true = sin fecha.
+	Snoozed      bool  `json:"snoozed,omitempty"`
+	SnoozedUntil int64 `json:"snoozedUntil,omitempty"`
 	// Volatile (#966): la alerta vive SOLO en memoria (no se persiste en
 	// alert_log ni sobrevive a reinicios) y desaparece del feed cuando su
 	// condicion se resuelve (engine.Remove). Uso: caida de agente, cuya
@@ -900,10 +906,11 @@ func (e *Engine) List() []AlertEvent {
 		if e.hiddenByLevelLocked(ev) {
 			continue
 		}
+		// #2185: una alerta pospuesta NO se oculta. El operador la sigue
+		// viendo (con su marca de posposicion) porque el incidente sigue
+		// monitorizado; solo se silencian avisos, escalado y re-emisiones.
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
-		if e.isSilencedLocked(key) {
-			continue
-		}
+		ev.Snoozed, ev.SnoozedUntil = e.snoozeStateLocked(key)
 		if hideOK && ev.Severity == "ok" {
 			continue
 		}
@@ -992,7 +999,7 @@ func (e *Engine) UnreadCount() int {
 			continue
 		}
 		key := ev.Category + "|" + ev.Title + "|" + ev.RouterID
-		if e.isSilencedLocked(key) {
+		if snoozed, _ := e.snoozeStateLocked(key); snoozed {
 			continue
 		}
 		if hideOK && ev.Severity == "ok" {
@@ -1269,9 +1276,11 @@ func (e *Engine) Remove(ids ...string) {
 	e.saveReadLocked()
 }
 
-// Silence silences alerts matching the dedup key of the given alert ID for the
-// specified duration. Duration 0 means forever. Returns the dedup key that was
-// silenced, or empty string if the alert ID was not found.
+// Silence pospone las alertas que comparten la dedup key de la alerta dada
+// durante la duracion indicada (#2185: "posponer"). Duration 0 = sin fecha.
+// La alerta NO se oculta del feed: la fila queda marcada con Snoozed y deja
+// de contar como pendiente, de notificar y de re-emitirse. Devuelve la dedup
+// key pospuesta, o cadena vacia si el ID no existe.
 func (e *Engine) Silence(id string, dur time.Duration) string {
 	e.mu.Lock()
 	var dedupKey string
@@ -1293,11 +1302,25 @@ func (e *Engine) Silence(id string, dur time.Duration) string {
 	e.saveSilenceLocked()
 	cb := e.onChange
 	e.mu.Unlock()
-	// #1434: la lista servida cambia (la alerta queda filtrada).
+	// #1434: la lista servida cambia (la alerta pasa a pospuesta).
 	if cb != nil {
 		cb()
 	}
 	return dedupKey
+}
+
+// SnoozeKey devuelve la dedup key de la alerta con ese ID (vacia si no
+// existe). Permite quitar la posposicion desde el cliente sin reconstruir
+// la clave.
+func (e *Engine) SnoozeKey(id string) string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, ev := range e.list {
+		if ev.ID == id {
+			return ev.Category + "|" + ev.Title + "|" + ev.RouterID
+		}
+	}
+	return ""
 }
 
 // Unsilence removes the silence for a dedup key.
@@ -1325,18 +1348,25 @@ func (e *Engine) Silenced() map[string]int64 {
 }
 
 func (e *Engine) isSilencedLocked(key string) bool {
+	snoozed, _ := e.snoozeStateLocked(key)
+	return snoozed
+}
+
+// snoozeStateLocked dice si la dedup key esta pospuesta y hasta cuando
+// (0 = sin fecha). Poda la entrada si ya expiro. Requiere e.mu tomado.
+func (e *Engine) snoozeStateLocked(key string) (bool, int64) {
 	expiry, ok := e.silenceMap[key]
 	if !ok {
-		return false
+		return false, 0
 	}
 	if expiry == 0 {
-		return true // forever
+		return true, 0 // sin fecha
 	}
 	if e.now().Unix() >= expiry {
 		delete(e.silenceMap, key)
-		return false
+		return false, 0
 	}
-	return true
+	return true, expiry
 }
 
 func (e *Engine) pruneSilenceLocked() {

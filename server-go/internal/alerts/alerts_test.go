@@ -579,35 +579,77 @@ func TestSilenceBlocksEmit(t *testing.T) {
 	}
 }
 
-// TestSilenceFiltersList (#329): silenced alerts are excluded from List().
-func TestSilenceFiltersList(t *testing.T) {
+// TestSnoozeKeepsAlertVisible (#2185): posponer ya no oculta la alerta del
+// feed; la marca como pospuesta y deja de contar como pendiente.
+func TestSnoozeKeepsAlertVisible(t *testing.T) {
+	fakeNow := time.Now()
 	e := New(nil, nil)
+	e.now = func() time.Time { return fakeNow }
 	e.SetConfig(map[string]string{"router": LevelAll, "internet": LevelAll})
 
 	e.Emit(ev("a1", "router", false))
 	e.Emit(AlertEvent{ID: "b1", Category: "internet", Urgent: false, Severity: "warn", Title: "internet-down", RouterID: "r1"})
 
-	// Both should be in the list
+	if len(e.List()) != 2 {
+		t.Fatalf("expected 2 alerts, got %d", len(e.List()))
+	}
+	if n := e.UnreadCount(); n != 2 {
+		t.Fatalf("expected 2 unread, got %d", n)
+	}
+
+	e.Silence("a1", time.Hour)
+
 	list := e.List()
 	if len(list) != 2 {
-		t.Fatalf("expected 2 alerts, got %d", len(list))
+		t.Fatalf("snoozing must keep the row in the feed, got %d", len(list))
 	}
-
-	// Silence a1
-	e.Silence("a1", time.Hour)
-
-	// List should only show b1
-	list = e.List()
-	if len(list) != 1 {
-		t.Fatalf("expected 1 alert after silence, got %d", len(list))
+	var snoozed *AlertEvent
+	for i := range list {
+		if list[i].ID == "a1" {
+			snoozed = &list[i]
+		}
 	}
-	if list[0].ID != "b1" {
-		t.Fatalf("remaining alert should be b1, got %s", list[0].ID)
+	if snoozed == nil || !snoozed.Snoozed {
+		t.Fatalf("a1 should be flagged as snoozed: %+v", snoozed)
+	}
+	if want := fakeNow.Add(time.Hour).Unix(); snoozed.SnoozedUntil != want {
+		t.Fatalf("SnoozedUntil = %d, want %d", snoozed.SnoozedUntil, want)
+	}
+	if n := e.UnreadCount(); n != 1 {
+		t.Fatalf("snoozed alerts must not count as pending, got %d", n)
 	}
 }
 
-// TestSilenceExpiry (#329): silenced alerts reappear after duration expires.
-func TestSilenceExpiry(t *testing.T) {
+// TestSnoozeBlocksReEmission (#2185): mientras dure la posposicion el mismo
+// incidente no vuelve a entrar (sin avisos ni escalado), pero la fila sigue.
+func TestSnoozeBlocksReEmission(t *testing.T) {
+	e := New(nil, nil)
+	e.SetConfig(map[string]string{"router": LevelAll})
+
+	if !e.Emit(ev("a1", "router", false)) {
+		t.Fatal("first emit should succeed")
+	}
+	key := e.Silence("a1", time.Hour)
+	if key == "" {
+		t.Fatal("Silence should return the dedup key")
+	}
+	e.dedup = map[string]int64{} // aislar la posposicion del dedup
+	dup := AlertEvent{ID: "a2", Category: "router", Severity: "warn", Title: "t-a1", RouterID: "r1"}
+	if e.Emit(dup) {
+		t.Fatal("emit should be blocked while snoozed")
+	}
+	if len(e.List()) != 1 {
+		t.Fatalf("the original row must stay, got %d", len(e.List()))
+	}
+	e.Unsilence(key)
+	if !e.Emit(dup) {
+		t.Fatal("emit should succeed after unsnooze")
+	}
+}
+
+// TestSnoozeExpiry (#2185): al expirar, la fila sigue y deja de estar
+// marcada; el incidente puede volver a emitirse.
+func TestSnoozeExpiry(t *testing.T) {
 	fakeNow := time.Now()
 	e := New(nil, nil)
 	e.now = func() time.Time { return fakeNow }
@@ -616,36 +658,39 @@ func TestSilenceExpiry(t *testing.T) {
 	e.Emit(ev("a1", "router", false))
 	e.Silence("a1", time.Hour)
 
-	// Should be filtered
-	if len(e.List()) != 0 {
-		t.Fatal("alert should be silenced")
+	if list := e.List(); len(list) != 1 || !list[0].Snoozed {
+		t.Fatalf("alert should be snoozed and visible: %+v", list)
 	}
 
-	// Advance time past expiry
 	fakeNow = fakeNow.Add(2 * time.Hour)
 
-	// Should reappear
-	if len(e.List()) != 1 {
-		t.Fatal("alert should reappear after silence expires")
+	list := e.List()
+	if len(list) != 1 {
+		t.Fatalf("alert should still be listed after expiry, got %d", len(list))
+	}
+	if list[0].Snoozed || list[0].SnoozedUntil != 0 {
+		t.Fatalf("expired snooze must clear the flag: %+v", list[0])
 	}
 }
 
-// TestSilenceForever (#329): duration 0 means forever.
-func TestSilenceForever(t *testing.T) {
+// TestSnoozeForever (#2185): duration 0 = sin fecha; la fila sigue marcada.
+func TestSnoozeForever(t *testing.T) {
 	fakeNow := time.Now()
 	e := New(nil, nil)
 	e.now = func() time.Time { return fakeNow }
 	e.SetConfig(map[string]string{"router": LevelAll})
 
 	e.Emit(ev("a1", "router", false))
-	e.Silence("a1", 0) // forever
+	e.Silence("a1", 0) // sin fecha
 
-	// Advance time a lot
 	fakeNow = fakeNow.Add(365 * 24 * time.Hour)
 
-	// Should still be silenced
-	if len(e.List()) != 0 {
-		t.Fatal("forever silence should not expire")
+	list := e.List()
+	if len(list) != 1 || !list[0].Snoozed {
+		t.Fatalf("forever snooze must keep the row flagged: %+v", list)
+	}
+	if list[0].SnoozedUntil != 0 {
+		t.Fatalf("forever snooze must not carry an expiry, got %d", list[0].SnoozedUntil)
 	}
 }
 

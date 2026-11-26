@@ -1084,6 +1084,17 @@
     "onlyUnread": "仅未读",
     "silence": "静默",
     "silenceForever": "永久",
+    "snoozeTitle": "推迟此告警",
+    "snoozeDesc": "暂停此事件的通知和升级。监控继续进行，仍会检测恢复。",
+    "snooze1h": "推迟 1 小时",
+    "snooze2h": "推迟 2 小时",
+    "snooze8h": "推迟 8 小时",
+    "snoozeTomorrow": "推迟到明天 9:00",
+    "snooze7d": "推迟 7 天",
+    "snoozedUntil": "已推迟至 {{time}}",
+    "snoozedIndefinitely": "已无限期推迟",
+    "unsnooze": "取消推迟",
+    "approveBssidAction": "批准为本网络",
     "approveBssid": "这个 BSSID 是我们自己的：批准它并停止对其的伪装告警",
     "impostorRule": "SSID 伪装检测",
     "impostorRuleDesc": "当未知射频广播你设备组的网络名时告警。若你自己在 NetPulse 之外的 AP（UniFi、Omada…）会触发误报，请关闭它。",
@@ -1378,7 +1389,11 @@
     "actions": {
       "identify": "识别设备",
       "updateAgent": "更新探针",
-      "dismiss": "清除告警"
+      "dismiss": "清除告警",
+      "markRead": "标记为已读",
+      "snooze": "推迟",
+      "viewMore": "查看更多",
+      "viewLess": "收起"
     }
   },
   "settings": {

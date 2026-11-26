@@ -326,7 +326,8 @@ Las alertas las genera el servidor a partir de lo que ya monitoriza: temperatura
 ### Decisiones de diseño
 
 - La configuración es **por categoría y por nivel**, no alerta a alerta. **Nada** oculta la categoría: sus eventos no entran al registro, no cuentan en la campana y no notifican. **Solo urgentes** y **Todo** son política de notificación: todo se registra y el nivel decide qué avisa.
-- Puedes **silenciar** una alerta concreta 1 hora, 24 horas o para siempre.
+- Puedes **posponer** una alerta concreta 1 hora, 2 horas, 8 horas, hasta mañana a las 9:00 o 7 días. Posponer pausa avisos y escalado sin ocultarla: la fila sigue en el registro con la marca de hasta cuándo, y la monitorización y la resolución se siguen detectando.
+- Cada fila tiene tres acciones: **marcar como leída**, **posponer** y **ver más**. **Limpiar una alerta** está en su detalle (al expandirla).
 - El **feed usa scroll infinito simulado**: al llegar abajo se muestra el fin del historial.
 
 ### Procedimiento: configurar qué alertas quieres

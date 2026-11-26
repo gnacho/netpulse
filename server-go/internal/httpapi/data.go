@@ -491,12 +491,15 @@ func (s *server) handleAlertsDismiss(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
-// handleAlertsSilence (POST): body {"id":"...","duration":"1h|24h|forever"} →
-// silencia alertas con la misma dedup key (category|title|routerId).
+// handleAlertsSilence (POST): body {"id":"...","duration":"1h|2h|8h|24h|7d|forever"}
+// o {"id":"...","until":<unix segundos>} → pospone las alertas con la misma
+// dedup key (category|title|routerId). Desde #2185 la alerta no se oculta:
+// queda marcada como pospuesta en el feed.
 func (s *server) handleAlertsSilence(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ID       string `json:"id"`
-		Duration string `json:"duration"` // "1h", "24h", "forever"
+		Duration string `json:"duration"` // "1h", "2h", "8h", "24h", "7d", "forever"
+		Until    int64  `json:"until"`    // unix segundos; gana sobre duration
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
 		writeBodyError(w, st, "invalid_body", "body JSON inválido")
@@ -510,13 +513,30 @@ func (s *server) handleAlertsSilence(w http.ResponseWriter, r *http.Request) {
 	switch body.Duration {
 	case "1h":
 		dur = time.Hour
+	case "2h":
+		dur = 2 * time.Hour
+	case "8h":
+		dur = 8 * time.Hour
 	case "24h":
 		dur = 24 * time.Hour
+	case "7d":
+		dur = 7 * 24 * time.Hour
 	case "forever", "":
 		dur = 0
 	default:
-		writeError(w, http.StatusBadRequest, "invalid_input", "duration must be 1h, 24h or forever")
+		writeError(w, http.StatusBadRequest, "invalid_input", "duration must be 1h, 2h, 8h, 24h, 7d or forever")
 		return
+	}
+	if body.Until > 0 {
+		dur = time.Until(time.Unix(body.Until, 0))
+		if dur <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid_input", "until must be in the future")
+			return
+		}
+		if dur > 31*24*time.Hour {
+			writeError(w, http.StatusBadRequest, "invalid_input", "until is too far away")
+			return
+		}
 	}
 	key := s.adapter.AlertsEngine().Silence(body.ID, dur)
 	if key == "" {
@@ -526,14 +546,19 @@ func (s *server) handleAlertsSilence(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": key})
 }
 
-// handleAlertsUnsilence (POST): body {"key":"cat|title|routerId"} → quita silencio.
+// handleAlertsUnsilence (POST): body {"key":"cat|title|routerId"} o {"id":"..."}
+// → quita la posposicion.
 func (s *server) handleAlertsUnsilence(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Key string `json:"key"`
+		ID  string `json:"id"`
 	}
 	if st := readJSONBody(w, r, &body); st != 0 {
 		writeBodyError(w, st, "invalid_body", "body JSON inválido")
 		return
+	}
+	if body.Key == "" && body.ID != "" {
+		body.Key = s.adapter.AlertsEngine().SnoozeKey(body.ID)
 	}
 	if body.Key == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "key is required")

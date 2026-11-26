@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 export function RecentAlerts() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { alerts, unreadAlerts, alertsConfig, dismissAlert } = useNetPulse()
+  const { alerts, unreadAlerts, alertsConfig, markAlertsRead, snoozeAlert, unsnoozeAlert } = useNetPulse()
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [spinning, setSpinning] = useState(false)
   // Timer del spin del botón de recheck: en un ref para limpiarlo en unmount
@@ -55,6 +55,7 @@ export function RecentAlerts() {
 
   const markReadAndGo = (id: string) => {
     setReadIds((prev) => new Set(prev).add(id))
+    markAlertsRead([id])
     navigate('/alerts')
   }
 
@@ -99,7 +100,12 @@ export function RecentAlerts() {
             <AlertItem
               alert={{ ...a, read: a.read || readIds.has(a.id) }}
               onClick={() => markReadAndGo(a.id)}
-              onDismiss={dismissAlert}
+              onMarkRead={(id) => {
+                setReadIds((prev) => new Set(prev).add(id))
+                markAlertsRead([id])
+              }}
+              onSnooze={snoozeAlert}
+              onUnsnooze={unsnoozeAlert}
             />
           </motion.div>
         ))}

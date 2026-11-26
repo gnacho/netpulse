@@ -79,7 +79,11 @@ export function isHiddenByLevel(ev: Pick<AlertEvent, 'category'>, cfg: AlertsCon
   return (cfg[ev.category] ?? 'all') === 'none'
 }
 
-/** No leídas que el motor sirve — el contador de la campana. */
-export function countUnreadAlerts(alerts: Pick<AlertEvent, 'category' | 'read'>[], cfg: AlertsConfig): number {
-  return alerts.filter((a) => !a.read && !isHiddenByLevel(a, cfg)).length
+/** No leídas que el motor sirve — el contador de la campana. Una alerta
+ *  pospuesta no cuenta como pendiente (#2185). */
+export function countUnreadAlerts(
+  alerts: (Pick<AlertEvent, 'category' | 'read'> & { snoozed?: boolean })[],
+  cfg: AlertsConfig,
+): number {
+  return alerts.filter((a) => !a.read && !a.snoozed && !isHiddenByLevel(a, cfg)).length
 }
