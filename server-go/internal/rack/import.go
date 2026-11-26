@@ -12,8 +12,9 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // CableHint candidato de cable. From/To son MACs normalizadas; ambos
@@ -42,7 +43,7 @@ func pairKey(a, b string) string {
 	return p[0] + "|" + p[1]
 }
 
-func normMac(m string) string { return strings.ToLower(strings.TrimSpace(m)) }
+func normMac(m string) string { return macaddr.NormalizeLenient(m) }
 
 // ImportCables crea cables para los hints cuyos extremos están montados.
 // Elección de puerto en dos niveles: primero uno libre cuyo tipo case con el

@@ -207,8 +207,8 @@ func TestCablesCapacityAndCascade(t *testing.T) {
 	rack := createTestRack(t, db)
 
 	// Dos switches con perfil con puertos sembrados.
-	sw1 := "aa:bb:cc:00:00:01"
-	sw2 := "aa:bb:cc:00:00:02"
+	sw1 := "AA:BB:CC:00:00:01"
+	sw2 := "AA:BB:CC:00:00:02"
 	for i, mac := range []string{sw1, sw2} {
 		if err := UpsertProfile(db, DeviceProfile{MAC: mac, UHeight: 1, ColSpan: 12,
 			Ports: []Port{{ID: "eth0", Kind: PortRJ45}, {ID: "eth1", Kind: PortRJ45}}}); err != nil {
@@ -282,5 +282,58 @@ func TestCablesCapacityAndCascade(t *testing.T) {
 	rows, _ = ListMountRows(db)
 	if len(rows) != 0 {
 		t.Fatalf("mounts huérfanos tras DeleteRack: %d", len(rows))
+	}
+}
+
+// TestSaveLayoutAndProfileJoinAcrossCases comprueba que guardar un perfil y un
+// montaje con distinto formato/caja de MAC normaliza ambos a la forma canónica
+// sin duplicar filas en device_rack_profile ni perder el JOIN de la huella.
+func TestSaveLayoutAndProfileJoinAcrossCases(t *testing.T) {
+	db := openTestDB(t)
+	rack := createTestRack(t, db)
+
+	if err := UpsertProfile(db, DeviceProfile{
+		MAC: "aa:bb:cc:dd:ee:01", FaceplateID: "server-2u", UHeight: 2, ColSpan: 6,
+	}); err != nil {
+		t.Fatalf("UpsertProfile: %v", err)
+	}
+	if err := SaveLayout(db, LayoutChange{
+		RackID: rack.ID,
+		Upsert: []Mount{{DeviceMAC: "AA-BB-CC-DD-EE-01", UStart: 1, ColStart: 0}},
+	}); err != nil {
+		t.Fatalf("SaveLayout: %v", err)
+	}
+
+	mounts, err := ListMountRows(db)
+	if err != nil || len(mounts) != 1 {
+		t.Fatalf("ListMountRows: len=%d err=%v", len(mounts), err)
+	}
+	if mounts[0].DeviceMAC != "AA:BB:CC:DD:EE:01" {
+		t.Errorf("esperaba DeviceMAC en forma canónica AA:BB:CC:DD:EE:01, got %q", mounts[0].DeviceMAC)
+	}
+	if mounts[0].UHeight != 2 || mounts[0].ColSpan != 6 {
+		t.Errorf("el montaje no cruzó con el perfil 2Ux6: got %dUx%d", mounts[0].UHeight, mounts[0].ColSpan)
+	}
+
+	profiles, err := ListProfiles(db)
+	if err != nil || len(profiles) != 1 {
+		t.Fatalf("esperaba 1 único perfil sin duplicado por defecto, got %d (err=%v)", len(profiles), err)
+	}
+	if profiles[0].MAC != "AA:BB:CC:DD:EE:01" || profiles[0].UHeight != 2 {
+		t.Errorf("perfil inesperado: %+v", profiles[0])
+	}
+}
+
+// TestSaveLayoutRejectsInvalidMAC comprueba que un montaje con una device_mac
+// que no es una MAC devuelve ErrInvalidMAC (el handler lo traduce a 400).
+func TestSaveLayoutRejectsInvalidMAC(t *testing.T) {
+	db := openTestDB(t)
+	rack := createTestRack(t, db)
+	err := SaveLayout(db, LayoutChange{
+		RackID: rack.ID,
+		Upsert: []Mount{{DeviceMAC: "no-es-una-mac", UStart: 1, ColStart: 0}},
+	})
+	if !errors.Is(err, ErrInvalidMAC) {
+		t.Fatalf("esperaba ErrInvalidMAC, obtuve %v", err)
 	}
 }

@@ -8,7 +8,8 @@ package httpapi
 
 import (
 	"net/http"
-	"strings"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // handleOnboardingDismiss silencia la alerta "dispositivo desconocido" para
@@ -23,15 +24,11 @@ func (s *server) handleOnboardingDismiss(w http.ResponseWriter, r *http.Request)
 		writeBodyError(w, st, "invalid_body", "body JSON inválido")
 		return
 	}
-	mac := normalizeMAC(body.MAC)
-	if len(mac) != 17 {
+	mac := macaddr.Normalize(body.MAC)
+	if mac == "" {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
-	// La convención de memoria del adapter es MAC en MAYÚSCULAS (las MAC de
-	// los dispositivos viajan así); la clave kv debe coincidir para que la
-	// carga de arranque (unknownAlerted) case con trackUnknownDevices.
-	mac = strings.ToUpper(mac)
 	if s.db != nil {
 		_, _ = s.db.Exec("INSERT INTO kv (key, value) VALUES (?, '1') ON CONFLICT(key) DO NOTHING", "unknown_alerted:"+mac)
 	}

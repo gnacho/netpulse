@@ -25,7 +25,7 @@ export function computeStalePorts(
 ): StalePortsEntry[] {
   const out: StalePortsEntry[] = []
   for (const m of mounts) {
-    const mac = m.device_mac?.toLowerCase()
+    const mac = m.device_mac?.toUpperCase()
     if (!mac) continue
     const prof = profiles.get(mac)
     const live = liveByMac.get(mac)

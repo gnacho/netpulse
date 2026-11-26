@@ -22,8 +22,9 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/gnacho/netpulse/agent/macaddr"
 )
 
 // queryer: subset de *sql.DB usado para cargar overrides (evita acoplar a db.DB).
@@ -59,10 +60,36 @@ func loadTopologyOverrides(q queryer) []TopologyOverride {
 	return out
 }
 
-// NormalizeMAC normaliza una MAC a minúsculas sin espacios (formato de
-// comparación de la capa de overrides y del resto del pipeline).
+// colonMAC devuelve la forma canónica (AA:BB:CC:DD:EE:FF) si s es una MAC
+// escrita con ':', o "". Los campos de override admiten también ids de router,
+// que son slugs (minúsculas, '-', sin ':'): uno como "aa-bb-cc-dd-ee-ff" o
+// "cafebabe1234" no debe leerse como MAC, así que solo cuenta la forma con ':'.
+func colonMAC(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.Count(s, ":") != 5 {
+		return ""
+	}
+	return macaddr.Normalize(s)
+}
+
+// NormalizeMAC normaliza el target de un override: una MAC con ':' en forma
+// canónica; cualquier otra cosa es un id de router (#1485: unidad de flota sin
+// MAC de bridge) y se devuelve en minúsculas sin espacios, como antes.
 func NormalizeMAC(mac string) string {
+	if m := colonMAC(mac); m != "" {
+		return m
+	}
 	return strings.ToLower(strings.TrimSpace(mac))
+}
+
+// NormalizeParentRef normaliza el parent de un override antes de guardarlo:
+// una MAC con ':' en forma canónica; una referencia de router ("routerId" o
+// "routerId:puerto") solo sin espacios alrededor.
+func NormalizeParentRef(raw string) string {
+	if m := colonMAC(raw); m != "" {
+		return m
+	}
+	return strings.TrimSpace(raw)
 }
 
 // deviceIndexByMAC indexa devices por MAC normalizada.
@@ -75,9 +102,6 @@ func deviceIndexByMAC(devices []Device) map[string]int {
 	}
 	return m
 }
-
-// macRe reconoce una MAC normalizada (6 octetos hex separados por ':').
-var macRe = regexp.MustCompile(`^([0-9a-f]{2}:){5}[0-9a-f]{2}$`)
 
 // parentRefKind clasifica el `parent` de un override kind=attach (issue #690).
 type parentRefKind int
@@ -93,25 +117,24 @@ const (
 type routerPort struct{ router, port string }
 
 // parseParentRef clasifica el `parent` de un override attach. Formato:
-//   - MAC ("aa:bb:cc:dd:ee:ff"): cuelga del device con esa MAC (formato
+//   - MAC ("AA:BB:CC:DD:EE:FF"): cuelga del device con esa MAC (formato
 //     original, se mantiene).
 //   - "<routerId>": cuelga directamente del router.
 //   - "<routerId>:<puerto>": cuelga del puerto concreto del router.
 //
-// No hay ambigüedad: los slugs de router no contienen ':' (routerstore.slugify
-// mapea [^a-z0-9]+ → '-') y las MAC siempre llevan 5 ':'. Un valor con ':' que
-// casa con la regex MAC es una MAC; con exactamente un ':' es router:puerto;
-// sin ':' es un router; cualquier otra forma es inválida.
+// Una MAC solo cuenta en la forma con ':' (ver colonMAC). La referencia de
+// router se compara en minúsculas, id y puerto, como siempre.
 func parseParentRef(parent string) (kind parentRefKind, routerID, port, mac string) {
-	p := NormalizeMAC(parent)
+	p := strings.TrimSpace(parent)
 	if p == "" {
 		return parentRefInvalid, "", "", ""
 	}
-	if macRe.MatchString(p) {
-		return parentRefMAC, "", "", p
+	if m := colonMAC(p); m != "" {
+		return parentRefMAC, "", "", m
 	}
+	p = strings.ToLower(p)
 	if i := strings.IndexByte(p, ':'); i >= 0 {
-		routerID, port = p[:i], p[i+1:]
+		routerID, port = strings.TrimSpace(p[:i]), strings.TrimSpace(p[i+1:])
 		if routerID == "" || port == "" {
 			return parentRefInvalid, "", "", ""
 		}
@@ -305,7 +328,7 @@ func fleetOverrideEvidence(overrides []TopologyOverride, routers []Router) map[s
 			// alta como external sin MAC) no se puede fijar por MAC. El target
 			// puede ser su id de router: así la intención del admin siempre se
 			// puede expresar, sea cual sea la forma en que se registró.
-			rid, ok = routerIDByLower[NormalizeMAC(o.MAC)]
+			rid, ok = routerIDByLower[strings.ToLower(strings.TrimSpace(o.MAC))]
 			if !ok {
 				continue
 			}
@@ -315,18 +338,17 @@ func fleetOverrideEvidence(overrides []TopologyOverride, routers []Router) map[s
 			continue
 		}
 		var parent, port string
-		switch {
-		case macRe.MatchString(strings.ToLower(p)):
-			parent = routerByMac[strings.ToLower(p)]
+		if m := colonMAC(p); m != "" {
+			parent = routerByMac[m]
 			if parent == "" {
 				continue // el target no es un router de flota
 			}
-		default:
+		} else {
 			routerID := ""
 			if i := strings.IndexByte(p, ':'); i >= 0 {
-				routerID, port = NormalizeMAC(p[:i]), strings.TrimSpace(p[i+1:])
+				routerID, port = strings.ToLower(strings.TrimSpace(p[:i])), strings.TrimSpace(p[i+1:])
 			} else {
-				routerID = NormalizeMAC(p)
+				routerID = strings.ToLower(p)
 			}
 			if !routerByID[routerID] {
 				continue

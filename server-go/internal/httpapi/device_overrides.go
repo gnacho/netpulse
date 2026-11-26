@@ -12,33 +12,12 @@ package httpapi
 import (
 	"database/sql"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 )
-
-var macNormalizeRe = regexp.MustCompile(`[^0-9a-fA-F]`)
-
-// normalizeMAC devuelve MAC en minúsculas con ':' (la forma canónica del
-// server y de device_overrides).
-func normalizeMAC(mac string) string {
-	hex := macNormalizeRe.ReplaceAllString(mac, "")
-	hex = strings.ToLower(hex)
-	var out strings.Builder
-	for i := 0; i < len(hex); i += 2 {
-		if i > 0 {
-			out.WriteByte(':')
-		}
-		if i+2 <= len(hex) {
-			out.WriteString(hex[i : i+2])
-		} else {
-			out.WriteString(hex[i:])
-		}
-	}
-	return out.String()
-}
 
 // validateIcon comprueba que el icono enviado es uno de los permitidos por
 // DEVICE_ICONS del frontend. Lista cerrada para evitar inyección de clases.
@@ -78,8 +57,8 @@ const deviceNameMax = 64
 // handleDeviceOverridePut: campos opcionales {"icon","name","type"}; vacío
 // limpia, ausente no toca. Si los tres quedan vacíos la fila se borra.
 func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request) {
-	mac := normalizeMAC(r.PathValue("mac"))
-	if mac == "" || len(mac) != 17 {
+	mac := macaddr.Normalize(r.PathValue("mac"))
+	if mac == "" {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
@@ -170,8 +149,8 @@ func (s *server) handleDeviceOverridePut(w http.ResponseWriter, r *http.Request)
 
 // handleDeviceOverrideGet: devuelve el override actual de un dispositivo.
 func (s *server) handleDeviceOverrideGet(w http.ResponseWriter, r *http.Request) {
-	mac := normalizeMAC(r.PathValue("mac"))
-	if mac == "" || len(mac) != 17 {
+	mac := macaddr.Normalize(r.PathValue("mac"))
+	if mac == "" {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}

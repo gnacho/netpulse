@@ -188,3 +188,37 @@ func TestClientBwRateForPriorizaFuente(t *testing.T) {
 		t.Fatalf("rate tx: %.0f (want 0)", tx)
 	}
 }
+
+// TestCanonBWMacRejectsNonMAC comprueba que canonBWMac devuelve la forma
+// canónica en mayúsculas para MACs válidas y "" para cadenas que no son MAC
+// (p. ej. una IP como "192.168.1.1"), de modo que no se persistan en
+// client_bw_raw.
+func TestCanonBWMacRejectsNonMAC(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "IPv4 no es MAC", in: "192.168.1.1", want: ""},
+		{name: "texto arbitrario", in: "no-es-mac", want: ""},
+		{name: "MAC en minúsculas", in: "aa:bb:cc:dd:ee:01", want: "AA:BB:CC:DD:EE:01"},
+		{name: "MAC con guiones", in: "aa-bb-cc-dd-ee-01", want: "AA:BB:CC:DD:EE:01"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := canonBWMac(tc.in); got != tc.want {
+				t.Errorf("canonBWMac(%q) = %q, esperaba %q", tc.in, got, tc.want)
+			}
+		})
+	}
+
+	d := openLiveTestDB(t)
+	l := &Live{db: d}
+	t0 := time.Now()
+	t1 := t0.Add(10 * time.Second)
+	l.recordClientBwSamples("gw", t0, []clientBwSample{{mac: "192.168.1.1", rx: 100, tx: 100}}, "nlbwmon")
+	l.recordClientBwSamples("gw", t1, []clientBwSample{{mac: "192.168.1.1", rx: 500, tx: 500}}, "nlbwmon")
+	if n := countRawClientBW(t, d); n != 0 {
+		t.Fatalf("una IP no debe escribirse en client_bw_raw, hay %d filas", n)
+	}
+}

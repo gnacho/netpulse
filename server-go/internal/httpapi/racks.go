@@ -11,8 +11,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"strings"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/adapters"
 	"github.com/gnacho/netpulse/server-go/internal/auth"
 	"github.com/gnacho/netpulse/server-go/internal/rack"
@@ -41,14 +41,14 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 	mounted := map[string]bool{}
 	for _, m := range mounts {
 		if m.DeviceMAC != "" {
-			mounted[strings.ToLower(m.DeviceMAC)] = true
+			mounted[macaddr.NormalizeLenient(m.DeviceMAC)] = true
 		}
 	}
 	routerMAC := map[string]string{}
 	if ov := s.lastOv(); ov != nil {
 		for _, r := range ov.Routers {
 			if r.MAC != "" {
-				routerMAC[r.ID] = strings.ToLower(r.MAC)
+				routerMAC[r.ID] = macaddr.NormalizeLenient(r.MAC)
 			}
 		}
 	}
@@ -76,7 +76,7 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 		if !ok || from == "" {
 			continue
 		}
-		to := strings.ToLower(d.MAC)
+		to := macaddr.NormalizeLenient(d.MAC)
 		if !mounted[from] || !mounted[to] {
 			continue
 		}
@@ -408,7 +408,7 @@ func (s *server) handleRackProfilePut(w http.ResponseWriter, r *http.Request) {
 		writeBodyError(w, st, "invalid_body", "body JSON inválido")
 		return
 	}
-	d.MAC = r.PathValue("mac")
+	d.MAC = macaddr.Normalize(r.PathValue("mac"))
 	if err := rack.UpsertProfile(s.db.DB, dtoToProfile(d)); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_profile", err.Error())
 		return
@@ -423,6 +423,8 @@ func writeRackStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, rack.ErrUnknownMount), errors.Is(err, sql.ErrNoRows):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, rack.ErrInvalidMAC):
+		writeError(w, http.StatusBadRequest, "invalid_mac", err.Error())
 	case errors.Is(err, rack.ErrUnknownPort):
 		writeError(w, http.StatusBadRequest, "unknown_port", err.Error())
 	default:

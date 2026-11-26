@@ -66,7 +66,7 @@ type Port struct {
 }
 
 // DeviceProfile es el modelo físico compartido del dispositivo: la misma
-// cara frontal en todos los racks. Clave: MAC normalizada (minúsculas, ':').
+// cara frontal en todos los racks. Clave: MAC normalizada (mayúsculas, ':').
 type DeviceProfile struct {
 	MAC         string `json:"mac"`
 	FaceplateID string `json:"faceplateId"`

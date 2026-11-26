@@ -1819,10 +1819,13 @@ type overrideInfo struct {
 	NotifyOffline bool
 }
 
-// loadDeviceOverrides lee los overrides manuales, con clave en minúsculas
-// para que el lookup sea robusto al caso de la MAC (#797). Lo usan tanto
-// buildDevices (clientes vivos) como ghostDevices (retenidos offline):
-// un override debe verse igual esté el cliente online u offline.
+// loadDeviceOverrides lee los overrides manuales, con clave por la MAC tal
+// como está guardada: ya canónica (AA:BB:CC:DD:EE:FF), porque el handler la
+// normaliza al escribir y la migración pasó las filas antiguas. Las MAC de
+// los dispositivos también lo son desde su fuente (#960), así que el lookup
+// es exacto. Lo usan tanto buildDevices (clientes vivos) como ghostDevices
+// (retenidos offline): un override debe verse igual esté el cliente online u
+// offline (#797).
 func (l *Live) loadDeviceOverrides() map[string]overrideInfo {
 	out := map[string]overrideInfo{}
 	if l.db == nil {
@@ -1838,7 +1841,7 @@ func (l *Live) loadDeviceOverrides() map[string]overrideInfo {
 		var icon sql.NullString
 		var notifyOffline bool
 		if err := rows.Scan(&mac, &icon, &name, &deviceType, &bannedBands, &notifyOffline); err == nil {
-			out[strings.ToLower(mac)] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
+			out[mac] = overrideInfo{Icon: icon.String, Name: name, DeviceType: deviceType, BannedBands: bannedBands, NotifyOffline: notifyOffline}
 		}
 	}
 	return out
@@ -4113,7 +4116,7 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		// issue #437/#797: overrides manuales (icono, nombre) se aplican sobre
 		// el dispositivo auto-descubierto; el nombre manual manda incluso
 		// sobre el alias de la allowlist.
-		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok {
+		if ov, ok := deviceOverrides[mac]; ok {
 			if ov.Icon != "" {
 				d.IconOverride = ov.Icon
 			}
@@ -4185,12 +4188,12 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 		}
 		// issue #797: el tipo manual manda sobre la clasificación (reglas,
 		// huella DHCP y refinación mDNS).
-		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok && ov.DeviceType != "" {
+		if ov, ok := deviceOverrides[mac]; ok && ov.DeviceType != "" {
 			d.Type = ov.DeviceType
 			d.TypeOverride = ov.DeviceType
 		}
 		// #1354: flag opt-in de alerta por desconexión (override persistido).
-		if ov, ok := deviceOverrides[strings.ToLower(mac)]; ok {
+		if ov, ok := deviceOverrides[mac]; ok {
 			d.NotifyOffline = ov.NotifyOffline
 		}
 		if isSeen {

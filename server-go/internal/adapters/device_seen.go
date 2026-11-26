@@ -552,7 +552,7 @@ func (l *Live) ghostDevices(devices []Device) []Device {
 		// #437/#797: el override manual manda también en el fantasma offline
 		// (icono, nombre y tipo). Sin esto un cliente retenido perdía su icono
 		// al caer offline y no reflejaba los cambios hechos estando offline.
-		if ov, ok := overrides[strings.ToLower(mac)]; ok {
+		if ov, ok := overrides[mac]; ok {
 			if ov.Icon != "" {
 				d.IconOverride = ov.Icon
 			}

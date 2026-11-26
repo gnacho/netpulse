@@ -49,11 +49,12 @@ type AddInput struct {
 func Add(db *sql.DB, in AddInput) (adapters.TopologyOverride, error) {
 	now := time.Now().UnixMilli()
 	mac := adapters.NormalizeMAC(in.MAC)
+	parent := adapters.NormalizeParentRef(in.Parent)
 	_, err := db.Exec(
 		`INSERT INTO topology_overrides (id, mac, kind, name, parent, enabled, created_at, updated_at)
 		 VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), 1, ?, ?)
 		 ON CONFLICT(id) DO UPDATE SET kind=excluded.kind, name=excluded.name, parent=excluded.parent, updated_at=excluded.updated_at`,
-		mac, mac, in.Kind, in.Name, in.Parent, now, now)
+		mac, mac, in.Kind, in.Name, parent, now, now)
 	if err != nil {
 		return adapters.TopologyOverride{}, err
 	}
@@ -77,6 +78,7 @@ type UpdateInput struct {
 // Update actualiza un override por id (mac). Devuelve la fila o false si no
 // existe.
 func Update(db *sql.DB, id string, in UpdateInput) (adapters.TopologyOverride, bool) {
+	id = adapters.NormalizeMAC(id)
 	now := time.Now().UnixMilli()
 	sets := []string{"updated_at = ?"}
 	args := []any{now}
@@ -90,7 +92,7 @@ func Update(db *sql.DB, id string, in UpdateInput) (adapters.TopologyOverride, b
 	}
 	if in.Parent != nil {
 		sets = append(sets, "parent = NULLIF(?, '')")
-		args = append(args, *in.Parent)
+		args = append(args, adapters.NormalizeParentRef(*in.Parent))
 	}
 	if in.Enabled != nil {
 		en := 0
@@ -119,6 +121,7 @@ func Update(db *sql.DB, id string, in UpdateInput) (adapters.TopologyOverride, b
 
 // Remove borra por id (mac); true si borró (changes > 0).
 func Remove(db *sql.DB, id string) bool {
+	id = adapters.NormalizeMAC(id)
 	res, err := db.Exec("DELETE FROM topology_overrides WHERE id = ?", id)
 	if err != nil {
 		return false

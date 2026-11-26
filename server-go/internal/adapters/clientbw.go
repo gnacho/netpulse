@@ -20,9 +20,9 @@
 package adapters
 
 import (
-	"strings"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/agent/probe"
 	"github.com/gnacho/netpulse/server-go/internal/clientbw"
 )
@@ -49,25 +49,10 @@ type clientBwSample struct {
 	tx  uint64
 }
 
-// canonBWMac normaliza la MAC al formato canónico del server para las rutas
-// /api/devices/{mac}/* (minúsculas con ':'). Las fuentes (hostapd/nlbwmon)
-// entregan mayúsculas; la store client_bw_raw debe casar con normalizeMAC.
+// canonBWMac devuelve la MAC en la forma canónica (AA:BB:CC:DD:EE:FF), o ""
+// si mac no es una MAC válida de 6 octetos.
 func canonBWMac(mac string) string {
-	var b strings.Builder
-	for _, r := range strings.ToLower(mac) {
-		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
-			b.WriteRune(r)
-		}
-	}
-	s := b.String()
-	var out strings.Builder
-	for i := 0; i+1 < len(s); i += 2 {
-		if i > 0 {
-			out.WriteByte(':')
-		}
-		out.WriteString(s[i : i+2])
-	}
-	return out.String()
+	return macaddr.Normalize(mac)
 }
 
 // recordClientBwSamples persiste el delta de cada cliente desde el último
@@ -136,6 +121,9 @@ func (l *Live) recordClientBwSamples(routerID string, now time.Time, samples []c
 // ya contabiliza todo el tráfico de la MAC; sumar hostapd doblaría).
 func (l *Live) clientBwRateFor(mac string) (rxBps, txBps float64) {
 	mac = canonBWMac(mac)
+	if mac == "" {
+		return 0, 0
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if c := l.findClientBwRate(mac, "nlbwmon"); c != nil {

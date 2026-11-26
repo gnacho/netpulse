@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gnacho/netpulse/agent/macaddr"
 	"github.com/gnacho/netpulse/server-go/internal/dnsactivity"
 )
 
@@ -50,8 +51,8 @@ func (s *server) handleDeviceDNS(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "unavailable")
 		return
 	}
-	mac := normalizeMAC(r.PathValue("mac"))
-	if len(mac) != len("aa:bb:cc:dd:ee:ff") {
+	mac := macaddr.Normalize(r.PathValue("mac"))
+	if mac == "" {
 		writeError(w, http.StatusBadRequest, "invalid_mac")
 		return
 	}
