@@ -2505,14 +2505,17 @@ func (l *Live) trackWanDown(cfg *RouterConfig, p *routerPolled) {
 // without its list of connections would go out as a null the page then
 // reads a length from. A nil slice becomes an empty one, which already
 // means "nothing to show" everywhere downstream.
+//
+// m es parte de un payload ya publicado en AgentRegistry, que leen otras
+// goroutines (persistAgentState lo serializa), así que la lista vacía va en
+// una copia y no en m.
 func normalizeMultiWan(m *MultiWanInfo) *MultiWanInfo {
-	if m == nil {
-		return nil
+	if m == nil || m.Uplinks != nil {
+		return m
 	}
-	if m.Uplinks == nil {
-		m.Uplinks = []WanUplink{}
-	}
-	return m
+	cp := *m
+	cp.Uplinks = []WanUplink{}
+	return &cp
 }
 
 // uplinkWatch is one router's multi-WAN history, as much of it as an alert
