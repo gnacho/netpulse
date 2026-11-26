@@ -27,6 +27,17 @@
     "onlyUnread": "Unread only",
     "silence": "Silence",
     "silenceForever": "Forever",
+    "snoozeTitle": "Snooze this alert",
+    "snoozeDesc": "Pauses notifications and escalation for this incident. Monitoring continues and the resolution is still detected.",
+    "snooze1h": "For 1 hour",
+    "snooze2h": "For 2 hours",
+    "snooze8h": "For 8 hours",
+    "snoozeTomorrow": "Until tomorrow at 9:00",
+    "snooze7d": "For 7 days",
+    "snoozedUntil": "Snoozed until {{time}}",
+    "snoozedIndefinitely": "Snoozed indefinitely",
+    "unsnooze": "Undo snooze",
+    "approveBssidAction": "Approve as ours",
     "approveBssid": "This BSSID is ours: approve it and stop impostor alerts for it",
     "impostorRule": "SSID impostor detection",
     "impostorRuleDesc": "Alert when an unknown radio broadcasts a network name of your fleet. Turn it off if your own APs outside NetPulse (UniFi, Omada...) trigger false positives.",
@@ -321,7 +332,11 @@
     "actions": {
       "identify": "Identify device",
       "updateAgent": "Update agent",
-      "dismiss": "Clear alert"
+      "dismiss": "Clear alert",
+      "markRead": "Mark as read",
+      "snooze": "Snooze",
+      "viewMore": "View more",
+      "viewLess": "View less"
     }
   },
   "auth": {

@@ -40,6 +40,8 @@ import type {
   WireGuardStats,
 } from '@/data/types'
 import { VM_SUPPORTED } from '@/data/types'
+import { snoozeUntil } from '@/lib/snooze'
+import type { SnoozeWhen } from '@/lib/snooze'
 import {
   adguard as mockAdGuard,
   alerts as mockAlerts,
@@ -191,8 +193,11 @@ export interface NetPulseApi extends NetPulseData {
   /** Acción destructiva "Vaciar registro" (#1034) - POST /api/alerts/clear
    * (live): borra el log del servidor. Demo: estado local. Optimista. */
   clearAllAlerts: () => void
-  /** POST /api/alerts/silence (live): silencia alertas con la misma dedup key. */
-  silenceAlert: (id: string, duration: '1h' | '24h' | 'forever') => void
+  /** POST /api/alerts/silence (live): pospone las alertas con la misma dedup
+   * key (#2185). La alerta sigue en el feed marcada como pospuesta. */
+  snoozeAlert: (id: string, when: SnoozeWhen) => void
+  /** POST /api/alerts/unsilence (live): quita la posposición de una alerta. */
+  unsnoozeAlert: (id: string) => void
   /** POST /api/alerts/impostor-approve (live): aprueba un BSSID como propio
    * (#1400); la alerta de impostor de ese BSSID se resuelve y no vuelve. */
   approveImpostorBssid: (bssid: string) => void
@@ -1049,17 +1054,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     })()
   }, [])
 
-  /** Silencia una alerta por dedup key; el backend la filtra del feed. */
-  const silenceAlert = useCallback((id: string, duration: '1h' | '24h' | 'forever') => {
-    // Optimistic: remove the alert from the local feed immediately
+  /** Pospone una alerta (#2185): la fila SIGUE en el feed con su marca, pero
+   * pausa avisos, escalado y re-emisiones hasta el fin. Optimista; en live
+   * POST /api/alerts/silence. Demo: solo estado local. */
+  const snoozeAlert = useCallback((id: string, when: SnoozeWhen) => {
+    const until = snoozeUntil(when)
     setBundle((prev) => {
       const target = prev.alerts.find((a) => a.id === id)
       if (!target) return prev
       const dedupKey = `${target.category}|${target.title}|${target.routerId ?? ''}`
-      const alerts = prev.alerts.filter((a) => {
-        const k = `${a.category}|${a.title}|${a.routerId ?? ''}`
-        return k !== dedupKey
-      })
+      const alerts = prev.alerts.map((a) =>
+        `${a.category}|${a.title}|${a.routerId ?? ''}` === dedupKey
+          ? { ...a, snoozed: true, snoozedUntil: until }
+          : a,
+      )
       const unreadAlerts =
         modeRef.current === 'live'
           ? prev.unreadAlerts
@@ -1072,7 +1080,35 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const res = await fetch('/api/alerts/silence', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, duration }),
+          body: JSON.stringify({ id, ...when }),
+        })
+        if (res.status === 401) redirectLogin()
+      } catch {
+        /* resync por snapshot */
+      }
+    })()
+  }, [])
+
+  /** Quita la posposición (#2185). Optimista; en live POST
+   * /api/alerts/unsilence con el id. */
+  const unsnoozeAlert = useCallback((id: string) => {
+    setBundle((prev) => {
+      const alerts = prev.alerts.map((a) =>
+        a.id === id ? { ...a, snoozed: false, snoozedUntil: 0 } : a,
+      )
+      const unreadAlerts =
+        modeRef.current === 'live'
+          ? prev.unreadAlerts
+          : countUnreadAlerts(alerts, configRef.current)
+      return { ...prev, alerts, unreadAlerts }
+    })
+    if (modeRef.current !== 'live') return
+    void (async () => {
+      try {
+        const res = await fetch('/api/alerts/unsilence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
         })
         if (res.status === 401) redirectLogin()
       } catch {
@@ -1474,7 +1510,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markAlertsRead,
       markAllAlertsRead,
       clearAllAlerts,
-      silenceAlert,
+      snoozeAlert,
+      unsnoozeAlert,
       approveImpostorBssid,
       setPeerUrgent,
       dismissAlert,
@@ -1488,7 +1525,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       removeAgent,
       createAgentInstall,
     }),
-    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, silenceAlert, approveImpostorBssid, setPeerUrgent, dismissAlert, rearmAgent, upgradeAgent, backupAgent, upgradeAllAgents, backupRouterSsh, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
+    [bundle, connectionStatus, agents, refreshAgents, isDemo, refresh, lastSnapshotAt, requestServerRefresh, getRouterDetail, getDevices, getAlerts, alertsConfig, setAlertConfig, markAlertsRead, markAllAlertsRead, clearAllAlerts, snoozeAlert, unsnoozeAlert, approveImpostorBssid, setPeerUrgent, dismissAlert, rearmAgent, upgradeAgent, backupAgent, upgradeAllAgents, backupRouterSsh, reinstallAgent, uninstallAgent, removeAgent, createAgentInstall],
   )
 
   return <NetPulseContext.Provider value={value}>{children}</NetPulseContext.Provider>

@@ -6,10 +6,12 @@ package httpapi_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func doJSON(t *testing.T, method, base, path, cookie string, body string) *http.Response {
@@ -251,5 +253,90 @@ func TestAlertsNoTrailingNewline(t *testing.T) {
 	raw, _ := io.ReadAll(res.Body)
 	if strings.HasSuffix(string(raw), "\n") {
 		t.Fatal("writeJSON no debe terminar en \\n")
+	}
+}
+
+// POST /api/alerts/silence (#2185): posponer deja la alerta en el feed con
+// snoozed/snoozedUntil, acepta 1h/2h/8h/7d/forever y una fecha absoluta, y
+// POST /api/alerts/unsilence {id} quita la posposicion.
+func TestAlertsSnoozeEndpoint(t *testing.T) {
+	ts := makeTestServer(t)
+	_, cookie, _ := loginCookie(t, ts.URL, "admin", "test123456")
+
+	res := doJSON(t, "POST", ts.URL, "/api/alerts/silence", cookie, `{"id":"alert-handshake-wg","duration":"2h"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("snooze: %d", res.StatusCode)
+	}
+	var snoozed struct {
+		OK  bool   `json:"ok"`
+		Key string `json:"key"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&snoozed); err != nil || !snoozed.OK || snoozed.Key == "" {
+		t.Fatalf("snooze body: %+v err=%v", snoozed, err)
+	}
+	res.Body.Close()
+
+	items := alertItems(t, get(t, ts.URL, "/api/alerts", cookie))
+	var row map[string]any
+	for _, a := range items {
+		if a["id"] == "alert-handshake-wg" {
+			row = a
+		}
+	}
+	if row == nil {
+		t.Fatal("la alerta pospuesta debe seguir en el feed")
+	}
+	if got, _ := row["snoozed"].(bool); !got {
+		t.Fatalf("snoozed ausente: %v", row)
+	}
+	until, _ := row["snoozedUntil"].(float64)
+	if until <= float64(time.Now().Unix()) {
+		t.Fatalf("snoozedUntil no está en el futuro: %v", row["snoozedUntil"])
+	}
+
+	// Quitar la posposicion por ID y ver que la marca desaparece.
+	res = doJSON(t, "POST", ts.URL, "/api/alerts/unsilence", cookie, `{"id":"alert-handshake-wg"}`)
+	if res.StatusCode != 200 {
+		t.Fatalf("unsnooze por id: %d", res.StatusCode)
+	}
+	res.Body.Close()
+	for _, a := range alertItems(t, get(t, ts.URL, "/api/alerts", cookie)) {
+		if a["id"] == "alert-handshake-wg" {
+			if got, _ := a["snoozed"].(bool); got {
+				t.Fatalf("snoozed debería haberse quitado: %v", a)
+			}
+		}
+	}
+
+	// Duraciones válidas y fecha absoluta.
+	future := time.Now().Add(3 * time.Hour).Unix()
+	for _, body := range []string{
+		`{"id":"alert-handshake-wg","duration":"1h"}`,
+		`{"id":"alert-handshake-wg","duration":"8h"}`,
+		`{"id":"alert-handshake-wg","duration":"7d"}`,
+		`{"id":"alert-handshake-wg","duration":"forever"}`,
+		fmt.Sprintf(`{"id":"alert-handshake-wg","until":%d}`, future),
+	} {
+		res = doJSON(t, "POST", ts.URL, "/api/alerts/silence", cookie, body)
+		if res.StatusCode != 200 {
+			t.Fatalf("snooze %s: %d", body, res.StatusCode)
+		}
+		res.Body.Close()
+	}
+
+	for _, body := range []string{
+		`{"id":"alert-handshake-wg","duration":"5m"}`,
+		`{"id":"alert-handshake-wg","until":1}`,
+		`{"id":"no-existe","duration":"1h"}`,
+	} {
+		res = doJSON(t, "POST", ts.URL, "/api/alerts/silence", cookie, body)
+		if body == `{"id":"no-existe","duration":"1h"}` {
+			if res.StatusCode != 404 {
+				t.Fatalf("snooze inexistente: %d, esperaba 404", res.StatusCode)
+			}
+		} else if res.StatusCode != 400 {
+			t.Fatalf("snooze %s: %d, esperaba 400", body, res.StatusCode)
+		}
+		res.Body.Close()
 	}
 }

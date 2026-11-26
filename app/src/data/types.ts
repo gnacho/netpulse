@@ -466,6 +466,12 @@ export interface AlertEvent {
    *  Viene del server para no depender de tener el evento en la página
    *  actual del feed; si falta (servidor viejo), la UI cae a `resolves`. */
   resolved?: ResolvedAlertRef[]
+  /** #2185: la alerta está pospuesta (sigue en el feed y monitorizada, pero
+   *  sin avisos, escalado ni re-emisiones). */
+  snoozed?: boolean
+  /** #2185: unix SEGUNDOS de fin de la posposición. 0/ausente con
+   *  `snoozed` = sin fecha. */
+  snoozedUntil?: number
 }
 
 /** #1466: referencia de un evento resuelto, autocontenida. */

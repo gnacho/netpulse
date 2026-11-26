@@ -27,6 +27,17 @@
     "onlyUnread": "Solo no leídas",
     "silence": "Silenciar",
     "silenceForever": "Siempre",
+    "snoozeTitle": "Posponer esta alerta",
+    "snoozeDesc": "Pausa las notificaciones y el escalado de este incidente. La monitorización continúa y la resolución se sigue detectando.",
+    "snooze1h": "Durante 1 hora",
+    "snooze2h": "Durante 2 horas",
+    "snooze8h": "Durante 8 horas",
+    "snoozeTomorrow": "Hasta mañana a las 9:00",
+    "snooze7d": "Durante 7 días",
+    "snoozedUntil": "Pospuesta hasta las {{time}}",
+    "snoozedIndefinitely": "Pospuesta sin fecha",
+    "unsnooze": "Quitar posposición",
+    "approveBssidAction": "Aprobar como propia",
     "approveBssid": "Este BSSID es nuestro: aprobarlo y dejar de alertar de impostor por él",
     "impostorRule": "Detección de impostores de SSID",
     "impostorRuleDesc": "Avisa cuando una radio desconocida emite el nombre de una red de tu flota. Apágala si tus propios APs fuera de NetPulse (UniFi, Omada...) generan falsos positivos.",
@@ -321,7 +332,11 @@
     "actions": {
       "identify": "Identificar dispositivo",
       "updateAgent": "Actualizar agente",
-      "dismiss": "Limpiar alerta"
+      "dismiss": "Limpiar alerta",
+      "markRead": "Marcar como leído",
+      "snooze": "Posponer",
+      "viewMore": "Ver más",
+      "viewLess": "Ver menos"
     }
   },
   "auth": {
