@@ -2669,6 +2669,11 @@ func (l *Live) trackUnknownDevices(devices []Device, dists []DistributionNode) {
 		if !d.Online {
 			continue
 		}
+		// #2183: un vecino del segmento WAN (ISP) no es un dispositivo de
+		// esta red y no puede disparar "dispositivo desconocido".
+		if d.WanSide {
+			continue
+		}
 		nowOnline[d.MAC] = true
 		if trusted[d.MAC] {
 			delete(l.unknownGrace, d.MAC)
@@ -3837,8 +3842,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	// no tiene ya evidencia LAN (la LAN manda) y solo en la boca WAN del
 	// gateway, nunca en sus bocas LAN.
 	wanSide := map[string]bool{}
+	// wanIgnored (#2183): ARP del puerto WAN que no es el peer de la ruta
+	// por defecto. Se absorben en `seen` (no se atribuyen a una boca LAN)
+	// pero no se materializan como dispositivo: en una WAN con subred
+	// pública compartida son decenas de equipos ajenos.
+	wanIgnored := map[string]bool{}
 	if gwID != "" && wanPort != "" {
 		if gwP := polled[gwID]; gwP != nil {
+			peerIP := strings.TrimSpace(gwP.wanInfo.Gateway)
 			for mac, dev := range gwP.arpDevs {
 				if dev != wanPort {
 					continue
@@ -3847,7 +3858,14 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 					continue
 				}
 				seen[mac] = seenInfo{routerID: gwID, band: "cable"}
-				wanSide[mac] = true
+				// Sin IP de puerta de enlace WAN no hay forma de saber cuál
+				// es el primer salto: se conserva el comportamiento anterior
+				// (#1485) en vez de esconder el peer a ciegas.
+				if peerIP == "" || strings.EqualFold(strings.TrimSpace(gwP.arp[mac]), peerIP) {
+					wanSide[mac] = true
+				} else {
+					wanIgnored[mac] = true
+				}
 			}
 		}
 	}
@@ -4031,6 +4049,9 @@ func (l *Live) buildDevices(polled map[string]*routerPolled, wanPort string) []D
 	for mac := range allMacs {
 		if routerMacs[mac] || defaultRouteMacs[strings.ToUpper(mac)] {
 			continue // los routers y la ruta por defecto no son clientes
+		}
+		if wanIgnored[mac] {
+			continue // #2183: vecino del segmento WAN, no es de esta red
 		}
 		if isBatadvBlaMAC(mac) {
 			continue // #1818: sonda LOOP DETECT del mesh, no es un host
@@ -4656,6 +4677,9 @@ func (l *Live) buildOverview(ctx context.Context) (*Overview, error) {
 	// #1818: fuera los MAC que duran menos de un minuto, ANTES de alertar de
 	// desconocidos y de escribir en device_seen.
 	devices = l.settleTransient(devices, time.Now().UnixMilli())
+	// #2183: los vecinos del segmento WAN no se registran; si quedaron de
+	// antes, se purgan para que no reaparezcan como fantasmas offline.
+	l.purgeWanSideSeen(devices)
 	l.trackUnknownDevices(devices, distNodes)
 	l.trackWiFiNoIP(devices, distNodes)
 	l.trackOfflineDevices(devices)

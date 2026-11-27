@@ -52,6 +52,13 @@ func makeDemoTestServer(t *testing.T) *testServer {
 
 func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 	t.Helper()
+	return makeTestServerWithAdapter(t, demoMode, nil)
+}
+
+// makeTestServerWithAdapter permite envolver el adapter demo (p. ej. para
+// inyectar un dispositivo que el fixture no tiene).
+func makeTestServerWithAdapter(t *testing.T, demoMode bool, wrap func(adapters.Snapshotter) adapters.Snapshotter) *testServer {
+	t.Helper()
 	// Los helpers de test simulan IPs distintas vía X-Forwarded-For (rate
 	// limit); por defecto en producción NO se confía en XFF (auditoría #1).
 	auth.SetTrustProxy(true)
@@ -88,7 +95,10 @@ func makeTestServerWithMode(t *testing.T, demoMode bool) *testServer {
 		t.Fatalf("config backup store: %v", err)
 	}
 	orchestrMgr := orchestr.New(d)
-	adapter := adapters.NewDemo()
+	var adapter adapters.Snapshotter = adapters.NewDemo()
+	if wrap != nil {
+		adapter = wrap(adapter)
+	}
 	agents := adapters.NewAgentRegistry(0)
 	hub := sse.NewHub(d, cfg.MaxSSEClients, func() any { return nil })
 	chPlan := channelplan.NewStore(d.DB)

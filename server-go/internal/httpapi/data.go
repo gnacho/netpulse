@@ -297,6 +297,11 @@ func (s *server) handleDevices(w http.ResponseWriter, r *http.Request) {
 	band := q.Get("band")
 	typ := q.Get("type")
 	status := q.Get("status")
+	// #2183: los vecinos del segmento WAN (ISP, CPE de otros abonados) no
+	// son clientes de esta red y no se listan en el inventario. El snapshot
+	// los conserva para dibujar el peer WAN de la topología; con
+	// includeWan=1 se pueden pedir explícitamente.
+	includeWan := q.Get("includeWan") == "1"
 
 	if band != "" && !contains(bands, band) {
 		writeError(w, http.StatusBadRequest, "invalid_query", "band debe ser una de: "+strings.Join(bands, ", "))
@@ -310,10 +315,16 @@ func (s *server) handleDevices(w http.ResponseWriter, r *http.Request) {
 	items := s.adapter.GetDevices(r.Context())
 	typeCounts := map[string]int{}
 	for _, d := range items {
+		if d.WanSide && !includeWan {
+			continue
+		}
 		typeCounts[d.Type]++
 	}
 	filtered := make([]adapters.Device, 0, len(items))
 	for _, d := range items {
+		if d.WanSide && !includeWan {
+			continue // #2183: fuera del inventario de la LAN
+		}
 		if routerID != "" && d.RouterID != routerID {
 			continue
 		}

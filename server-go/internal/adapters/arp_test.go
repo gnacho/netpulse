@@ -371,3 +371,52 @@ func TestBuildDevicesAbsorbsSwitchMgmtMac(t *testing.T) {
 		t.Fatalf("devices: %+v, want solo el cliente normal", devs)
 	}
 }
+
+// #2183: en una WAN con subred pública compartida el ARP del puerto WAN
+// trae decenas de vecinos del ISP. Solo el peer de la ruta por defecto es
+// "lado WAN"; el resto se absorbe (para no atribuirlo a una boca LAN) pero
+// no se materializa como dispositivo del inventario.
+func TestBuildDevicesWanSideOnlyDefaultRoutePeer(t *testing.T) {
+	l := NewLive(nil, nil, nil, nil)
+	l.gatewayCfg = &RouterConfig{ID: "gw", Name: "Gateway", IsGateway: true}
+	polled := map[string]*routerPolled{
+		"gw": {
+			cfg:     RouterConfig{ID: "gw", Name: "Gateway", IsGateway: true},
+			wanInfo: probe.WanInfo{Gateway: "203.0.113.1"},
+			arp: map[string]string{
+				"0C:EF:15:00:00:01": "203.0.113.1",   // peer de la ruta por defecto
+				"0C:EF:15:00:00:02": "203.0.113.248", // vecino del ISP
+				"AA:BB:CC:00:00:01": "192.168.1.60",  // cliente de la LAN
+			},
+			arpDevs: map[string]string{
+				"0C:EF:15:00:00:01": "eth1",
+				"0C:EF:15:00:00:02": "eth1",
+				"AA:BB:CC:00:00:01": "br-lan",
+			},
+		},
+	}
+	devs := l.buildDevices(polled, "eth1")
+	byMAC := map[string]Device{}
+	for _, d := range devs {
+		byMAC[d.MAC] = d
+	}
+	if _, ok := byMAC["0C:EF:15:00:00:02"]; ok {
+		t.Fatalf("el vecino del ISP no puede ser un dispositivo del inventario: %+v", byMAC["0C:EF:15:00:00:02"])
+	}
+	lan, ok := byMAC["AA:BB:CC:00:00:01"]
+	if !ok || lan.WanSide {
+		t.Fatalf("el cliente LAN debe seguir: %+v", lan)
+	}
+	// Gate negativo: sin la IP de la puerta de enlace WAN no hay forma de
+	// distinguir el peer, así que se conserva el comportamiento anterior.
+	delete(polled["gw"].arp, "AA:BB:CC:00:00:01")
+	polled["gw"].wanInfo = probe.WanInfo{}
+	for _, d := range l.buildDevices(polled, "eth1") {
+		if d.MAC != "0C:EF:15:00:00:02" {
+			continue
+		}
+		if !d.WanSide {
+			t.Fatalf("sin gateway WAN se conserva el peer marcado WanSide: %+v", d)
+		}
+	}
+}
