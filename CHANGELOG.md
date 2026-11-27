@@ -5,7 +5,7 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
-## [Unreleased]
+## [2.55.0] - 2026-11-27
 
 ### Added
 
@@ -16,6 +16,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- Neighbours learned on the gateway's WAN port are no longer devices of the LAN. On a public subnet shared with the ISP the table holds dozens of foreign hosts, and only the default-route peer is a WAN-side device now: the rest stay out of the inventory, the registry and the unknown-device alerts, and rows older versions stored are purged (#2183, reported by @arypien).
+- The ubus JSON-RPC transport posts to the unit's web port instead of the SSH port, and stops retrying after a transport failure. On units polled only over SSH, every `UbusCall` sent an HTTP request to dropbear first, which is the three `Exit before auth` connections per cycle in the report (#1893, diagnosed with @crowedavid and @fsolak47).
+- The agent skips interfaces that are down before calling `iwinfo`, so a MediaTek `mt_wifi` unit no longer fills its log with `RT_PRIV_IOCTL interface is down` on every cycle. The classic iwinfo pass also stops running again when the combined pass already answered (#2176, reported by @danielz1z).
+- The ports tile is sized by port count: a chassis of five or more jacks gets a full row instead of a horizontal scrollbar, and the radios card beside it follows (#2180, reported by @fsolak47).
+- MACs are stored upper case in the remaining tables (client bandwidth, topology overrides and the device registry), so per-client traffic and overrides match again after a restart (#2170, by @mgrupenhoff).
+- An agent push no longer publishes an empty uplink list that erased the uplinks the server already knew (#2171, by @mgrupenhoff).
+- No goroutine writes into the agent or overview data another one is reading, which could corrupt a payload or an overview under load (#2164, by @mgrupenhoff).
+- Wired clients learned through a BATMAN backhaul port are attributed to the mesh node that really owns them (#2154, by @aloneangel45).
 - `owut download` keeps the HTTP response open during remote ASU builds and returns the full command output on failure, shown in the unit card (#1978).
 - The early language choice now runs from the external `boot.js` instead of an inline script blocked by the production Content Security Policy (#2173).
 - The update history header no longer nests its download action inside another button. Expand/collapse and download are separate keyboard-accessible controls (#2168).
