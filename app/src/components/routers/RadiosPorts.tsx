@@ -10,7 +10,7 @@ import type { RouterExtras } from '@/components/routers/routerExtras'
 import { EMPTY_EXTRAS, useNetPulse } from '@/data/DataProvider'
 import { cn } from '@/lib/utils'
 
-/** ⑤⑥ variante OpenWrt — Radios WiFi (7) + Puertos (5) (router-detail.md §Variante). */
+/** ⑤⑥ variante OpenWrt — Radios WiFi + Puertos (5/12, o 12/12 con chasis de 5+ bocas, #2180) (router-detail.md §Variante). */
 export function RadiosPorts({ router, extras, snmpStats }: {
   router: Router
   extras?: RouterExtras
@@ -24,12 +24,19 @@ export function RadiosPorts({ router, extras, snmpStats }: {
   // Equipos cableados (switches gestionados tipo RTLPlayground/KP-9000):
   // sin radios no se muestra la sección WiFi ni estados vacíos (#291).
   const hasRadios = ex.radios.length > 0
+  // #2180: cada boca del chasis ocupa 84 px más separación, así que con 5 o
+  // más bocas el panel no cabe en 5/12 del ancho y aparecía scroll
+  // horizontal. Se le da la fila completa (y a los radios también, para no
+  // dejar un hueco de 5 columnas).
+  const wideChassis = ex.ethPorts.filter((p) => !p.family).length > 4
+  const radiosSpan = wideChassis ? 'lg:col-span-12' : 'lg:col-span-7'
+  const portsSpan = hasRadios && !wideChassis ? 'lg:col-span-5' : 'lg:col-span-12'
 
   return (
     <>
       {/* Radios WiFi (solo si el equipo tiene: switches cableados fuera) */}
       {hasRadios && (
-      <section className="rounded-2xl border border-border bg-surface p-5 md:p-6 lg:col-span-7">
+      <section className={cn('rounded-2xl border border-border bg-surface p-5 md:p-6', radiosSpan)}>
         <SectionHeader title={t('routerDetail.radios.title')} />
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {ex.radios.map((radio, i) => (
@@ -80,7 +87,7 @@ export function RadiosPorts({ router, extras, snmpStats }: {
       )}
 
       {/* Puertos Ethernet (panel visual de bocas RJ45) */}
-      <PortPanel router={router} extras={extras} snmpStats={snmpStats} className={hasRadios ? 'lg:col-span-5' : 'lg:col-span-12'} />
+      <PortPanel router={router} extras={extras} snmpStats={snmpStats} className={portsSpan} />
     </>
   )
 }
