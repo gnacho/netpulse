@@ -28,6 +28,11 @@ import (
 
 const (
 	ubusHTTPTimeout = 4 * time.Second
+	// ubusHTTPDownTTL (#1893): tras un fallo de transporte HTTP no se vuelve
+	// a intentar hasta que pase este tiempo. Sin esta ventana, cada UbusCall
+	// reintentaba el POST (login incluido) antes de caer a SSH, de modo que
+	// un ciclo de poll multiplicaba las conexiones fallidas a la unidad.
+	ubusHTTPDownTTL = 10 * time.Minute
 	iwinfoTimeout   = 8 * time.Second
 	// radiosTTL (#368/#373, paridad con el agente): el resumen de radios
 	// (canal/htmode/txpower) apenas cambia; cachearlo evita correr iwinfo en
@@ -50,16 +55,25 @@ type OpenWrtClient struct {
 	User     string // para ubus HTTP (default root)
 	Password string
 
+	// httpHost es el destino del transporte ubus HTTP ("host:80"), que NO es
+	// el destino SSH (#1893): `Host` es `ip:puertoSSH` y un POST HTTP contra
+	// el puerto 22 acaba en dropbear como "Exit before auth" en cada
+	// llamada. Se deriva del host plano, nunca del puerto SSH configurado.
+	httpHost string
+
 	pool poolRunner
 
 	// mu protege el estado mutable del cliente (sid, lastStat, lastNetDev,
-	// lldpDownUntil): los handlers HTTP pueden sondear (p.ej. GetSurvey) en
-	// paralelo con el poller.
+	// lldpDownUntil, ubusHTTPDownUntil): los handlers HTTP pueden sondear
+	// (p.ej. GetSurvey) en paralelo con el poller.
 	mu sync.Mutex
 
 	sid        string     // sesión ubus HTTP cacheada
 	lastStat   *cpuSample // /proc/stat previo
 	lastNetDev *netSample // /proc/net/dev previo
+	// ubusHTTPDownUntil (#1893): el transporte HTTP falló y no se reintenta
+	// antes de este instante. Acceso serializado por mu.
+	ubusHTTPDownUntil time.Time
 	// lastNetIf: /proc/net/dev previo POR INTERFAZ (contadores por boca,
 	// issue #305). Acceso serializado por mu.
 	lastNetIf *netIfSample
@@ -117,8 +131,38 @@ func NewOpenWrtClient(cfg RouterConfig, pool poolRunner, user, password string) 
 	if user == "" {
 		user = "root"
 	}
-	// Host aquí es el destino `host:port` (#605) para el pool SSH.
-	return &OpenWrtClient{Host: cfg.SSHAddr(), User: user, Password: password, pool: pool}
+	// Host aquí es el destino `host:port` (#605) para el pool SSH. El
+	// transporte ubus HTTP va al puerto web del mismo host (#1893).
+	return &OpenWrtClient{Host: cfg.SSHAddr(), httpHost: net.JoinHostPort(cfg.Host, "80"), User: user, Password: password, pool: pool}
+}
+
+// ubusURL es el endpoint ubus sobre HTTP: host plano en el puerto web, nunca
+// el destino SSH (#1893).
+func (c *OpenWrtClient) ubusURL() string {
+	host := c.httpHost
+	if host == "" {
+		if h, _, err := net.SplitHostPort(c.Host); err == nil {
+			host = net.JoinHostPort(h, "80")
+		} else {
+			host = net.JoinHostPort(c.Host, "80")
+		}
+	}
+	return "http://" + host + "/ubus"
+}
+
+// ubusHTTPReady informa si toca probar el transporte HTTP o si sigue en la
+// ventana de indisponibilidad abierta por el último fallo (#1893).
+func (c *OpenWrtClient) ubusHTTPReady() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ubusHTTPDownUntil.IsZero() || time.Now().After(c.ubusHTTPDownUntil)
+}
+
+// markUbusHTTPDown abre la ventana de indisponibilidad del transporte HTTP.
+func (c *OpenWrtClient) markUbusHTTPDown() {
+	c.mu.Lock()
+	c.ubusHTTPDownUntil = time.Now().Add(ubusHTTPDownTTL)
+	c.mu.Unlock()
 }
 
 // ---------------------------------------------------------------------------
@@ -134,24 +178,30 @@ func (c *OpenWrtClient) ubusHTTPRpc(sid, object, method string, params any) (jso
 	if params == nil {
 		params = map[string]any{}
 	}
+	// #1893: si el transporte HTTP ya falló, no se reintenta en cada llamada.
+	if !c.ubusHTTPReady() {
+		return nil, &ubusRPCError{"ubus HTTP no disponible"}
+	}
 	body, _ := json.Marshal(map[string]any{
 		"jsonrpc": "2.0", "id": 1, "method": "call",
 		"params": []any{sid, object, method, params},
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), ubusHTTPTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "POST", "http://"+c.Host+"/ubus", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.ubusURL(), bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
+		c.markUbusHTTPDown()
 		return nil, err
 	}
 	defer res.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
 	if err != nil {
+		c.markUbusHTTPDown()
 		return nil, err
 	}
 	if res.StatusCode != 200 {
@@ -162,6 +212,10 @@ func (c *OpenWrtClient) ubusHTTPRpc(sid, object, method string, params any) (jso
 		Result json.RawMessage `json:"result"`
 	}
 	if err := json.Unmarshal(data, &rpc); err != nil {
+		// Un 200 que no es JSON-RPC es el puerto web de la unidad (LuCI u
+		// otra página), no ubus: reintentarlo en cada llamada solo suma
+		// peticiones inútiles.
+		c.markUbusHTTPDown()
 		return nil, &ubusRPCError{"ubus: respuesta no JSON"}
 	}
 	if len(rpc.Error) > 0 && string(rpc.Error) != "null" {
