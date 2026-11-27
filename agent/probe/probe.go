@@ -61,7 +61,12 @@ const (
 	// DHCP que el dnsmasq del Flint2 no lista (issue #5 bug 1).
 	CmdGlClients = "ubus call gl-clients list 2>/dev/null || true"
 	// CmdIwinfoAssoc: "<mac> <sig> <freq>" por cliente wifi asociado.
+	// #2176: se salta antes de llamar a iwinfo cualquier interfaz en
+	// operstate `down` (deshabilitada o sin portadora). En mt_wifi el ioctl
+	// de `iwinfo <if> info` contra una interfaz caída escribe una línea
+	// KERN_ERR por interfaz y ciclo y llena el log del router.
 	CmdIwinfoAssoc = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
+		`[ "$(cat /sys/class/net/$i/operstate 2>/dev/null)" != down ] || continue; ` +
 		`freq=$(iwinfo "$i" info 2>/dev/null | sed -n 's/.*Channel: [0-9]* (\([0-9.]*\) GHz).*/\1/p' | head -1); ` +
 		`iwinfo "$i" assoclist 2>/dev/null | sed -n 's/^\([0-9A-Fa-f:]\{17\}\) *\(-[0-9]*\).*/\1 \2/p' | while read mac sig; do ` +
 		`echo "$mac $sig $freq"; done; done`
@@ -82,6 +87,7 @@ const (
 	// spawns. Líneas "C|mac|sig|freq" (clientes) y
 	// "R|freq|ch|ht|tx|bssid|noise|n" (radio; #1213).
 	CmdWirelessCombined = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
+		`[ "$(cat /sys/class/net/$i/operstate 2>/dev/null)" != down ] || continue; ` +
 		`info=$(iwinfo "$i" info 2>/dev/null) || continue; ` +
 		`echo "$info" | grep -q ESSID || continue; ` +
 		`freq=$(echo "$info" | sed -n 's/.*Channel: [0-9]* (\([0-9.]*\) GHz).*/\1/p' | head -1); ` +
@@ -97,6 +103,7 @@ const (
 	// CmdRadios: "freq|ch|ht|tx|bssid|noise|n" por radio (se agrega por banda
 	// al parsear). #1213: bssid + noise de iwinfo info.
 	CmdRadios = `for i in $(iwinfo 2>/dev/null | awk '/^[a-z]/ {print $1}'); do ` +
+		`[ "$(cat /sys/class/net/$i/operstate 2>/dev/null)" != down ] || continue; ` +
 		`info=$(iwinfo "$i" info 2>/dev/null) || continue; ` +
 		`echo "$info" | grep -q ESSID || continue; ` +
 		`freq=$(echo "$info" | sed -n 's/.*Channel: [0-9]* (\([0-9.]*\) GHz).*/\1/p' | head -1); ` +

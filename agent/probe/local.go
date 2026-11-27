@@ -622,10 +622,16 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 	// Fallback (o APs sin ubus hostapd): iwinfo en UNA pasada por interfaz,
 	// que además produce el resumen de radios.
 	combined := ""
+	combinedRan := false
 	if !any {
 		combined = p.runBest(ctx, CmdWirelessCombined, 8*time.Second)
 		if combined != "" {
 			clients, radios := ParseWirelessCombined(combined)
+			// #2176: si el combinado devolvió algo (clientes o resumen de
+			// radios), la pasada se hizo y repetir iwinfo con el par clásico
+			// solo duplica los ioctl. En mt_wifi cada ioctl contra una
+			// interfaz caída escribe una línea KERN_ERR en el log del router.
+			combinedRan = len(clients) > 0 || len(radios) > 0
 			wd.Clients = clients
 			if len(clients) > 0 {
 				any = true
@@ -642,7 +648,7 @@ func (p *Prober) probeWireless(ctx context.Context, full bool) *WirelessData {
 	}
 	// Último recurso (#368): el par de comandos clásico (equipos donde el
 	// combinado no produjo clientes p. ej. iwinfo sin ESSID en la interfaz).
-	if !any {
+	if !any && !combinedRan {
 		if out := p.runBest(ctx, CmdIwinfoAssoc, 8*time.Second); out != "" {
 			wd.Clients = ParseWirelessClients(out)
 			any = len(wd.Clients) > 0
