@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils'
 /**
  * Panel visual de puertos Ethernet - dibuja las bocas RJ45 del chasis con
  * LEDs de link/actividad, ocupación y qué dispositivo hay en cada boca.
- * Variante compacta (APs, col-span-5) y ancha (gateway, col-span-12).
+ * Variante compacta (APs con 4 bocas o menos, col-span-5) y ancha (gateway,
+ * AP con chasis de 5+ bocas, col-span-12).
  */
 
 /** fmtPortBps: rate de una boca en humano ("12.4 Mbps" · "320 kbps" · "0").
