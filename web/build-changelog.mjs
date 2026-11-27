@@ -32,7 +32,15 @@ function md(src) {
     }
   }
   const IMG = /^!\[([^\]]*)\]\(([^)]+)\)$/
-  const img = (alt, src) => `<img src="${src}" alt="${alt}" loading="lazy" decoding="async" />`
+  // Las capturas del repo se sirven desde el propio sitio: la CSP del dominio
+  // es img-src 'self' y un GIF en raw.githubusercontent.com no carga.
+  const localMedia = (src) => {
+    const m = src.match(
+      /^https:\/\/raw\.githubusercontent\.com\/gnacho\/netpulse\/v[^/]+\/docs\/releases\/([^/]+\/[^/]+\.(?:gif|png|jpe?g|webp))$/,
+    )
+    return m ? `/assets/releases/${m[1]}` : src
+  }
+  const img = (alt, src) => `<img src="${localMedia(src)}" alt="${alt}" loading="lazy" decoding="async" />`
   const inline = (t) =>
     esc(t)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
