@@ -31,11 +31,15 @@ function md(src) {
       list = null
     }
   }
+  const IMG = /^!\[([^\]]*)\]\(([^)]+)\)$/
+  const img = (alt, src) => `<img src="${src}" alt="${alt}" loading="lazy" decoding="async" />`
   const inline = (t) =>
     esc(t)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '$1')
+      // Las capturas de las notas son la mitad del contenido: antes se
+      // sustituían por su texto alternativo y la página las perdía.
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, src) => img(alt, src))
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
 
   for (const raw of lines) {
@@ -78,6 +82,11 @@ function md(src) {
       continue
     }
     flush()
+    const onlyImg = line.trim().match(IMG)
+    if (onlyImg) {
+      out.push(`<p class="changelog-figure">${img(onlyImg[1], onlyImg[2])}</p>`)
+      continue
+    }
     out.push(`<p>${inline(line)}</p>`)
   }
   flush()
