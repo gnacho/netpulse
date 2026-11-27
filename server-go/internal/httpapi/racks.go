@@ -63,8 +63,29 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 		}
 		perPort[d.RouterID+"|"+d.Port]++
 	}
+	type macPair struct{ a, b string }
 	hints := []rack.CableHint{}
-	seen := map[string]bool{}
+	seen := map[macPair]bool{}
+	addHint := func(from, to, fromPort, toPort string) {
+		if from == "" || to == "" || !mounted[from] || !mounted[to] {
+			return
+		}
+		key := macPair{from, to}
+		if from > to {
+			key = macPair{to, from}
+		}
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		hints = append(hints, rack.CableHint{
+			FromDeviceID: from,
+			ToDeviceID:   to,
+			FromPortHint: fromPort,
+			ToPortHint:   toPort,
+			Source:       "fdb",
+		})
+	}
 	for _, d := range s.adapter.GetDevices(ctx) {
 		if d.Band != "cable" || d.MAC == "" || d.Port == "" {
 			continue
@@ -72,24 +93,7 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 		if perPort[d.RouterID+"|"+d.Port] != 1 {
 			continue
 		}
-		from, ok := routerMAC[d.RouterID]
-		if !ok || from == "" {
-			continue
-		}
-		to := macaddr.NormalizeLenient(d.MAC)
-		if !mounted[from] || !mounted[to] {
-			continue
-		}
-		if seen[from+"|"+to] {
-			continue
-		}
-		seen[from+"|"+to] = true
-		hints = append(hints, rack.CableHint{
-			FromDeviceID: from,
-			ToDeviceID:   to,
-			FromPortHint: d.Port,
-			Source:       "fdb",
-		})
+		addHint(routerMAC[d.RouterID], macaddr.NormalizeLenient(d.MAC), d.Port, "")
 	}
 
 	// Uplinks entre miembros de flota montados: el FDB de la unidad designada
@@ -101,22 +105,7 @@ func (s *server) buildRackHints(ctx context.Context, mounts []rack.MountRow) []r
 		infra := s.uplinkUnitID()
 		if infra != "" {
 			for childID, up := range prov.FleetFdbUplinks(infra, routerMAC[infra]) {
-				from, okFrom := routerMAC[up.ParentID]
-				to, okTo := routerMAC[childID]
-				if !okFrom || !okTo || !mounted[from] || !mounted[to] {
-					continue
-				}
-				if seen[from+"|"+to] || seen[to+"|"+from] {
-					continue
-				}
-				seen[from+"|"+to] = true
-				hints = append(hints, rack.CableHint{
-					FromDeviceID: from,
-					ToDeviceID:   to,
-					FromPortHint: up.Port,
-					ToPortHint:   up.ChildPort,
-					Source:       "fdb",
-				})
+				addHint(routerMAC[up.ParentID], routerMAC[childID], up.Port, up.ChildPort)
 			}
 		}
 	}
