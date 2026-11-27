@@ -3358,6 +3358,16 @@
       "online": "online",
       "offline": "offline",
       "cards": {
+        "alert-actions": {
+          "title": "Léela, pospónla o ábrela",
+          "body": "Cada fila de alerta tiene tres acciones explícitas. Posponer pausa los avisos y el escalado de ese incidente durante una hora, dos, ocho, hasta mañana a las 9:00 o siete días. La alerta sigue en el registro con la hora a la que vuelve, la monitorización continúa y la resolución se sigue detectando.",
+          "caption": "Posponer no esconde la alerta. La fila conserva la fecha a la que vuelve."
+        },
+        "name-source": {
+          "title": "Un nombre, y de dónde sale",
+          "body": "La ficha del cliente dice qué fuente puso el nombre: una concesión DHCP, mDNS, DNS inverso, una reserva, un alias de MAC conocida, el firmware del router o el nombre que pusiste tú. El nombre manual gana siempre, y una reserva manda sobre un anuncio.",
+          "caption": "Dispositivo de muestra. El origen se conserva tras reiniciar, así que un nombre que cambió se puede explicar."
+        },
         "icon-picker": {
           "title": "Iconos que nombran el dispositivo",
           "body": "Sesenta iconos en diez categorías, con búsqueda por su nombre en tu idioma. Una nevera deja de parecer una caja genérica y la encuentras escribiendo lo que es."

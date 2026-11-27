@@ -3358,6 +3358,16 @@
       "online": "online",
       "offline": "offline",
       "cards": {
+        "alert-actions": {
+          "title": "Read it, snooze it, or open it",
+          "body": "Every alert row has three explicit actions now. Snoozing pauses notifications and escalation for that incident, for one hour, two hours, eight hours, until tomorrow at 9:00 or seven days. The alert stays in the log with the time it ends, monitoring continues and the resolution is still detected.",
+          "caption": "Snoozing does not hide the alert. The row keeps the date it comes back."
+        },
+        "name-source": {
+          "title": "A name, and where it came from",
+          "body": "The client detail says which source named the device: a DHCP lease, mDNS, reverse DNS, a reservation, a known MAC alias, the router firmware or your own manual name. A manual name always wins, and a reservation beats an announcement.",
+          "caption": "Sample device. The source survives a restart, so a name that changed can be explained."
+        },
         "icon-picker": {
           "title": "Icons that name the device",
           "body": "Sixty icons in ten categories, searchable by their name in your language. A fridge stops looking like a generic box, and you find it by typing what it is."
