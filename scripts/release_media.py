@@ -22,19 +22,58 @@ import subprocess
 import sys
 import tempfile
 
-PLAYWRIGHT_PY = os.path.expanduser("~/.local/share/uv/tools/playwright/bin/python")
-CHROMIUM = os.path.expanduser(
-    "~/.cache/ms-playwright/chromium_headless_shell-1255/chrome-headless-shell-linux64/chrome-headless-shell"
-)
-CARDS = ["icon-picker", "dns-activity", "presence", "languages"]
+def _playwright_python() -> str:
+    """Intérprete con Playwright: PLAYWRIGHT_PY, el tool de uv o el actual."""
+    env = os.environ.get("PLAYWRIGHT_PY")
+    if env and os.path.exists(env):
+        return env
+    uv_tool = os.path.expanduser("~/.local/share/uv/tools/playwright/bin/python")
+    if os.path.exists(uv_tool):
+        return uv_tool
+    return sys.executable
+
+
+def _chromium_shell() -> str:
+    """Chrome headless más nuevo de la caché de Playwright.
+
+    El número de build cambia con cada versión de Playwright, así que se
+    resuelve por glob y no con una ruta fija.
+    """
+    env = os.environ.get("CHROMIUM")
+    if env and os.path.exists(env):
+        return env
+    base = os.path.expanduser("~/.cache/ms-playwright")
+    candidates = []
+    if os.path.isdir(base):
+        for name in os.listdir(base):
+            if not name.startswith("chromium_headless_shell-"):
+                continue
+            try:
+                build = int(name.rsplit("-", 1)[1])
+            except (IndexError, ValueError):
+                continue
+            path = os.path.join(base, name, "chrome-headless-shell-linux64", "chrome-headless-shell")
+            if os.path.exists(path):
+                candidates.append((build, path))
+    return max(candidates)[1] if candidates else ""
+
+
+PLAYWRIGHT_PY = _playwright_python()
+CHROMIUM = _chromium_shell()
+# Sin lista por defecto: las tarjetas se piden con --cards o se deducen de la
+# página para la versión pedida (una sola fuente: el registro de la app).
 FPS = 10
 SECONDS = 4
 WIDTH = 660
 
 
-def run(version: str, base_url: str) -> int:
+def run(version: str, base_url: str, cards: list[str] | None = None) -> int:
+    CARDS = cards or []
     if not os.path.exists(PLAYWRIGHT_PY):
-        print(f"falta el Playwright de uv en {PLAYWRIGHT_PY}", file=sys.stderr)
+        print(f"falta un intérprete con Playwright: {PLAYWRIGHT_PY}", file=sys.stderr)
+        return 1
+    if not CHROMIUM:
+        print("falta el Chrome headless de Playwright (playwright install chromium)", file=sys.stderr)
         return 1
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     out_dir = os.path.join(root, "docs", "releases", version)
@@ -47,12 +86,13 @@ from playwright.async_api import async_playwright
 BASE = sys.argv[1]
 VERSION = sys.argv[2]
 OUT = sys.argv[3]
-CARDS = sys.argv[4].split(",")
+CARDS = [c for c in sys.argv[4].split(",") if c]
 SHELL = sys.argv[5]
 FPS = int(sys.argv[6])
 SECONDS = int(sys.argv[7])
 
 async def main():
+    global CARDS
     async with async_playwright() as p:
         browser = await p.chromium.launch(executable_path=SHELL)
         ctx = await browser.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=2)
@@ -64,6 +104,22 @@ async def main():
         await page.evaluate("() => { sessionStorage.setItem('netpulse-demo','1'); localStorage.setItem('netpulse-theme-mode', JSON.stringify('dark')); }")
         await page.goto(BASE + "/whatsnew")
         await page.wait_for_timeout(1200)
+        if not CARDS:
+            CARDS = await page.evaluate('''(version) => {
+                const out = []
+                for (const section of document.querySelectorAll('section')) {
+                    const h = section.querySelector('h2')
+                    if (!h || h.textContent.trim() !== version) continue
+                    for (const el of section.querySelectorAll('[data-demo-id]')) {
+                        out.push(el.getAttribute('data-demo-id'))
+                    }
+                }
+                return out
+            }''', VERSION)
+            if not CARDS:
+                print("la versión " + VERSION + " no tiene tarjetas en /whatsnew", file=sys.stderr)
+                return
+            print("tarjetas de " + VERSION + ": " + ",".join(CARDS), file=sys.stderr)
         for card in CARDS:
             el = page.locator('[data-demo-id="%s"]' % card)
             if await el.count() == 0:
@@ -91,7 +147,8 @@ asyncio.run(main())
             print(proc.stdout, proc.stderr, file=sys.stderr)
             return proc.returncode
         made = 0
-        for card in CARDS:
+        made_cards = sorted(d[: -len("-frames")] for d in os.listdir(frames_root) if d.endswith("-frames"))
+        for card in made_cards:
             frames_dir = os.path.join(frames_root, card + "-frames")
             if not os.path.isdir(frames_dir):
                 continue
@@ -119,5 +176,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", required=True)
     ap.add_argument("--url", default="http://localhost:4180")
+    ap.add_argument(
+        "--cards",
+        default="",
+        help="ids separados por comas; vacío = las tarjetas de la versión en /whatsnew",
+    )
     args = ap.parse_args()
-    sys.exit(run(args.version, args.url))
+    sys.exit(run(args.version, args.url, [c for c in args.cards.split(",") if c]))

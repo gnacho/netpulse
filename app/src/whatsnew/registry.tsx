@@ -1,9 +1,11 @@
-import { Activity, Languages, Radar, Shapes } from 'lucide-react'
+import { Activity, BellOff, Languages, Radar, Shapes, Tag } from 'lucide-react'
 import type { WhatsNewCard } from './types'
 import { IconPickerDemo } from './cards/IconPickerDemo'
 import { DnsDemo } from './cards/DnsDemo'
 import { PresenceDemo } from './cards/PresenceDemo'
 import { LanguagesDemo } from './cards/LanguagesDemo'
+import { AlertActionsDemo } from './cards/AlertActionsDemo'
+import { NameSourceDemo } from './cards/NameSourceDemo'
 
 /**
  * Registro de novedades (#2116): la única fuente de qué se cuenta de cada
@@ -16,6 +18,22 @@ import { LanguagesDemo } from './cards/LanguagesDemo'
  * tema ni al idioma.
  */
 export const CARDS: WhatsNewCard[] = [
+  {
+    id: 'alert-actions',
+    version: '2.55.0',
+    icon: BellOff,
+    author: 'gnacho',
+    pr: 2186,
+    Demo: AlertActionsDemo,
+  },
+  {
+    id: 'name-source',
+    version: '2.55.0',
+    icon: Tag,
+    author: 'gnacho',
+    pr: 2177,
+    Demo: NameSourceDemo,
+  },
   {
     id: 'icon-picker',
     version: '2.54.0',
