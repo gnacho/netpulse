@@ -173,6 +173,37 @@ func (l *Live) purgeFleetSeen() {
 	}
 }
 
+// purgeWanSideSeen borra del registro las MACs que hoy son vecinas del
+// segmento WAN (#2183). Antes se persistían como cualquier cliente y, al
+// dejar de aparecer en el ARP, salían como fantasmas offline en el
+// inventario para siempre. No son equipos de esta red.
+func (l *Live) purgeWanSideSeen(devices []Device) {
+	if l.db == nil {
+		return
+	}
+	macs := make([]any, 0, len(devices))
+	placeholders := ""
+	for _, d := range devices {
+		if !d.WanSide {
+			continue
+		}
+		mac := normSeenMAC(d.MAC)
+		if mac == "" {
+			continue
+		}
+		macs = append(macs, mac)
+		if placeholders == "" {
+			placeholders = "?"
+		} else {
+			placeholders += ",?"
+		}
+	}
+	if len(macs) == 0 {
+		return
+	}
+	_, _ = l.db.Exec("DELETE FROM device_seen WHERE mac IN ("+placeholders+")", macs...)
+}
+
 // noteDevicesSeen actualiza el registro (#954) y devuelve los clientes que
 // entran en él por PRIMERA vez y YA tienen nombre (#1323): son el hueco que
 // "unknown-device" no cubre (un cliente nuevo con hostname/reserva DHCP
@@ -230,6 +261,12 @@ func (l *Live) noteDevicesSeen(devices []Device, nowMs int64) []Device {
 	var firstTimers []Device
 	for _, d := range devices {
 		if !d.Online {
+			continue
+		}
+		// #2183: los vecinos del segmento WAN (ISP, CPE de otros abonados)
+		// no son clientes de esta red: no entran en el registro, así que
+		// tampoco generan "cliente nuevo" ni fantasmas al desaparecer.
+		if d.WanSide {
 			continue
 		}
 		mac := normSeenMAC(d.MAC)
