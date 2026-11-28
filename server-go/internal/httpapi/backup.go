@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gnacho/netpulse/server-go/internal/auth"
@@ -119,8 +120,15 @@ func (s *server) runBackup() (string, error) {
 	// que el archivo lleva el conjunto: netpulse.db, .ssh y tls. Va en tar.gz
 	// para que sea un único fichero, con la purga tratándolo como uno solo.
 	dst := filepath.Join(backupDir, "netpulse-"+ts+".tar.gz")
-	if err := writeBackupArchive(s.db.DB, s.cfg.DataDir, s.db.Path, dst); err != nil {
+	skipped, err := writeBackupArchive(s.db.DB, s.cfg.DataDir, s.db.Path, dst)
+	if err != nil {
 		return "", err
+	}
+	// #2205: un fichero que el servicio no puede leer (un .bak de root dentro
+	// de .ssh) no aborta el backup, pero tampoco se calla: queda escrito qué
+	// se quedó fuera.
+	if len(skipped) > 0 {
+		log.Printf("[netpulse] backup left %d unreadable file(s) out: %s", len(skipped), strings.Join(skipped, ", "))
 	}
 
 	upsert := "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
@@ -155,10 +163,41 @@ func (s *server) backupTick() {
 	}
 	dst, err := s.runBackup()
 	if err != nil {
-		log.Printf("[netpulse] automatic backup failed: %v", err)
+		// #2205: un fallo persistente reintenta cada minuto, que es lo que
+		// quieres para recuperarte, pero no una línea de journal por minuto.
+		if autoBackupFailLog.allow(err.Error()) {
+			log.Printf("[netpulse] automatic backup failed: %v", err)
+		}
 		return
 	}
 	log.Printf("[netpulse] automatic backup completed: %s", dst)
+}
+
+// backupFailureLog deja pasar el primer fallo, cualquier fallo distinto y el
+// mismo fallo una vez por hora. Nunca calla el primero.
+type backupFailureLog struct {
+	mu  sync.Mutex
+	msg string
+	at  time.Time
+	now func() time.Time
+}
+
+const backupFailureLogInterval = time.Hour
+
+var autoBackupFailLog = &backupFailureLog{}
+
+func (l *backupFailureLog) allow(msg string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	now := time.Now()
+	if l.now != nil {
+		now = l.now()
+	}
+	if msg == l.msg && now.Sub(l.at) < backupFailureLogInterval {
+		return false
+	}
+	l.msg, l.at = msg, now
+	return true
 }
 
 func validBackupTime(v string) bool {
@@ -302,16 +341,16 @@ func copyFile(src, dst string) error {
 // otro host pueda entrar por SSH en los routers y servir TLS sin regenerar
 // nada. Un directorio que no exista (instalación sin clave todavía) se omite
 // sin fallar: el backup sigue siendo válido.
-func writeBackupArchive(d *sql.DB, dataDir, dbPath, dst string) error {
+func writeBackupArchive(d *sql.DB, dataDir, dbPath, dst string) ([]string, error) {
 	tmp := dst + ".tmp"
 	out, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, backupFileMode)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	fail := func(err error) error {
+	fail := func(err error) ([]string, error) {
 		out.Close()
 		os.Remove(tmp)
-		return err
+		return nil, err
 	}
 	if err := out.Chmod(backupFileMode); err != nil {
 		return fail(err)
@@ -337,14 +376,17 @@ func writeBackupArchive(d *sql.DB, dataDir, dbPath, dst string) error {
 	if err := addTarFile(tw, snapshot, filepath.Base(dbPath)); err != nil {
 		return fail(err)
 	}
+	var skipped []string
 	for _, name := range []string{".ssh", "tls"} {
 		p := filepath.Join(dataDir, name)
 		if _, statErr := os.Stat(p); statErr != nil {
 			continue
 		}
-		if err := addTarTree(tw, p, name); err != nil {
+		left, err := addTarTree(tw, p, name)
+		if err != nil {
 			return fail(err)
 		}
+		skipped = append(skipped, left...)
 	}
 
 	if err := tw.Close(); err != nil {
@@ -355,9 +397,9 @@ func writeBackupArchive(d *sql.DB, dataDir, dbPath, dst string) error {
 	}
 	if err := out.Close(); err != nil {
 		os.Remove(tmp)
-		return err
+		return nil, err
 	}
-	return os.Rename(tmp, dst)
+	return skipped, os.Rename(tmp, dst)
 }
 
 // addTarFile mete un fichero suelto en el archivo con su modo (la clave SSH va
@@ -388,9 +430,12 @@ func addTarFile(tw *tar.Writer, src, name string) error {
 }
 
 // addTarTree mete un directorio entero (permisos incluidos) con rutas
-// relativas a root.
-func addTarTree(tw *tar.Writer, src, root string) error {
-	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+// relativas a root. Devuelve las rutas relativas que no pudo abrir en vez de
+// abortar: un fichero ajeno al servicio dentro de .ssh no puede dejar la
+// instalación sin backup (#2205).
+func addTarTree(tw *tar.Writer, src, root string) ([]string, error) {
+	var skipped []string
+	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -414,20 +459,29 @@ func addTarTree(tw *tar.Writer, src, root string) error {
 		if d.IsDir() {
 			hdr.Name = name + "/"
 		}
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
 		if d.IsDir() {
+			if err := tw.WriteHeader(hdr); err != nil {
+				return err
+			}
 			return nil
 		}
+		// #2205: abrir antes de escribir la cabecera. Si el fichero no se
+		// puede leer se deja fuera entero (con cabecera y sin cuerpo el tar
+		// quedaría corrupto) y se anota para el log.
 		f, openErr := os.Open(p)
 		if openErr != nil {
-			return openErr
+			skipped = append(skipped, name)
+			return nil
 		}
-		defer f.Close()
+		if err := tw.WriteHeader(hdr); err != nil {
+			f.Close()
+			return err
+		}
 		_, copyErr := io.Copy(tw, f)
+		f.Close()
 		return copyErr
 	})
+	return skipped, err
 }
 
 // isBackupFile decide qué ficheros de backups/ son backups. Reconoce el
