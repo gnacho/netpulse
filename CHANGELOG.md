@@ -5,6 +5,12 @@ Todos los cambios notables de NetPulse se documentan en este fichero.
 El formato se basa en [Keep a Changelog](https://keepachangelog.com/es/1.1.0/),
 y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Fixed
+
+- IPv6 neighbours learned on the gateway's WAN port are marked WAN-side like the IPv4 ones, so an ISP CPE seen only in the NDP table no longer appears as a LAN cable client. The confirmed neighbour now carries its interface, both from the agent and from the server's own SSH poll (#2200, reported by @arypien).
+
 ## [2.55.0] - 2026-11-27
 
 ### Added
