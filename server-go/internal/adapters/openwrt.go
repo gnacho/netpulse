@@ -785,15 +785,24 @@ func (c *OpenWrtClient) GetArp() (arp map[string]string, stale map[string]bool, 
 			}
 			// #2109: el mismo recheck sobre NDP. Un host solo-IPv6 no tiene
 			// entrada en `ip -4 neigh`, así que solo esta pasada lo confirma.
-			if v6, ok := c.recheckStaleNeighbours6(due); ok {
+			// #2200: la interfaz confirmada viaja con la pareja, o un vecino
+			// IPv6 de la boca WAN no se puede marcar como lado WAN.
+			devs := probe.ParseIPNeighDevs(freshSrc)
+			v6, v6devs, ok := c.recheckStaleNeighbours6(due)
+			if ok {
 				for mac, ip := range v6 {
 					if _, has := m[mac]; !has {
 						m[mac] = ip
 					}
 					delete(st, mac)
+					if _, has := devs[mac]; !has {
+						if d := v6devs[mac]; d != "" {
+							devs[mac] = d
+						}
+					}
 				}
 			}
-			return m, st, probe.ParseIPNeighDevs(freshSrc)
+			return m, st, devs
 		}
 	}
 	out, err := c.pool.Run(c.Host, probe.CmdProcArp, 0)
@@ -923,17 +932,17 @@ func (c *OpenWrtClient) scanPresence() {
 // Mismo tope y mismo throttle que la v4. `ip -6 neigh` declara la interfaz de
 // cada entrada, y una link-local necesita `-I` para alcanzarse. Devuelve
 // MAC → dirección confirmada; best effort.
-func (c *OpenWrtClient) recheckStaleNeighbours6(due bool) (map[string]string, bool) {
+func (c *OpenWrtClient) recheckStaleNeighbours6(due bool) (map[string]string, map[string]string, bool) {
 	if c.pool == nil || !due {
-		return nil, false
+		return nil, nil, false
 	}
 	out, err := c.pool.Run(c.Host, probe.CmdIpNeigh6, 0)
 	if err != nil || out == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	arp, stale := probe.ParseIPNeigh(out)
 	if len(stale) == 0 {
-		return nil, false
+		return nil, nil, false
 	}
 	devs := probe.ParseIPNeighDevsAll(out)
 	macs := make([]string, 0, len(stale))
@@ -956,27 +965,32 @@ func (c *OpenWrtClient) recheckStaleNeighbours6(due bool) (map[string]string, bo
 		}
 	}
 	if n == 0 {
-		return nil, false
+		return nil, nil, false
 	}
 	cmd.WriteString("wait")
 	if _, err := c.pool.Run(c.Host, cmd.String(), probe.StalePingTimeout+2*time.Second); err != nil {
-		return nil, false
+		return nil, nil, false
 	}
 	freshOut, err := c.pool.Run(c.Host, probe.CmdIpNeigh6, 0)
 	if err != nil || freshOut == "" {
-		return nil, false
+		return nil, nil, false
 	}
 	fresh, stillStale := probe.ParseIPNeigh(freshOut)
+	freshDevs := probe.ParseIPNeighDevs(freshOut)
 	confirmed := map[string]string{}
+	confirmedDevs := map[string]string{}
 	for _, mac := range macs {
 		if stillStale[mac] {
 			continue
 		}
 		if ip := fresh[mac]; ip != "" {
 			confirmed[mac] = ip
+			if d := freshDevs[mac]; d != "" {
+				confirmedDevs[mac] = d
+			}
 		}
 	}
-	return confirmed, len(confirmed) > 0
+	return confirmed, confirmedDevs, len(confirmed) > 0
 }
 
 // GetNetworks: redes logicas que la unidad declara en UCI (#1889). Es la

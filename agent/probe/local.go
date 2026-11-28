@@ -1354,17 +1354,26 @@ func (p *Prober) probeArp(ctx context.Context) (arp map[string]string, stale []s
 			// #2109: el mismo recheck sobre la tabla NDP. Un host solo-IPv6
 			// (SLAAC, sin lease ni tráfico v4) no tiene entrada en `ip -4
 			// neigh`, así que esta pasada es la única que puede confirmarlo.
-			for mac, ip := range p.confirmStaleNeighbours6(ctx, due) {
+			// #2200: la interfaz viaja con la pareja confirmada, o el servidor
+			// no puede marcar como lado WAN un vecino IPv6 de la boca WAN.
+			devs := ParseIPNeighDevs(out)
+			v6arp, v6devs := p.confirmStaleNeighbours6(ctx, due)
+			for mac, ip := range v6arp {
 				if _, ok := m[mac]; !ok {
 					m[mac] = ip
 				}
 				delete(st, mac)
+				if _, ok := devs[mac]; !ok {
+					if d := v6devs[mac]; d != "" {
+						devs[mac] = d
+					}
+				}
 			}
 			for mac := range st {
 				stale = append(stale, mac)
 			}
 			sort.Strings(stale) // stable payloads, so a diff means a change
-			return m, stale, ParseIPNeighDevs(out)
+			return m, stale, devs
 		}
 	}
 	out := p.runBest(ctx, CmdProcArp, 3*time.Second)
@@ -1477,20 +1486,22 @@ func (p *Prober) confirmStaleNeighbours(ctx context.Context, arp map[string]stri
 // direccion link-local solo se alcanza indicando la interfaz, que el propio
 // `ip -6 neigh` declara (`dev br-lan`).
 //
-// Devuelve MAC → dirección confirmada. Best effort: sin tabla, sin vecinos o
-// sin respuesta, nada. No toca `arp`: quien llama decide qué hacer con la
-// pareja confirmada.
-func (p *Prober) confirmStaleNeighbours6(ctx context.Context, due bool) map[string]string {
+// Devuelve MAC → dirección confirmada y MAC → interfaz de esa confirmación
+// (#2200): el servidor atribuye el lado WAN con el mapa de interfaces, así que
+// sin él un vecino IPv6 de la boca WAN se publica como cliente LAN.
+// Best effort: sin tabla, sin vecinos o sin respuesta, nada. No toca `arp`:
+// quien llama decide qué hacer con la pareja confirmada.
+func (p *Prober) confirmStaleNeighbours6(ctx context.Context, due bool) (map[string]string, map[string]string) {
 	if p.run == nil || !due {
-		return nil
+		return nil, nil
 	}
 	out := p.runBest(ctx, CmdIpNeigh6, 3*time.Second)
 	if out == "" {
-		return nil
+		return nil, nil
 	}
 	arp, stale := ParseIPNeigh(out)
 	if len(stale) == 0 {
-		return nil
+		return nil, nil
 	}
 	devs := ParseIPNeighDevsAll(out)
 	macs := make([]string, 0, len(stale))
@@ -1511,7 +1522,7 @@ func (p *Prober) confirmStaleNeighbours6(ctx context.Context, due bool) map[stri
 		}
 	}
 	if len(targets) == 0 {
-		return nil
+		return nil, nil
 	}
 	var wg sync.WaitGroup
 	for _, t := range targets {
@@ -1523,17 +1534,23 @@ func (p *Prober) confirmStaleNeighbours6(ctx context.Context, due bool) map[stri
 	}
 	wg.Wait()
 
-	fresh, stillStale := ParseIPNeigh(p.runBest(ctx, CmdIpNeigh6, 3*time.Second))
+	out = p.runBest(ctx, CmdIpNeigh6, 3*time.Second)
+	fresh, stillStale := ParseIPNeigh(out)
+	freshDevs := ParseIPNeighDevs(out)
 	confirmed := map[string]string{}
+	confirmedDevs := map[string]string{}
 	for _, t := range targets {
 		if stillStale[t.mac] {
 			continue
 		}
 		if ip := fresh[t.mac]; ip != "" {
 			confirmed[t.mac] = ip
+			if d := freshDevs[t.mac]; d != "" {
+				confirmedDevs[t.mac] = d
+			}
 		}
 	}
-	return confirmed
+	return confirmed, confirmedDevs
 }
 
 // StalePing6Command: echo IPv6 con dos caminos porque no todas las unidades traen
