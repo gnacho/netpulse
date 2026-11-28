@@ -1251,6 +1251,7 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 				wanDeclared = true
 			}
 		}
+		bridgedWan := -1
 		for _, p := range layout {
 			st, ok := byName[p.Name]
 			if p.Role == "wan" && !isEthNetdev(st, ok) {
@@ -1269,6 +1270,21 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 				}
 				id = p.Name
 				label = "LAN " + strconv.Itoa(lanCount+1)
+				if id == "wan" {
+					// #2181: un netdev llamado literalmente "wan" (FRITZ!Box
+					// 4040 y otros) conservaba el id, y la UI pinta como WAN
+					// todo puerto con id "wan" (jack, leyenda "Internet
+					// link") además de descartarlo del FDB como si fuera la
+					// WAN. Una boca puenteada no puede llevar ese id: usa el
+					// mismo que su etiqueta, sin pisar una boca LAN existente.
+					n := lanCount + 1
+					for lanNames["lan"+strconv.Itoa(n)] {
+						n++
+					}
+					id = "lan" + strconv.Itoa(n)
+					label = "LAN " + strconv.Itoa(n)
+				}
+				bridgedWan = len(ports)
 			}
 			ep := EthPort{ID: id, Label: label, Up: up}
 			if up {
@@ -1278,6 +1294,13 @@ func BuildEthPorts(layout []PortLayout, states []PortState, brMembers map[string
 			ports = append(ports, ep)
 			netdev[ep.ID] = p.Name
 			used[p.Name] = true
+		}
+		// #2181: la ex-WAN puenteada ya no es la primera boca del chasis. El
+		// layout la trae delante porque la WAN suele ir a la izquierda, así
+		// que se mueve al final para que el panel lea LAN 1..LAN N, LAN N+1.
+		if bridgedWan >= 0 && bridgedWan != len(ports)-1 {
+			ep := ports[bridgedWan]
+			ports = append(append(ports[:bridgedWan:bridgedWan], ports[bridgedWan+1:]...), ep)
 		}
 	} else {
 		// Fallback sin config. #1200: también "lan"/"wan" a secas (UniFi

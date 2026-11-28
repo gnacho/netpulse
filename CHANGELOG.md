@@ -13,6 +13,7 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ### Fixed
 
+- A WAN port that the user bridged into `br-lan` to run the unit as an access point stops being painted as the WAN port. The label already said LAN N, but the port kept the `wan` id and the panel draws every port with that id as the internet link, so a FRITZ!Box 4040 in AP mode showed its fifth bridged jack as "WAN" while the real uplink was another LAN port. The port now takes the id that matches its label, moves to the end of the chassis and keeps its traffic counters (#2181, reported by @fsolak47).
 - A NetGrip panel whose embedded agent carries an old token never recovered. The rearm restarted the panel and then rotated the token in the native agent's environment file, which NetGrip does not read, so the panel kept answering 401 every cycle and the supervisor kept restarting it on each cooldown. The token now goes into `/etc/netgrip/netpulse.env`, the file the embedded agent reads, and the panel is restarted after it (#2208).
 
 ## [2.55.1] - 2026-11-28
