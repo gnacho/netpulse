@@ -13,16 +13,15 @@ name: openwrt-package
 # not rely on the `release` event for goreleaser-published releases: goreleaser
 # creates releases with the workflow GITHUB_TOKEN, and events triggered by the
 # GITHUB_TOKEN do not start new workflow runs
-# (https://docs.github.com/en/actions/concepts/security/github_token). So this
-# workflow runs in parallel with release.yml and waits for the agent tarballs
-# before attaching packages. The `release: published` trigger stays for
-# manually published releases.
+# (https://docs.github.com/en/actions/concepts/security/github_token). Publishing
+# a draft release creates its tag, so that flow also lands here through the push
+# event, and there is no `release: published` trigger on purpose: it fired a
+# second run of this same job for the same tag, and the two raced on the asset
+# name (#2197).
 
 on:
   push:
     tags: ['v*']
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -124,7 +123,20 @@ jobs:
         run: |
           echo "Packages generated:"
           ls -la dist/packages/
-          gh release upload "$TAG" dist/packages/*.${{ matrix.format }} --clobber
+          existing="$(gh release view "$TAG" --json assets --jq '.assets[].name' || true)"
+          missing=()
+          for f in dist/packages/*.${{ matrix.format }}; do
+            if grep -qxF "$(basename "$f")" <<<"$existing"; then
+              echo "already attached, skipping: $(basename "$f")"
+            else
+              missing+=("$f")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            gh release upload "$TAG" "${missing[@]}" --clobber
+          else
+            echo "all package assets already attached"
+          fi
 
   package-luci:
     runs-on: ubuntu-latest
@@ -189,7 +201,20 @@ jobs:
         run: |
           echo "LuCI packages generated:"
           ls -la dist/packages/
-          gh release upload "$TAG" dist/packages/*.${{ matrix.format }} --clobber
+          existing="$(gh release view "$TAG" --json assets --jq '.assets[].name' || true)"
+          missing=()
+          for f in dist/packages/*.${{ matrix.format }}; do
+            if grep -qxF "$(basename "$f")" <<<"$existing"; then
+              echo "already attached, skipping: $(basename "$f")"
+            else
+              missing+=("$f")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            gh release upload "$TAG" "${missing[@]}" --clobber
+          else
+            echo "all LuCI assets already attached"
+          fi
 
   package-server:
     runs-on: ubuntu-latest
@@ -288,4 +313,17 @@ jobs:
             echo "ERROR: no server package produced" >&2
             exit 1
           fi
-          gh release upload "$TAG" $files --clobber
+          existing="$(gh release view "$TAG" --json assets --jq '.assets[].name' || true)"
+          missing=()
+          for f in $files; do
+            if grep -qxF "$(basename "$f")" <<<"$existing"; then
+              echo "already attached, skipping: $(basename "$f")"
+            else
+              missing+=("$f")
+            fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            gh release upload "$TAG" "${missing[@]}" --clobber
+          else
+            echo "all server package assets already attached"
+          fi
