@@ -7,10 +7,14 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+## [2.55.1] - 2026-11-28
+
 ### Fixed
 
 - A file inside `.ssh` that the service cannot read, such as a backup left by a session running as root, no longer aborts the whole backup: the archive is written without it and the journal names what stayed out. A persistent backup failure is also logged once and then once an hour instead of every retry, so the one minute scheduler no longer fills the journal with the same line (#2205).
 - IPv6 neighbours learned on the gateway's WAN port are marked WAN-side like the IPv4 ones, so an ISP CPE seen only in the NDP table no longer appears as a LAN cable client. The confirmed neighbour now carries its interface, both from the agent and from the server's own SSH poll (#2200, reported by @arypien).
+- The Chinese catalogue covers the DNS panels and the SNMP hints, which stayed in English after the DNS activity work (#2204, by @Bann-DEV).
+- The changelog page of the site serves the release captures from the site itself, so they load again (#2195, #2196).
 
 ## [2.55.0] - 2026-11-27
 
