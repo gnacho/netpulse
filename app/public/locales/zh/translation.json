@@ -809,6 +809,8 @@
       "forgotten": "已忘记主机密钥",
       "rejectedBadge": "令牌被拒绝",
       "rejectedTip": "服务器正以 401 拒绝该探针的推送：令牌不匹配（路由器重启或服务器迁移后常见）。用「重启探针」或「重装」修复。首次成功推送后该标记会自动消失。",
+      "rejectedTipStale": "服务器拒绝该 agent，因为负载的时间戳超出了新鲜度窗口。请先检查设备时钟：它必须与服务器相差不超过几分钟。",
+      "rejectedTipSignature": "服务器拒绝该 agent，因为签名不匹配。通常说明 agent 版本比服务器要求的更旧。",
       "rotate": "重新生成令牌",
       "rotateFail": "无法重新生成令牌",
       "rotateRetry": "重试生成令牌",

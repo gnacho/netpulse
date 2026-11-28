@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Added
+
+- A rejected push says why. The server answered `unauthorized`, `invalid_signature` or `stale_payload` and kept only a timestamp, so the panel showed the same "token rejected" badge for a stale token, an agent older than the server and a unit whose clock is minutes off. The reason is stored next to the timestamp, returned by `/api/agents` as `rejectedReason`, shown in the badge tooltip with what to check, and quoted in the auto-rearm alert, which no longer says "restarted but did not come back" when the pushes never got in (#2211).
+
 ### Fixed
 
 - A NetGrip panel whose embedded agent carries an old token never recovered. The rearm restarted the panel and then rotated the token in the native agent's environment file, which NetGrip does not read, so the panel kept answering 401 every cycle and the supervisor kept restarting it on each cooldown. The token now goes into `/etc/netgrip/netpulse.env`, the file the embedded agent reads, and the panel is restarted after it (#2208).

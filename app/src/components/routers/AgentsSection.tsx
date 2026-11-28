@@ -350,7 +350,13 @@ function AgentRow({ agent, router, nowSec }: { agent?: AgentInfo; router: Router
               válido lo limpia, así que desaparece solo al Rearmar/Reinstalar. */}
           {agent?.rejectedAt ? (
             <span
-              title={t('routers.agents.rejectedTip')}
+              title={
+                agent.rejectedReason === 'stale_payload'
+                  ? t('routers.agents.rejectedTipStale')
+                  : agent.rejectedReason === 'invalid_signature'
+                    ? t('routers.agents.rejectedTipSignature')
+                    : t('routers.agents.rejectedTip')
+              }
               className="inline-flex items-center rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
             >
               {t('routers.agents.rejectedBadge')}
