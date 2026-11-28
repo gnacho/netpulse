@@ -7,6 +7,10 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 ## [Unreleased]
 
+### Fixed
+
+- A NetGrip panel whose embedded agent carries an old token never recovered. The rearm restarted the panel and then rotated the token in the native agent's environment file, which NetGrip does not read, so the panel kept answering 401 every cycle and the supervisor kept restarting it on each cooldown. The token now goes into `/etc/netgrip/netpulse.env`, the file the embedded agent reads, and the panel is restarted after it (#2208).
+
 ## [2.55.1] - 2026-11-28
 
 ### Fixed
