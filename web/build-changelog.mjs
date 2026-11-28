@@ -7,7 +7,7 @@
 //
 // Uso (desde web/):  node build-changelog.mjs
 // Después:           npm run build:langs   (prerender es/en/zh/ru)
-import { readFile, writeFile, readdir } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -159,3 +159,29 @@ const out = template
 
 await writeFile(path.join(WEB, 'changelog.html'), out)
 console.log(`changelog.html: ${list.length} releases, ${(out.length / 1024).toFixed(0)} KiB`)
+
+// Las capturas de las notas viven en docs/releases/<version>/ y la página las
+// pide en /assets/releases/<version>/<file>. Se copian aquí (#2207): si el
+// media no viaja con la página, el deploy publica imágenes 404 y el prerender
+// no lo nota porque solo necesita el HTML.
+const MEDIA = /\.(gif|png|jpe?g|webp)$/i
+let copied = 0
+for (const version of list.map((r) => r.version)) {
+  const dir = path.join(CURATED, version)
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    continue
+  }
+  const media = entries.filter((e) => e.isFile() && MEDIA.test(e.name))
+  if (!media.length) continue
+  const dst = path.join(WEB, 'assets', 'releases', version)
+  await mkdir(dst, { recursive: true })
+  for (const f of media) {
+    await copyFile(path.join(dir, f.name), path.join(dst, f.name))
+    copied += 1
+  }
+}
+console.log(`assets/releases: ${copied} capture file(s)`)
+

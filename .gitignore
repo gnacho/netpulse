@@ -60,3 +60,4 @@ jar.txt
 # Binarios de build locales (go build -o en raíz)
 /netpulse
 /netpulse-*
+web/assets/releases/
