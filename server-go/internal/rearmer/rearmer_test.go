@@ -587,3 +587,32 @@ func TestRearmNetgripFreshRechazado(t *testing.T) {
 		t.Fatalf("netgrip fresh no debe ejecutar SSH, tuve %d", env.ssh.count())
 	}
 }
+
+// TestSupervisorAlertaConMotivoDelRechazo (#2211): si el servidor está
+// rechazando los pushes, la alerta dice por qué. Un stale_payload es un reloj
+// desfasado, que ningún rearme arregla, así que la descripción tiene que
+// mandar a mirar el reloj y no a "reiniciado y no volvió".
+func TestSupervisorAlertaConMotivoDelRechazo(t *testing.T) {
+	env := makeRearmEnv(t, "patio")
+	env.pushViejo("patio")
+	env.expira(time.Minute)
+	env.arm.SetPollWait(50 * time.Millisecond)
+	if _, err := env.d.Exec("INSERT INTO kv (key, value) VALUES (?, ?)",
+		"agent.reject_reason.patio", "stale_payload"); err != nil {
+		t.Fatalf("kv motivo: %v", err)
+	}
+
+	sup := rearmer.NewSupervisor(env.arm, env.reg, env.d.DB, env.engine, time.Hour, time.Hour)
+	sup.CheckOnce()
+
+	for _, ev := range env.engine.events() {
+		if ev.Title != "Auto-rearm without recovery on patio" {
+			continue
+		}
+		if !strings.Contains(ev.Description, "stale_payload") || !strings.Contains(ev.Description, "clock") {
+			t.Fatalf("la alerta debe citar el motivo y el reloj, fue: %q", ev.Description)
+		}
+		return
+	}
+	t.Fatalf("no se emitió la alerta de fallo, eventos: %d", env.engine.count())
+}

@@ -706,15 +706,54 @@ func (s *Supervisor) emitFail(slug string) {
 		s.failIDs[slug] = id
 	}
 	s.mu.Unlock()
+	desc := fmt.Sprintf("The supervisor restarted netpulse-agent on %s but the agent has not pushed again; next attempt in %d s", slug, int(s.cooldown.Seconds()))
+	// #2211: si el servidor está rechazando los pushes, el motivo manda sobre
+	// "reiniciado y no volvió". Un reloj desfasado se ve como agente muerto y
+	// ningún rearme lo arregla, así que la alerta tiene que decirlo.
+	if reason := s.rejectReason(slug); reason != "" {
+		desc = fmt.Sprintf("The supervisor restarted netpulse-agent on %s but its pushes are being rejected (401 %s). %s Next attempt in %d s",
+			slug, reason, rejectHint(reason), int(s.cooldown.Seconds()))
+	}
 	s.engine.EmitOrUpdate(alerts.AlertEvent{
 		ID:       id,
 		Category: alerts.CatSystem, Urgent: false, Severity: "warn",
 		Title:       fmt.Sprintf("Auto-rearm without recovery on %s", slug),
-		Description: fmt.Sprintf("The supervisor restarted netpulse-agent on %s but the agent has not pushed again; next attempt in %d s", slug, int(s.cooldown.Seconds())),
+		Description: desc,
 		Type:        alerts.TypeAutoRearmFailed,
 		Vars:        map[string]string{"router": slug, "cooldown": fmt.Sprintf("%d", int(s.cooldown.Seconds()))},
 		Time:        "just now", RouterID: slug,
 	})
+}
+
+// rejectReasonPrefix: duplicado de httpapi.agentRejectReasonKeyPrefix a
+// propósito (httpapi importa rearmer, no al revés). Valor: motivo del último
+// push rechazado con 401 (#2211).
+const rejectReasonPrefix = "agent.reject_reason."
+
+// rejectReason devuelve el motivo del último rechazo del slug, o "" si no hay.
+func (s *Supervisor) rejectReason(slug string) string {
+	if s.db == nil {
+		return ""
+	}
+	var v string
+	if err := s.db.QueryRow("SELECT value FROM kv WHERE key = ?", rejectReasonPrefix+slug).Scan(&v); err != nil {
+		return ""
+	}
+	return v
+}
+
+// rejectHint traduce el motivo del ingest a la acción que lo arregla.
+func rejectHint(reason string) string {
+	switch reason {
+	case "stale_payload":
+		return "The payload timestamp is outside the server's freshness window, so check the unit clock before anything else."
+	case "invalid_signature":
+		return "The signature does not match, which usually means the agent build is older than this server."
+	case "unauthorized":
+		return "The token does not match; the rearm has already rotated it, so the unit is not picking the new one up."
+	default:
+		return "Check the token, the agent version and the unit clock."
+	}
 }
 
 // closeFailID: borra el ID de fallo abierto del slug (incidente resuelto).
