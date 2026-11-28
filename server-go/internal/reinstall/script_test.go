@@ -246,6 +246,27 @@ func TestTokenPushScriptConfig(t *testing.T) {
 	}
 }
 
+func TestTokenPushScriptNetgripTargetsPanelEnv(t *testing.T) {
+	s := reinstall.TokenPushScriptNetgrip("test-router", strings.Repeat("d4", 32))
+	for _, want := range []string{
+		"ENV_FILE=/etc/netgrip/netpulse.env",
+		"INIT=/etc/init.d/netgrip",
+		"NETPULSE_TOKEN=" + strings.Repeat("d4", 32),
+		`printf '%s\n' "$USER_VARS" >> "$ENV_FILE.tmp"`,
+		"\"$INIT\" restart",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("TokenPushScriptNetgrip sin %q", want)
+		}
+	}
+	// NetGrip no lee la config del agente nativo: tocarla sería ruido.
+	for _, notWant := range []string{"/etc/config/netpulse-agent", "/etc/netpulse-agent.env", "uci -q set"} {
+		if strings.Contains(s, notWant) {
+			t.Errorf("TokenPushScriptNetgrip no debe contener %q", notWant)
+		}
+	}
+}
+
 func TestScriptEmptyDigestSkipsVerify(t *testing.T) {
 	s := reinstall.Script(
 		"r", strings.Repeat("b2", 32), "http://s:3000", "",

@@ -256,12 +256,14 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 	//   (CmdNetgrip), que recarga el env y relanza el agente embebido; es la
 	//   vía de recuperación real para un NetGrip caído (#569).
 	cmd := Cmd
+	netgripKind := false
 	if r.agents != nil {
 		if _, _, kind, _, ok := r.agents.Info(slug); ok && kind == "netgrip" {
 			if _, fresh := r.agents.Fresh(slug); fresh {
 				return Result{}, ErrNetgripAgent
 			}
 			cmd = CmdNetgrip
+			netgripKind = true
 		}
 	}
 	// El slug debe tener token registrado (si no, 404 como DELETE).
@@ -319,16 +321,23 @@ func (r *Rearmer) Rearm(slug string) (Result, error) {
 
 	// #630: si reiniciar el proceso no recuperó el agente, puede ser un 401
 	// por desincronización de token (el server rotó el token pero el .env del
-	// router lo mantiene antiguo). Solo para agentes NATIVOS (cmd = Cmd): se
-	// regenera el token y se aplica en caliente (reescribe el .env + restart),
-	// que es la vía que arregla el desync sin reinstalar. Los NetGrip se
-	// recuperan con su propio CmdNetgrip (recarga env en memoria).
-	if !recovered && cmd == Cmd {
+	// router lo mantiene antiguo). Se regenera el token y se aplica en
+	// caliente (reescribe el .env + restart), que es la vía que arregla el
+	// desync sin reinstalar.
+	// #2208: el agente embebido en NetGrip lee SU env (/etc/netgrip/netpulse.env),
+	// no el del agente nativo, así que la rotación va al fichero del panel.
+	// Antes un NetGrip con token viejo no se recuperaba nunca: el supervisor
+	// reiniciaba el panel cada cooldown y anunciaba una rotación que no hacía.
+	if !recovered {
 		log.Printf("[netpulse] rearmer: %s did not push after restart - rotating token and rewriting env via SSH (timeout %v)", slug, SSHWait)
 		before2 := time.Now()
 		prevSeen2 := prevSeen
 		if err := r.rotateTokenAtomic(slug, func(t string) error {
-			_, err := r.pool.Run(host, reinstall.TokenPushScript(slug, t), SSHWait)
+			cmdTok := reinstall.TokenPushScript(slug, t)
+			if netgripKind {
+				cmdTok = reinstall.TokenPushScriptNetgrip(slug, t)
+			}
+			_, err := r.pool.Run(host, cmdTok, SSHWait)
 			return err
 		}); err == nil {
 			if r.waitForPush(slug, prevSeen2, before2) {

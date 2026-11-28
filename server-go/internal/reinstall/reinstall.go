@@ -546,12 +546,41 @@ say "agent started"
 // cuando el token cambia pero el binario y la config ya están bien (rotate
 // "en caliente").
 func TokenPushScript(slug, token string) string {
+	return tokenPushScript(token, "/etc/netpulse-agent.env", "/etc/init.d/netpulse-agent", true)
+}
+
+// TokenPushScriptNetgrip rota el token del agente embebido en NetGrip (#2208).
+// El panel lee su propio env, /etc/netgrip/netpulse.env, con los mismos
+// nombres NETPULSE_*; el del agente nativo no lo alcanza, así que un NetGrip
+// con el token antiguo respondía 401 para siempre aunque el servidor rotase.
+// No sincroniza UCI: NetGrip no lee /etc/config/netpulse-agent.
+func TokenPushScriptNetgrip(slug, token string) string {
+	return tokenPushScript(token, "/etc/netgrip/netpulse.env", "/etc/init.d/netgrip", false)
+}
+
+func tokenPushScript(token, envFile, initPath string, syncUCI bool) string {
+	uci := ""
+	if syncUCI {
+		uci = `
+# #1816: el init del paquete lee UCI primero y solo cae al env si el token de
+# UCI está vacío. Rotar solo el env dejaba el token viejo en
+# /etc/config/netpulse-agent y el agente respondía 401 para siempre. Se
+# sincronizan también server y slug: si UCI apunta a un servidor antiguo, el
+# token nuevo tampoco sirve.
+UCI_CFG=/etc/config/netpulse-agent
+if [ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1; then
+	uci -q set netpulse-agent.main.server="$SERVER" || true
+	uci -q set netpulse-agent.main.slug="$SLUG" || true
+	uci -q set netpulse-agent.main.token=` + token + ` || true
+	uci -q commit netpulse-agent || true
+fi`
+	}
 	return `#!/bin/sh
 set -e
-ENV_FILE=/etc/netpulse-agent.env
-INIT=/etc/init.d/netpulse-agent
+ENV_FILE=` + envFile + `
+INIT=` + initPath + `
 # El env debe existir: el router ya tenía el agente instalado.
-[ -f "$ENV_FILE" ] || { echo "netpulse-agent.env does not exist, token not updated" >&2; exit 30; }
+[ -f "$ENV_FILE" ] || { echo "$ENV_FILE does not exist, token not updated" >&2; exit 30; }
 # Conservar el server y el slug del env existente para no romper la config.
 SERVER=$(sed -n 's/^NETPULSE_SERVER=//p' "$ENV_FILE" | head -n1)
 SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
@@ -562,7 +591,7 @@ SLUG=$(sed -n 's/^NETPULSE_SLUG=//p' "$ENV_FILE" | head -n1)
 # aplica una vez emparejado.
 FP=$(sed -n 's/^NETPULSE_SERVER_FP=//p' "$ENV_FILE" | head -n1)
 USER_VARS=$(grep -E '^NETPULSE_[A-Z0-9_]+=' "$ENV_FILE" | grep -vE '^NETPULSE_(SERVER|SLUG|TOKEN|SERVER_FP|PAIRING_TOKEN)=') || true
-[ -n "$SLUG" ] || { echo "netpulse-agent.env has no NETPULSE_SLUG" >&2; exit 31; }
+[ -n "$SLUG" ] || { echo "$ENV_FILE has no NETPULSE_SLUG" >&2; exit 31; }
 umask 077
 cat > "$ENV_FILE.tmp" <<EOF
 NETPULSE_SERVER=$SERVER
@@ -577,19 +606,7 @@ if [ -n "$USER_VARS" ]; then
 fi
 chmod 600 "$ENV_FILE.tmp"
 # Swap atómico: el proceso vivo sigue leyendo el archivo íntegro.
-mv -f "$ENV_FILE.tmp" "$ENV_FILE"
-# #1816: el init del paquete lee UCI primero y solo cae al env si el token de
-# UCI está vacío. Rotar solo el env dejaba el token viejo en
-# /etc/config/netpulse-agent y el agente respondía 401 para siempre. Se
-# sincronizan también server y slug: si UCI apunta a un servidor antiguo, el
-# token nuevo tampoco sirve.
-UCI_CFG=/etc/config/netpulse-agent
-if [ -f "$UCI_CFG" ] && command -v uci >/dev/null 2>&1; then
-	uci -q set netpulse-agent.main.server="$SERVER" || true
-	uci -q set netpulse-agent.main.slug="$SLUG" || true
-	uci -q set netpulse-agent.main.token=` + token + ` || true
-	uci -q commit netpulse-agent || true
-fi
+mv -f "$ENV_FILE.tmp" "$ENV_FILE"` + uci + `
 # procd rearma solito por el file (procd_set_param file), pero por
 # determinismo reiniciamos el servicio explícitamente.
 [ -x "$INIT" ] && "$INIT" restart >/dev/null 2>&1 || true

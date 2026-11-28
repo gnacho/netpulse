@@ -535,9 +535,11 @@ func (e *rearmEnv) pushNetgrip(slug string) {
 	e.reg.Ingest(&probe.Payload{Router: slug, Ts: e.now.Unix(), Version: "0.70.0", Kind: "netgrip"})
 }
 
-// TestRearmNetgripStaleUsaCmdNetgrip (#569): un agente NetGrip STALE (sin
-// push reciente) SÍ se rearma reiniciando el servicio netgrip del router (no
-// el netpulse-agent, que no existe en ese escenario).
+// TestRearmNetgripStaleUsaCmdNetgrip (#569, #2208): un agente NetGrip STALE
+// (sin push reciente) se rearma reiniciando el servicio netgrip del router (no
+// el netpulse-agent, que no existe en ese escenario). Si el push no vuelve, la
+// rotación de token va al env DEL PANEL (/etc/netgrip/netpulse.env), que es el
+// que su agente embebido lee; antes se saltaba y el panel quedaba en 401.
 func TestRearmNetgripStaleUsaCmdNetgrip(t *testing.T) {
 	env := makeRearmEnv(t, "patio")
 	env.pushNetgrip("patio")
@@ -551,8 +553,8 @@ func TestRearmNetgripStaleUsaCmdNetgrip(t *testing.T) {
 	if !res.Restarted {
 		t.Fatalf("rearm netgrip stale: Restarted=false %+v", res)
 	}
-	if env.ssh.count() != 1 {
-		t.Fatalf("quiero 1 comando SSH, tuve %d", env.ssh.count())
+	if env.ssh.count() != 2 {
+		t.Fatalf("quiero 2 comandos SSH (restart + rotación), tuve %d: %v", env.ssh.count(), env.ssh.cmds)
 	}
 	cmd := env.ssh.cmds[0]
 	if !strings.Contains(cmd, "/etc/init.d/netgrip") {
@@ -560,6 +562,13 @@ func TestRearmNetgripStaleUsaCmdNetgrip(t *testing.T) {
 	}
 	if strings.Contains(cmd, "netpulse-agent") {
 		t.Fatalf("el rearm netgrip NO debe tocar netpulse-agent, cmd=%q", cmd)
+	}
+	rot := env.ssh.cmds[1]
+	if !strings.Contains(rot, "ENV_FILE=/etc/netgrip/netpulse.env") {
+		t.Fatalf("la rotación de un NetGrip debe escribir el env del panel, cmd=%q", rot)
+	}
+	if strings.Contains(rot, "/etc/config/netpulse-agent") {
+		t.Fatalf("la rotación de un NetGrip no debe tocar la config del agente nativo, cmd=%q", rot)
 	}
 }
 
