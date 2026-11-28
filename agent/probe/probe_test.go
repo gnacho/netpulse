@@ -411,9 +411,11 @@ func TestParsePortsYLayout(t *testing.T) {
 	if err != nil || len(layout) != 5 || layout[0].ID != "wan" || layout[1].Label != "LAN 1" {
 		t.Fatalf("layout: %v %+v", err, layout)
 	}
-	// AP en bridge: wan en br-lan → se re-etiqueta LAN 5
+	// AP en bridge: wan en br-lan → se re-etiqueta LAN 5 y va al final del
+	// chasis (#2181: el layout la trae delante porque la WAN suele ir a la
+	// izquierda; puenteada, el panel lee LAN 1..LAN 4, LAN 5).
 	ports := BuildEthPorts(layout, states, map[string]bool{"wan": true}, nil, "")
-	if len(ports) != 6 || ports[0].Label != "LAN 5" {
+	if len(ports) != 6 || ports[4].Label != "LAN 5" || ports[4].ID == "wan" {
 		t.Fatalf("ethports bridge: %+v", ports)
 	}
 	foundBridge := map[string]bool{}
