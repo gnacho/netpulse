@@ -683,6 +683,12 @@ export interface AgentInfo {
    */
   rejectedAt?: number
   /**
+   * Motivo del último 401 (#2211): `unauthorized`, `invalid_signature` o
+   * `stale_payload`. Permite decir en el tooltip qué mirar (token, versión del
+   * agente o reloj) en vez de solo "rechazado".
+   */
+  rejectedReason?: string
+  /**
    * true si el agente reporta una versión distinta de la del binario embebido
    * (Fase 6.3, issue #243): hay upgrade disponible vía POST /api/agents/{slug}/upgrade.
    */

@@ -57,6 +57,12 @@ const (
 	// válido, de modo que el badge de la tabla de agentes desaparece solo
 	// cuando el agente vuelve a autenticarse (tras Rearm/Reinstall).
 	agentRejectKeyPrefix = "agent.reject_ts."
+	// agentRejectReasonKeyPrefix: kv agent.reject_reason.<slug> = motivo del
+	// último rechazo (#2211): unauthorized, invalid_signature o stale_payload.
+	// El 401 solo dice "rechazado", y sin el motivo un reloj desfasado (que
+	// no se arregla reiniciando nada) parece un agente muerto. Se guarda con
+	// la misma vida que el timestamp: el primer push válido borra los dos.
+	agentRejectReasonKeyPrefix = "agent.reject_reason."
 	// maxTsDrift: ventana de frescura del `ts` del agente (anti-replay,
 	// auditoría de seguridad #2). Payloads con ts fuera de |±maxTsDrift|
 	// respecto al reloj del servidor se rechazan con 401 (evita reinyectar
@@ -156,10 +162,13 @@ func agentTokenKey(slug string) string { return agentTokenKeyPrefix + slug }
 
 func agentRejectKey(slug string) string { return agentRejectKeyPrefix + slug }
 
+func agentRejectReasonKey(slug string) string { return agentRejectReasonKeyPrefix + slug }
+
 // recordAgentReject deja constancia (best-effort) de un push rechazado por
 // autenticación (#1717): la tabla de agentes lo muestra como badge hasta que
-// un push válido lo limpia.
-func (s *server) recordAgentReject(slug string) {
+// un push válido lo limpia. Con el motivo (#2211) el panel puede decir por
+// qué, que es la diferencia entre "mira el reloj del router" y "reinícialo".
+func (s *server) recordAgentReject(slug, reason string) {
 	if s.db == nil {
 		return
 	}
@@ -167,6 +176,21 @@ func (s *server) recordAgentReject(slug string) {
 		`INSERT INTO kv (key, value) VALUES (?, ?)
 		 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
 		agentRejectKey(slug), strconv.FormatInt(time.Now().Unix(), 10))
+	if reason != "" {
+		_, _ = s.db.Exec(
+			`INSERT INTO kv (key, value) VALUES (?, ?)
+			 ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+			agentRejectReasonKey(slug), reason)
+	}
+}
+
+// clearAgentReject borra el badge y su motivo. Lo llaman el primer push
+// válido y la baja del agente.
+func (s *server) clearAgentReject(slug string) {
+	if s.db == nil {
+		return
+	}
+	_, _ = s.db.Exec("DELETE FROM kv WHERE key IN (?, ?)", agentRejectKey(slug), agentRejectReasonKey(slug))
 }
 
 // hashAgentToken: sha256 hex del token (lo único que se persiste).
@@ -283,7 +307,7 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !s.checkAgentToken(p.Router, token) {
 		// #1717: anota el rechazo para el badge de la tabla de agentes.
-		s.recordAgentReject(p.Router)
+		s.recordAgentReject(p.Router, "unauthorized")
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -291,8 +315,9 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	sig := r.Header.Get("X-Agent-Signature")
 	if err := checkHMAC(token, body, sig); err != nil {
 		// #1717: la firma va ligada al token, así que un fallo de firma es
-		// también un token que no sirve (mismo badge).
-		s.recordAgentReject(p.Router)
+		// también un token que no sirve (mismo badge). El motivo importa:
+		// una firma que no cuadra suele ser un agente viejo (#2211).
+		s.recordAgentReject(p.Router, "invalid_signature")
 		writeError(w, http.StatusUnauthorized, "invalid_signature", err.Error())
 		return
 	}
@@ -300,6 +325,7 @@ func (s *server) handleIngestAgent(w http.ResponseWriter, r *http.Request) {
 	// ventana de frescura respecto al reloj del servidor. Rechaza pushes
 	// viejos capturados/reinyectados y saltos de reloj grandes del agente.
 	if drift := time.Since(time.Unix(p.Ts, 0)); drift < -s.maxTsDrift || drift > s.maxTsDrift {
+		s.recordAgentReject(p.Router, "stale_payload")
 		writeError(w, http.StatusUnauthorized, "stale_payload",
 			"ts fuera de la ventana de frescura (revisa el reloj del router)")
 		return
@@ -782,6 +808,10 @@ type agentListItem struct {
 	// swapping/restarting/failed) con su marca de tiempo. null si no hay
 	// actividad reciente (#284: progreso en vivo para la UI).
 	Upgrade *agentUpgradeInfo `json:"upgrade,omitempty"`
+	// RejectedReason: motivo del último 401 (#2211): unauthorized,
+	// invalid_signature o stale_payload. Con RejectedAt, la UI puede decir
+	// qué mirar (token, versión del agente o reloj) en vez de solo "rechazado".
+	RejectedReason string `json:"rejectedReason,omitempty"`
 	// Kind: "native" (agente netpulse-agent) o "external" (pusher externo
 	// tipo scraper de switch gestionado, #285/#288). Default "native".
 	Kind string `json:"kind"`
@@ -896,6 +926,18 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 			}
 			rrows.Close()
 		}
+		// #2211: el motivo del rechazo, en su propia consulta por la misma
+		// razón que los routers (una sola conexión).
+		rejectReasons := map[string]string{}
+		if qrows, qerr := s.db.Query("SELECT key, value FROM kv WHERE key LIKE ?", agentRejectReasonKeyPrefix+"%"); qerr == nil {
+			for qrows.Next() {
+				var k, v string
+				if qrows.Scan(&k, &v) == nil {
+					rejectReasons[strings.TrimPrefix(k, agentRejectReasonKeyPrefix)] = v
+				}
+			}
+			qrows.Close()
+		}
 		rows, err := s.db.Query("SELECT key FROM kv WHERE key LIKE ? ORDER BY key", agentTokenKeyPrefix+"%")
 		if err == nil {
 			defer rows.Close()
@@ -928,6 +970,7 @@ func (s *server) handleAgentsList(w http.ResponseWriter, _ *http.Request) {
 					_, item.Fresh = s.agents.Fresh(slug)
 				}
 				item.RejectedAt = rejects[slug]
+				item.RejectedReason = rejectReasons[slug]
 				if payload != nil {
 					item.PanelPort = payload.PanelPort
 				}
@@ -1065,7 +1108,7 @@ func (s *server) forgetAgent(slug string) (tokenRevoked bool) {
 			tokenRevoked = true
 		}
 	}
-	_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(slug))
+	s.clearAgentReject(slug)
 	if _, err := s.db.Exec("DELETE FROM kv WHERE key = ?", agentStateKey(slug)); err != nil {
 		log.Printf("[netpulse] warning: could not purge agent state for %s: %v", slug, err)
 	}
@@ -1568,8 +1611,8 @@ func (s *server) acceptAgentPush(p *probe.Payload) bool {
 			key, strconv.FormatInt(p.Ts, 10)); err != nil {
 			log.Printf("[netpulse] could not persist last push from %s: %v", p.Router, err)
 		}
-		// #1717: el primer push válido limpia el badge de rechazos.
-		_, _ = s.db.Exec("DELETE FROM kv WHERE key = ?", agentRejectKey(p.Router))
+		// #1717: el primer push válido limpia el badge de rechazos y su motivo.
+		s.clearAgentReject(p.Router)
 	}
 	return true
 }

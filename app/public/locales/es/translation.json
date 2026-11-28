@@ -1520,7 +1520,9 @@
       "netgripHint": "El agente vive en el panel NetGrip: Actualizar actualiza el propio panel",
       "netgripStaleHint": "El agente vive en el panel NetGrip. Si no reporta, reinícialo con el botón (reinicia el servicio NetGrip en el router) o actualiza el panel si hay versión nueva.",
       "rejectedBadge": "Token rechazado",
-      "rejectedTip": "El servidor rechaza los pushes de este agente con 401: el token no coincide (típico tras un reinicio del router o un cambio de servidor). Rearmar o Reinstalar lo arregla; el badge se limpia solo con el primer push válido."
+      "rejectedTip": "El servidor rechaza los pushes de este agente con 401: el token no coincide (típico tras un reinicio del router o un cambio de servidor). Rearmar o Reinstalar lo arregla; el badge se limpia solo con el primer push válido.",
+      "rejectedTipStale": "El servidor rechaza a este agente porque la marca de tiempo del payload cae fuera de su ventana de frescura. Mira primero el reloj de la unidad: tiene que estar a pocos minutos del servidor.",
+      "rejectedTipSignature": "El servidor rechaza a este agente porque la firma no coincide. Normalmente el binario del agente es más viejo de lo que espera este servidor."
     },
     "upgradeUpdatedDetail": "Actualizado · {{count}} pasos · {{secs}} s",
     "noVitals": "Sin métricas de sistema",
