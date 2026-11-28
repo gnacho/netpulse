@@ -627,6 +627,17 @@
       "unpin": "取消固定筛选",
       "unpinHint": "打开客户端页面时不再恢复这组筛选",
       "unpinned": "已取消固定筛选"
+    },
+    "dns": {
+      "title": "DNS 活动",
+      "queries": "{{n}} 次查询",
+      "blocked": "拦截 {{n}} 次",
+      "unavailable": "DNS 活动需要 AdGuard Home 集成。请在「设置 > 集成」中添加。",
+      "disabled": "AdGuard 的查询日志已停用，因此没有可归属到该设备的记录。",
+      "anonymized": "AdGuard 正在对客户端 IP 做匿名化处理，查询无法归属到设备。请关闭 anonymize_client_ip。",
+      "error": "无法读取 DNS 活动。请确认 AdGuard Home 可以访问。",
+      "empty": "所选时间范围内没有该设备的 DNS 查询记录。",
+      "gap": "部分记录在读取前已被 AdGuard 日志轮转覆盖，这段时间范围有缺口。"
     }
   },
   "routers": {
@@ -1660,8 +1671,9 @@
       "firmwareTargetPlaceholder": "例如 25.12.5",
       "firmwareTargetHint": "可选。若已安装固件与此版本不符，NetPulse 会告警。",
       "snmpEnabled": "SNMP 轮询",
-      "snmpEnabledHint": "SNMP 轮询取代 SSH：此设备不尝试 SSH 连接。",
-      "snmpCommunity": "团体字（SNMPv2c）",
+      "snmpEnabledHint": "清单改由 SNMP 读取。设备支持时，升级、配置备份和控制台探测仍走 SSH。",
+      "snmpCommunity": "团体字（只读）",
+      "snmpCommunityHint": "团体字配置在设备本身，不是用户名或口令。v1 和 v2c 不加密传输。",
       "snmpPort": "端口",
       "snmpPollInterval": "间隔（秒）",
       "sshPort": "SSH 端口",
@@ -3310,6 +3322,19 @@
       "refresh": "刷新目录",
       "refreshing": "正在刷新…",
       "updated": "目录已于 {{time}} 更新"
+    }
+  },
+  "dns": {
+    "overview": {
+      "title": "DNS 活动（24 小时）",
+      "totals": "{{queries}} 次查询，拦截 {{blocked}} 次",
+      "newDomains": "新增域名",
+      "unavailable": "添加 AdGuard Home 集成后，可查看网络在向哪些域名发起解析。",
+      "disabled": "AdGuard 的查询日志已停用，无法提供按域名的活动。",
+      "anonymized": "AdGuard 正在对客户端 IP 做匿名化处理，域名有记录，但无法关联到设备。",
+      "error": "无法从 AdGuard 读取 DNS 活动。",
+      "empty": "暂无 DNS 活动记录，首次读取可能需要一分钟。",
+      "gap": "AdGuard 日志在读取前已轮转，这段时间范围有缺口。"
     }
   },
   "whatsnew": {
