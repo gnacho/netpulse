@@ -11,6 +11,11 @@ y este proyecto se adhiere a [Versionado Semántico](https://semver.org/lang/es/
 
 - A rejected push says why. The server answered `unauthorized`, `invalid_signature` or `stale_payload` and kept only a timestamp, so the panel showed the same "token rejected" badge for a stale token, an agent older than the server and a unit whose clock is minutes off. The reason is stored next to the timestamp, returned by `/api/agents` as `rejectedReason`, shown in the badge tooltip with what to check, and quoted in the auto-rearm alert, which no longer says "restarted but did not come back" when the pushes never got in (#2211).
 
+### Changed
+
+- The "Unread only" filter of the alerts page carries the number of unread alerts it would show and starts off, so the whole log is visible by default. When the filter is the only thing emptying the list, the empty state says so and offers one click back to the full log in all four languages (#2214).
+- Marking an alert as read has a bigger target, 32 px (36 px on touch), in the feed and in the home card, so the main action of the row is no longer its smallest button (#2214).
+
 ### Fixed
 
 - A NetGrip panel whose embedded agent carries an old token never recovered. The rearm restarted the panel and then rotated the token in the native agent's environment file, which NetGrip does not read, so the panel kept answering 401 every cycle and the supervisor kept restarting it on each cooldown. The token now goes into `/etc/netgrip/netpulse.env`, the file the embedded agent reads, and the panel is restarted after it (#2208).

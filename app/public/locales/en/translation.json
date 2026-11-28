@@ -12,6 +12,9 @@
       "hoy": "Today"
     },
     "emptyDesc": "There is nothing that requires your attention. The network is quiet.",
+    "emptyFilteredAction": "Show all alerts",
+    "emptyFilteredDesc": "Every alert in this view is read. Turn off \"Unread only\" to see the whole log.",
+    "emptyFilteredTitle": "No unread alerts",
     "emptyTitle": "Total silence",
     "eventCount_one": "1 event",
     "eventCount_other": "{{count}} alerts",

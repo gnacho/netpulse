@@ -94,6 +94,9 @@ const CATEGORY_META: Record<AlertCategory, { icon: LucideIcon; tile: string }> =
 
 const LEVEL_ORDER: readonly AlertConfigLevel[] = ['urgent', 'all', 'none']
 
+// #1122: preferencia de vista persistida en localStorage.
+const UNREAD_ONLY_KEY = 'netpulse-alerts-onlyUnread'
+
 // ---------------------------------------------------------------------------
 // Filtros
 // ---------------------------------------------------------------------------
@@ -414,6 +417,10 @@ interface FeedRowProps {
 const ROW_ACTION =
   'flex items-center justify-center rounded-md p-1.5 text-text-muted transition-colors hover:bg-hover hover:text-accent disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-muted pointer-coarse:p-2.5'
 
+// #2214: marcar leído es la acción principal de la fila, con objetivo táctil
+// de 32 px (36 con puntero grueso) sin cambiar el alto de la fila.
+const MARK_READ_ACTION = cn(ROW_ACTION, 'h-8 w-8 p-0 pointer-coarse:h-9 pointer-coarse:w-9')
+
 function FeedRow({ ev, index, read, expanded, onToggle, reduce, onMarkRead, onSnooze, onUnsnooze, onDismiss, onApproveImpostor, feedById }: FeedRowProps) {
   const { t, i18n } = useTranslation()
   const sev = SEVERITY[ev.severity]
@@ -526,7 +533,7 @@ function FeedRow({ ev, index, read, expanded, onToggle, reduce, onMarkRead, onSn
                 type="button"
                 disabled={read}
                 onClick={(e) => { e.stopPropagation(); onMarkRead(ev.id) }}
-                className={ROW_ACTION}
+                className={MARK_READ_ACTION}
                 title={t('alerts.actions.markRead')}
                 aria-label={t('alerts.actions.markRead')}
               >
@@ -681,12 +688,11 @@ export default function Alerts() {
   const [cats, setCats] = useState<ReadonlySet<AlertCategory>>(new Set())
   const [searchParams] = useSearchParams()
   // Persistencia de la opción de vista: sobrevive a recargas y sesiones.
-  // Sin preferencia guardada (instalación nueva) arranca en "solo no
-  // leídas"; ?unread=1 en la URL fuerza el estado.
+  // #2214: sin preferencia guardada arranca mostrando el registro completo;
+  // el chip "Solo no leídas" y ?unread=1 en la URL activan el filtro.
   const [onlyUnread, setOnlyUnread] = useState(() => {
     if (searchParams.get('unread') === '1') return true
-    const stored = localStorage.getItem('netpulse-alerts-onlyUnread')
-    return stored === null ? true : stored === '1'
+    return localStorage.getItem(UNREAD_ONLY_KEY) === '1'
   })
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [burst, setBurst] = useState(0)
@@ -706,6 +712,14 @@ export default function Alerts() {
   // vía overview/SSE; en demo, del estado del provider). Nada de useState local.
   const isRead = (ev: FeedEvent) => ev.read
   const unread = unreadAlerts
+  // #2214: no leídas que este feed puede mostrar (ya sin las categorías en
+  // "Nada"). Es el número que acompaña al chip del filtro.
+  const unreadInFeed = useMemo(() => alertFeed.filter((ev) => !ev.read).length, [alertFeed])
+
+  const setOnlyUnreadPersisted = (v: boolean) => {
+    localStorage.setItem(UNREAD_ONLY_KEY, v ? '1' : '0')
+    setOnlyUnread(v)
+  }
 
   const [confirmClear, setConfirmClear] = useState(false)
 
@@ -1122,10 +1136,7 @@ export default function Alerts() {
           type="button"
           role="switch"
           aria-checked={onlyUnread}
-          onClick={() => setOnlyUnread((v) => {
-            localStorage.setItem('netpulse-alerts-onlyUnread', v ? '0' : '1')
-            return !v
-          })}
+          onClick={() => setOnlyUnreadPersisted(!onlyUnread)}
           className={cn(
             'inline-flex h-8 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors duration-150',
             onlyUnread
@@ -1135,6 +1146,16 @@ export default function Alerts() {
         >
           <span className={cn('h-1.5 w-1.5 rounded-full', onlyUnread ? 'bg-accent' : 'bg-text-muted')} />
           {t('alerts.onlyUnread')}
+          {unreadInFeed > 0 && (
+            <span
+              className={cn(
+                'rounded-full px-1.5 font-mono text-[11px] leading-4',
+                onlyUnread ? 'bg-accent/15 text-accent' : 'bg-hover text-text-muted',
+              )}
+            >
+              {unreadInFeed}
+            </span>
+          )}
         </button>
         <span className="ml-auto font-mono text-caption text-text-muted">
           {t('alerts.eventCount', { count: filtered.length })}
@@ -1144,11 +1165,23 @@ export default function Alerts() {
       {/* ④ Feed agrupado por día */}
       {groups.length === 0 ? (
         <div className="mt-5 rounded-2xl border border-border bg-surface">
-          <EmptyState
-            image="/empty-alerts.svg"
-            title={t('alerts.emptyTitle')}
-            description={t('alerts.emptyDesc')}
-          />
+          {/* #2214: si el filtro es lo único que vacía la lista, el estado
+              vacío lo dice y ofrece volver al registro completo. */}
+          {onlyUnread && unreadInFeed === 0 && alertFeed.length > 0 ? (
+            <EmptyState
+              image="/empty-alerts.svg"
+              title={t('alerts.emptyFilteredTitle')}
+              description={t('alerts.emptyFilteredDesc')}
+              actionLabel={t('alerts.emptyFilteredAction')}
+              onAction={() => setOnlyUnreadPersisted(false)}
+            />
+          ) : (
+            <EmptyState
+              image="/empty-alerts.svg"
+              title={t('alerts.emptyTitle')}
+              description={t('alerts.emptyDesc')}
+            />
+          )}
         </div>
       ) : (
         <motion.div
