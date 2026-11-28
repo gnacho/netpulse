@@ -12,6 +12,9 @@
       "hoy": "Hoy"
     },
     "emptyDesc": "No hay nada que requiera tu atención. La red está tranquila.",
+    "emptyFilteredAction": "Ver todas las alertas",
+    "emptyFilteredDesc": "Todas las alertas de esta vista están leídas. Desactiva \"Solo no leídas\" para ver el registro completo.",
+    "emptyFilteredTitle": "No hay alertas sin leer",
     "emptyTitle": "Silencio total",
     "eventCount_one": "1 evento",
     "eventCount_other": "{{count}} alertas",

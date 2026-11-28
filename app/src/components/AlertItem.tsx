@@ -20,6 +20,9 @@ const SEVERITY: Record<AlertSeverity, { icon: LucideIcon; tile: string; dot: str
 const ROW_ACTION =
   'flex items-center justify-center rounded-md p-1.5 text-text-muted transition-colors hover:bg-hover hover:text-accent disabled:cursor-default disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-text-muted pointer-coarse:p-2.5'
 
+// #2214: mismo objetivo táctil que en el feed (32 px, 36 con puntero grueso).
+const MARK_READ_ACTION = cn(ROW_ACTION, 'h-8 w-8 p-0 pointer-coarse:h-9 pointer-coarse:w-9')
+
 interface AlertItemProps {
   alert: AlertEvent
   onClick?: () => void
@@ -71,7 +74,7 @@ export function AlertItem({ alert, onClick, onMarkRead, onSnooze, onUnsnooze, cl
                 type="button"
                 disabled={alert.read}
                 onClick={(e) => { e.stopPropagation(); onMarkRead(alert.id) }}
-                className={ROW_ACTION}
+                className={MARK_READ_ACTION}
                 title={t('alerts.actions.markRead')}
                 aria-label={t('alerts.actions.markRead')}
               >

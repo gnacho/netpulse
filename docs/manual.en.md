@@ -309,7 +309,7 @@ The map is built from the bridge FDB (for wired clients), LLDP when available (t
 
 - **Summary**: three counters (unread warnings, alerts today, critical) with a per-cause breakdown.
 - **Alert configuration**: per category, the level (Urgent only / All / None) and a custom rules manager. "None" hides the category from the log and the bell; "Urgent only" and "All" decide only what notifies, and events are always recorded.
-- **Filters**: by severity, by kind, by category and "Unread only".
+- **Filters**: by severity, by kind, by category and "Unread only", which carries the number of unread alerts and starts off.
 - **Timeline feed** grouped by day, with severity by color and expandable context (a sparkline with a threshold line, or the WireGuard peer / affected device data).
 
 ### What data it needs

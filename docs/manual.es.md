@@ -309,7 +309,7 @@ El mapa se construye con el bridge FDB (para clientes por cable), LLDP cuando es
 
 - **Resumen**: tres contadores (avisos sin leer, alertas de hoy, críticos) con un desglose por causa.
 - **Configuración de alertas**: por categoría, el nivel (Solo urgentes / Todo / Nada) y un gestor de reglas personalizadas. "Nada" oculta la categoría del registro y de la campana; "Solo urgentes" y "Todo" deciden solo qué notifica, y los eventos se registran siempre.
-- **Filtros**: por severidad, por tipo, por categoría y "Solo no leídas".
+- **Filtros**: por severidad, por tipo, por categoría y "Solo no leídas", con el número de alertas sin leer, desactivado por defecto.
 - **Feed en línea de tiempo** agrupado por día, con severidad por color y contexto expandible (minigráfica con umbral, datos del peer WireGuard o del dispositivo afectado).
 
 ### Qué datos necesita

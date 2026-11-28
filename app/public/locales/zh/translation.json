@@ -1082,6 +1082,9 @@
       "hoy": "今天"
     },
     "emptyDesc": "没有任何需要你处理的事项。网络很安静。",
+    "emptyFilteredAction": "显示所有告警",
+    "emptyFilteredDesc": "此视图中的告警均已读。关闭 \"仅未读\" 即可查看完整记录。",
+    "emptyFilteredTitle": "没有未读告警",
     "emptyTitle": "一片宁静",
     "eventCount_one": "1 条事件",
     "eventCount_other": "{{count}} 条告警",
